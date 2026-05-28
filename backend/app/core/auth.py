@@ -1,19 +1,23 @@
+import hmac
 from fastapi import Security, HTTPException, status
-from fastapi.security import APIKeyHeader
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 
-_api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
+_bearer = HTTPBearer(auto_error=False)
 
 
-def require_api_key(authorization: str | None = Security(_api_key_header)) -> None:
-    if not authorization:
+def require_api_key(
+    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> None:
+    if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or token != settings.ADMIN_API_KEY:
+    if not hmac.compare_digest(credentials.credentials, settings.ADMIN_API_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
+            headers={"WWW-Authenticate": "Bearer"},
         )

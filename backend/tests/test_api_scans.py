@@ -53,6 +53,13 @@ def test_trigger_scan_returns_202():
     assert response.status_code == 202
 
 
+def test_trigger_scan_requires_auth():
+    from app.main import app
+    client = TestClient(app)
+    response = client.post("/api/v1/scans/", json={"client_id": str(uuid.uuid4())})
+    assert response.status_code == 401
+
+
 def test_get_scan_not_found():
     from app.main import app
     from app.core.database import get_db
