@@ -14,6 +14,7 @@ def test_health_endpoint():
 def test_trigger_scan_returns_202():
     from app.main import app
     from app.core.database import get_db
+    from app.core.auth import require_api_key
 
     mock_scan = MagicMock()
     mock_scan.id = uuid.uuid4()
@@ -44,6 +45,7 @@ def test_trigger_scan_returns_202():
     with patch("workers.tasks.scan_tasks.execute_scan") as mock_task:
         mock_task.delay = MagicMock()
         app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
         client = TestClient(app)
         response = client.post("/api/v1/scans/", json={"client_id": str(uuid.uuid4())})
         app.dependency_overrides.clear()
@@ -54,6 +56,7 @@ def test_trigger_scan_returns_202():
 def test_get_scan_not_found():
     from app.main import app
     from app.core.database import get_db
+    from app.core.auth import require_api_key
 
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -62,6 +65,7 @@ def test_get_scan_not_found():
         yield mock_db
 
     app.dependency_overrides[get_db] = fake_get_db
+    app.dependency_overrides[require_api_key] = lambda: None
     client = TestClient(app)
     response = client.get(f"/api/v1/scans/{uuid.uuid4()}")
     app.dependency_overrides.clear()
