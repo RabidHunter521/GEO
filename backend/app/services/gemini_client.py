@@ -3,7 +3,7 @@ import structlog
 
 logger = structlog.get_logger()
 
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-2.5-flash-lite"
 
 
 class GeminiClient:
