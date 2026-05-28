@@ -26,7 +26,8 @@ def compute_geo_score(client, ai_citability: float) -> float:
 
 def get_score_band(score: float) -> tuple[str, str]:
     """Return (band_name, color) for a given score."""
+    floored = int(score)
     for band, (low, high) in SCORE_BANDS.items():
-        if low <= score <= high:
+        if low <= floored <= high:
             return band, SCORE_COLORS[band]
     return "low", SCORE_COLORS["low"]
