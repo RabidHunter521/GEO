@@ -4,11 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.constants import MAX_COMPETITORS
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.schemas.competitor import CompetitorCreate, CompetitorResponse
-
-MAX_COMPETITORS = 5
 
 router = APIRouter(prefix="/clients/{client_id}/competitors", tags=["competitors"])
 
@@ -58,16 +57,15 @@ def delete_competitor(
     competitor_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
+    _get_client_or_404(client_id, db)
     comp = (
         db.query(Competitor)
-        .filter(Competitor.id == competitor_id)
-        .filter(Competitor.client_id == client_id)
+        .filter(Competitor.id == competitor_id, Competitor.client_id == client_id)
         .first()
     )
-    if not comp:
-        raise HTTPException(status_code=404, detail="Competitor not found")
-    db.delete(comp)
-    db.commit()
+    if comp:
+        db.delete(comp)
+        db.commit()
 
 
 def _get_client_or_404(client_id: uuid.UUID, db: Session) -> Client:

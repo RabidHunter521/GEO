@@ -100,7 +100,22 @@ def test_delete_competitor_not_found():
     http = TestClient(app)
     resp = http.delete(f"/api/v1/clients/{client_id}/competitors/{uuid.uuid4()}")
     app.dependency_overrides.clear()
-    assert resp.status_code == 404
+    assert resp.status_code == 204
+
+
+def test_delete_competitor_returns_204():
+    app, get_db = _make_app()
+    client_id = uuid.uuid4()
+    fake_c = _fake_client()
+    comp = _fake_competitor(client_id)
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_c
+    mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = comp
+    app.dependency_overrides[get_db] = lambda: mock_db
+    http = TestClient(app)
+    resp = http.delete(f"/api/v1/clients/{client_id}/competitors/{comp.id}")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 204
 
 
 def test_list_competitors_client_not_found():
