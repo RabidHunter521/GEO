@@ -13,7 +13,7 @@ sqlalchemy = "^2.0"
 alembic = "^1.14"
 celery = {extras = ["redis"], version = "^5.4"}
 redis = "^5.2"
-google-generativeai = "^0.8"
+google-genai = "^1.0"
 pydantic-settings = "^2.6"
 psycopg2-binary = "^2.9"
 structlog = "^24.4"
