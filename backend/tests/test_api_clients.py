@@ -1,4 +1,5 @@
 import uuid
+import pytest
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
@@ -98,8 +99,12 @@ def test_update_client():
     existing = _fake_client("Old Name")
     existing.city = None
 
+    def fake_refresh(obj):
+        obj.city = "Kuala Lumpur"
+
     mock_db = MagicMock()
     mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock(side_effect=fake_refresh)
     app.dependency_overrides[get_db] = lambda: mock_db
     client = TestClient(app)
     response = client.patch(
@@ -108,6 +113,7 @@ def test_update_client():
     )
     app.dependency_overrides.clear()
     assert response.status_code == 200
+    assert response.json()["city"] == "Kuala Lumpur"
 
 
 def test_latest_geo_score_returns_none_when_no_scans():
@@ -125,8 +131,15 @@ def test_latest_geo_score_returns_none_when_no_scans():
     assert response.json() is None
 
 
-def test_endpoints_require_auth():
+@pytest.mark.parametrize("method,path", [
+    ("GET",   "/api/v1/clients"),
+    ("POST",  "/api/v1/clients"),
+    ("GET",   f"/api/v1/clients/{uuid.uuid4()}"),
+    ("PATCH", f"/api/v1/clients/{uuid.uuid4()}"),
+    ("GET",   f"/api/v1/clients/{uuid.uuid4()}/geo-score/latest"),
+])
+def test_endpoints_require_auth(method, path):
     from app.main import app
     client = TestClient(app)
-    response = client.get("/api/v1/clients")
+    response = client.request(method, path, json={})
     assert response.status_code == 401

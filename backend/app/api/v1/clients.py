@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
@@ -21,14 +21,35 @@ def list_clients(db: Session = Depends(get_db)):
         .order_by(desc(Client.created_at))
         .all()
     )
+    if not clients:
+        return []
+
+    client_ids = [c.id for c in clients]
+
+    # Single query: latest geo score per client using a subquery
+    latest_scan_subq = (
+        db.query(
+            GeoScore.client_id,
+            func.max(GeoScore.computed_at).label("max_computed_at"),
+        )
+        .filter(GeoScore.client_id.in_(client_ids))
+        .group_by(GeoScore.client_id)
+        .subquery()
+    )
+    latest_scores = (
+        db.query(GeoScore)
+        .join(
+            latest_scan_subq,
+            (GeoScore.client_id == latest_scan_subq.c.client_id)
+            & (GeoScore.computed_at == latest_scan_subq.c.max_computed_at),
+        )
+        .all()
+    )
+    score_by_client = {s.client_id: s for s in latest_scores}
+
     items = []
     for c in clients:
-        latest = (
-            db.query(GeoScore)
-            .filter(GeoScore.client_id == c.id)
-            .order_by(desc(GeoScore.computed_at))
-            .first()
-        )
+        latest = score_by_client.get(c.id)
         base = ClientResponse.model_validate(c).model_dump()
         items.append(
             ClientListItem(
@@ -61,7 +82,7 @@ def create_client(body: ClientCreate, db: Session = Depends(get_db)):
 )
 def get_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
-    if not c:
+    if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
     return c
 
@@ -73,9 +94,9 @@ def get_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
 )
 def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
-    if not c:
+    if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    for field, value in body.model_dump(exclude_unset=True).items():
         setattr(c, field, value)
     db.commit()
     db.refresh(c)
@@ -89,7 +110,7 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
 )
 def get_latest_geo_score(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
-    if not c:
+    if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
     return (
         db.query(GeoScore)
