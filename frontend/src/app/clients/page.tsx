@@ -1,6 +1,7 @@
 // frontend/src/app/clients/page.tsx
 import { getClients } from "@/lib/api"
 import { ClientCard } from "@/components/clients/ClientCard"
+import { AddClientButton } from "@/components/clients/AddClientButton"
 
 export default async function ClientsPage() {
   const clients = await getClients()
@@ -14,10 +15,7 @@ export default async function ClientsPage() {
             {clients.length} client{clients.length !== 1 ? "s" : ""}
           </p>
         </div>
-        {/* AddClientButton added in Task 9 */}
-        <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm">
-          Add Client
-        </button>
+        <AddClientButton />
       </div>
 
       {clients.length === 0 ? (

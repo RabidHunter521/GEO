@@ -4,6 +4,7 @@
 import { revalidatePath } from "next/cache"
 import {
   createClient as apiCreateClient,
+  updateClient as apiUpdateClient,
   addCompetitor as apiAddCompetitor,
   deleteCompetitor as apiDeleteCompetitor,
 } from "@/lib/api"
@@ -33,4 +34,18 @@ export async function deleteCompetitorAction(
 ) {
   await apiDeleteCompetitor(clientId, competitorId)
   revalidatePath(`/clients/${clientId}`)
+}
+
+export async function updateClientAction(
+  id: string,
+  data: {
+    description?: string
+    target_audience?: string
+    city?: string
+    state?: string
+    contact_email?: string
+  },
+) {
+  await apiUpdateClient(id, data)
+  revalidatePath(`/clients/${id}`)
 }
