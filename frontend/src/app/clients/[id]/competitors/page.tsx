@@ -142,9 +142,9 @@ export default async function CompetitorsPage({ params }: Props) {
             {/* Query breakdown */}
             {comp.queries.length > 0 ? (
               <div className="divide-y">
-                {comp.queries.map((q, i) => (
+                {comp.queries.map((q) => (
                   <div
-                    key={i}
+                    key={`${comp.id}-${q.category}`}
                     className="flex items-center justify-between px-5 py-3 text-sm"
                   >
                     <div className="flex items-center gap-3">
