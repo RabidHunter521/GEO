@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -95,5 +95,29 @@ export function deleteCompetitor(
 ): Promise<void> {
   return apiFetch<void>(`/api/v1/clients/${clientId}/competitors/${competitorId}`, {
     method: "DELETE",
+  })
+}
+
+export function getCompetitorIntelligence(clientId: string): Promise<CompetitorIntelligenceResponse> {
+  return apiFetch<CompetitorIntelligenceResponse>(
+    `/api/v1/clients/${clientId}/competitors/intelligence`,
+  )
+}
+
+// ── Toolkit ───────────────────────────────────────────────────────────────────
+
+export function getToolkitFiles(clientId: string): Promise<ToolkitFiles | null> {
+  return apiFetch<ToolkitFiles | null>(`/api/v1/clients/${clientId}/toolkit/files`)
+}
+
+export function generateToolkitFiles(clientId: string): Promise<ToolkitFiles> {
+  return apiFetch<ToolkitFiles>(`/api/v1/clients/${clientId}/toolkit/generate`, {
+    method: "POST",
+  })
+}
+
+export function verifyToolkitFiles(clientId: string): Promise<VerificationResult> {
+  return apiFetch<VerificationResult>(`/api/v1/clients/${clientId}/toolkit/verify`, {
+    method: "POST",
   })
 }

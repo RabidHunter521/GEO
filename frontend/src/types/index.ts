@@ -48,3 +48,45 @@ export interface ScoreBand {
   name: "excellent" | "good" | "fair" | "developing" | "low"
   color: "green" | "yellow" | "red"
 }
+
+export interface ToolkitFiles {
+  id: string
+  client_id: string
+  llms_txt: string
+  schema_json: string
+  robots_txt: string
+  generated_at: string
+  llms_verified: boolean
+  schema_verified: boolean
+  robots_verified: boolean
+  verified_at: string | null
+}
+
+export interface VerificationResult {
+  llms_verified: boolean
+  schema_verified: boolean
+  robots_verified: boolean
+  technical_foundations_updated: boolean
+  structured_data_updated: boolean
+}
+
+export interface CompetitorQueryBreakdown {
+  category: string
+  query_text: string
+  brand_detected: boolean
+}
+
+export interface CompetitorScore {
+  id: string
+  name: string
+  website: string | null
+  ai_citability: number
+  queries: CompetitorQueryBreakdown[]
+  is_winning: boolean
+}
+
+export interface CompetitorIntelligenceResponse {
+  client_ai_citability: number | null
+  competitors: CompetitorScore[]
+  last_scan_at: string | null
+}
