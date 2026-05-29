@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch
-from app.services.toolkit_service import generate_robots_txt, generate_llms_txt, generate_schema_json
+from app.services.toolkit_service import generate_robots_txt, generate_llms_txt, generate_schema_json, generate_toolkit_files
 
 
 def _fake_client():
@@ -59,3 +59,20 @@ def test_generate_schema_json_calls_claude_and_returns_content():
 
     assert result == schema
     mock_anthropic.messages.create.assert_called_once()
+
+
+def test_generate_toolkit_files_returns_all_three_keys():
+    client = _fake_client()
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="generated content")]
+
+    with patch("app.services.toolkit_service._anthropic_client") as mock_client_fn:
+        mock_anthropic = MagicMock()
+        mock_anthropic.messages.create.return_value = mock_response
+        mock_client_fn.return_value = mock_anthropic
+        result = generate_toolkit_files(client)
+
+    assert set(result.keys()) == {"llms_txt", "schema_json", "robots_txt"}
+    assert result["llms_txt"] == "generated content"
+    assert result["schema_json"] == "generated content"
+    assert "GPTBot" in result["robots_txt"]
