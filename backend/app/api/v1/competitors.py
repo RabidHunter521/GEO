@@ -96,7 +96,7 @@ def get_intelligence(client_id: uuid.UUID, db: Session = Depends(get_db)):
     return CompetitorIntelligenceResponse(
         client_ai_citability=client_citability,
         competitors=competitor_scores,
-        last_scan_at=latest_scan.completed_at.isoformat() if latest_scan.completed_at else None,
+        last_scan_at=latest_scan.completed_at.isoformat() + "Z" if latest_scan.completed_at else None,
     )
 
 

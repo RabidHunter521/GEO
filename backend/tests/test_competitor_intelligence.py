@@ -90,8 +90,10 @@ def test_intelligence_no_scan_returns_null_citability():
     )
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
-    resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
-    app.dependency_overrides.clear()
+    try:
+        resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 200
     data = resp.json()
     assert data["client_ai_citability"] is None
@@ -127,8 +129,10 @@ def test_intelligence_competitor_winning():
     )
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
-    resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
-    app.dependency_overrides.clear()
+    try:
+        resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 200
     data = resp.json()
     assert data["client_ai_citability"] == 25.0
@@ -162,8 +166,10 @@ def test_intelligence_competitor_losing():
     )
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
-    resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
-    app.dependency_overrides.clear()
+    try:
+        resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 200
     data = resp.json()
     assert data["client_ai_citability"] == 100.0
@@ -177,8 +183,10 @@ def test_intelligence_client_not_found_returns_404():
     mock_db.get.return_value = None
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
-    resp = http.get(f"/api/v1/clients/{uuid.uuid4()}/competitors/intelligence")
-    app.dependency_overrides.clear()
+    try:
+        resp = http.get(f"/api/v1/clients/{uuid.uuid4()}/competitors/intelligence")
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 404
 
 

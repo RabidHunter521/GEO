@@ -48,6 +48,45 @@ export default async function CompetitorsPage({ params }: Props) {
     )
   }
 
+  // No scan yet — show early return with competitor name stubs
+  if (data.client_ai_citability === null) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-xl font-semibold">Competitor Intelligence</h2>
+        </div>
+        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+          <p className="font-medium">Run your first scan to see competitor intelligence</p>
+          <p className="text-sm mt-1">
+            Go to{" "}
+            <Link href={`/clients/${id}/scan`} className="underline underline-offset-4">
+              Scan &amp; Visibility
+            </Link>{" "}
+            and trigger a scan.
+          </p>
+        </div>
+        <div className="space-y-4">
+          {data.competitors.map((comp) => (
+            <div key={comp.id} className="rounded-lg border overflow-hidden">
+              <div className="flex items-start justify-between px-5 py-4 bg-muted/20">
+                <div>
+                  <p className="font-semibold">{comp.name}</p>
+                  {comp.website && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{comp.website}</p>
+                  )}
+                </div>
+              </div>
+              <div className="px-5 py-4 text-sm text-muted-foreground">
+                No scan data yet — run a scan to see this competitor&apos;s visibility.
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Full data view — only reached when client_ai_citability is not null
   const winningCount = data.competitors.filter((c) => c.is_winning).length
 
   return (
@@ -78,33 +117,17 @@ export default async function CompetitorsPage({ params }: Props) {
         )}
       </div>
 
-      {/* No scan yet */}
-      {data.client_ai_citability === null && (
-        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
-          <p className="font-medium">Run your first scan to see competitor intelligence</p>
-          <p className="text-sm mt-1">
-            Go to{" "}
-            <Link href={`/clients/${id}/scan`} className="underline underline-offset-4">
-              Scan &amp; Visibility
-            </Link>{" "}
-            and trigger a scan.
+      {/* Client score summary */}
+      <div className="rounded-lg border px-5 py-4 flex items-center justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground">Your AI visibility</p>
+          <p className="text-2xl font-bold tabular-nums">
+            {data.client_ai_citability.toFixed(0)}
+            <span className="text-base font-normal text-muted-foreground">%</span>
           </p>
         </div>
-      )}
-
-      {/* Client score summary */}
-      {data.client_ai_citability !== null && (
-        <div className="rounded-lg border px-5 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">Your AI visibility</p>
-            <p className="text-2xl font-bold tabular-nums">
-              {data.client_ai_citability.toFixed(0)}
-              <span className="text-base font-normal text-muted-foreground">%</span>
-            </p>
-          </div>
-          <p className="text-sm text-muted-foreground">visibility frequency</p>
-        </div>
-      )}
+        <p className="text-sm text-muted-foreground">visibility frequency</p>
+      </div>
 
       {/* Competitor cards */}
       <div className="space-y-4">
