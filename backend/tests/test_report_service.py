@@ -157,3 +157,142 @@ def test_build_report_html_contains_manual_assessment_label():
     client.name = "Acme Corp"
     html = _build_report_html(client, _make_report_data())
     assert "Assessed by SeenBy team" in html
+
+
+# ── generate_report_pdf ───────────────────────────────────────────────────────
+
+def test_generate_report_pdf_returns_none_for_archived_client():
+    from app.services.report_service import generate_report_pdf
+    db = MagicMock()
+    client = MagicMock()
+    client.archived_at = datetime.utcnow()
+    db.get.return_value = client
+    assert generate_report_pdf(uuid.uuid4(), db) is None
+
+
+def test_generate_report_pdf_returns_none_when_no_scan_data():
+    from app.services.report_service import generate_report_pdf
+    db = MagicMock()
+    client = MagicMock()
+    client.archived_at = None
+    db.get.return_value = client
+    with patch("app.services.report_service._gather_report_data", return_value=None):
+        assert generate_report_pdf(uuid.uuid4(), db) is None
+
+
+def test_generate_report_pdf_uploads_to_r2_and_returns_report():
+    from app.services.report_service import generate_report_pdf
+    db = MagicMock()
+    client = MagicMock()
+    client.id = uuid.uuid4()
+    client.name = "Acme Corp"
+    client.archived_at = None
+    db.get.return_value = client
+
+    with patch("app.services.report_service._gather_report_data", return_value=_make_report_data()), \
+         patch("app.services.report_service.weasyprint") as mock_wp, \
+         patch("app.services.report_service.upload_pdf", return_value="https://pub.seenby.my/reports/test.pdf") as mock_upload:
+        mock_wp.HTML.return_value.write_pdf.return_value = b"fake-pdf-bytes"
+        result = generate_report_pdf(client.id, db)
+
+    mock_upload.assert_called_once()
+    assert mock_upload.call_args[0][1] == b"fake-pdf-bytes"
+    db.add.assert_called()
+    db.commit.assert_called()
+
+
+def test_generate_report_pdf_logs_report_generated_activity():
+    from app.services.report_service import generate_report_pdf
+    db = MagicMock()
+    client = MagicMock()
+    client.id = uuid.uuid4()
+    client.archived_at = None
+    db.get.return_value = client
+
+    added_objects = []
+    db.add.side_effect = lambda obj: added_objects.append(obj)
+
+    with patch("app.services.report_service._gather_report_data", return_value=_make_report_data()), \
+         patch("app.services.report_service.weasyprint") as mock_wp, \
+         patch("app.services.report_service.upload_pdf", return_value="https://pub.seenby.my/r.pdf"):
+        mock_wp.HTML.return_value.write_pdf.return_value = b"pdf"
+        generate_report_pdf(client.id, db)
+
+    event_types = [o.event_type for o in added_objects if hasattr(o, "event_type")]
+    assert "report_generated" in event_types
+
+
+# ── send_report_email ─────────────────────────────────────────────────────────
+
+def _make_mock_report(sent_at=None):
+    r = MagicMock()
+    r.id = uuid.uuid4()
+    r.client_id = uuid.uuid4()
+    r.r2_key = "reports/client/20260601.pdf"
+    r.r2_url = "https://pub.seenby.my/reports/client/20260601.pdf"
+    r.period_start = datetime(2026, 5, 1)
+    r.overall_score = 72.0
+    r.sent_at = sent_at
+    return r
+
+
+def test_send_report_email_returns_false_when_already_sent():
+    from app.services.report_service import send_report_email
+    db = MagicMock()
+    db.get.return_value = _make_mock_report(sent_at=datetime.utcnow())
+    assert send_report_email(uuid.uuid4(), db) is False
+
+
+def test_send_report_email_returns_false_when_no_contact_email():
+    from app.services.report_service import send_report_email
+    db = MagicMock()
+    report = _make_mock_report()
+    client = MagicMock()
+    client.contact_email = None
+    db.get.side_effect = [report, client]
+    assert send_report_email(uuid.uuid4(), db) is False
+
+
+def test_send_report_email_sends_email_with_pdf_attachment():
+    import resend as resend_module
+    from app.services.report_service import send_report_email
+    db = MagicMock()
+    report = _make_mock_report()
+    client = MagicMock()
+    client.name = "Acme Corp"
+    client.contact_email = "client@acme.com"
+    db.get.side_effect = [report, client]
+
+    with patch("app.services.report_service.download_pdf", return_value=b"pdf-bytes"), \
+         patch.object(resend_module.Emails, "send") as mock_send:
+        result = send_report_email(uuid.uuid4(), db)
+
+    assert result is True
+    call_kwargs = mock_send.call_args[0][0]
+    assert call_kwargs["to"] == ["client@acme.com"]
+    assert "May 2026" in call_kwargs["subject"]
+    assert len(call_kwargs["attachments"]) == 1
+    assert call_kwargs["attachments"][0]["filename"].endswith(".pdf")
+
+
+def test_send_report_email_marks_report_sent_and_logs_activity():
+    import resend as resend_module
+    from app.services.report_service import send_report_email
+    db = MagicMock()
+    report = _make_mock_report()
+    client = MagicMock()
+    client.name = "Acme Corp"
+    client.contact_email = "client@acme.com"
+    db.get.side_effect = [report, client]
+
+    added_objects = []
+    db.add.side_effect = lambda obj: added_objects.append(obj)
+
+    with patch("app.services.report_service.download_pdf", return_value=b"pdf-bytes"), \
+         patch.object(resend_module.Emails, "send"):
+        send_report_email(uuid.uuid4(), db)
+
+    assert report.sent_at is not None
+    event_types = [o.event_type for o in added_objects if hasattr(o, "event_type")]
+    assert "report_sent" in event_types
+    db.commit.assert_called()

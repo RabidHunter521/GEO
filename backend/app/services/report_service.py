@@ -2,9 +2,12 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import structlog
+import resend as resend_module
 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+
+from app.core.config import settings
 
 try:
     import weasyprint  # noqa: F401 — used when generating PDF bytes
@@ -379,5 +382,124 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my
   </p>
 
+</body>
+</html>"""
+
+
+def generate_report_pdf(client_id: uuid.UUID, db: Session) -> Report | None:
+    """Generate PDF, upload to R2, save record. Returns None if client archived or no scan data."""
+    client = db.get(Client, client_id)
+    if not client or client.archived_at is not None:
+        return None
+
+    data = _gather_report_data(client, db)
+    if data is None:
+        logger.warning("no_scan_data_for_report", client_id=str(client_id))
+        return None
+
+    html = _build_report_html(client, data)
+    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+
+    key = f"reports/{client_id}/{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
+    r2_url = upload_pdf(key, pdf_bytes)
+
+    report = Report(
+        client_id=client_id,
+        r2_key=key,
+        r2_url=r2_url,
+        period_start=data.period_start,
+        period_end=data.period_end,
+        overall_score=data.overall_score,
+    )
+    db.add(report)
+    db.add(ActivityLog(
+        client_id=client_id,
+        event_type="report_generated",
+        note=f"Monthly report generated for {data.period_label}.",
+    ))
+    db.commit()
+    db.refresh(report)
+    logger.info("report_generated", client_id=str(client_id), report_id=str(report.id))
+    return report
+
+
+def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
+    """Download PDF from R2, email to client with attachment, mark sent. Returns False if already sent."""
+    report = db.get(Report, report_id)
+    if not report or report.sent_at is not None:
+        return False
+
+    client = db.get(Client, report.client_id)
+    if not client or not client.contact_email:
+        return False
+
+    pdf_bytes = download_pdf(report.r2_key)
+    period_label = report.period_start.strftime("%B %Y")
+    filename = f"SeenBy-Report-{period_label.replace(' ', '-')}.pdf"
+
+    resend_module.api_key = settings.RESEND_API_KEY
+    resend_module.Emails.send({
+        "from": "contact@seenby.my",
+        "to": [client.contact_email],
+        "subject": f"Your Monthly AI Visibility Report — {period_label} | {client.name}",
+        "html": _build_report_email_html(client, report, period_label),
+        "attachments": [{"filename": filename, "content": list(pdf_bytes)}],
+    })
+
+    report.sent_at = datetime.utcnow()
+    db.add(ActivityLog(
+        client_id=report.client_id,
+        event_type="report_sent",
+        note=f"Monthly report sent to {client.contact_email} for {period_label}.",
+    ))
+    db.commit()
+    logger.info("report_sent", report_id=str(report_id), to=client.contact_email)
+    return True
+
+
+def _build_report_email_html(client: Client, report: Report, period_label: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:8px;border:1px solid #e5e7eb;">
+        <tr><td style="background:#0f172a;padding:24px 32px;border-radius:8px 8px 0 0;">
+          <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">SeenBy</p>
+          <p style="margin:4px 0 0;color:#94a3b8;font-size:13px;">Monthly AI Visibility Report</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">
+            {client.name} &mdash; {period_label} Report
+          </h2>
+          <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
+            Your monthly AI Visibility Report is attached as a PDF. Open it to review
+            your score breakdown, competitor comparison, and recommended actions.
+          </p>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:24px;">
+            <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Overall GEO Score</p>
+            <p style="margin:0;font-size:28px;font-weight:700;color:#0f172a;">
+              {report.overall_score:.0f} / 100
+            </p>
+            <p style="margin:4px 0 0;font-size:14px;color:#6b7280;">
+              Your AI Visibility Score for {period_label}.
+            </p>
+          </div>
+          <p style="margin:32px 0 0;font-size:12px;color:#9ca3af;
+                    border-top:1px solid #f3f4f6;padding-top:16px;">
+            Tracked by SeenBy &middot;
+            <a href="mailto:contact@seenby.my"
+               style="color:#9ca3af;text-decoration:none;">contact@seenby.my</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
 </body>
 </html>"""
