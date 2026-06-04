@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     ANTHROPIC_API_KEY: str
+    RESEND_API_KEY: str
 
     @property
     def allowed_origins_list(self) -> list[str]:
