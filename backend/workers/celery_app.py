@@ -1,4 +1,3 @@
-# backend/workers/celery_app.py
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import settings
@@ -7,7 +6,11 @@ celery_app = Celery(
     "seenby",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["workers.tasks.scan_tasks", "workers.tasks.digest_tasks"],
+    include=[
+        "workers.tasks.scan_tasks",
+        "workers.tasks.digest_tasks",
+        "workers.tasks.report_tasks",
+    ],
 )
 
 celery_app.conf.update(
@@ -21,6 +24,10 @@ celery_app.conf.update(
         "weekly-digest-monday-9am-utc": {
             "task": "workers.tasks.digest_tasks.send_all_weekly_digests",
             "schedule": crontab(hour=9, minute=0, day_of_week=1),
+        },
+        "daily-report-check-9am-utc": {
+            "task": "workers.tasks.report_tasks.check_and_generate_due_reports",
+            "schedule": crontab(hour=9, minute=0),
         },
     },
 )
