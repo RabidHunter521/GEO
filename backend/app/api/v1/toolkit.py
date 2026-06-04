@@ -114,6 +114,6 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
 
 def _get_client_or_404(client_id: uuid.UUID, db: Session) -> Client:
     c = db.get(Client, client_id)
-    if not c:
+    if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
     return c
