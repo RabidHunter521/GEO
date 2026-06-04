@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     ANTHROPIC_API_KEY: str
     RESEND_API_KEY: str
+    CLOUDFLARE_R2_ENDPOINT_URL: str = ""
+    CLOUDFLARE_R2_ACCESS_KEY_ID: str = ""
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: str = ""
+    CLOUDFLARE_R2_BUCKET_NAME: str = "seenby-reports"
+    CLOUDFLARE_R2_PUBLIC_URL: str = ""
 
     @property
     def allowed_origins_list(self) -> list[str]:
