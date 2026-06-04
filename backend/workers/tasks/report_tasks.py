@@ -72,3 +72,4 @@ def _is_report_due(client: Client, db: Session) -> bool:
     )
     reference = last_report.generated_at if last_report else client.created_at
     return datetime.utcnow() >= reference + timedelta(days=30)
+

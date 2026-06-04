@@ -244,15 +244,16 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     _, tf_color = get_score_band(data.technical_foundations)
     _, sd_color = get_score_band(data.structured_data)
 
-    trend_messages = {
-        "up":    f"&#8593; Score improved from {data.prev_overall_score:.0f} to {data.overall_score:.0f}",
-        "down":  f"&#8595; Score decreased from {data.prev_overall_score:.0f} to {data.overall_score:.0f}",
-        "flat":  f"&#8594; Score held steady at {data.overall_score:.0f}",
-        "first": "First AI Visibility Report",
-    }
     trend_colors = {"up": "#16a34a", "down": "#dc2626", "flat": "#6b7280", "first": "#6b7280"}
-    trend_msg = trend_messages[data.trend]
     trend_color = trend_colors[data.trend]
+    if data.trend == "up":
+        trend_msg = f"&#8593; Score improved from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
+    elif data.trend == "down":
+        trend_msg = f"&#8595; Score decreased from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
+    elif data.trend == "flat":
+        trend_msg = f"&#8594; Score held steady at {data.overall_score:.0f}"
+    else:
+        trend_msg = "First AI Visibility Report"
 
     if data.competitors:
         comp_rows = "".join(
@@ -443,7 +444,7 @@ def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
         "to": [client.contact_email],
         "subject": f"Your Monthly AI Visibility Report — {period_label} | {client.name}",
         "html": _build_report_email_html(client, report, period_label),
-        "attachments": [{"filename": filename, "content": list(pdf_bytes)}],
+        "attachments": [{"filename": filename, "content": pdf_bytes}],
     })
 
     report.sent_at = datetime.utcnow()
