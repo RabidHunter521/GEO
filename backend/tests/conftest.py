@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from app.models.base import Base
-from app.models import client, competitor, scan, scan_query_result, geo_score, activity_log  # noqa: F401
+from app.models import client, competitor, scan, scan_query_result, geo_score, activity_log, toolkit_files, report  # noqa: F401
 
 # Mock resend module if not installed
 if "resend" not in sys.modules:
