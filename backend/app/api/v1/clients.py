@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.geo_score import GeoScore
+from app.models.activity_log import ActivityLog
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem
 from app.schemas.geo_score import GeoScoreResponse
 
@@ -72,6 +73,12 @@ def create_client(body: ClientCreate, db: Session = Depends(get_db)):
     db.add(c)
     db.commit()
     db.refresh(c)
+    db.add(ActivityLog(
+        client_id=c.id,
+        event_type="client_created",
+        note=f"Client '{c.name}' added to SeenBy.",
+    ))
+    db.commit()
     return c
 
 

@@ -106,5 +106,10 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
 
     except Exception as exc:
         scan.status = "failed"
+        db.add(ActivityLog(
+            client_id=scan.client_id,
+            event_type="scan_failed",
+            note=f"Scan failed: {str(exc)[:200]}",
+        ))
         db.commit()
         logger.error("scan_failed", scan_id=str(scan_id), error=str(exc))
