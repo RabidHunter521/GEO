@@ -4,6 +4,9 @@ from app.core.constants import SCORE_BANDS, DIGEST_STATIC_TIPS
 from app.models.client import Client
 
 
+_MODEL = "claude-haiku-4-5-20251001"
+
+
 def get_digest_action(
     client: Client,
     current_ai_citability: float,
@@ -46,7 +49,7 @@ def _generate_claude_action(
     )
     ai_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
     message = ai_client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=_MODEL,
         max_tokens=60,
         messages=[{"role": "user", "content": prompt}],
     )
