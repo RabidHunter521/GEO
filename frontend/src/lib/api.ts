@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -126,4 +126,24 @@ export function verifyToolkitFiles(clientId: string): Promise<VerificationResult
   return apiFetch<VerificationResult>(`/api/v1/clients/${clientId}/toolkit/verify`, {
     method: "POST",
   })
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+export function getReports(clientId: string): Promise<Report[]> {
+  return apiFetch<Report[]>(`/api/v1/clients/${clientId}/reports`)
+}
+
+export function generateReport(clientId: string): Promise<{ task_id: string; client_id: string; status: string }> {
+  return apiFetch<{ task_id: string; client_id: string; status: string }>(
+    `/api/v1/clients/${clientId}/reports/generate`,
+    { method: "POST" },
+  )
+}
+
+export function sendReport(clientId: string, reportId: string): Promise<{ sent: boolean; report_id: string }> {
+  return apiFetch<{ sent: boolean; report_id: string }>(
+    `/api/v1/clients/${clientId}/reports/${reportId}/send`,
+    { method: "POST" },
+  )
 }

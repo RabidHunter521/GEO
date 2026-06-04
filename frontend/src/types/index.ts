@@ -97,3 +97,14 @@ export interface ActivityLogEntry {
   note: string
   created_at: string
 }
+
+export interface Report {
+  id: string
+  client_id: string
+  r2_url: string
+  period_start: string
+  period_end: string
+  overall_score: number
+  generated_at: string
+  sent_at: string | null
+}
