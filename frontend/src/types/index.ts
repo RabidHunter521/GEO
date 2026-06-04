@@ -90,3 +90,10 @@ export interface CompetitorIntelligenceResponse {
   competitors: CompetitorScore[]
   last_scan_at: string | null
 }
+
+export interface ActivityLogEntry {
+  id: string
+  event_type: string
+  note: string
+  created_at: string
+}
