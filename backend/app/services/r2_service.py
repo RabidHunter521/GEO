@@ -4,6 +4,8 @@ from app.core.config import settings
 
 
 def _s3():
+    if not settings.CLOUDFLARE_R2_ENDPOINT_URL:
+        raise RuntimeError("CLOUDFLARE_R2_ENDPOINT_URL is not configured")
     return boto3.client(
         "s3",
         endpoint_url=settings.CLOUDFLARE_R2_ENDPOINT_URL,
