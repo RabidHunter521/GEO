@@ -175,7 +175,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
         milestone_block = f"""
         <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:12px 16px;
                     margin-bottom:20px;border-radius:4px;">
-          <strong style="color:#15803d;">First time Gemini saw your brand!</strong>
+          <strong style="color:#15803d;">First time AI models saw your brand!</strong>
           <p style="margin:4px 0 0;color:#166534;font-size:14px;">
             AI models detected {client.name} in search results for the first time this week.
           </p>
