@@ -1,9 +1,17 @@
-// frontend/src/app/clients/[id]/reports/page.tsx
-export default function ReportsPage() {
-  return (
-    <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
-      <p className="font-medium">Reports</p>
-      <p className="text-sm mt-1">Coming in Plan 7.</p>
-    </div>
-  )
+import { getReports } from "@/lib/api"
+import { ReportsClient } from "./ReportsClient"
+
+interface Props {
+  params: Promise<{ id: string }>
+}
+
+export default async function ReportsPage({ params }: Props) {
+  const { id } = await params
+  let reports = []
+  try {
+    reports = await getReports(id)
+  } catch {
+    // backend down — show empty state
+  }
+  return <ReportsClient clientId={id} initialReports={reports} />
 }
