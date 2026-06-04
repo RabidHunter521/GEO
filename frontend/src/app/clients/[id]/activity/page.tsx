@@ -1,4 +1,4 @@
-import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus } from "lucide-react"
+import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail } from "lucide-react"
 import { getActivityLog } from "@/lib/api"
 import type { ActivityLogEntry } from "@/types"
 
@@ -12,6 +12,7 @@ const EVENT_LABELS: Record<string, string> = {
   toolkit_generated: "Toolkit generated",
   toolkit_verified: "Toolkit files verified",
   client_created: "Client onboarded",
+  digest_sent: "Weekly digest sent",
 }
 
 function EventIcon({ type }: { type: string }) {
@@ -27,6 +28,8 @@ function EventIcon({ type }: { type: string }) {
       return <ShieldCheck className={`${cls} text-purple-500`} />
     case "client_created":
       return <UserPlus className={`${cls} text-muted-foreground`} />
+    case "digest_sent":
+      return <Mail className={`${cls} text-indigo-500`} />
     default:
       return <Activity className={`${cls} text-muted-foreground`} />
   }
