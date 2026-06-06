@@ -1,4 +1,4 @@
-import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText } from "lucide-react"
+import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle } from "lucide-react"
 import { getActivityLog } from "@/lib/api"
 import type { ActivityLogEntry } from "@/types"
 
@@ -15,6 +15,8 @@ const EVENT_LABELS: Record<string, string> = {
   digest_sent: "Weekly digest sent",
   report_generated: "Monthly report generated",
   report_sent: "Monthly report sent",
+  alert_sent: "Alert sent",
+  hallucination_flagged: "Hallucination flagged",
 }
 
 function EventIcon({ type }: { type: string }) {
@@ -36,6 +38,10 @@ function EventIcon({ type }: { type: string }) {
       return <FileText className={`${cls} text-sky-500`} />
     case "report_sent":
       return <FileText className={`${cls} text-green-500`} />
+    case "alert_sent":
+      return <Bell className={`${cls} text-red-500`} />
+    case "hallucination_flagged":
+      return <AlertTriangle className={`${cls} text-amber-500`} />
     default:
       return <Activity className={`${cls} text-muted-foreground`} />
   }
