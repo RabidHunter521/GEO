@@ -103,6 +103,8 @@ def flag_hallucination(result_id: uuid.UUID, db: Session) -> None:
         raise ValueError(f"Scan query result not found: {result_id}")
 
     scan = db.get(Scan, result.scan_id)
+    if not scan:
+        raise ValueError(f"Scan not found: {result.scan_id}")
     client = db.get(Client, scan.client_id)
 
     send_email(
@@ -119,7 +121,7 @@ def flag_hallucination(result_id: uuid.UUID, db: Session) -> None:
     logger.info("hallucination_flagged", client_id=str(client.id), result_id=str(result_id))
 
 
-def _compute_citability(results: list) -> float:
+def _compute_citability(results: list[ScanQueryResult]) -> float:
     if not results:
         return 0.0
     return round(sum(1 for r in results if r.brand_detected) / len(results) * 100, 1)
@@ -159,7 +161,7 @@ def _build_score_drop_email(client: Client, current: float, prev: float) -> str:
           <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             SeenBy &middot;
-            <a href="mailto:contact@seenby.my" style="color:#9ca3af;">contact@seenby.my</a>
+            <a href="mailto:{ALERTS_EMAIL}" style="color:#9ca3af;">{ALERTS_EMAIL}</a>
           </p>
         </td></tr>
       </table>
@@ -212,7 +214,7 @@ def _build_overtake_email(
           <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             SeenBy &middot;
-            <a href="mailto:contact@seenby.my" style="color:#9ca3af;">contact@seenby.my</a>
+            <a href="mailto:{ALERTS_EMAIL}" style="color:#9ca3af;">{ALERTS_EMAIL}</a>
           </p>
         </td></tr>
       </table>
@@ -253,7 +255,7 @@ def _build_hallucination_email(client: Client, result: ScanQueryResult) -> str:
           <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             SeenBy &middot;
-            <a href="mailto:contact@seenby.my" style="color:#9ca3af;">contact@seenby.my</a>
+            <a href="mailto:{ALERTS_EMAIL}" style="color:#9ca3af;">{ALERTS_EMAIL}</a>
           </p>
         </td></tr>
       </table>
