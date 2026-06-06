@@ -108,3 +108,25 @@ export interface Report {
   generated_at: string
   sent_at: string | null
 }
+
+export interface ScanQueryResult {
+  id: string
+  scan_id: string
+  competitor_id: string | null
+  competitor_name: string | null
+  category: string
+  query_text: string
+  response_text: string | null
+  brand_detected: boolean
+  created_at: string
+}
+
+export interface Scan {
+  id: string
+  client_id: string
+  platform: string
+  status: "pending" | "running" | "completed" | "failed"
+  triggered_at: string
+  completed_at: string | null
+  results: ScanQueryResult[]
+}

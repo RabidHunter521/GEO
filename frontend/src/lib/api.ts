@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -144,6 +144,29 @@ export function generateReport(clientId: string): Promise<{ task_id: string; cli
 export function sendReport(clientId: string, reportId: string): Promise<{ sent: boolean; report_id: string }> {
   return apiFetch<{ sent: boolean; report_id: string }>(
     `/api/v1/clients/${clientId}/reports/${reportId}/send`,
+    { method: "POST" },
+  )
+}
+
+// ── Scans ─────────────────────────────────────────────────────────────────────
+
+export function getLatestScan(clientId: string): Promise<Scan | null> {
+  return apiFetch<Scan | null>(`/api/v1/scans/client/${clientId}/latest`)
+}
+
+export function triggerScan(clientId: string): Promise<{ id: string; status: string }> {
+  return apiFetch<{ id: string; status: string }>("/api/v1/scans", {
+    method: "POST",
+    body: JSON.stringify({ client_id: clientId }),
+  })
+}
+
+export function flagHallucination(
+  scanId: string,
+  resultId: string,
+): Promise<{ flagged: boolean; result_id: string }> {
+  return apiFetch<{ flagged: boolean; result_id: string }>(
+    `/api/v1/scans/${scanId}/results/${resultId}/flag-hallucination`,
     { method: "POST" },
   )
 }
