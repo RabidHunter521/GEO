@@ -1,4 +1,5 @@
 import { getReports } from "@/lib/api"
+import type { Report } from "@/types"
 import { ReportsClient } from "./ReportsClient"
 
 interface Props {
@@ -7,7 +8,7 @@ interface Props {
 
 export default async function ReportsPage({ params }: Props) {
   const { id } = await params
-  let reports = []
+  let reports: Report[] = []
   try {
     reports = await getReports(id)
   } catch {
