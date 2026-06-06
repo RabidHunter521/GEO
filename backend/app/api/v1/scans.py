@@ -113,7 +113,7 @@ def flag_hallucination_result(
 ):
     from app.services.alert_service import flag_hallucination
     try:
-        flag_hallucination(result_id, db)
+        flag_hallucination(result_id, db, expected_scan_id=scan_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return {"flagged": True, "result_id": str(result_id)}

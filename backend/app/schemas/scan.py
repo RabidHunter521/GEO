@@ -29,6 +29,8 @@ class ScanQueryResultResponse(BaseModel):
     brand_detected: bool
     created_at: datetime
 
+    model_config = {"from_attributes": True}
+
 
 class ScanWithResultsResponse(BaseModel):
     id: uuid.UUID
@@ -38,3 +40,5 @@ class ScanWithResultsResponse(BaseModel):
     triggered_at: datetime
     completed_at: datetime | None = None
     results: list[ScanQueryResultResponse] = []
+
+    model_config = {"from_attributes": True}

@@ -96,11 +96,14 @@ def check_competitor_overtake_alert(client: Client, scan_id: uuid.UUID, db: Sess
         logger.info("competitor_overtake_alert_sent", client_id=str(client.id))
 
 
-def flag_hallucination(result_id: uuid.UUID, db: Session) -> None:
+def flag_hallucination(result_id: uuid.UUID, db: Session, expected_scan_id: uuid.UUID | None = None) -> None:
     """Manual hallucination flag — called from the admin scan results panel."""
     result = db.get(ScanQueryResult, result_id)
     if not result:
         raise ValueError(f"Scan query result not found: {result_id}")
+
+    if expected_scan_id is not None and result.scan_id != expected_scan_id:
+        raise ValueError(f"Result {result_id} does not belong to scan {expected_scan_id}")
 
     scan = db.get(Scan, result.scan_id)
     if not scan:
