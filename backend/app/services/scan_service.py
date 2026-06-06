@@ -81,6 +81,13 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         ai_citability = compute_ai_citability(all_results)
         overall = compute_geo_score(client, ai_citability)
 
+        prev_geo_score = (
+            db.query(GeoScore)
+            .filter(GeoScore.client_id == client.id)
+            .order_by(GeoScore.computed_at.desc())
+            .first()
+        )
+
         geo_score = GeoScore(
             client_id=client.id,
             scan_id=scan.id,
@@ -103,6 +110,19 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         scan.completed_at = datetime.utcnow()
         db.commit()
         logger.info("scan_completed", scan_id=str(scan_id), overall_score=overall)
+
+        # Alert checks — failures must not corrupt scan state
+        try:
+            from app.services.alert_service import check_score_drop_alert
+            check_score_drop_alert(client, geo_score, prev_geo_score, db)
+        except Exception as exc:
+            logger.error("score_drop_alert_failed", scan_id=str(scan_id), error=str(exc))
+
+        try:
+            from app.services.alert_service import check_competitor_overtake_alert
+            check_competitor_overtake_alert(client, scan.id, db)
+        except Exception as exc:
+            logger.error("competitor_overtake_alert_failed", scan_id=str(scan_id), error=str(exc))
 
     except Exception as exc:
         scan.status = "failed"
