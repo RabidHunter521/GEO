@@ -1,4 +1,8 @@
 # backend/app/services/toolkit_service.py
+import json
+import re
+from concurrent.futures import ThreadPoolExecutor
+
 import anthropic
 from app.core.config import settings
 from app.models.client import Client
@@ -8,6 +12,14 @@ _MODEL = "claude-haiku-4-5-20251001"
 
 def _anthropic_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+
+def _strip_code_fences(text: str) -> str:
+    """Remove ```json or ``` code fences Claude sometimes adds despite instructions."""
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+    text = re.sub(r"\n?```\s*$", "", text)
+    return text.strip()
 
 
 def generate_llms_txt(client: Client) -> str:
@@ -38,13 +50,7 @@ Output ONLY the raw llms.txt content. No explanations. No code block wrappers.""
 
 
 def generate_schema_json(client: Client) -> str:
-    response = _anthropic_client().messages.create(
-        model=_MODEL,
-        max_tokens=2048,
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Generate a JSON-LD structured data file for this business.
+    prompt = f"""Generate a JSON-LD structured data file for this business.
 Include these schema types in a @graph array:
 1. LocalBusiness (or an appropriate subtype like ProfessionalService, Restaurant, etc.)
 2. Organization
@@ -58,11 +64,25 @@ Description: {client.description or 'Not provided'}
 City: {client.city or 'Not provided'}
 State: {client.state or 'Not provided'}
 
-Output ONLY valid JSON. No explanations. No ```json code block wrapper. Start directly with the opening brace.""",
-            }
-        ],
-    )
-    return response.content[0].text.strip()
+Output ONLY valid JSON. No explanations. No ```json code block wrapper. Start directly with the opening brace."""
+
+    for attempt in range(2):
+        response = _anthropic_client().messages.create(
+            model=_MODEL,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = _strip_code_fences(response.content[0].text)
+        try:
+            json.loads(raw)
+            return raw
+        except json.JSONDecodeError:
+            if attempt == 1:
+                raise ValueError(
+                    f"Claude returned invalid JSON after 2 attempts for client {client.id}"
+                )
+
+    raise ValueError("Should not reach here")  # pragma: no cover
 
 
 def generate_robots_txt(client: Client) -> str:
@@ -87,8 +107,12 @@ Allow: /"""
 
 
 def generate_toolkit_files(client: Client) -> dict[str, str]:
-    return {
-        "llms_txt": generate_llms_txt(client),
-        "schema_json": generate_schema_json(client),
-        "robots_txt": generate_robots_txt(client),
-    }
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        llms_future = executor.submit(generate_llms_txt, client)
+        schema_future = executor.submit(generate_schema_json, client)
+        robots = generate_robots_txt(client)
+        return {
+            "llms_txt": llms_future.result(),
+            "schema_json": schema_future.result(),
+            "robots_txt": robots,
+        }
