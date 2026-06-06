@@ -67,3 +67,5 @@ DIGEST_STATIC_TIPS: Final = {
     "developing": "Your llms.txt file describes your business to AI crawlers. Verify it is live and reflects your core services.",
     "low": "Add your brand name naturally throughout your website copy — AI models recognize brands through consistent contextual mentions.",
 }
+
+ALERTS_EMAIL: Final = "contact@seenby.my"
