@@ -1,5 +1,5 @@
 // frontend/src/app/clients/[id]/settings/page.tsx
-import { getClient, getCompetitors, getContentGaps } from "@/lib/api"
+import { getClient, getCompetitors, getContentGaps, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 
 export default async function SettingsPage({
@@ -8,9 +8,10 @@ export default async function SettingsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [client, competitors] = await Promise.all([
+  const [client, competitors, trafficHistory] = await Promise.all([
     getClient(id),
     getCompetitors(id),
+    getTrafficHistory(id),
   ])
 
   // Content Quality assist — latest crawl-derived recommendation (informational; never auto-scores)
@@ -28,6 +29,7 @@ export default async function SettingsPage({
         client={client}
         competitors={competitors}
         contentRecommendation={contentRecommendation}
+        trafficHistory={trafficHistory}
       />
     </div>
   )

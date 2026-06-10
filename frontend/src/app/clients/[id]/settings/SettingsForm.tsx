@@ -4,6 +4,7 @@
 import { useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -19,18 +20,28 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Loader2, CheckCircle, Plus, Trash2, HelpCircle, Lightbulb } from "lucide-react"
-import { updateClientAction } from "./actions"
+import { updateClientAction, updateTrafficAction } from "./actions"
 import {
   addCompetitorAction,
   deleteCompetitorAction,
   archiveClientAction,
 } from "@/app/clients/actions"
-import type { Client, Competitor } from "@/types"
+import type { Client, Competitor, AiTrafficSnapshot } from "@/types"
 
 interface Props {
   client: Client
   competitors: Competitor[]
   contentRecommendation?: string | null
+  trafficHistory: AiTrafficSnapshot[]
+}
+
+function currentMonthPeriod(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
+}
+
+function formatPeriod(period: string): string {
+  return new Date(period).toLocaleDateString("en-MY", { month: "long", year: "numeric" })
 }
 
 const INDUSTRIES = [
@@ -43,7 +54,7 @@ function industryOptions(current: string) {
   return [current, ...INDUSTRIES]
 }
 
-export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation }: Props) {
+export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory }: Props) {
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -64,6 +75,12 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const [compWebsite, setCompWebsite] = useState("")
   const [addingComp, setAddingComp] = useState(false)
 
+  const currentPeriod = currentMonthPeriod()
+  const [traffic, setTraffic] = useState<AiTrafficSnapshot[]>(trafficHistory)
+  const currentTrafficValue = traffic.find((t) => t.period.slice(0, 10) === currentPeriod)?.ai_visitors
+  const [trafficInput, setTrafficInput] = useState(currentTrafficValue?.toString() ?? "")
+  const [savingTraffic, setSavingTraffic] = useState(false)
+
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -83,9 +100,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           brand_authority_score: fd.get("brand_authority_score")
             ? Number(fd.get("brand_authority_score"))
             : undefined,
+          brand_authority_evidence: (fd.get("brand_authority_evidence") as string) || undefined,
           content_quality_score: fd.get("content_quality_score")
             ? Number(fd.get("content_quality_score"))
             : undefined,
+          content_quality_evidence: (fd.get("content_quality_evidence") as string) || undefined,
           score_drop_threshold: fd.get("score_drop_threshold")
             ? Number(fd.get("score_drop_threshold"))
             : undefined,
@@ -113,6 +132,20 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       setError("Failed to add competitor.")
     } finally {
       setAddingComp(false)
+    }
+  }
+
+  async function handleSaveTraffic() {
+    const visitors = Number(trafficInput)
+    if (!Number.isFinite(visitors) || visitors < 0) return
+    setSavingTraffic(true)
+    try {
+      const snapshot = await updateTrafficAction(client.id, currentPeriod, visitors)
+      setTraffic((prev) => [snapshot, ...prev.filter((t) => t.period.slice(0, 10) !== currentPeriod)])
+    } catch {
+      setError("Failed to save AI traffic.")
+    } finally {
+      setSavingTraffic(false)
     }
   }
 
@@ -258,6 +291,29 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           </div>
         </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="s-authority-evidence">Brand Authority — why this score? (optional)</Label>
+            <Textarea
+              id="s-authority-evidence"
+              name="brand_authority_evidence"
+              rows={3}
+              placeholder="e.g. 150 Google reviews, featured in The Star, active LinkedIn page"
+              defaultValue={client.brand_authority_evidence ?? ""}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="s-content-evidence">Content Quality — why this score? (optional)</Label>
+            <Textarea
+              id="s-content-evidence"
+              name="content_quality_evidence"
+              rows={3}
+              placeholder="e.g. Blog publishes weekly, FAQ page present, thin product descriptions"
+              defaultValue={client.content_quality_evidence ?? ""}
+            />
+          </div>
+        </div>
+
         {contentRecommendation && (
           <div className="rounded-md border bg-muted/10 px-4 py-3 flex gap-3">
             <Lightbulb className="h-4 w-4 shrink-0 text-score-watch mt-0.5" />
@@ -346,6 +402,49 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               )}
             </Button>
           </div>
+        )}
+      </section>
+
+      <Separator />
+
+      {/* AI Referral Traffic */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight">AI Referral Traffic</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Monthly AI-referral visitor count from the client&apos;s analytics. Informational only — does not affect the GEO score.
+          </p>
+        </div>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1">
+            <Label htmlFor="s-traffic">AI visitors this month ({formatPeriod(currentPeriod)})</Label>
+            <Input
+              id="s-traffic"
+              type="number"
+              min="0"
+              value={trafficInput}
+              onChange={(e) => setTrafficInput(e.target.value)}
+              placeholder="e.g. 187"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSaveTraffic}
+            disabled={savingTraffic || trafficInput === ""}
+          >
+            {savingTraffic ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+          </Button>
+        </div>
+        {traffic.length > 0 && (
+          <ul className="space-y-1">
+            {traffic.slice(0, 6).map((t) => (
+              <li key={t.id} className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>{formatPeriod(t.period)}</span>
+                <span className="font-medium text-foreground">{t.ai_visitors.toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

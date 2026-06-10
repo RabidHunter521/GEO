@@ -140,7 +140,7 @@ export default async function CompetitorsPage({ params }: Props) {
             {/* Card header */}
             <div className="flex items-start justify-between border-b bg-muted/30 px-5 py-4">
               <div>
-                <p className="font-semibold">{comp.name}</p>
+                <p className="font-semibold">{comp.name ?? "Unnamed competitor"}</p>
                 {comp.website && (
                   <p className="text-xs text-muted-foreground mt-0.5">{comp.website}</p>
                 )}

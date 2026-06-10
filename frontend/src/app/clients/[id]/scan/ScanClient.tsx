@@ -34,7 +34,7 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
     setFlaggedIds(
       new Set(scan?.results.filter((r) => r.hallucination_flagged).map((r) => r.id) ?? [])
     )
-  }, [scan?.id])
+  }, [scan?.id, scan?.results])
 
   useEffect(() => {
     if (!isActive) return

@@ -22,6 +22,7 @@ from app.models.competitor import Competitor
 from app.models.toolkit_files import ToolkitFiles
 from app.models.activity_log import ActivityLog
 from app.models.report import Report
+from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.services.scoring_service import get_score_band
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
@@ -113,6 +114,10 @@ class ReportData:
     robots_verified: bool
     competitors: list[CompetitorSummary] = field(default_factory=list)
     recommendation: str = ""
+    brand_authority_evidence: str | None = None
+    content_quality_evidence: str | None = None
+    ai_visitors_current: int | None = None
+    ai_visitors_prev: int | None = None
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -213,6 +218,20 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     )
 
     now = datetime.utcnow()
+
+    current_period = now.date().replace(day=1)
+    prev_period = (current_period - timedelta(days=1)).replace(day=1)
+    current_traffic = (
+        db.query(AiTrafficSnapshot)
+        .filter(AiTrafficSnapshot.client_id == client.id, AiTrafficSnapshot.period == current_period)
+        .first()
+    )
+    prev_traffic = (
+        db.query(AiTrafficSnapshot)
+        .filter(AiTrafficSnapshot.client_id == client.id, AiTrafficSnapshot.period == prev_period)
+        .first()
+    )
+
     return ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
@@ -234,6 +253,10 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         robots_verified=toolkit.robots_verified if toolkit else False,
         competitors=competitor_summaries,
         recommendation=recommendation,
+        brand_authority_evidence=client.brand_authority_evidence,
+        content_quality_evidence=client.content_quality_evidence,
+        ai_visitors_current=current_traffic.ai_visitors if current_traffic else None,
+        ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
     )
 
 
@@ -266,6 +289,27 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         )
     else:
         comp_rows = '<tr><td colspan="3" style="color:#9ca3af;">No competitors tracked yet.</td></tr>'
+
+    if data.ai_visitors_current is not None:
+        if data.ai_visitors_prev:
+            pct = (data.ai_visitors_current - data.ai_visitors_prev) / data.ai_visitors_prev * 100
+            change_label = f"{'&#8593;' if pct >= 0 else '&#8595;'} {pct:+.0f}% vs last month"
+        elif data.ai_visitors_current:
+            change_label = "New vs last month"
+        else:
+            change_label = "No change vs last month"
+        traffic_section = f"""
+  <h2>AI Referral Traffic</h2>
+  <div class="stat-box">
+    <div class="stat-label">AI Visitors This Month</div>
+    <div class="stat-value">{data.ai_visitors_current:,}</div>
+    <div class="stat-sub">
+      Visitors arriving via ChatGPT, Perplexity, Gemini and Claude &mdash; {change_label}
+    </div>
+  </div>
+"""
+    else:
+        traffic_section = ""
 
     generated_date = datetime.utcnow().strftime("%d %B %Y")
 
@@ -318,13 +362,13 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         <td>Brand Authority</td>
         <td class="{_score_css(ba_color)}">{data.brand_authority:.0f}</td>
         <td>20%</td><td>{data.brand_authority * 0.20:.1f}</td>
-        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment</div></td>
+        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {data.brand_authority_evidence}" if data.brand_authority_evidence else ""}</div></td>
       </tr>
       <tr>
         <td>Content Quality</td>
         <td class="{_score_css(cq_color)}">{data.content_quality:.0f}</td>
         <td>20%</td><td>{data.content_quality * 0.20:.1f}</td>
-        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment</div></td>
+        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {data.content_quality_evidence}" if data.content_quality_evidence else ""}</div></td>
       </tr>
       <tr>
         <td>Technical Foundations</td>
@@ -349,7 +393,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
       {client.name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.
     </div>
   </div>
-
+{traffic_section}
   <h2>Competitor Comparison</h2>
   <table>
     <thead><tr><th>Name</th><th>AI Citability</th><th>Status</th></tr></thead>

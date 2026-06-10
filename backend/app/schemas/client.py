@@ -19,7 +19,9 @@ class ClientUpdate(BaseModel):
     state: str | None = None
     contact_email: str | None = None
     brand_authority_score: int | None = None
+    brand_authority_evidence: str | None = None
     content_quality_score: int | None = None
+    content_quality_evidence: str | None = None
     score_drop_threshold: int | None = None
 
 
@@ -34,7 +36,9 @@ class ClientResponse(BaseModel):
     state: str | None = None
     contact_email: str | None = None
     brand_authority_score: int
+    brand_authority_evidence: str | None = None
     content_quality_score: int
+    content_quality_evidence: str | None = None
     technical_foundations_verified: bool
     structured_data_verified: bool
     score_drop_threshold: int

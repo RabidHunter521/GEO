@@ -1,17 +1,23 @@
 // frontend/src/app/clients/[id]/page.tsx
 import Link from "next/link"
-import { getLatestGeoScore, getClient, getActionRecommendations } from "@/lib/api"
+import { TrendingUp, TrendingDown } from "lucide-react"
+import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory } from "@/lib/api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { ActionCenterCard } from "./ActionCenterCard"
 import { getScoreBand } from "@/lib/score-utils"
+import type { Client } from "@/types"
+
+function periodKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`
+}
 
 const DIMENSIONS = [
-  { key: "ai_citability",         label: "AI Citability",         weight: "40%", manual: false, href: "scan"     },
-  { key: "brand_authority",       label: "Brand Authority",       weight: "20%", manual: true,  href: "settings" },
-  { key: "content_quality",       label: "Content Quality",       weight: "20%", manual: true,  href: "settings" },
-  { key: "technical_foundations", label: "Technical Foundations", weight: "10%", manual: false, href: "toolkit"  },
-  { key: "structured_data",       label: "Structured Data",       weight: "10%", manual: false, href: "toolkit"  },
+  { key: "ai_citability",         label: "AI Citability",         weight: "40%", manual: false, href: "scan",     evidenceKey: null                          },
+  { key: "brand_authority",       label: "Brand Authority",       weight: "20%", manual: true,  href: "settings", evidenceKey: "brand_authority_evidence"    },
+  { key: "content_quality",       label: "Content Quality",       weight: "20%", manual: true,  href: "settings", evidenceKey: "content_quality_evidence"    },
+  { key: "technical_foundations", label: "Technical Foundations", weight: "10%", manual: false, href: "toolkit",  evidenceKey: null                          },
+  { key: "structured_data",       label: "Structured Data",       weight: "10%", manual: false, href: "toolkit",  evidenceKey: null                          },
 ] as const
 
 type DimKey = typeof DIMENSIONS[number]["key"]
@@ -30,13 +36,29 @@ export default async function ClientOverviewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [, geoScore, actions] = await Promise.all([
+  const [client, geoScore, actions, trafficHistory] = await Promise.all([
     getClient(id),
     getLatestGeoScore(id),
     getActionRecommendations(id),
+    getTrafficHistory(id),
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
+
+  const now = new Date()
+  const currentSnap = trafficHistory.find((t) => t.period.slice(0, 10) === periodKey(now))
+  const prevSnap = trafficHistory.find(
+    (t) => t.period.slice(0, 10) === periodKey(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+  )
+  let trafficChange: { label: string; up: boolean } | null = null
+  if (currentSnap && prevSnap) {
+    if (prevSnap.ai_visitors > 0) {
+      const pct = Math.round(((currentSnap.ai_visitors - prevSnap.ai_visitors) / prevSnap.ai_visitors) * 100)
+      trafficChange = { label: `${pct >= 0 ? "+" : ""}${pct}% vs last month`, up: pct >= 0 }
+    } else if (currentSnap.ai_visitors > 0) {
+      trafficChange = { label: "New vs last month", up: true }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -85,6 +107,7 @@ export default async function ClientOverviewPage({
           {DIMENSIONS.map((dim) => {
             const raw = geoScore ? (geoScore[dim.key as DimKey] as number) : null
             const pct = raw !== null ? Math.max(0, Math.min(100, raw)) : 0
+            const evidence = dim.evidenceKey ? client[dim.evidenceKey as keyof Client] as string | null : null
             return (
               <Link
                 key={dim.key}
@@ -109,10 +132,47 @@ export default async function ClientOverviewPage({
                     style={{ width: `${pct}%` }}
                   />
                 </div>
+                {evidence && (
+                  <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{evidence}</p>
+                )}
               </Link>
             )
           })}
         </div>
+      </div>
+
+      {/* AI Referral Traffic */}
+      <div className="rounded-lg border bg-card p-4">
+        <p className="text-sm font-medium">AI Visitors This Month</p>
+        {currentSnap ? (
+          <>
+            <p className="mt-1 font-display text-2xl font-semibold text-foreground">
+              {currentSnap.ai_visitors.toLocaleString()}
+            </p>
+            {trafficChange && (
+              <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${trafficChange.up ? "text-score-strong" : "text-score-watch"}`}>
+                {trafficChange.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                {trafficChange.label}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Visitors arriving via ChatGPT, Perplexity, Gemini and Claude — entered manually by the SeenBy team.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-1 font-display text-2xl font-semibold text-muted-foreground">
+              Awaiting entry
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Add this month&apos;s AI-referral visitor count in{" "}
+              <Link href={`/clients/${id}/settings`} className="text-primary underline-offset-4 hover:underline">
+                Settings
+              </Link>
+              .
+            </p>
+          </>
+        )}
       </div>
 
       {geoScore && <ActionCenterCard clientId={id} initialActions={actions} />}

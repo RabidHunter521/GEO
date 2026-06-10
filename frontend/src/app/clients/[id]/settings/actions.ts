@@ -2,7 +2,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { updateClient } from "@/lib/api"
+import { updateClient, upsertTrafficSnapshot } from "@/lib/api"
 
 export async function updateClientAction(
   id: string,
@@ -16,7 +16,9 @@ export async function updateClientAction(
     state?: string
     contact_email?: string
     brand_authority_score?: number
+    brand_authority_evidence?: string
     content_quality_score?: number
+    content_quality_evidence?: string
     score_drop_threshold?: number
   },
 ) {
@@ -24,4 +26,11 @@ export async function updateClientAction(
   revalidatePath(`/clients/${id}`)
   revalidatePath("/clients")
   return client
+}
+
+export async function updateTrafficAction(id: string, period: string, ai_visitors: number) {
+  const snapshot = await upsertTrafficSnapshot(id, { period, ai_visitors })
+  revalidatePath(`/clients/${id}`)
+  revalidatePath(`/clients/${id}/settings`)
+  return snapshot
 }

@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react"
+import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle, ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { getActivityLog } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import type { ActivityLogEntry } from "@/types"
@@ -22,6 +22,7 @@ const EVENT_LABELS: Record<string, string> = {
   report_sent: "Monthly report sent",
   alert_sent: "Alert sent",
   hallucination_flagged: "Hallucination flagged",
+  content_analyzed: "Content gaps analyzed",
 }
 
 function EventIcon({ type }: { type: string }) {
@@ -47,6 +48,8 @@ function EventIcon({ type }: { type: string }) {
       return <Bell className={`${cls} text-score-low`} />
     case "hallucination_flagged":
       return <AlertTriangle className={`${cls} text-score-watch`} />
+    case "content_analyzed":
+      return <Search className={`${cls} text-primary`} />
     default:
       return <Activity className={`${cls} text-muted-foreground`} />
   }
@@ -125,19 +128,33 @@ export default async function ActivityPage({ params, searchParams }: Props) {
 
       {(page > 1 || hasMore) && (
         <div className="flex items-center justify-between pt-1">
-          <Button variant="outline" size="sm" asChild disabled={page <= 1}>
-            <Link href={`/clients/${id}/activity?page=${page - 1}`}>
+          {page <= 1 ? (
+            <Button variant="outline" size="sm" disabled>
               <ChevronLeft className="h-4 w-4 mr-1" />
               Previous
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/clients/${id}/activity?page=${page - 1}`}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous
+              </Link>
+            </Button>
+          )}
           <span className="text-sm text-muted-foreground">Page {page}</span>
-          <Button variant="outline" size="sm" asChild disabled={!hasMore}>
-            <Link href={`/clients/${id}/activity?page=${page + 1}`}>
+          {!hasMore ? (
+            <Button variant="outline" size="sm" disabled>
               Next
               <ChevronRight className="h-4 w-4 ml-1" />
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/clients/${id}/activity?page=${page + 1}`}>
+                Next
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Link>
+            </Button>
+          )}
         </div>
       )}
     </div>

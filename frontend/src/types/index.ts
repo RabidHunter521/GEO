@@ -11,7 +11,9 @@ export interface Client {
   state: string | null
   contact_email: string | null
   brand_authority_score: number
+  brand_authority_evidence: string | null
   content_quality_score: number
+  content_quality_evidence: string | null
   technical_foundations_verified: boolean
   structured_data_verified: boolean
   score_drop_threshold: number
@@ -170,6 +172,15 @@ export interface ActionRecommendation {
   priority: "high" | "medium" | "low"
   status: "open" | "done" | "dismissed" | "superseded"
   generated_at: string
+}
+
+export interface AiTrafficSnapshot {
+  id: string
+  client_id: string
+  period: string
+  ai_visitors: number
+  created_at: string
+  updated_at: string
 }
 
 export interface Scan {

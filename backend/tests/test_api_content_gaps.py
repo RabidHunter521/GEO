@@ -58,6 +58,7 @@ def test_analyze_creates_pending_row_and_dispatches_task():
         obj.status = "pending"
         obj.topics_json = []
         obj.entities_json = []
+        obj.suggested_content_json = []
         obj.entity_coverage_score = 0.0
         obj.content_metrics_json = {}
         obj.content_quality_recommendation = None
