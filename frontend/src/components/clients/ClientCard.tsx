@@ -41,9 +41,9 @@ export function ClientCard({ client }: Props) {
           </div>
           <ScoreBadge score={client.latest_overall_score} className="ml-2 shrink-0" />
         </CardHeader>
-        <CardContent className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">{client.industry}</p>
-          <p className="text-xs text-muted-foreground">
+        <CardContent className="flex items-center justify-between gap-2">
+          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{client.industry}</p>
+          <p className="shrink-0 text-xs text-muted-foreground">
             {lastScan ? `Last scan ${lastScan}` : "No scans yet"}
           </p>
         </CardContent>

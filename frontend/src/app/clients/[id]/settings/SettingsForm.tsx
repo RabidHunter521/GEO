@@ -38,6 +38,11 @@ const INDUSTRIES = [
   "Education", "Real Estate", "Food & Beverage", "Retail", "Other",
 ]
 
+function industryOptions(current: string) {
+  if (!current || INDUSTRIES.includes(current)) return INDUSTRIES
+  return [current, ...INDUSTRIES]
+}
+
 export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation }: Props) {
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
@@ -142,7 +147,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                 <SelectValue placeholder="Select industry" />
               </SelectTrigger>
               <SelectContent>
-                {INDUSTRIES.map((i) => (
+                {industryOptions(client.industry).map((i) => (
                   <SelectItem key={i} value={i}>{i}</SelectItem>
                 ))}
               </SelectContent>

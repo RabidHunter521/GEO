@@ -141,17 +141,35 @@ export interface ContentMetrics {
   schema_present: boolean
 }
 
+export interface SuggestedContentItem {
+  topic: string
+  title: string
+  rationale: string
+}
+
 export interface ContentAnalysis {
   id: string
   client_id: string
   status: "pending" | "running" | "completed" | "failed"
   topics_json: ContentTopic[]
   entities_json: ContentEntity[]
+  suggested_content_json: SuggestedContentItem[]
   entity_coverage_score: number
   content_metrics_json: ContentMetrics
   content_quality_recommendation: string | null
   pages_crawled: number
   analyzed_at: string
+}
+
+export interface ActionRecommendation {
+  id: string
+  client_id: string
+  action_text: string
+  dimension: "ai_citability" | "brand_authority" | "content_quality" | "technical_foundations" | "structured_data"
+  estimated_impact: number
+  priority: "high" | "medium" | "low"
+  status: "open" | "done" | "dismissed" | "superseded"
+  generated_at: string
 }
 
 export interface Scan {

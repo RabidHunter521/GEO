@@ -23,6 +23,8 @@ class ContentAnalysis(Base):
     topics_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     # [{entity, covered: bool}]
     entities_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # [{topic, title, rationale}] — content ideas generated for "missing" topics
+    suggested_content_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     # informational only — does NOT feed the GEO score
     entity_coverage_score: Mapped[float] = mapped_column(Float, default=0.0)
     # {word_count, h1_count, faq_count, blog_count, schema_present}

@@ -21,12 +21,19 @@ class ContentMetrics(BaseModel):
     schema_present: bool = False
 
 
+class SuggestedContentItem(BaseModel):
+    topic: str
+    title: str
+    rationale: str
+
+
 class ContentAnalysisResponse(BaseModel):
     id: uuid.UUID
     client_id: uuid.UUID
     status: str
     topics_json: list[TopicItem]
     entities_json: list[EntityItem]
+    suggested_content_json: list[SuggestedContentItem] = []
     entity_coverage_score: float
     content_metrics_json: ContentMetrics
     content_quality_recommendation: str | None = None

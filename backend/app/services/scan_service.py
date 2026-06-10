@@ -142,6 +142,13 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         except Exception as exc:
             logger.error("competitor_overtake_alert_failed", scan_id=str(scan_id), error=str(exc))
 
+        # Action Center refresh — failure must not corrupt scan state
+        try:
+            from app.services.action_center_service import refresh_actions_for_client
+            refresh_actions_for_client(client, geo_score, db)
+        except Exception as exc:
+            logger.error("action_center_refresh_failed", scan_id=str(scan_id), error=str(exc))
+
     except Exception as exc:
         scan.status = "failed"
         db.add(ActivityLog(

@@ -5,7 +5,7 @@ import { Loader2, RefreshCw, CheckCircle, XCircle, Lightbulb } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { runContentAnalysisAction, refreshContentGapsAction } from "./actions"
-import type { ContentAnalysis, ContentTopic } from "@/types"
+import type { ContentAnalysis, ContentTopic, SuggestedContentItem } from "@/types"
 
 interface Props {
   clientId: string
@@ -65,6 +65,7 @@ export function ContentGapsClient({ clientId, initialAnalysis }: Props) {
     return (analysis?.topics_json ?? []).filter((t) => t.status === status)
   }
 
+  const suggestions = analysis?.suggested_content_json ?? []
   const entities = analysis?.entities_json ?? []
   const coveredCount = entities.filter((e) => e.covered).length
   const metrics = analysis?.content_metrics_json
@@ -165,6 +166,35 @@ export function ContentGapsClient({ clientId, initialAnalysis }: Props) {
               )
             })}
           </div>
+
+          {/* Suggested content ideas */}
+          {suggestions.length > 0 && (
+            <div className="rounded-lg border p-5 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold">Suggested content ideas</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Content to create so AI search engines start featuring this brand on these
+                  topics.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {suggestions.map((s: SuggestedContentItem, i: number) => (
+                  <div key={`${s.topic}-${i}`} className="rounded-md border bg-muted/10 px-4 py-3 flex gap-3">
+                    <Lightbulb className="h-4 w-4 shrink-0 text-score-watch mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="border-score-low/30 bg-score-low-bg text-score-low">
+                          {s.topic}
+                        </Badge>
+                        <p className="text-sm font-medium">{s.title}</p>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{s.rationale}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Entity coverage */}
           <div className="rounded-lg border p-5 space-y-4">

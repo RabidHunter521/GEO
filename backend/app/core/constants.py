@@ -69,3 +69,12 @@ DIGEST_STATIC_TIPS: Final = {
 }
 
 ALERTS_EMAIL: Final = "contact@seenby.my"
+
+# GEO Action Center — impact estimation and display caps
+ACTION_IMPACT_MAX_PER_ACTION: Final = 10.0
+ACTION_PRIORITY_BANDS: Final = {
+    "high":   (6, 10),
+    "medium": (3, 5),
+    "low":    (0, 2),
+}
+MAX_OPEN_ACTIONS: Final = 5

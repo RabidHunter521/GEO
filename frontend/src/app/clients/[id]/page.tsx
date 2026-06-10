@@ -1,8 +1,9 @@
 // frontend/src/app/clients/[id]/page.tsx
 import Link from "next/link"
-import { getLatestGeoScore, getClient } from "@/lib/api"
+import { getLatestGeoScore, getClient, getActionRecommendations } from "@/lib/api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
+import { ActionCenterCard } from "./ActionCenterCard"
 import { getScoreBand } from "@/lib/score-utils"
 
 const DIMENSIONS = [
@@ -29,9 +30,10 @@ export default async function ClientOverviewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [, geoScore] = await Promise.all([
+  const [, geoScore, actions] = await Promise.all([
     getClient(id),
     getLatestGeoScore(id),
+    getActionRecommendations(id),
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
@@ -112,6 +114,8 @@ export default async function ClientOverviewPage({
           })}
         </div>
       </div>
+
+      {geoScore && <ActionCenterCard clientId={id} initialActions={actions} />}
 
       {geoScore && (
         <p className="text-xs text-muted-foreground">

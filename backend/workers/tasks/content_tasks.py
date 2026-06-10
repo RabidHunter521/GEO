@@ -30,6 +30,7 @@ def run_content_analysis(client_id: str, analysis_id: str) -> dict:
 
             analysis.topics_json = payload["topics_json"]
             analysis.entities_json = payload["entities_json"]
+            analysis.suggested_content_json = payload.get("suggested_content_json", [])
             analysis.entity_coverage_score = payload["entity_coverage_score"]
             analysis.content_metrics_json = payload["content_metrics_json"]
             analysis.content_quality_recommendation = payload["content_quality_recommendation"]

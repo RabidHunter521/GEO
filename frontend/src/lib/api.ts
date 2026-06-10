@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ActionRecommendation } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -141,6 +141,23 @@ export function getContentGaps(clientId: string): Promise<ContentAnalysis | null
 export function runContentAnalysis(clientId: string): Promise<ContentAnalysis> {
   return apiFetch<ContentAnalysis>(`/api/v1/clients/${clientId}/content-gaps/analyze`, {
     method: "POST",
+  })
+}
+
+// ── Action Center ─────────────────────────────────────────────────────────────
+
+export function getActionRecommendations(clientId: string): Promise<ActionRecommendation[]> {
+  return apiFetch<ActionRecommendation[]>(`/api/v1/clients/${clientId}/actions`)
+}
+
+export function updateActionStatus(
+  clientId: string,
+  actionId: string,
+  status: "done" | "dismissed",
+): Promise<ActionRecommendation> {
+  return apiFetch<ActionRecommendation>(`/api/v1/clients/${clientId}/actions/${actionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
   })
 }
 
