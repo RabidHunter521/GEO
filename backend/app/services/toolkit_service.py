@@ -1,25 +1,11 @@
 # backend/app/services/toolkit_service.py
 import json
-import re
 from concurrent.futures import ThreadPoolExecutor
 
-import anthropic
-from app.core.config import settings
 from app.models.client import Client
-
-_MODEL = "claude-haiku-4-5-20251001"
-
-
-def _anthropic_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-
-
-def _strip_code_fences(text: str) -> str:
-    """Remove ```json or ``` code fences Claude sometimes adds despite instructions."""
-    text = text.strip()
-    text = re.sub(r"^```(?:json)?\s*\n?", "", text)
-    text = re.sub(r"\n?```\s*$", "", text)
-    return text.strip()
+from app.services.claude_client import MODEL as _MODEL
+from app.services.claude_client import anthropic_client as _anthropic_client
+from app.services.claude_client import strip_code_fences as _strip_code_fences
 
 
 def generate_llms_txt(client: Client) -> str:

@@ -12,8 +12,8 @@ import {
   createClientAction,
   addCompetitorAction,
   deleteCompetitorAction,
-  updateClientAction,
 } from "@/app/clients/actions"
+import { updateClientAction } from "@/app/clients/[id]/settings/actions"
 import type { Client, Competitor } from "@/types"
 
 type Step = 1 | 2 | 3

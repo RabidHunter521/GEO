@@ -41,7 +41,9 @@ def test_run_scan_sets_status_to_completed():
         MockGemini.return_value = mock_gemini
         with patch("app.services.scan_service.settings") as mock_settings:
             mock_settings.GEMINI_API_KEY = "fake"
-            with patch("app.services.scan_service.time.sleep"):
+            with patch("app.services.scan_service.time.sleep"), patch(
+                "app.services.scan_service.extract_position", return_value=None
+            ):
                 run_scan(scan.id, mock_db)
 
     assert scan.status == "completed"
@@ -69,12 +71,47 @@ def test_run_scan_creates_geo_score_row():
         MockGemini.return_value = mock_gemini
         with patch("app.services.scan_service.settings") as mock_settings:
             mock_settings.GEMINI_API_KEY = "fake"
-            with patch("app.services.scan_service.time.sleep"):
+            with patch("app.services.scan_service.time.sleep"), patch(
+                "app.services.scan_service.extract_position", return_value=None
+            ):
                 run_scan(scan.id, mock_db)
 
     from app.models.geo_score import GeoScore
     geo_scores = [o for o in added_objects if isinstance(o, GeoScore)]
     assert len(geo_scores) == 1
+
+
+def test_run_scan_populates_recommendation_position_for_ranked_categories():
+    scan = make_scan()
+    client = make_client()
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.side_effect = [scan, client]
+    mock_db.query.return_value.filter.return_value.all.side_effect = [[], []]
+
+    added_objects = []
+    mock_db.add.side_effect = lambda obj: added_objects.append(obj)
+
+    with patch("app.services.scan_service.GeminiClient") as MockGemini:
+        mock_gemini = MagicMock()
+        mock_gemini.query.return_value = "ACME Corp is listed."
+        MockGemini.return_value = mock_gemini
+        with patch("app.services.scan_service.settings") as mock_settings:
+            mock_settings.GEMINI_API_KEY = "fake"
+            with patch("app.services.scan_service.time.sleep"), patch(
+                "app.services.scan_service.extract_position", return_value=2
+            ) as mock_extract:
+                run_scan(scan.id, mock_db)
+
+    from app.models.scan_query_result import ScanQueryResult
+    results = [o for o in added_objects if isinstance(o, ScanQueryResult)]
+    ranked = [r for r in results if r.category in ("recommendation", "local")]
+    other = [r for r in results if r.category not in ("recommendation", "local")]
+
+    # extraction only runs for ranked categories where the brand was detected
+    assert mock_extract.call_count == len(ranked)
+    assert all(r.recommendation_position == 2 for r in ranked)
+    assert all(r.recommendation_position is None for r in other)
 
 
 def test_run_scan_sets_failed_on_gemini_error():
@@ -91,7 +128,9 @@ def test_run_scan_sets_failed_on_gemini_error():
         MockGemini.return_value = mock_gemini
         with patch("app.services.scan_service.settings") as mock_settings:
             mock_settings.GEMINI_API_KEY = "fake"
-            with patch("app.services.scan_service.time.sleep"):
+            with patch("app.services.scan_service.time.sleep"), patch(
+                "app.services.scan_service.extract_position", return_value=None
+            ):
                 run_scan(scan.id, mock_db)
 
     assert scan.status == "failed"

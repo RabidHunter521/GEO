@@ -10,7 +10,7 @@ export default async function ClientsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Clients</h1>
+          <h1 className="font-display text-2xl font-bold tracking-tight">Clients</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {clients.length} client{clients.length !== 1 ? "s" : ""}
           </p>
@@ -19,9 +19,14 @@ export default async function ClientsPage() {
       </div>
 
       {clients.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">
-          <p className="text-lg font-medium">No clients yet</p>
-          <p className="text-sm mt-1">Add your first client to get started.</p>
+        <div className="rounded-xl border border-dashed bg-card/50 py-16 text-center">
+          <p className="font-display text-lg font-semibold">No clients yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Add your first client to get started.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <AddClientButton />
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

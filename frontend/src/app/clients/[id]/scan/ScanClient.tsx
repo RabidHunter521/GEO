@@ -24,9 +24,17 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
   const [scan, setScan] = useState<Scan | null>(initialScan)
   const [isPending, startTransition] = useTransition()
   const [flaggingId, setFlaggingId] = useState<string | null>(null)
-  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set())
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(
+    () => new Set(initialScan?.results.filter((r) => r.hallucination_flagged).map((r) => r.id) ?? [])
+  )
 
   const isActive = scan?.status === "running" || scan?.status === "pending"
+
+  useEffect(() => {
+    setFlaggedIds(
+      new Set(scan?.results.filter((r) => r.hallucination_flagged).map((r) => r.id) ?? [])
+    )
+  }, [scan?.id])
 
   useEffect(() => {
     if (!isActive) return
@@ -67,7 +75,9 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold">Scan &amp; Visibility</h2>
+          <h2 className="font-display text-xl font-semibold tracking-tight">
+            Scan &amp; Visibility
+          </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             How AI models respond to queries about {clientName}.
           </p>
@@ -115,6 +125,47 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
             {scan.platform}
           </p>
 
+          {/* Summary stats */}
+          {clientResults.length > 0 && (() => {
+            const seen = clientResults.filter((r) => r.brand_detected).length
+            const pct = Math.round((seen / clientResults.length) * 100)
+            const ranked = clientResults
+              .map((r) => r.recommendation_position)
+              .filter((p): p is number => p != null)
+            const avgRank =
+              ranked.length > 0
+                ? (ranked.reduce((a, b) => a + b, 0) / ranked.length).toFixed(1)
+                : null
+            return (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
+                  <span className="font-display text-2xl font-bold tabular-nums text-primary">
+                    {seen}/{clientResults.length}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium leading-tight">queries — your brand was seen by AI</p>
+                    <p className="text-xs text-muted-foreground">
+                      visibility frequency: <span className="font-semibold">{pct}%</span>
+                    </p>
+                  </div>
+                </div>
+                {avgRank && (
+                  <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
+                    <span className="font-display text-2xl font-bold tabular-nums text-primary">
+                      #{avgRank}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium leading-tight">average AI Search Ranking</p>
+                      <p className="text-xs text-muted-foreground">
+                        across {ranked.length} ranked {ranked.length === 1 ? "answer" : "answers"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           <section>
             <h3 className="text-sm font-semibold mb-3">
               Your Brand — {clientResults.length} queries
@@ -158,10 +209,10 @@ function ResultsTable({
   onFlag: (id: string) => void
 }) {
   return (
-    <div className="rounded-lg border overflow-hidden">
+    <div className="rounded-lg border overflow-hidden bg-card overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b bg-muted/30">
+          <tr className="border-b bg-muted/40">
             <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-28">
               Category
             </th>
@@ -189,17 +240,27 @@ function ResultsTable({
               </td>
               <td className="px-4 py-3 text-muted-foreground text-sm">{r.query_text}</td>
               <td className="px-4 py-3">
-                {r.brand_detected ? (
-                  <span className="flex items-center gap-1.5 text-green-600 text-sm">
-                    <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                    Seen by AI
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
-                    <XCircle className="h-3.5 w-3.5 shrink-0" />
-                    Not yet seen by AI
-                  </span>
-                )}
+                <div className="flex flex-col gap-1">
+                  {r.brand_detected ? (
+                    <span className="flex items-center gap-1.5 text-score-strong text-sm font-medium">
+                      <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                      Seen by AI
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
+                      <XCircle className="h-3.5 w-3.5 shrink-0" />
+                      Not yet seen by AI
+                    </span>
+                  )}
+                  {r.recommendation_position != null && (
+                    <Badge
+                      variant="outline"
+                      className="w-fit gap-1 border-primary/30 bg-primary/5 text-primary text-xs font-normal"
+                    >
+                      AI Search Ranking #{r.recommendation_position}
+                    </Badge>
+                  )}
+                </div>
               </td>
               <td className="px-4 py-3 text-right">
                 {flaggedIds.has(r.id) ? (
@@ -208,7 +269,7 @@ function ResultsTable({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                    className="h-7 px-2 text-xs text-score-watch hover:text-score-watch hover:bg-score-watch-bg"
                     onClick={() => onFlag(r.id)}
                     disabled={flaggingId === r.id}
                   >

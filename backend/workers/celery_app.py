@@ -10,6 +10,7 @@ celery_app = Celery(
         "workers.tasks.scan_tasks",
         "workers.tasks.digest_tasks",
         "workers.tasks.report_tasks",
+        "workers.tasks.content_tasks",
     ],
 )
 

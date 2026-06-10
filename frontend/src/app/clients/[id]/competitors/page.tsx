@@ -53,9 +53,11 @@ export default async function CompetitorsPage({ params }: Props) {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold">Competitor Intelligence</h2>
+          <h2 className="font-display text-xl font-semibold tracking-tight">
+            Competitor Intelligence
+          </h2>
         </div>
-        <div className="rounded-md border border-dashed p-8 text-center text-muted-foreground">
+        <div className="rounded-lg border border-dashed bg-card/50 p-8 text-center text-muted-foreground">
           <p className="font-medium">Run your first scan to see competitor intelligence</p>
           <p className="text-sm mt-1">
             Go to{" "}
@@ -67,10 +69,10 @@ export default async function CompetitorsPage({ params }: Props) {
         </div>
         <div className="space-y-4">
           {data.competitors.map((comp) => (
-            <div key={comp.id} className="rounded-lg border overflow-hidden">
-              <div className="flex items-start justify-between px-5 py-4 bg-muted/20">
+            <div key={comp.id} className="overflow-hidden rounded-lg border bg-card">
+              <div className="flex items-start justify-between border-b bg-muted/30 px-5 py-4">
                 <div>
-                  <p className="font-semibold">{comp.name}</p>
+                  <p className="font-semibold">{comp.name ?? "Unnamed competitor"}</p>
                   {comp.website && (
                     <p className="text-xs text-muted-foreground mt-0.5">{comp.website}</p>
                   )}
@@ -94,7 +96,9 @@ export default async function CompetitorsPage({ params }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Competitor Intelligence</h2>
+          <h2 className="font-display text-xl font-semibold tracking-tight">
+            Competitor Intelligence
+          </h2>
           {data.last_scan_at && (
             <p className="text-sm text-muted-foreground mt-1">
               Based on scan from{" "}
@@ -109,7 +113,7 @@ export default async function CompetitorsPage({ params }: Props) {
         {winningCount > 0 && (
           <Badge
             variant="outline"
-            className="gap-1.5 text-amber-700 border-amber-300 bg-amber-50"
+            className="gap-1.5 text-score-watch border-score-watch/30 bg-score-watch-bg"
           >
             <AlertTriangle className="h-3.5 w-3.5" />
             {winningCount} competitor{winningCount > 1 ? "s" : ""} winning
@@ -118,10 +122,10 @@ export default async function CompetitorsPage({ params }: Props) {
       </div>
 
       {/* Client score summary */}
-      <div className="rounded-lg border px-5 py-4 flex items-center justify-between">
+      <div className="flex items-center justify-between rounded-xl border bg-card px-5 py-4 shadow-brand">
         <div>
           <p className="text-sm text-muted-foreground">Your AI visibility</p>
-          <p className="text-2xl font-bold tabular-nums">
+          <p className="font-display text-3xl font-bold tabular-nums text-primary">
             {data.client_ai_citability.toFixed(0)}
             <span className="text-base font-normal text-muted-foreground">%</span>
           </p>
@@ -132,9 +136,9 @@ export default async function CompetitorsPage({ params }: Props) {
       {/* Competitor cards */}
       <div className="space-y-4">
         {data.competitors.map((comp) => (
-          <div key={comp.id} className="rounded-lg border overflow-hidden">
+          <div key={comp.id} className="overflow-hidden rounded-lg border bg-card">
             {/* Card header */}
-            <div className="flex items-start justify-between px-5 py-4 bg-muted/20">
+            <div className="flex items-start justify-between border-b bg-muted/30 px-5 py-4">
               <div>
                 <p className="font-semibold">{comp.name}</p>
                 {comp.website && (
@@ -150,7 +154,7 @@ export default async function CompetitorsPage({ params }: Props) {
                   <p className="text-xs text-muted-foreground">visibility frequency</p>
                 </div>
                 {comp.is_winning ? (
-                  <Badge className="bg-amber-100 text-amber-800 border-amber-200 gap-1 shrink-0">
+                  <Badge className="gap-1 shrink-0 border-score-watch/30 bg-score-watch-bg text-score-watch">
                     <AlertTriangle className="h-3 w-3" />
                     Your competitors are winning here
                   </Badge>
@@ -172,7 +176,7 @@ export default async function CompetitorsPage({ params }: Props) {
                   >
                     <div className="flex items-center gap-3">
                       {q.brand_detected ? (
-                        <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                        <CheckCircle className="h-4 w-4 text-score-strong shrink-0" />
                       ) : (
                         <XCircle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                       )}
@@ -183,7 +187,7 @@ export default async function CompetitorsPage({ params }: Props) {
                     <span
                       className={
                         q.brand_detected
-                          ? "text-green-700 font-medium"
+                          ? "text-score-strong font-medium"
                           : "text-muted-foreground"
                       }
                     >

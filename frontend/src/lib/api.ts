@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -69,6 +69,10 @@ export function updateClient(
   })
 }
 
+export function deleteClient(id: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/clients/${id}`, { method: "DELETE" })
+}
+
 export function getLatestGeoScore(clientId: string): Promise<GeoScore | null> {
   return apiFetch<GeoScore | null>(`/api/v1/clients/${clientId}/geo-score/latest`)
 }
@@ -104,9 +108,9 @@ export function getCompetitorIntelligence(clientId: string): Promise<CompetitorI
   )
 }
 
-export function getActivityLog(clientId: string, limit = 50): Promise<ActivityLogEntry[]> {
+export function getActivityLog(clientId: string, limit = 50, skip = 0): Promise<ActivityLogEntry[]> {
   return apiFetch<ActivityLogEntry[]>(
-    `/api/v1/clients/${clientId}/activity?limit=${limit}`,
+    `/api/v1/clients/${clientId}/activity?limit=${limit}&skip=${skip}`,
   )
 }
 
@@ -124,6 +128,18 @@ export function generateToolkitFiles(clientId: string): Promise<ToolkitFiles> {
 
 export function verifyToolkitFiles(clientId: string): Promise<VerificationResult> {
   return apiFetch<VerificationResult>(`/api/v1/clients/${clientId}/toolkit/verify`, {
+    method: "POST",
+  })
+}
+
+// ── Content Gaps ────────────────────────────────────────────────────────────────
+
+export function getContentGaps(clientId: string): Promise<ContentAnalysis | null> {
+  return apiFetch<ContentAnalysis | null>(`/api/v1/clients/${clientId}/content-gaps`)
+}
+
+export function runContentAnalysis(clientId: string): Promise<ContentAnalysis> {
+  return apiFetch<ContentAnalysis>(`/api/v1/clients/${clientId}/content-gaps/analyze`, {
     method: "POST",
   })
 }
@@ -155,7 +171,7 @@ export function getLatestScan(clientId: string): Promise<Scan | null> {
 }
 
 export function triggerScan(clientId: string): Promise<{ id: string; status: string }> {
-  return apiFetch<{ id: string; status: string }>("/api/v1/scans", {
+  return apiFetch<{ id: string; status: string }>("/api/v1/scans/", {
     method: "POST",
     body: JSON.stringify({ client_id: clientId }),
   })

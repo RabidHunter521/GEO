@@ -1,4 +1,4 @@
-import { getReports } from "@/lib/api"
+import { getReports, getClient } from "@/lib/api"
 import type { Report } from "@/types"
 import { ReportsClient } from "./ReportsClient"
 
@@ -9,10 +9,13 @@ interface Props {
 export default async function ReportsPage({ params }: Props) {
   const { id } = await params
   let reports: Report[] = []
+  let contactEmail: string | null = null
   try {
-    reports = await getReports(id)
+    const [fetchedReports, client] = await Promise.all([getReports(id), getClient(id)])
+    reports = fetchedReports
+    contactEmail = client.contact_email ?? null
   } catch {
     // backend down — show empty state
   }
-  return <ReportsClient clientId={id} initialReports={reports} />
+  return <ReportsClient clientId={id} initialReports={reports} contactEmail={contactEmail} />
 }

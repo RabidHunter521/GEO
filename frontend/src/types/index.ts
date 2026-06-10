@@ -118,7 +118,40 @@ export interface ScanQueryResult {
   query_text: string
   response_text: string | null
   brand_detected: boolean
+  hallucination_flagged: boolean
+  recommendation_position: number | null
   created_at: string
+}
+
+export interface ContentTopic {
+  topic: string
+  status: "strong" | "weak" | "missing"
+}
+
+export interface ContentEntity {
+  entity: string
+  covered: boolean
+}
+
+export interface ContentMetrics {
+  word_count: number
+  h1_count: number
+  faq_count: number
+  blog_count: number
+  schema_present: boolean
+}
+
+export interface ContentAnalysis {
+  id: string
+  client_id: string
+  status: "pending" | "running" | "completed" | "failed"
+  topics_json: ContentTopic[]
+  entities_json: ContentEntity[]
+  entity_coverage_score: number
+  content_metrics_json: ContentMetrics
+  content_quality_recommendation: string | null
+  pages_crawled: number
+  analyzed_at: string
 }
 
 export interface Scan {

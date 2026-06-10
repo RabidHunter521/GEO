@@ -20,6 +20,7 @@ router = APIRouter(prefix="/clients/{client_id}/activity", tags=["activity"])
 def list_activity(
     client_id: uuid.UUID,
     limit: int = 50,
+    skip: int = 0,
     db: Session = Depends(get_db),
 ):
     c = db.get(Client, client_id)
@@ -29,6 +30,7 @@ def list_activity(
         db.query(ActivityLog)
         .filter(ActivityLog.client_id == client_id)
         .order_by(desc(ActivityLog.created_at))
+        .offset(skip)
         .limit(limit)
         .all()
     )

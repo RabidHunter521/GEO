@@ -75,6 +75,8 @@ def get_latest_scan(client_id: uuid.UUID, db: Session = Depends(get_db)):
             query_text=row.ScanQueryResult.query_text,
             response_text=row.ScanQueryResult.response_text,
             brand_detected=row.ScanQueryResult.brand_detected,
+            hallucination_flagged=row.ScanQueryResult.hallucination_flagged,
+            recommendation_position=row.ScanQueryResult.recommendation_position,
             created_at=row.ScanQueryResult.created_at,
         )
         for row in rows

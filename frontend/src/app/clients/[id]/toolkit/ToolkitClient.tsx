@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Loader2, Copy, Download, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 import { generateToolkitAction, verifyToolkitAction } from "./actions"
 import type { ToolkitFiles, VerificationResult } from "@/types"
 
@@ -49,7 +50,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
   const [files, setFiles] = useState<ToolkitFiles | null>(initialFiles)
   const [activeTab, setActiveTab] = useState<FileKey>("llms_txt")
   const [verification, setVerification] = useState<VerificationResult | null>(null)
-  const [copied, setCopied] = useState<FileKey | null>(null)
+
   const [isPending, startGenTransition] = useTransition()
   const [isVerifying, startVerifyTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -89,8 +90,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
 
   function handleCopy(key: FileKey) {
     navigator.clipboard.writeText(files![key])
-    setCopied(key)
-    setTimeout(() => setCopied(null), 2000)
+    toast.success("Copied to clipboard")
   }
 
   function handleDownload(key: FileKey) {
@@ -203,7 +203,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
                       onClick={() => handleCopy(key)}
                     >
                       <Copy className="h-3 w-3 mr-1" />
-                      {copied === key ? "Copied!" : "Copy"}
+                      Copy
                     </Button>
                     <Button
                       size="sm"

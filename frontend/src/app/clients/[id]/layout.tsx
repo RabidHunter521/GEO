@@ -1,6 +1,15 @@
 // frontend/src/app/clients/[id]/layout.tsx
 import { notFound } from "next/navigation"
+import { ExternalLink } from "lucide-react"
 import { getClient } from "@/lib/api"
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("")
+}
 
 export default async function ClientLayout({
   children,
@@ -17,22 +26,37 @@ export default async function ClientLayout({
     notFound()
   }
 
+  const host = client.website?.replace(/^https?:\/\//, "").replace(/\/$/, "")
+
   return (
     <div>
-      <div className="mb-6 pb-4 border-b">
-        <h1 className="text-xl font-semibold">{client.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          <a
-            href={client.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            {client.website}
-          </a>
-          {" · "}
-          {client.industry}
-        </p>
+      <div className="mb-6 flex items-center gap-4 border-b pb-5">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-display text-lg font-semibold text-primary">
+          {initials(client.name)}
+        </span>
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-2xl font-semibold tracking-tight">
+            {client.name}
+          </h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {client.website && (
+              <a
+                href={client.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-secondary-foreground transition-colors hover:bg-secondary/70"
+              >
+                {host}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {client.industry && (
+              <span className="rounded-full bg-muted px-2.5 py-0.5">
+                {client.industry}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
       {children}
     </div>

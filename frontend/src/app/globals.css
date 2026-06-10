@@ -4,26 +4,44 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Surfaces — warm off-white, not pure #fff, for a premium feel */
+    --background: 250 40% 99%;
+    --foreground: 256 35% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 256 35% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    --popover-foreground: 256 35% 14%;
+
+    /* Brand — deep premium violet */
+    --primary: 250 90% 60%;
+    --primary-foreground: 250 40% 99%;
+
+    /* Secondary / muted / accent — tinted toward violet, not grey-blue */
+    --secondary: 252 60% 96%;
+    --secondary-foreground: 252 45% 25%;
+    --muted: 252 40% 96.5%;
+    --muted-foreground: 252 12% 45%;
+    --accent: 252 70% 95%;
+    --accent-foreground: 252 60% 33%;
+
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 250 40% 99%;
+
+    --border: 252 30% 91%;
+    --input: 252 30% 91%;
+    --ring: 250 90% 60%;
+    --radius: 0.625rem;
+
+    /* Score bands — semantic health colors, kept distinct from brand violet */
+    --score-strong: 152 60% 40%;
+    --score-watch: 35 92% 48%;
+    --score-low: 0 75% 55%;
+    --score-strong-bg: 152 55% 94%;
+    --score-watch-bg: 38 90% 94%;
+    --score-low-bg: 0 80% 96%;
+
+    /* Soft brand shadow for elevated surfaces */
+    --shadow-brand: 0 8px 30px -12px hsl(250 90% 60% / 0.18);
   }
 }
 
@@ -33,5 +51,30 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer utilities {
+  /* Barely-there violet radial wash for main content areas */
+  .bg-app-wash {
+    background-image: radial-gradient(
+        60rem 40rem at 0% 0%,
+        hsl(250 90% 60% / 0.05),
+        transparent 60%
+      ),
+      radial-gradient(
+        50rem 40rem at 100% 0%,
+        hsl(270 90% 60% / 0.035),
+        transparent 55%
+      );
+  }
+
+  .shadow-brand {
+    box-shadow: var(--shadow-brand);
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }

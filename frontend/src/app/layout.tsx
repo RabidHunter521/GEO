@@ -1,8 +1,19 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Bricolage_Grotesque } from "next/font/google"
+import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+})
+
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   title: "SeenBy Admin",
@@ -15,8 +26,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className={`${inter.variable} ${bricolage.variable}`}>
+      <body className="font-sans antialiased">
+        {children}
+        <Toaster position="bottom-right" />
+      </body>
     </html>
   )
 }

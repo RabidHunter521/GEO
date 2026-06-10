@@ -14,12 +14,14 @@ from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.services.gemini_client import GeminiClient
 from app.services.brand_detection import detect_brand_mention
+from app.services.position_extraction import extract_position
 from app.services.query_builder import build_client_queries, build_competitor_queries
 from app.services.scoring_service import compute_ai_citability, compute_geo_score
 
 logger = structlog.get_logger()
 
 _INTER_QUERY_DELAY_SECONDS = 0.5  # rate-limit buffer for Gemini free tier
+_RANKED_CATEGORIES = ("recommendation", "local")
 
 
 def run_scan(scan_id: uuid.UUID, db: Session) -> None:
@@ -44,6 +46,21 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         for q in client_queries:
             response_text = gemini.query(q["query_text"])
             detected = detect_brand_mention(response_text, client.name)
+
+            # Recommendation Position — only for ranked-list categories where the brand appears.
+            # Isolated so an extraction failure leaves position None and never fails the scan.
+            position = None
+            if detected and q["category"] in _RANKED_CATEGORIES:
+                try:
+                    position = extract_position(response_text, client.name)
+                except Exception as exc:
+                    logger.error(
+                        "position_extraction_failed",
+                        scan_id=str(scan_id),
+                        query=q["query_text"],
+                        error=str(exc),
+                    )
+
             result = ScanQueryResult(
                 scan_id=scan.id,
                 competitor_id=None,
@@ -51,6 +68,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                 query_text=q["query_text"],
                 response_text=response_text,
                 brand_detected=detected,
+                recommendation_position=position,
             )
             db.add(result)
             time.sleep(_INTER_QUERY_DELAY_SECONDS)

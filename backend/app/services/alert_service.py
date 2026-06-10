@@ -110,11 +110,7 @@ def flag_hallucination(result_id: uuid.UUID, db: Session, expected_scan_id: uuid
         raise ValueError(f"Scan not found: {result.scan_id}")
     client = db.get(Client, scan.client_id)
 
-    send_email(
-        to=ALERTS_EMAIL,
-        subject=f"Hallucination flagged: {client.name}",
-        html_body=_build_hallucination_email(client, result),
-    )
+    result.hallucination_flagged = True
     db.add(ActivityLog(
         client_id=client.id,
         event_type="hallucination_flagged",
@@ -122,6 +118,14 @@ def flag_hallucination(result_id: uuid.UUID, db: Session, expected_scan_id: uuid
     ))
     db.commit()
     logger.info("hallucination_flagged", client_id=str(client.id), result_id=str(result_id))
+    try:
+        send_email(
+            to=ALERTS_EMAIL,
+            subject=f"Hallucination flagged: {client.name}",
+            html_body=_build_hallucination_email(client, result),
+        )
+    except Exception:
+        logger.warning("hallucination_flag_email_failed", client_id=str(client.id), result_id=str(result_id))
 
 
 def _compute_citability(results: list[ScanQueryResult]) -> float:

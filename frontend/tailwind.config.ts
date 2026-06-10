@@ -39,6 +39,18 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        score: {
+          strong: "hsl(var(--score-strong))",
+          watch: "hsl(var(--score-watch))",
+          low: "hsl(var(--score-low))",
+          "strong-bg": "hsl(var(--score-strong-bg))",
+          "watch-bg": "hsl(var(--score-watch-bg))",
+          "low-bg": "hsl(var(--score-low-bg))",
+        },
+      },
+      fontFamily: {
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -8,8 +8,10 @@ from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.activity_log import ActivityLog
 from app.models.toolkit_files import ToolkitFiles
+from app.models.geo_score import GeoScore
 from app.services.toolkit_service import generate_toolkit_files
 from app.services.verification_crawler import verify_all
+from app.services.scoring_service import compute_geo_score
 from app.schemas.toolkit import ToolkitFilesResponse, VerificationResult
 
 router = APIRouter(prefix="/clients/{client_id}/toolkit", tags=["toolkit"])
@@ -84,7 +86,8 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
     if any(results.values()):
         tf.verified_at = datetime.now(UTC)
 
-    client.technical_foundations_verified = results["llms_verified"]
+    # spec: llms.txt + robots.txt must both verify for technical_foundations
+    client.technical_foundations_verified = results["llms_verified"] and results["robots_verified"]
     client.structured_data_verified = results["schema_verified"]
 
     verified_names = ", ".join(
@@ -101,6 +104,27 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
         event_type="toolkit_verified",
         note=f"Toolkit verification run. Files verified: {verified_names}.",
     ))
+
+    # Recompute and persist overall GEO score when toolkit verification changes scores
+    latest_geo = (
+        db.query(GeoScore)
+        .filter(GeoScore.client_id == client_id)
+        .order_by(GeoScore.computed_at.desc())
+        .first()
+    )
+    if latest_geo:
+        new_overall = compute_geo_score(client, latest_geo.ai_citability)
+        db.add(GeoScore(
+            client_id=client.id,
+            scan_id=latest_geo.scan_id,
+            ai_citability=latest_geo.ai_citability,
+            brand_authority=float(client.brand_authority_score),
+            content_quality=float(client.content_quality_score),
+            technical_foundations=100.0 if client.technical_foundations_verified else 0.0,
+            structured_data=100.0 if client.structured_data_verified else 0.0,
+            overall_score=new_overall,
+        ))
+
     db.commit()
 
     return VerificationResult(

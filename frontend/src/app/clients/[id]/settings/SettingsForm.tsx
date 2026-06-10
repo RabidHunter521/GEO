@@ -1,22 +1,36 @@
 // frontend/src/app/clients/[id]/settings/SettingsForm.tsx
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, CheckCircle, Plus, Trash2 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Loader2, CheckCircle, Plus, Trash2, HelpCircle, Lightbulb } from "lucide-react"
 import { updateClientAction } from "./actions"
 import {
   addCompetitorAction,
   deleteCompetitorAction,
+  archiveClientAction,
 } from "@/app/clients/actions"
 import type { Client, Competitor } from "@/types"
 
 interface Props {
   client: Client
   competitors: Competitor[]
+  contentRecommendation?: string | null
 }
 
 const INDUSTRIES = [
@@ -24,10 +38,22 @@ const INDUSTRIES = [
   "Education", "Real Estate", "Food & Beverage", "Retail", "Other",
 ]
 
-export function SettingsForm({ client, competitors: initialCompetitors }: Props) {
+export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation }: Props) {
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [archiving, setArchiving] = useState(false)
+
+  useEffect(() => {
+    if (!isDirty) return
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handler)
+    return () => window.removeEventListener("beforeunload", handler)
+  }, [isDirty])
   const [competitors, setCompetitors] = useState<Competitor[]>(initialCompetitors)
   const [compName, setCompName] = useState("")
   const [compWebsite, setCompWebsite] = useState("")
@@ -60,6 +86,7 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
             : undefined,
         })
         setSaved(true)
+        setIsDirty(false)
       } catch {
         setError("Failed to save. Please try again.")
       }
@@ -84,20 +111,21 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
     }
   }
 
-  async function handleRemoveComp(id: string) {
+  async function handleRemoveComp(compId: string, compName: string) {
+    if (!window.confirm(`Remove "${compName}"? This will also remove their data from past scan results.`)) return
     try {
-      await deleteCompetitorAction(client.id, id)
-      setCompetitors((prev) => prev.filter((c) => c.id !== id))
+      await deleteCompetitorAction(client.id, compId)
+      setCompetitors((prev) => prev.filter((c) => c.id !== compId))
     } catch {
       setError("Failed to remove competitor.")
     }
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-8">
+    <form onSubmit={handleSave} onChange={() => setIsDirty(true)} className="space-y-8">
       {/* Brand details */}
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">Brand Details</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Brand Details</h2>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 space-y-1">
             <Label htmlFor="s-name">Brand name</Label>
@@ -105,20 +133,20 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
           </div>
           <div className="space-y-1">
             <Label htmlFor="s-website">Website</Label>
-            <Input id="s-website" name="website" defaultValue={client.website} required />
+            <Input id="s-website" name="website" type="url" defaultValue={client.website} required />
           </div>
           <div className="space-y-1">
             <Label htmlFor="s-industry">Industry</Label>
-            <select
-              id="s-industry"
-              name="industry"
-              defaultValue={client.industry}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {INDUSTRIES.map((i) => (
-                <option key={i} value={i}>{i}</option>
-              ))}
-            </select>
+            <Select name="industry" defaultValue={client.industry} onValueChange={() => setIsDirty(true)}>
+              <SelectTrigger id="s-industry">
+                <SelectValue placeholder="Select industry" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDUSTRIES.map((i) => (
+                  <SelectItem key={i} value={i}>{i}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </section>
@@ -127,7 +155,7 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
 
       {/* Profile */}
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">Profile</h2>
+        <h2 className="font-display text-lg font-semibold tracking-tight">Profile</h2>
         <div className="space-y-1">
           <Label htmlFor="s-desc">Description</Label>
           <textarea
@@ -172,7 +200,7 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
       {/* Manual scores */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold">Manual Score Inputs</h2>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Manual Score Inputs</h2>
           <p className="text-xs text-muted-foreground mt-0.5 italic">
             Assessed by SeenBy team
           </p>
@@ -201,7 +229,19 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="s-threshold">Score Drop Threshold</Label>
+            <div className="flex items-center gap-1">
+              <Label htmlFor="s-threshold">Score Drop Threshold</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 text-sm">
+                  Alert fires when the overall GEO score drops below this number. Set to 0 to disable.
+                </PopoverContent>
+              </Popover>
+            </div>
             <Input
               id="s-threshold"
               name="score_drop_threshold"
@@ -212,15 +252,37 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
             />
           </div>
         </div>
+
+        {contentRecommendation && (
+          <div className="rounded-md border bg-muted/10 px-4 py-3 flex gap-3">
+            <Lightbulb className="h-4 w-4 shrink-0 text-score-watch mt-0.5" />
+            <div>
+              <p className="text-sm font-medium">
+                Content Quality suggestion{" "}
+                <span className="font-normal text-muted-foreground">
+                  (from the latest Content Gaps analysis — informational only)
+                </span>
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-1">
+                {contentRecommendation}
+              </p>
+            </div>
+          </div>
+        )}
       </section>
 
       <Separator />
 
       {/* Competitors */}
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">
-          Competitors ({competitors.length}/5)
-        </h2>
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight">
+            Competitors ({competitors.length}/5)
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Adding or removing competitors takes effect immediately — no need to save.
+          </p>
+        </div>
         {competitors.length > 0 && (
           <ul className="space-y-2">
             {competitors.map((c) => (
@@ -229,7 +291,7 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
                 className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
               >
                 <span>
-                  <span className="font-medium">{c.name}</span>
+                  <span className="font-medium">{c.name ?? "Unnamed competitor"}</span>
                   {c.website && (
                     <span className="text-muted-foreground ml-2">{c.website}</span>
                   )}
@@ -238,7 +300,7 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleRemoveComp(c.id)}
+                  onClick={() => handleRemoveComp(c.id, c.name ?? "Unnamed competitor")}
                   className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -288,14 +350,43 @@ export function SettingsForm({ client, competitors: initialCompetitors }: Props)
           {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           Save changes
         </Button>
-        {saved && (
-          <span className="flex items-center gap-1 text-sm text-green-600">
+        {saved && !isDirty && (
+          <span className="flex items-center gap-1 text-sm text-score-strong">
             <CheckCircle className="h-4 w-4" />
             Saved
           </span>
         )}
+        {isDirty && !isPending && (
+          <span className="text-sm text-muted-foreground">Unsaved changes</span>
+        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
+
+      <Separator />
+
+      {/* Danger zone */}
+      <section className="space-y-3">
+        <h2 className="font-display text-lg font-semibold tracking-tight text-destructive">
+          Danger Zone
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Archiving removes this client from the dashboard. All data is retained for 6 months per our retention policy.
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+          disabled={archiving}
+          onClick={async () => {
+            if (!window.confirm(`Archive "${client.name}"? They will be removed from your dashboard.`)) return
+            setArchiving(true)
+            await archiveClientAction(client.id)
+          }}
+        >
+          {archiving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          Archive client
+        </Button>
+      </section>
     </form>
   )
 }

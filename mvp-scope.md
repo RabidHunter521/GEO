@@ -191,6 +191,7 @@ Manual dimensions always display label: **"Assessed by SeenBy team"**
 /clients/[id]/scan         → scan & visibility
 /clients/[id]/competitors  → competitor intelligence
 /clients/[id]/toolkit      → AI readiness toolkit
+/clients/[id]/content-gaps → content gaps (topic + entity coverage, content quality assist)
 /clients/[id]/reports      → reports
 /clients/[id]/activity     → activity log
 /clients/[id]/settings     → client settings

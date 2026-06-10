@@ -41,6 +41,7 @@ def test_list_activity_returns_entries_newest_first():
         mock_db.query.return_value
         .filter.return_value
         .order_by.return_value
+        .offset.return_value
         .limit.return_value
         .all.return_value
     ) = [newer, older]
@@ -67,6 +68,7 @@ def test_list_activity_returns_empty_list_when_no_entries():
         mock_db.query.return_value
         .filter.return_value
         .order_by.return_value
+        .offset.return_value
         .limit.return_value
         .all.return_value
     ) = []

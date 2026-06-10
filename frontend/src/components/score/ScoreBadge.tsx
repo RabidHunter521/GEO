@@ -8,6 +8,12 @@ interface Props {
   className?: string
 }
 
+const BAND_CLASS: Record<string, string> = {
+  green: "bg-score-strong-bg text-score-strong border-score-strong/25",
+  yellow: "bg-score-watch-bg text-score-watch border-score-watch/30",
+  red: "bg-score-low-bg text-score-low border-score-low/25",
+}
+
 export function ScoreBadge({ score, className }: Props) {
   if (score === null) {
     return (
@@ -18,17 +24,11 @@ export function ScoreBadge({ score, className }: Props) {
   }
 
   const band = getScoreBand(score)
-  const colorClass =
-    band.color === "green"
-      ? "bg-green-100 text-green-800 border-green-200"
-      : band.color === "yellow"
-        ? "bg-yellow-100 text-yellow-800 border-yellow-200"
-        : "bg-red-100 text-red-800 border-red-200"
 
   return (
     <Badge
       variant="outline"
-      className={cn("font-semibold", colorClass, className)}
+      className={cn("font-semibold tabular-nums", BAND_CLASS[band.color], className)}
     >
       {score.toFixed(0)}
     </Badge>

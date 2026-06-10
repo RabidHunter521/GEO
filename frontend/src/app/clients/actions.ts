@@ -2,9 +2,10 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 import {
   createClient as apiCreateClient,
-  updateClient as apiUpdateClient,
+  deleteClient as apiDeleteClient,
   addCompetitor as apiAddCompetitor,
   deleteCompetitor as apiDeleteCompetitor,
 } from "@/lib/api"
@@ -36,16 +37,8 @@ export async function deleteCompetitorAction(
   revalidatePath(`/clients/${clientId}`)
 }
 
-export async function updateClientAction(
-  id: string,
-  data: {
-    description?: string
-    target_audience?: string
-    city?: string
-    state?: string
-    contact_email?: string
-  },
-) {
-  await apiUpdateClient(id, data)
-  revalidatePath(`/clients/${id}`)
+export async function archiveClientAction(id: string) {
+  await apiDeleteClient(id)
+  revalidatePath("/clients")
+  redirect("/clients")
 }

@@ -27,6 +27,8 @@ class ScanQueryResultResponse(BaseModel):
     query_text: str
     response_text: str | None = None
     brand_detected: bool
+    hallucination_flagged: bool = False
+    recommendation_position: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
