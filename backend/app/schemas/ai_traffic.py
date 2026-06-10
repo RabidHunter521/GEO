@@ -1,11 +1,11 @@
 import uuid
 from datetime import date, datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AiTrafficSnapshotUpsert(BaseModel):
     period: date
-    ai_visitors: int
+    ai_visitors: int = Field(ge=0)
 
 
 class AiTrafficSnapshotResponse(BaseModel):

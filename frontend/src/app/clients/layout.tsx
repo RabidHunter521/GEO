@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation"
+import { auth } from "../../../auth"
 import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar"
 
-export default function ClientsLayout({
+export default async function ClientsLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Second auth layer behind middleware — admin pages must fail closed.
+  const session = await auth()
+  if (!session) redirect("/auth/login")
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />

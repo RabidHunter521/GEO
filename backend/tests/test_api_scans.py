@@ -25,9 +25,13 @@ def test_trigger_scan_returns_202():
     mock_scan.triggered_at = datetime(2026, 1, 1, 0, 0, 0)
     mock_scan.completed_at = None
 
+    mock_client = MagicMock()
+    mock_client.archived_at = None
+
     mock_db = MagicMock()
     mock_db.add = MagicMock()
     mock_db.commit = MagicMock()
+    mock_db.get.return_value = mock_client
 
     def fake_refresh(scan_obj):
         scan_obj.id = mock_scan.id
@@ -51,6 +55,26 @@ def test_trigger_scan_returns_202():
         app.dependency_overrides.clear()
 
     assert response.status_code == 202
+
+
+def test_trigger_scan_unknown_client_returns_404():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = None
+
+    def fake_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = fake_get_db
+    app.dependency_overrides[require_api_key] = lambda: None
+    client = TestClient(app)
+    response = client.post("/api/v1/scans/", json={"client_id": str(uuid.uuid4())})
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
 
 
 def test_trigger_scan_requires_auth():

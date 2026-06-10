@@ -1,10 +1,10 @@
 import uuid
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CompetitorCreate(BaseModel):
-    name: str
-    website: str | None = None
+    name: str = Field(min_length=1, max_length=255)
+    website: str | None = Field(default=None, max_length=500)
 
 
 class CompetitorResponse(BaseModel):

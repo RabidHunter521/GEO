@@ -150,6 +150,9 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             logger.error("action_center_refresh_failed", scan_id=str(scan_id), error=str(exc))
 
     except Exception as exc:
+        # The session may hold a failed transaction — reset it so the
+        # status update below can actually commit.
+        db.rollback()
         scan.status = "failed"
         db.add(ActivityLog(
             client_id=scan.client_id,

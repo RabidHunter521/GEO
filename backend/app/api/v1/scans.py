@@ -25,6 +25,10 @@ router = APIRouter(prefix="/scans", tags=["scans"])
 )
 def trigger_scan(payload: TriggerScanRequest, db: Session = Depends(get_db)):
     from workers.tasks.scan_tasks import execute_scan
+    from app.models.client import Client
+    client = db.get(Client, payload.client_id)
+    if not client or client.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
     scan = Scan(client_id=payload.client_id)
     db.add(scan)
     db.commit()
