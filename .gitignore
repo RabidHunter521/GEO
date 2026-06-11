@@ -29,3 +29,6 @@ Thumbs.db
 # Playwright debug artifacts
 .playwright-mcp/
 frontend/screenshots/
+
+# Graphify output
+graphify-out/
