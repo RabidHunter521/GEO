@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     ADMIN_JWT_SECRET: str
     ADMIN_API_KEY: str
     ALLOWED_ORIGINS: str = "http://localhost:3000"
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
     ANTHROPIC_API_KEY: str
     RESEND_API_KEY: str
     CLOUDFLARE_R2_ENDPOINT_URL: str = ""

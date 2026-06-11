@@ -26,6 +26,7 @@ from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.services.scoring_service import get_score_band
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
+from app.services.share_link_service import get_share_link_url
 
 logger = structlog.get_logger()
 
@@ -503,6 +504,19 @@ def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
 
 
 def _build_report_email_html(client: Client, report: Report, period_label: str) -> str:
+    view_url = get_share_link_url(client)
+    dashboard_button = ""
+    if view_url:
+        dashboard_button = f"""
+          <div style="text-align:center;margin:24px 0 0;">
+            <a href="{view_url}"
+               style="display:inline-block;background:#0f172a;color:#ffffff;
+                      font-size:14px;font-weight:600;text-decoration:none;
+                      padding:12px 28px;border-radius:6px;">
+              View Your Live Dashboard
+            </a>
+          </div>"""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -536,6 +550,7 @@ def _build_report_email_html(client: Client, report: Report, period_label: str) 
               Your AI Visibility Score for {period_label}.
             </p>
           </div>
+{dashboard_button}
           <p style="margin:32px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             Tracked by SeenBy &middot;

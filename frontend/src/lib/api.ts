@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ActionRecommendation, AiTrafficSnapshot } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -77,6 +77,18 @@ export function deleteClient(id: string): Promise<void> {
 
 export function getLatestGeoScore(clientId: string): Promise<GeoScore | null> {
   return apiFetch<GeoScore | null>(`/api/v1/clients/${clientId}/geo-score/latest`)
+}
+
+export function generateShareToken(clientId: string): Promise<ShareTokenResponse> {
+  return apiFetch<ShareTokenResponse>(`/api/v1/clients/${clientId}/share-token`, {
+    method: "POST",
+  })
+}
+
+export function revokeShareToken(clientId: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/clients/${clientId}/share-token`, {
+    method: "DELETE",
+  })
 }
 
 // ── Competitors ───────────────────────────────────────────────────────────────

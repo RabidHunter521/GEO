@@ -46,10 +46,17 @@ class ClientResponse(BaseModel):
     technical_foundations_verified: bool
     structured_data_verified: bool
     score_drop_threshold: int
+    share_token: str | None = None
+    share_token_created_at: datetime | None = None
     created_at: datetime
     archived_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ShareTokenResponse(BaseModel):
+    share_token: str
+    share_token_created_at: datetime
 
 
 class ClientListItem(ClientResponse):

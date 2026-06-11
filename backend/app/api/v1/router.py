@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import scans, clients, competitors, toolkit, activity, digest, reports, content_gaps, action_center, traffic
+from app.api.v1 import scans, clients, competitors, toolkit, activity, digest, reports, content_gaps, action_center, traffic, client_view
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(scans.router)
@@ -12,3 +12,4 @@ router.include_router(reports.router)
 router.include_router(content_gaps.router)
 router.include_router(action_center.router)
 router.include_router(traffic.router)
+router.include_router(client_view.router)

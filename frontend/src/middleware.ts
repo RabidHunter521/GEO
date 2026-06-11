@@ -5,6 +5,12 @@ import { NextResponse } from "next/server"
 import { auth } from "../auth"
 
 export default auth((req) => {
+  // Read-only client view: the 256-bit share token in the URL is the
+  // credential — no admin session required (or wanted) here.
+  if (req.nextUrl.pathname.startsWith("/view")) {
+    return NextResponse.next()
+  }
+
   const isLoggedIn = !!req.auth
   const isLoginPage = req.nextUrl.pathname.startsWith("/auth/login")
 

@@ -1,6 +1,7 @@
 // frontend/src/app/clients/[id]/settings/page.tsx
 import { getClient, getCompetitors, getContentGaps, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
+import { ShareLinkCard } from "./ShareLinkCard"
 
 export default async function SettingsPage({
   params,
@@ -24,13 +25,14 @@ export default async function SettingsPage({
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-2xl space-y-6">
       <SettingsForm
         client={client}
         competitors={competitors}
         contentRecommendation={contentRecommendation}
         trafficHistory={trafficHistory}
       />
+      <ShareLinkCard client={client} />
     </div>
   )
 }

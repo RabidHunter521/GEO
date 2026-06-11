@@ -25,5 +25,9 @@ class Client(Base):
     technical_foundations_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     structured_data_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     score_drop_threshold: Mapped[int] = mapped_column(Integer, default=35)
+    # Read-only client view link. Plaintext by design: the admin must be able
+    # to re-copy the link from settings at any time. NULL = no active link.
+    share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
+    share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)

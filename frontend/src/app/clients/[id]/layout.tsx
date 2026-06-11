@@ -55,6 +55,18 @@ export default async function ClientLayout({
                 {client.industry}
               </span>
             )}
+            {client.share_token && (
+              <a
+                href={`/view/${client.share_token}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 font-medium text-primary transition-colors hover:bg-primary/20"
+                title="Preview what this client sees"
+              >
+                Client view
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
           </div>
         </div>
       </div>

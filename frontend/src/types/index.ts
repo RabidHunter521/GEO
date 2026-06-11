@@ -17,8 +17,15 @@ export interface Client {
   technical_foundations_verified: boolean
   structured_data_verified: boolean
   score_drop_threshold: number
+  share_token: string | null
+  share_token_created_at: string | null
   created_at: string
   archived_at: string | null
+}
+
+export interface ShareTokenResponse {
+  share_token: string
+  share_token_created_at: string
 }
 
 export interface ClientListItem extends Client {
@@ -191,4 +198,89 @@ export interface Scan {
   triggered_at: string
   completed_at: string | null
   results: ScanQueryResult[]
+}
+
+// ── Read-only client view (/view/[token]) ────────────────────────────────────
+// Wire names are client-safe by design: seen_by_ai, ai_search_ranking,
+// visibility_frequency. Never extend these with internal fields.
+
+export interface ClientViewProfile {
+  name: string
+  website: string
+  industry: string
+}
+
+export interface ClientViewScore {
+  overall_score: number
+  ai_visibility: number
+  brand_authority: number
+  content_quality: number
+  technical_foundations: number
+  structured_data: number
+  computed_at: string
+}
+
+export interface ClientViewScorePoint {
+  overall_score: number
+  computed_at: string
+}
+
+export interface ClientViewTrafficPoint {
+  period: string
+  ai_visitors: number
+}
+
+export interface ClientViewOverview {
+  profile: ClientViewProfile
+  latest_score: ClientViewScore | null
+  score_history: ClientViewScorePoint[]
+  traffic: ClientViewTrafficPoint[]
+}
+
+export interface ClientViewScanResult {
+  category: string
+  query_text: string
+  seen_by_ai: boolean
+  ai_search_ranking: number | null
+}
+
+export interface ClientViewScan {
+  completed_at: string | null
+  results: ClientViewScanResult[]
+}
+
+export interface ClientViewCompetitorQuery {
+  category: string
+  query_text: string
+  seen_by_ai: boolean
+}
+
+export interface ClientViewCompetitor {
+  name: string
+  website: string | null
+  visibility_frequency: number
+  is_winning: boolean
+  queries: ClientViewCompetitorQuery[]
+}
+
+export interface ClientViewCompetitors {
+  your_visibility_frequency: number | null
+  competitors: ClientViewCompetitor[]
+  last_scan_at: string | null
+}
+
+export interface ClientViewReport {
+  id: string
+  period_start: string
+  period_end: string
+  overall_score: number
+  generated_at: string
+  download_url: string
+}
+
+export interface ClientViewAction {
+  action_text: string
+  dimension: "ai_citability" | "brand_authority" | "content_quality" | "technical_foundations" | "structured_data"
+  priority: "high" | "medium" | "low"
+  generated_at: string
 }

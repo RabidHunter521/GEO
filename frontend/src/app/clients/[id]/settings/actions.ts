@@ -2,7 +2,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { updateClient, upsertTrafficSnapshot } from "@/lib/api"
+import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken } from "@/lib/api"
 
 export async function updateClientAction(
   id: string,
@@ -33,4 +33,17 @@ export async function updateTrafficAction(id: string, period: string, ai_visitor
   revalidatePath(`/clients/${id}`)
   revalidatePath(`/clients/${id}/settings`)
   return snapshot
+}
+
+export async function generateShareLinkAction(id: string) {
+  const token = await generateShareToken(id)
+  revalidatePath(`/clients/${id}`)
+  revalidatePath(`/clients/${id}/settings`)
+  return token
+}
+
+export async function revokeShareLinkAction(id: string) {
+  await revokeShareToken(id)
+  revalidatePath(`/clients/${id}`)
+  revalidatePath(`/clients/${id}/settings`)
 }

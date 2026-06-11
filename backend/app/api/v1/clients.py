@@ -9,8 +9,9 @@ from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
-from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem
+from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem, ShareTokenResponse
 from app.schemas.geo_score import GeoScoreResponse
+from app.services.share_link_service import generate_share_token, revoke_share_token
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -122,6 +123,34 @@ def archive_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Client not found")
     c.archived_at = datetime.now(timezone.utc)
     db.commit()
+
+
+@router.post(
+    "/{client_id}/share-token",
+    response_model=ShareTokenResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def create_or_rotate_share_token(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    generate_share_token(c, db)
+    return ShareTokenResponse(
+        share_token=c.share_token,
+        share_token_created_at=c.share_token_created_at,
+    )
+
+
+@router.delete(
+    "/{client_id}/share-token",
+    status_code=204,
+    dependencies=[Depends(require_api_key)],
+)
+def delete_share_token(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    revoke_share_token(c, db)
 
 
 @router.get(

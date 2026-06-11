@@ -130,8 +130,16 @@ Exact structure — do not add pages without updating this:
 /clients/[id]/content-gaps→ content gaps (topic + entity coverage, content quality assist)
 /clients/[id]/reports    → reports
 /clients/[id]/activity   → activity log
-/clients/[id]/settings   → client settings
+/clients/[id]/settings   → client settings (incl. client view link controls)
 /auth/login              → admin login only
+
+Public read-only client view (no login — gated by 256-bit share token in the
+URL; uniform 404 on invalid/revoked/archived; whitelisted schemas only, never
+raw AI responses or internal fields):
+/view/[token]             → client overview (score, dimensions, traffic, history)
+/view/[token]/scan        → scan & visibility results
+/view/[token]/competitors → competitor comparison
+/view/[token]/reports     → delivered PDF reports
 
 ## 10. Coding Conventions
 
