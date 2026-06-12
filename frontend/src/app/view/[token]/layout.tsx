@@ -34,7 +34,7 @@ export default async function ClientViewLayout({
   return (
     <div className="min-h-screen bg-app-wash">
       <header className="border-b bg-card">
-        <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6">
+        <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
             <div className="min-w-0">
               <p className="font-display text-lg font-bold tracking-tight text-primary">
@@ -67,7 +67,7 @@ export default async function ClientViewLayout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</main>
 
       <footer className="border-t py-6">
         <p className="text-center text-xs text-muted-foreground">

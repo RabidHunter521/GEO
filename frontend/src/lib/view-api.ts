@@ -9,6 +9,7 @@ import type {
   ClientViewCompetitors,
   ClientViewReport,
   ClientViewAction,
+  ClientViewIssueGroup,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -42,4 +43,8 @@ export function getViewReports(token: string): Promise<ClientViewReport[] | null
 
 export function getViewActions(token: string): Promise<ClientViewAction[] | null> {
   return viewFetch<ClientViewAction[]>(token, "/actions")
+}
+
+export function getViewIssues(token: string): Promise<ClientViewIssueGroup[] | null> {
+  return viewFetch<ClientViewIssueGroup[]>(token, "/issues")
 }

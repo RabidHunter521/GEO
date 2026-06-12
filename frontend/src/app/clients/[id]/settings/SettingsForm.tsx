@@ -96,6 +96,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           target_audience: (fd.get("target_audience") as string) || undefined,
           city: (fd.get("city") as string) || undefined,
           state: (fd.get("state") as string) || undefined,
+          country: (fd.get("country") as string) || undefined,
           contact_email: (fd.get("contact_email") as string) || undefined,
           brand_authority_score: fd.get("brand_authority_score")
             ? Number(fd.get("brand_authority_score"))
@@ -212,14 +213,18 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             defaultValue={client.target_audience ?? ""}
           />
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="s-country">Country</Label>
+          <Input id="s-country" name="country" defaultValue={client.country ?? ""} />
+        </div>
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="s-city">City</Label>
-            <Input id="s-city" name="city" defaultValue={client.city ?? ""} />
-          </div>
           <div className="space-y-1">
             <Label htmlFor="s-state">State</Label>
             <Input id="s-state" name="state" defaultValue={client.state ?? ""} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="s-city">City</Label>
+            <Input id="s-city" name="city" defaultValue={client.city ?? ""} />
           </div>
         </div>
         <div className="space-y-1">

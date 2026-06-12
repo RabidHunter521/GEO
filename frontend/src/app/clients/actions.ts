@@ -42,3 +42,10 @@ export async function archiveClientAction(id: string) {
   revalidatePath("/clients")
   redirect("/clients")
 }
+
+export async function archiveClientsAction(ids: string[]) {
+  for (const id of ids) {
+    await apiDeleteClient(id)
+  }
+  revalidatePath("/clients")
+}

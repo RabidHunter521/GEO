@@ -9,6 +9,7 @@ export interface Client {
   target_audience: string | null
   city: string | null
   state: string | null
+  country: string | null
   contact_email: string | null
   brand_authority_score: number
   brand_authority_evidence: string | null
@@ -283,4 +284,10 @@ export interface ClientViewAction {
   dimension: "ai_citability" | "brand_authority" | "content_quality" | "technical_foundations" | "structured_data"
   priority: "high" | "medium" | "low"
   generated_at: string
+}
+
+export interface ClientViewIssueGroup {
+  dimension: "ai_visibility" | "brand_authority" | "content_quality" | "technical_foundations" | "structured_data"
+  dimension_label: string
+  issues: string[]
 }

@@ -23,6 +23,7 @@ def _fake_client(name="Acme Corp"):
     m.target_audience = None
     m.city = None
     m.state = None
+    m.country = None
     m.contact_email = None
     m.brand_authority_score = 0
     m.brand_authority_evidence = None
@@ -31,6 +32,8 @@ def _fake_client(name="Acme Corp"):
     m.technical_foundations_verified = False
     m.structured_data_verified = False
     m.score_drop_threshold = 35
+    m.share_token = None
+    m.share_token_created_at = None
     m.created_at = datetime(2026, 1, 1)
     m.archived_at = None
     return m

@@ -2,11 +2,12 @@
 // Read-only overview: overall score, dimension breakdown, AI visitor
 // traffic, score history, and recommended actions. Zero mutations.
 import { notFound } from "next/navigation"
-import { TrendingUp, TrendingDown } from "lucide-react"
-import { getViewOverview, getViewActions } from "@/lib/view-api"
+import { TrendingUp, TrendingDown, AlertCircle } from "lucide-react"
+import { getViewOverview, getViewActions, getViewIssues } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { ScoreHistoryChart } from "@/components/view/ScoreHistoryChart"
+import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { getScoreBand } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
@@ -16,11 +17,31 @@ function periodKey(date: Date): string {
 }
 
 const DIMENSIONS = [
-  { key: "ai_visibility",         label: "AI Visibility",         weight: "40%", manual: false },
-  { key: "brand_authority",       label: "Brand Authority",       weight: "20%", manual: true  },
-  { key: "content_quality",       label: "Content Quality",       weight: "20%", manual: true  },
-  { key: "technical_foundations", label: "Technical Foundations", weight: "10%", manual: false },
-  { key: "structured_data",       label: "Structured Data",       weight: "10%", manual: false },
+  {
+    key: "ai_visibility", label: "AI Visibility", weight: "40%", manual: false,
+    description:
+      "Measures how often your brand appears, is seen, or is recommended by AI search engines such as ChatGPT, Gemini, Claude, and Perplexity when users ask relevant questions.",
+  },
+  {
+    key: "brand_authority", label: "Brand Authority", weight: "20%", manual: true,
+    description:
+      "Evaluates your brand's credibility, reputation, and trustworthiness across the web based on brand presence, backlinks, reviews, and industry recognition.",
+  },
+  {
+    key: "content_quality", label: "Content Quality", weight: "20%", manual: true,
+    description:
+      "Assesses how well your website content answers user questions through accuracy, depth, relevance, freshness, and expertise.",
+  },
+  {
+    key: "technical_foundations", label: "Technical Foundations", weight: "10%", manual: false,
+    description:
+      "Reviews the technical health of your website, including page speed, crawlability, mobile experience, security, and accessibility.",
+  },
+  {
+    key: "structured_data", label: "Structured Data", weight: "10%", manual: false,
+    description:
+      "Measures the implementation and quality of schema markup that helps search engines and AI systems better understand your content, products, services, and business information.",
+  },
 ] as const
 
 type DimKey = typeof DIMENSIONS[number]["key"]
@@ -45,9 +66,10 @@ export default async function ViewOverviewPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const [overview, actions] = await Promise.all([
+  const [overview, actions, issues] = await Promise.all([
     getViewOverview(token),
     getViewActions(token),
+    getViewIssues(token),
   ])
   if (!overview) notFound()
 
@@ -115,7 +137,7 @@ export default async function ViewOverviewPage({
               <div key={dim.key} className="rounded-lg border bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium">{dim.label}</p>
+                    <DimensionInfo label={dim.label} description={dim.description} />
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {dim.weight} weight
                       {dim.manual && (
@@ -136,6 +158,34 @@ export default async function ViewOverviewPage({
           })}
         </div>
       </div>
+
+      {/* Issues found that impact the GEO score */}
+      {issues && issues.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Issues Found That Impact Your GEO Score
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {issues.map((group) => (
+              <div key={group.dimension} className="rounded-lg border bg-card p-4">
+                <p className="text-sm font-medium">{group.dimension_label}</p>
+                <ul className="mt-2 space-y-1.5">
+                  {group.issues.map((issue) => (
+                    <li key={issue} className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-watch" />
+                      {issue}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Identified from your latest scan. The SeenBy team is working on
+            these — see Recommended Next Steps below.
+          </p>
+        </div>
+      )}
 
       {/* Score history */}
       <ScoreHistoryChart points={overview.score_history} />

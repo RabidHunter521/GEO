@@ -1,13 +1,15 @@
 // frontend/src/components/clients/OnboardingWizard.tsx
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Plus, Trash2 } from "lucide-react"
+import { Country, State } from "country-state-city"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import {
   createClientAction,
   addCompetitorAction,
@@ -48,9 +50,17 @@ export function OnboardingWizard({ onClose }: Props) {
   // Step 3
   const [description, setDescription] = useState("")
   const [targetAudience, setTargetAudience] = useState("")
+  const [country, setCountry] = useState("")
   const [city, setCity] = useState("")
   const [state, setState] = useState("")
   const [contactEmail, setContactEmail] = useState("")
+
+  const countryNames = useMemo(() => Country.getAllCountries().map((c) => c.name), [])
+  const stateNames = useMemo(() => {
+    const iso = Country.getAllCountries().find((c) => c.name === country)?.isoCode
+    if (!iso) return []
+    return State.getStatesOfCountry(iso).map((s) => s.name)
+  }, [country])
 
   function navigateToClient(client: Client) {
     onClose()
@@ -64,8 +74,15 @@ export function OnboardingWizard({ onClose }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const client = await createClientAction({ name, website, industry })
-      setCreatedClient(client)
+      if (createdClient) {
+        // Came back via Previous — the client already exists, so update it
+        // instead of creating a duplicate.
+        await updateClientAction(createdClient.id, { name, website, industry })
+        setCreatedClient({ ...createdClient, name, website, industry })
+      } else {
+        const client = await createClientAction({ name, website, industry })
+        setCreatedClient(client)
+      }
       setStep(2)
     } catch {
       setError("Failed to create client. Please try again.")
@@ -75,8 +92,8 @@ export function OnboardingWizard({ onClose }: Props) {
   }
 
   // ── Step 2 ──────────────────────────────────────────────────────────────────
-  async function handleAddCompetitor() {
-    if (!createdClient || !compName.trim()) return
+  async function handleAddCompetitor(): Promise<boolean> {
+    if (!createdClient || !compName.trim()) return false
     setAddingComp(true)
     setError(null)
     try {
@@ -87,11 +104,23 @@ export function OnboardingWizard({ onClose }: Props) {
       setCompetitors((prev) => [...prev, comp])
       setCompName("")
       setCompWebsite("")
+      return true
     } catch {
       setError("Failed to add competitor.")
+      return false
     } finally {
       setAddingComp(false)
     }
+  }
+
+  async function handleStep2Next() {
+    // A competitor typed into the fields but never added with "+" would be
+    // silently lost — add it before moving on.
+    if (compName.trim()) {
+      const added = await handleAddCompetitor()
+      if (!added) return
+    }
+    setStep(3)
   }
 
   async function handleRemoveCompetitor(id: string) {
@@ -114,6 +143,7 @@ export function OnboardingWizard({ onClose }: Props) {
       await updateClientAction(createdClient.id, {
         description: description || undefined,
         target_audience: targetAudience || undefined,
+        country: country || undefined,
         city: city || undefined,
         state: state || undefined,
         contact_email: contactEmail || undefined,
@@ -296,11 +326,17 @@ export function OnboardingWizard({ onClose }: Props) {
               type="button"
               onClick={() => createdClient && navigateToClient(createdClient)}
             >
-              Skip — go to client
+              Skip (go to client)
             </Button>
-            <Button type="button" onClick={() => setStep(3)}>
-              Next
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep(1)}>
+                Previous
+              </Button>
+              <Button type="button" onClick={handleStep2Next} disabled={addingComp}>
+                {addingComp && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Next
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -331,7 +367,40 @@ export function OnboardingWizard({ onClose }: Props) {
               placeholder="e.g. SME owners in Malaysia"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="wiz-country">Country</Label>
+            <SearchableSelect
+              id="wiz-country"
+              options={countryNames}
+              value={country}
+              onChange={(next) => {
+                setCountry(next)
+                if (next !== country) setState("") // states list changes with country
+              }}
+              placeholder="Type to search… e.g. Malaysia"
+            />
+          </div>
           <div className="flex gap-3">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="wiz-state">State</Label>
+              {stateNames.length > 0 ? (
+                <SearchableSelect
+                  id="wiz-state"
+                  options={stateNames}
+                  value={state}
+                  onChange={setState}
+                  placeholder="Type to search… e.g. Selangor"
+                  allowFreeText
+                />
+              ) : (
+                <Input
+                  id="wiz-state"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder={country ? "State / region" : "Pick a country first"}
+                />
+              )}
+            </div>
             <div className="flex-1 space-y-2">
               <Label htmlFor="wiz-city">City</Label>
               <Input
@@ -339,15 +408,6 @@ export function OnboardingWizard({ onClose }: Props) {
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="Kuala Lumpur"
-              />
-            </div>
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="wiz-state">State</Label>
-              <Input
-                id="wiz-state"
-                value={state}
-                onChange={(e) => setState(e.target.value)}
-                placeholder="Selangor"
               />
             </div>
           </div>
@@ -368,12 +428,17 @@ export function OnboardingWizard({ onClose }: Props) {
               type="button"
               onClick={() => createdClient && navigateToClient(createdClient)}
             >
-              Skip — go to client
+              Skip (go to client)
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Finish
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep(2)}>
+                Previous
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Finish
+              </Button>
+            </div>
           </div>
         </form>
       )}

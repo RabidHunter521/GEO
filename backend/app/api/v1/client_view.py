@@ -30,8 +30,10 @@ from app.schemas.client_view import (
     ClientViewCompetitors,
     ClientViewReport,
     ClientViewAction,
+    ClientViewIssueGroup,
 )
 from app.services.competitor_intelligence_service import compute_competitor_intelligence
+from app.services.issue_detection_service import detect_client_issues
 
 SCORE_HISTORY_LIMIT = 12
 
@@ -196,6 +198,14 @@ def get_reports(
         )
         for r in reports
     ]
+
+
+@router.get("/issues", response_model=list[ClientViewIssueGroup])
+def get_issues(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+):
+    return detect_client_issues(client, db)
 
 
 @router.get("/actions", response_model=list[ClientViewAction])

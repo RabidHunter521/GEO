@@ -56,6 +56,7 @@ export function updateClient(
       | "target_audience"
       | "city"
       | "state"
+      | "country"
       | "contact_email"
       | "brand_authority_score"
       | "brand_authority_evidence"

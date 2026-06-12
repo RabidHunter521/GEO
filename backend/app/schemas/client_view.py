@@ -90,3 +90,9 @@ class ClientViewAction(BaseModel):
     dimension: str
     priority: str
     generated_at: datetime
+
+
+class ClientViewIssueGroup(BaseModel):
+    dimension: str
+    dimension_label: str
+    issues: list[str]

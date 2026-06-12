@@ -17,6 +17,7 @@ class Client(Base):
     target_audience: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     state: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     brand_authority_score: Mapped[int] = mapped_column(Integer, default=0)
     brand_authority_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)

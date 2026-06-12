@@ -21,6 +21,7 @@ class ClientUpdate(BaseModel):
     target_audience: str | None = None
     city: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=255)
+    country: str | None = Field(default=None, max_length=255)
     contact_email: str | None = Field(default=None, pattern=_EMAIL_PATTERN, max_length=320)
     brand_authority_score: int | None = Field(default=None, ge=0, le=100)
     brand_authority_evidence: str | None = None
@@ -38,6 +39,7 @@ class ClientResponse(BaseModel):
     target_audience: str | None = None
     city: str | None = None
     state: str | None = None
+    country: str | None = None
     contact_email: str | None = None
     brand_authority_score: int
     brand_authority_evidence: str | None = None

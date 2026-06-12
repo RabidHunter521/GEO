@@ -14,6 +14,7 @@ export async function updateClientAction(
     target_audience?: string
     city?: string
     state?: string
+    country?: string
     contact_email?: string
     brand_authority_score?: number
     brand_authority_evidence?: string
