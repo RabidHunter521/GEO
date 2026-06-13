@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -63,6 +63,7 @@ export function updateClient(
       | "content_quality_score"
       | "content_quality_evidence"
       | "score_drop_threshold"
+      | "enabled_platforms"
     >
   >,
 ): Promise<Client> {
@@ -123,6 +124,25 @@ export function getCompetitorIntelligence(clientId: string): Promise<CompetitorI
   )
 }
 
+export function getWinLoss(clientId: string): Promise<WinLossResponse> {
+  return apiFetch<WinLossResponse>(`/api/v1/clients/${clientId}/competitors/win-loss`)
+}
+
+export function generateContentBrief(clientId: string, resultId: string): Promise<ContentBrief> {
+  return apiFetch<ContentBrief>(
+    `/api/v1/clients/${clientId}/competitors/win-loss/${resultId}/brief`,
+    { method: "POST" },
+  )
+}
+
+export function getCompetitorTrends(clientId: string): Promise<CompetitorTrendsResponse> {
+  return apiFetch<CompetitorTrendsResponse>(`/api/v1/clients/${clientId}/competitors/trends`)
+}
+
+export function getIndustryBenchmark(clientId: string): Promise<IndustryBenchmark | null> {
+  return apiFetch<IndustryBenchmark | null>(`/api/v1/clients/${clientId}/benchmark`)
+}
+
 export function getActivityLog(clientId: string, limit = 50, skip = 0): Promise<ActivityLogEntry[]> {
   return apiFetch<ActivityLogEntry[]>(
     `/api/v1/clients/${clientId}/activity?limit=${limit}&skip=${skip}`,
@@ -155,6 +175,18 @@ export function getContentGaps(clientId: string): Promise<ContentAnalysis | null
 
 export function runContentAnalysis(clientId: string): Promise<ContentAnalysis> {
   return apiFetch<ContentAnalysis>(`/api/v1/clients/${clientId}/content-gaps/analyze`, {
+    method: "POST",
+  })
+}
+
+// ── Content Roadmap ─────────────────────────────────────────────────────────────
+
+export function getContentRoadmap(clientId: string): Promise<ContentRoadmap | null> {
+  return apiFetch<ContentRoadmap | null>(`/api/v1/clients/${clientId}/content-roadmap`)
+}
+
+export function generateContentRoadmap(clientId: string): Promise<ContentRoadmap> {
+  return apiFetch<ContentRoadmap>(`/api/v1/clients/${clientId}/content-roadmap/generate`, {
     method: "POST",
   })
 }

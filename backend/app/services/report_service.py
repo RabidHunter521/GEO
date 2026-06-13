@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.config import settings
+from app.core.constants import PLATFORM_LABELS
 
 try:
     import weasyprint  # noqa: F401 — used when generating PDF bytes
-except ImportError:
+except (ImportError, OSError):
+    # OSError: WeasyPrint imports but can't load GTK/Pango native libs (e.g. bare Windows)
     weasyprint = None  # type: ignore[assignment]
 
 from app.models.client import Client
@@ -26,6 +28,7 @@ from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.services.scoring_service import get_score_band
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
+from app.services.claude_client import MODEL, anthropic_client
 from app.services.share_link_service import get_share_link_url
 
 logger = structlog.get_logger()
@@ -119,6 +122,8 @@ class ReportData:
     content_quality_evidence: str | None = None
     ai_visitors_current: int | None = None
     ai_visitors_prev: int | None = None
+    platform_breakdown: dict | None = None
+    change_narrative: str = ""
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -129,6 +134,73 @@ def _compute_trend(current: float, prev: float | None) -> str:
     if current < prev - 0.5:
         return "down"
     return "flat"
+
+
+def _fallback_narrative(data: "ReportData") -> str:
+    """Deterministic narrative used for first reports or when Claude is unavailable."""
+    if data.trend == "first":
+        return (
+            f"This is {data.period_label}'s first AI Visibility Report. "
+            f"Your brand was seen by AI in {data.seen_count} of {data.total_count} tracked queries, "
+            f"giving an overall score of {data.overall_score:.0f}. "
+            f"We'll track how this changes month over month from here."
+        )
+    if data.prev_overall_score is None:
+        delta_sentence = "Your overall score is holding steady this month."
+    else:
+        diff = data.overall_score - data.prev_overall_score
+        if diff > 0.5:
+            delta_sentence = (
+                f"Your overall score rose from {data.prev_overall_score:.0f} to {data.overall_score:.0f} this month."
+            )
+        elif diff < -0.5:
+            delta_sentence = (
+                f"Your overall score slipped from {data.prev_overall_score:.0f} to {data.overall_score:.0f} this month."
+            )
+        else:
+            delta_sentence = f"Your overall score held steady at {data.overall_score:.0f} this month."
+    return (
+        f"{delta_sentence} Your brand was seen by AI in {data.seen_count} of "
+        f"{data.total_count} tracked queries during {data.period_label}."
+    )
+
+
+def _generate_change_narrative(data: "ReportData") -> str:
+    """Claude-written 2-3 sentence "what changed this month" summary. Falls back
+    to a deterministic sentence on first report or any API failure — never raises."""
+    if data.trend == "first" or data.prev_overall_score is None:
+        return _fallback_narrative(data)
+
+    winning = [c.name for c in data.competitors if c.is_winning]
+    competitor_note = (
+        f"Competitors currently ahead in AI visibility: {', '.join(winning)}."
+        if winning else "No competitors are ahead in AI visibility this month."
+    )
+    prompt = (
+        "You are an AI visibility analyst writing a brief monthly summary for a client report. "
+        "Write 2-3 sentences (plain text, no headings, under 70 words) explaining what changed this month. "
+        "Use the phrase 'seen by AI' rather than 'cited' or 'mentioned'; say 'visibility frequency' not "
+        "'citation rate'; never use 'ranking', 'confidence score', or internal jargon. Be specific and factual.\n\n"
+        f"Business: {data.period_label} report.\n"
+        f"Overall score: {data.prev_overall_score:.0f} -> {data.overall_score:.0f}.\n"
+        f"AI visibility frequency (citability): {data.ai_citability:.0f}%.\n"
+        f"Seen by AI in {data.seen_count} of {data.total_count} tracked queries.\n"
+        f"Dimension scores now — Brand Authority {data.brand_authority:.0f}, Content Quality "
+        f"{data.content_quality:.0f}, Technical Foundations {data.technical_foundations:.0f}, "
+        f"Structured Data {data.structured_data:.0f}.\n"
+        f"{competitor_note}"
+    )
+    try:
+        message = anthropic_client().messages.create(
+            model=MODEL,
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = message.content[0].text.strip()
+        return text or _fallback_narrative(data)
+    except Exception:
+        logger.warning("change_narrative_generation_failed")
+        return _fallback_narrative(data)
 
 
 def _score_css(color: str) -> str:
@@ -233,7 +305,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         .first()
     )
 
-    return ReportData(
+    data = ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
         period_label=now.strftime("%B %Y"),
@@ -258,7 +330,10 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         content_quality_evidence=client.content_quality_evidence,
         ai_visitors_current=current_traffic.ai_visitors if current_traffic else None,
         ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
+        platform_breakdown=current_gs.platform_breakdown,
     )
+    data.change_narrative = _generate_change_narrative(data)
+    return data
 
 
 def _build_report_html(client: Client, data: ReportData) -> str:
@@ -311,6 +386,31 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 """
     else:
         traffic_section = ""
+
+    if data.platform_breakdown:
+        platform_rows = "".join(
+            f"""<tr>
+              <td>{PLATFORM_LABELS.get(platform, platform.title())}</td>
+              <td class="{_score_css(get_score_band(entry.get('visibility', 0.0))[1])}">{entry.get('visibility', 0.0):.0f}%</td>
+              <td>{"Seen by AI" if entry.get('detected', 0) > 0 else "Not yet seen by AI"}</td>
+            </tr>"""
+            if entry.get("status") == "ok"
+            else f"""<tr>
+              <td>{PLATFORM_LABELS.get(platform, platform.title())}</td>
+              <td style="color:#9ca3af;">&mdash;</td>
+              <td style="color:#9ca3af;">Platform unavailable this scan</td>
+            </tr>"""
+            for platform, entry in data.platform_breakdown.items()
+        )
+        platform_section = f"""
+  <h2>Seen by AI &mdash; Platform Breakdown</h2>
+  <table>
+    <thead><tr><th>Platform</th><th>Visibility Frequency</th><th>Status</th></tr></thead>
+    <tbody>{platform_rows}</tbody>
+  </table>
+"""
+    else:
+        platform_section = ""
 
     generated_date = datetime.utcnow().strftime("%d %B %Y")
 
@@ -394,7 +494,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
       {client.name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.
     </div>
   </div>
-{traffic_section}
+{platform_section}{traffic_section}
   <h2>Competitor Comparison</h2>
   <table>
     <thead><tr><th>Name</th><th>AI Citability</th><th>Status</th></tr></thead>
@@ -417,6 +517,11 @@ def _build_report_html(client: Client, data: ReportData) -> str:
       <tr><td>robots.txt (AI Bots)</td><td>{_verified_badge(data.robots_verified)}</td></tr>
     </tbody>
   </table>
+
+  {f'''<h2>What Changed This Month</h2>
+  <div class="rec-box">
+    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{data.change_narrative}</p>
+  </div>''' if data.change_narrative else ""}
 
   <h2>Recommended Action</h2>
   <div class="rec-box">
@@ -456,6 +561,7 @@ def generate_report_pdf(client_id: uuid.UUID, db: Session) -> Report | None:
         period_start=data.period_start,
         period_end=data.period_end,
         overall_score=data.overall_score,
+        change_narrative=data.change_narrative or None,
     )
     db.add(report)
     db.add(ActivityLog(

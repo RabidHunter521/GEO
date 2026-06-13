@@ -84,12 +84,13 @@ def test_score_drop_fires_at_exact_threshold_boundary():
 
 # ── check_competitor_overtake_alert ──────────────────────────────────────────
 
-def _make_results(n_detected: int, n_total: int, competitor_id=None):
+def _make_results(n_detected: int, n_total: int, competitor_id=None, platform="gemini"):
     results = []
     for i in range(n_total):
         r = MagicMock()
         r.competitor_id = competitor_id
         r.brand_detected = i < n_detected
+        r.platform = platform
         results.append(r)
     return results
 
@@ -186,6 +187,74 @@ def test_competitor_overtake_fires_once_per_winning_competitor():
     assert mock_send.call_count == 1
     kwargs = mock_send.call_args[1]
     assert "Alpha" in kwargs["html_body"]
+
+
+def test_competitor_overtake_email_lists_winning_platforms():
+    from app.services.alert_service import check_competitor_overtake_alert
+    client = _make_client()
+    scan_id = uuid.uuid4()
+    comp_id = uuid.uuid4()
+    competitor = MagicMock(); competitor.id = comp_id; competitor.name = "Rival Corp"
+
+    # Client: gemini 100% (2/2), chatgpt 0% (0/2) → overall 50%
+    client_results = (
+        _make_results(2, 2, competitor_id=None, platform="gemini")
+        + _make_results(0, 2, competitor_id=None, platform="chatgpt")
+    )
+    # Competitor: gemini 50% (1/2), chatgpt 100% (2/2) → overall 75% (fires)
+    comp_results = (
+        _make_results(1, 2, competitor_id=comp_id, platform="gemini")
+        + _make_results(2, 2, competitor_id=comp_id, platform="chatgpt")
+    )
+
+    db = MagicMock()
+    added = []
+    db.add.side_effect = lambda obj: added.append(obj)
+    db.query.return_value.filter.return_value.all.side_effect = [
+        [competitor],
+        client_results + comp_results,
+    ]
+
+    with patch("app.services.alert_service.send_email") as mock_send:
+        check_competitor_overtake_alert(client, scan_id, db)
+
+    mock_send.assert_called_once()
+    body = mock_send.call_args[1]["html_body"]
+    assert "Platforms where Rival Corp is ahead" in body
+    assert "ChatGPT" in body
+    assert "Gemini" not in body.split("Platforms where")[1]  # client ahead on Gemini
+    # ActivityLog note carries platform detail
+    notes = [o.note for o in added if hasattr(o, "note")]
+    assert any("Ahead on: ChatGPT." in str(n) for n in notes)
+
+
+def test_competitor_overtake_platform_lead_alone_does_not_fire():
+    from app.services.alert_service import check_competitor_overtake_alert
+    client = _make_client()
+    comp_id = uuid.uuid4()
+    competitor = MagicMock(); competitor.id = comp_id; competitor.name = "Rival Corp"
+
+    # Client overall 62.5% (gemini 4/4, chatgpt 1/4)
+    client_results = (
+        _make_results(4, 4, competitor_id=None, platform="gemini")
+        + _make_results(1, 4, competitor_id=None, platform="chatgpt")
+    )
+    # Competitor overall 50% but 100% on chatgpt — must NOT fire
+    comp_results = (
+        _make_results(0, 2, competitor_id=comp_id, platform="gemini")
+        + _make_results(2, 2, competitor_id=comp_id, platform="chatgpt")
+    )
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.all.side_effect = [
+        [competitor],
+        client_results + comp_results,
+    ]
+
+    with patch("app.services.alert_service.send_email") as mock_send:
+        check_competitor_overtake_alert(client, uuid.uuid4(), db)
+
+    mock_send.assert_not_called()
 
 
 # ── flag_hallucination ────────────────────────────────────────────────────────

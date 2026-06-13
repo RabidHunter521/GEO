@@ -26,7 +26,8 @@ import {
   deleteCompetitorAction,
   archiveClientAction,
 } from "@/app/clients/actions"
-import type { Client, Competitor, AiTrafficSnapshot } from "@/types"
+import type { Client, Competitor, AiTrafficSnapshot, Platform } from "@/types"
+import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 
 interface Props {
   client: Client
@@ -75,6 +76,21 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const [compWebsite, setCompWebsite] = useState("")
   const [addingComp, setAddingComp] = useState(false)
 
+  const [enabledPlatforms, setEnabledPlatforms] = useState<Platform[]>(
+    () => client.enabled_platforms?.length ? client.enabled_platforms : [...SCAN_PLATFORMS]
+  )
+
+  function togglePlatform(platform: Platform) {
+    setEnabledPlatforms((prev) => {
+      if (prev.includes(platform)) {
+        if (prev.length === 1) return prev // at least one platform must stay enabled
+        return prev.filter((p) => p !== platform)
+      }
+      return SCAN_PLATFORMS.filter((p) => prev.includes(p) || p === platform)
+    })
+    setIsDirty(true)
+  }
+
   const currentPeriod = currentMonthPeriod()
   const [traffic, setTraffic] = useState<AiTrafficSnapshot[]>(trafficHistory)
   const currentTrafficValue = traffic.find((t) => t.period.slice(0, 10) === currentPeriod)?.ai_visitors
@@ -109,6 +125,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           score_drop_threshold: fd.get("score_drop_threshold")
             ? Number(fd.get("score_drop_threshold"))
             : undefined,
+          enabled_platforms: enabledPlatforms,
         })
         setSaved(true)
         setIsDirty(false)
@@ -335,6 +352,40 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             </div>
           </div>
         )}
+      </section>
+
+      <Separator />
+
+      {/* Scan platforms */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Scan Platforms</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            AI platforms queried on every scan. At least one must stay enabled — fewer platforms
+            means lower scan cost but a narrower visibility picture.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {SCAN_PLATFORMS.map((p) => {
+            const checked = enabledPlatforms.includes(p)
+            return (
+              <label
+                key={p}
+                className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                  checked ? "border-primary/40 bg-primary/5" : "hover:bg-muted/30"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => togglePlatform(p)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span className="font-medium">{PLATFORM_LABELS[p]}</span>
+              </label>
+            )
+          })}
+        </div>
       </section>
 
       <Separator />

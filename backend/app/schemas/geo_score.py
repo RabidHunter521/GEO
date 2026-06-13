@@ -13,6 +13,7 @@ class GeoScoreResponse(BaseModel):
     technical_foundations: float
     structured_data: float
     overall_score: float
+    platform_breakdown: dict | None = None
     computed_at: datetime
 
     model_config = {"from_attributes": True}

@@ -1,12 +1,14 @@
 // frontend/src/app/clients/[id]/page.tsx
 import Link from "next/link"
 import { TrendingUp, TrendingDown } from "lucide-react"
-import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory } from "@/lib/api"
+import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark } from "@/lib/api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
+import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { ActionCenterCard } from "./ActionCenterCard"
 import { getScoreBand } from "@/lib/score-utils"
-import type { Client } from "@/types"
+import type { Client, Platform } from "@/types"
+import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 
 function periodKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`
@@ -36,11 +38,12 @@ export default async function ClientOverviewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [client, geoScore, actions, trafficHistory] = await Promise.all([
+  const [client, geoScore, actions, trafficHistory, benchmark] = await Promise.all([
     getClient(id),
     getLatestGeoScore(id),
     getActionRecommendations(id),
     getTrafficHistory(id),
+    getIndustryBenchmark(id).catch(() => null),
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
@@ -98,6 +101,53 @@ export default async function ClientOverviewPage({
         </div>
       </div>
 
+      {/* Seen by AI — per platform */}
+      {geoScore?.platform_breakdown && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Seen by AI — by Platform
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {SCAN_PLATFORMS.filter((p) => geoScore.platform_breakdown?.[p]).map((p: Platform) => {
+              const entry = geoScore.platform_breakdown![p]!
+              const unavailable = entry.status !== "ok"
+              const seen = entry.detected > 0
+              return (
+                <div
+                  key={p}
+                  className={`rounded-lg border p-4 ${unavailable ? "bg-muted/30" : "bg-card"}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{PLATFORM_LABELS[p]}</p>
+                    {unavailable ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        Unavailable
+                      </span>
+                    ) : seen ? (
+                      <span className="rounded-full bg-score-strong-bg px-2 py-0.5 text-xs font-medium text-score-strong">
+                        Seen by AI
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        Not yet seen by AI
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 font-display text-xl font-bold tabular-nums">
+                    {unavailable ? "—" : `${Math.round(entry.visibility)}%`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {unavailable
+                      ? "Platform did not respond during the latest scan"
+                      : `visibility frequency · ${entry.detected}/${entry.queries} queries`}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 5-dimension breakdown */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -140,6 +190,18 @@ export default async function ClientOverviewPage({
           })}
         </div>
       </div>
+
+      {/* Industry benchmark */}
+      {benchmark && (
+        <IndustryBenchmarkCard
+          industry={benchmark.industry}
+          topPercent={benchmark.top_percent}
+          peerCount={benchmark.peer_count}
+          industryAverage={benchmark.industry_average}
+          clientScore={benchmark.client_score}
+          rank={benchmark.rank}
+        />
+      )}
 
       {/* AI Referral Traffic */}
       <div className="rounded-lg border bg-card p-4">

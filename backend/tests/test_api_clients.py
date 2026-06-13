@@ -52,6 +52,39 @@ def test_list_clients_returns_empty():
     assert response.json() == []
 
 
+def test_list_clients_serializes_enrichment_fields():
+    from unittest.mock import patch
+    from datetime import datetime
+    from app.schemas.client import ClientListItem, ClientResponse
+
+    fake = _fake_client("Acme Corp")
+    fake.enabled_platforms = ["chatgpt"]
+    base = ClientResponse.model_validate(fake, from_attributes=True).model_dump()
+    item = ClientListItem(
+        **base,
+        latest_overall_score=70.0,
+        last_scan_at=datetime(2026, 6, 10),
+        previous_overall_score=62.5,
+        latest_scan_status="completed",
+        latest_scan_triggered_at=datetime(2026, 6, 10),
+    )
+
+    app, get_db = _make_app()
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.clients.build_client_list", return_value=[item]):
+        client = TestClient(app)
+        response = client.get("/api/v1/clients")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()[0]
+    assert body["latest_overall_score"] == 70.0
+    assert body["previous_overall_score"] == 62.5
+    assert body["latest_scan_status"] == "completed"
+    assert body["latest_scan_triggered_at"] is not None
+
+
 def test_create_client_returns_201():
     app, get_db = _make_app()
     created = _fake_client("TestCo")
@@ -71,6 +104,7 @@ def test_create_client_returns_201():
         obj.technical_foundations_verified = False
         obj.structured_data_verified = False
         obj.score_drop_threshold = 35
+        obj.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
         from datetime import datetime
         obj.created_at = datetime(2026, 1, 1)
         obj.archived_at = None

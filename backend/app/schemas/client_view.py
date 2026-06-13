@@ -37,14 +37,36 @@ class ClientViewTrafficPoint(BaseModel):
     ai_visitors: int
 
 
+class ClientViewPlatform(BaseModel):
+    """One AI platform's visibility status. visibility_frequency is None when
+    the platform was unavailable during the latest scan."""
+    platform_label: str
+    seen_by_ai: bool
+    visibility_frequency: float | None
+
+
+class ClientViewBenchmark(BaseModel):
+    """Anonymous industry standing — never includes rank or peer identities."""
+    industry: str
+    peer_count: int
+    industry_average: float
+    top_percent: int
+
+
 class ClientViewOverview(BaseModel):
     profile: ClientViewProfile
     latest_score: ClientViewScore | None
+    platforms: list[ClientViewPlatform] = []
+    benchmark: ClientViewBenchmark | None = None
     score_history: list[ClientViewScorePoint]
     traffic: list[ClientViewTrafficPoint]
+    # "What changed this month" narrative from the latest delivered report
+    change_narrative: str | None = None
+    change_narrative_period: str | None = None
 
 
 class ClientViewScanResult(BaseModel):
+    platform_label: str = "Gemini"
     category: str
     query_text: str
     seen_by_ai: bool
@@ -57,6 +79,7 @@ class ClientViewScan(BaseModel):
 
 
 class ClientViewCompetitorQuery(BaseModel):
+    platform_label: str = "Gemini"
     category: str
     query_text: str
     seen_by_ai: bool
@@ -67,11 +90,15 @@ class ClientViewCompetitor(BaseModel):
     website: str | None
     visibility_frequency: float
     is_winning: bool
+    # Keyed by platform label; winning_platform_labels = where this competitor beats the client
+    platform_visibility: dict[str, float] = {}
+    winning_platform_labels: list[str] = []
     queries: list[ClientViewCompetitorQuery]
 
 
 class ClientViewCompetitors(BaseModel):
     your_visibility_frequency: float | None
+    your_platform_visibility: dict[str, float] = {}
     competitors: list[ClientViewCompetitor]
     last_scan_at: str | None
 
@@ -96,3 +123,15 @@ class ClientViewIssueGroup(BaseModel):
     dimension: str
     dimension_label: str
     issues: list[str]
+
+
+class ClientViewTrendSeries(BaseModel):
+    name: str
+    is_you: bool
+    points: list[float | None]  # visibility frequency per checked date
+
+
+class ClientViewCompetitorTrends(BaseModel):
+    """Dates only — scan ids and internal ids never reach this surface."""
+    checked_at: list[datetime]  # oldest → newest
+    series: list[ClientViewTrendSeries]

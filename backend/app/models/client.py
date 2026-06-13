@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, Integer, Text
+from sqlalchemy import String, Boolean, Integer, Text, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
@@ -26,6 +26,13 @@ class Client(Base):
     technical_foundations_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     structured_data_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     score_drop_threshold: Mapped[int] = mapped_column(Integer, default=35)
+    # Platforms scanned for this client (subset of SCAN_PLATFORMS) — per-client cost control
+    enabled_platforms: Mapped[list] = mapped_column(
+        JSON,
+        nullable=False,
+        default=lambda: ["chatgpt", "perplexity", "gemini", "claude"],
+        server_default=text("'[\"chatgpt\", \"perplexity\", \"gemini\", \"claude\"]'"),
+    )
     # Read-only client view link. Plaintext by design: the admin must be able
     # to re-copy the link from settings at any time. NULL = no active link.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)

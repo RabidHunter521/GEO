@@ -3,6 +3,7 @@
 
 import { revalidatePath } from "next/cache"
 import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken } from "@/lib/api"
+import type { Platform } from "@/types"
 
 export async function updateClientAction(
   id: string,
@@ -21,6 +22,7 @@ export async function updateClientAction(
     content_quality_score?: number
     content_quality_evidence?: string
     score_drop_threshold?: number
+    enabled_platforms?: Platform[]
   },
 ) {
   const client = await updateClient(id, data)

@@ -41,6 +41,7 @@ def _fake_scan(scan_id, client_id):
 def _fake_result(scan_id, competitor_id=None, category="brand", detected=True):
     m = MagicMock()
     m.scan_id = scan_id
+    m.platform = "gemini"
     m.competitor_id = competitor_id
     m.category = category
     m.query_text = f"Test {category} query"

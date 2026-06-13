@@ -1,7 +1,7 @@
 # backend/app/core/constants.py
 from typing import Final
 
-SCORE_VERSION: Final = "v1.0.0"
+SCORE_VERSION: Final = "v1.1.0"  # v1.1.0: AI Citability averages across enabled platforms
 
 SCORE_WEIGHTS: Final = {
     "ai_citability":         0.40,
@@ -58,6 +58,27 @@ COMPETITOR_QUERY_TEMPLATES: Final = {
 RAW_RESPONSE_RETENTION_DAYS: Final = 90
 MAX_COMPETITORS: Final = 5
 PLATFORM_GEMINI: Final = "gemini"
+
+SCAN_PLATFORMS: Final = ["chatgpt", "perplexity", "gemini", "claude"]
+PLATFORM_LABELS: Final = {
+    "chatgpt":    "ChatGPT",
+    "perplexity": "Perplexity",
+    "gemini":     "Gemini",
+    "claude":     "Claude",
+}
+# Scan.platform value for multi-platform scans (legacy rows hold a single platform name)
+SCAN_PLATFORM_MULTI: Final = "multi"
+
+# A pending/running scan older than this is treated as dead (crashed worker)
+# and no longer blocks new scan triggers. A full 4-platform scan takes ~2 min.
+ACTIVE_SCAN_STALE_MINUTES: Final = 15
+
+# Win/loss analysis only uses neutral-intent categories: comparison queries name
+# the competitor and brand queries name the client, which would poison the signal.
+WIN_LOSS_CATEGORIES: Final = ("recommendation", "local")
+
+# Industry benchmarking requires this many scored, non-archived clients (incl. the client)
+MIN_BENCHMARK_PEERS: Final = 3
 
 # One static tip per score band — shown when AI Citability change is < 5pts vs previous scan
 DIGEST_STATIC_TIPS: Final = {

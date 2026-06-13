@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache"
 import type { Scan } from "@/types"
 
 export async function triggerScanAction(clientId: string): Promise<Scan | null> {
-  await triggerScan(clientId)
+  try {
+    await triggerScan(clientId)
+  } catch (error) {
+    // 409 = a scan is already in progress — fall through and return it so the
+    // page simply shows the running scan instead of erroring
+    if (!(error instanceof Error && error.message.includes("→ 409"))) throw error
+  }
   revalidatePath(`/clients/${clientId}/scan`)
   revalidatePath(`/clients/${clientId}`)
   try {

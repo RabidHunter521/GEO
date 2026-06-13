@@ -66,13 +66,17 @@ without updating this file and bumping SCORE_VERSION.
 | Structured Data | 10% | Auto — AI Readiness Toolkit verified |
 
 Manual dimensions must always show label: "Assessed by SeenBy team"
-SCORE_VERSION = "v1.0.0" — bump when weights change.
+SCORE_VERSION = "v1.1.0" — bump when weights or formula change.
+(v1.1.0: AI Citability = equal-weighted average of per-platform visibility
+across the client's enabled platforms; unavailable platforms are excluded.)
 
 ## 5. Scan Engine Rules
 
-- 8 queries per scan (2 per category × 4 categories)
-- 4 platforms: chatgpt, perplexity, gemini, claude
+- 8 queries per scan (2 per category × 4 categories), run on every enabled platform
+- 4 platforms: chatgpt, perplexity, gemini, claude (per-client toggle in settings, ≥1 required)
 - Retry once on API failure, flag if fails again
+- If one platform fails entirely, the scan still completes: score uses the
+  remaining platforms, the platform is marked unavailable, activity is logged
 - Store raw responses for 90 days
 - Max 5 competitors per client
 - Scans are ON-DEMAND only — no scheduled scans in MVP
@@ -109,6 +113,12 @@ Monthly PDF report:
 - You (Faris) review before sending
 - Sent 30 days after signup, then every 30 days
 - Contact email: contact@seenby.my (not hello@seenby.my)
+- Includes a Claude "what changed this month" narrative, generated once at
+  report build, persisted on the report, and shown in the PDF + share view
+
+Admin alerts (score drop / competitor overtake / hallucination):
+- Always email ALERTS_EMAIL; also push to Telegram when TELEGRAM_BOT_TOKEN +
+  TELEGRAM_CHAT_ID are set (best-effort, never blocks a scan)
 
 ## 8. File + Data Rules
 
@@ -128,6 +138,7 @@ Exact structure — do not add pages without updating this:
 /clients/[id]/competitors→ competitor intelligence
 /clients/[id]/toolkit    → AI readiness toolkit
 /clients/[id]/content-gaps→ content gaps (topic + entity coverage, content quality assist)
+/clients/[id]/content-roadmap→ 90-day content roadmap (competitor lost-query driven)
 /clients/[id]/reports    → reports
 /clients/[id]/activity   → activity log
 /clients/[id]/settings   → client settings (incl. client view link controls)

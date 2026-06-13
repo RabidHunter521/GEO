@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
@@ -11,6 +11,9 @@ from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem, ShareTokenResponse
 from app.schemas.geo_score import GeoScoreResponse
+from app.schemas.benchmark import IndustryBenchmarkResponse
+from app.services.benchmark_service import compute_industry_benchmark
+from app.services.client_list_service import build_client_list
 from app.services.share_link_service import generate_share_token, revoke_share_token
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -18,50 +21,7 @@ router = APIRouter(prefix="/clients", tags=["clients"])
 
 @router.get("", response_model=list[ClientListItem], dependencies=[Depends(require_api_key)])
 def list_clients(db: Session = Depends(get_db)):
-    clients = (
-        db.query(Client)
-        .filter(Client.archived_at.is_(None))
-        .order_by(desc(Client.created_at))
-        .all()
-    )
-    if not clients:
-        return []
-
-    client_ids = [c.id for c in clients]
-
-    # Single query: latest geo score per client using a subquery
-    latest_scan_subq = (
-        db.query(
-            GeoScore.client_id,
-            func.max(GeoScore.computed_at).label("max_computed_at"),
-        )
-        .filter(GeoScore.client_id.in_(client_ids))
-        .group_by(GeoScore.client_id)
-        .subquery()
-    )
-    latest_scores = (
-        db.query(GeoScore)
-        .join(
-            latest_scan_subq,
-            (GeoScore.client_id == latest_scan_subq.c.client_id)
-            & (GeoScore.computed_at == latest_scan_subq.c.max_computed_at),
-        )
-        .all()
-    )
-    score_by_client = {s.client_id: s for s in latest_scores}
-
-    items = []
-    for c in clients:
-        latest = score_by_client.get(c.id)
-        base = ClientResponse.model_validate(c).model_dump()
-        items.append(
-            ClientListItem(
-                **base,
-                latest_overall_score=latest.overall_score if latest else None,
-                last_scan_at=latest.computed_at if latest else None,
-            )
-        )
-    return items
+    return build_client_list(db)
 
 
 @router.post(
@@ -151,6 +111,18 @@ def delete_share_token(client_id: uuid.UUID, db: Session = Depends(get_db)):
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
     revoke_share_token(c, db)
+
+
+@router.get(
+    "/{client_id}/benchmark",
+    response_model=IndustryBenchmarkResponse | None,
+    dependencies=[Depends(require_api_key)],
+)
+def get_industry_benchmark(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return compute_industry_benchmark(c, db)
 
 
 @router.get(

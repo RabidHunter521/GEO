@@ -4,15 +4,26 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
-from app.core.constants import MAX_COMPETITORS
+from app.core.constants import MAX_COMPETITORS, WIN_LOSS_CATEGORIES
 from app.models.client import Client
 from app.models.competitor import Competitor
+from app.models.scan import Scan
+from app.models.scan_query_result import ScanQueryResult
 from app.schemas.competitor import (
     CompetitorCreate,
     CompetitorResponse,
     CompetitorIntelligenceResponse,
+    CompetitorTrendsResponse,
+    ContentBriefResponse,
+    WinLossResponse,
 )
-from app.services.competitor_intelligence_service import compute_competitor_intelligence
+from app.services.brand_detection import detect_brand_mention
+from app.services.competitor_intelligence_service import (
+    compute_competitor_intelligence,
+    compute_competitor_trends,
+)
+from app.services.content_brief_service import generate_brief_for_result
+from app.services.win_loss_service import compute_win_loss
 
 router = APIRouter(prefix="/clients/{client_id}/competitors", tags=["competitors"])
 
@@ -25,6 +36,73 @@ router = APIRouter(prefix="/clients/{client_id}/competitors", tags=["competitors
 def get_intelligence(client_id: uuid.UUID, db: Session = Depends(get_db)):
     _get_client_or_404(client_id, db)
     return compute_competitor_intelligence(client_id, db)
+
+
+@router.get(
+    "/win-loss",
+    response_model=WinLossResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_win_loss(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    _get_client_or_404(client_id, db)
+    return compute_win_loss(client_id, db)
+
+
+@router.get(
+    "/trends",
+    response_model=CompetitorTrendsResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_trends(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    _get_client_or_404(client_id, db)
+    return compute_competitor_trends(client_id, db)
+
+
+@router.post(
+    "/win-loss/{result_id}/brief",
+    response_model=ContentBriefResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def generate_brief(
+    client_id: uuid.UUID,
+    result_id: uuid.UUID,
+    db: Session = Depends(get_db),
+):
+    client = _get_client_or_404(client_id, db)
+
+    result = (
+        db.query(ScanQueryResult)
+        .join(Scan, Scan.id == ScanQueryResult.scan_id)
+        .filter(
+            ScanQueryResult.id == result_id,
+            ScanQueryResult.competitor_id.is_(None),
+            Scan.client_id == client_id,
+        )
+        .first()
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Scan result not found")
+    if result.category not in WIN_LOSS_CATEGORIES:
+        raise HTTPException(
+            status_code=422,
+            detail="Content briefs are only available for recommendation and local queries",
+        )
+    if result.brand_detected:
+        raise HTTPException(
+            status_code=422,
+            detail="Client is already seen by AI for this query",
+        )
+
+    # competitors_seen recomputed server-side — request body is never trusted
+    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+    competitors_seen = [
+        c.name for c in competitors if detect_brand_mention(result.response_text, c.name)
+    ]
+
+    brief = generate_brief_for_result(client, result, competitors_seen, db)
+    if brief is None:
+        raise HTTPException(status_code=502, detail="Brief generation failed — try again")
+    return brief
 
 
 @router.get(

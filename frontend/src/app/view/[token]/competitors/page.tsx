@@ -4,8 +4,9 @@
 // (never "visibility gap").
 import { notFound } from "next/navigation"
 import { TriangleAlert } from "lucide-react"
-import { getViewCompetitors } from "@/lib/view-api"
+import { getViewCompetitors, getViewCompetitorTrends } from "@/lib/view-api"
 import { VisibilityBadge } from "@/components/view/VisibilityBadge"
+import { VisibilityTrendChart } from "@/components/competitors/VisibilityTrendChart"
 
 function FrequencyBar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, value))
@@ -25,7 +26,10 @@ export default async function ViewCompetitorsPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const data = await getViewCompetitors(token)
+  const [data, trends] = await Promise.all([
+    getViewCompetitors(token),
+    getViewCompetitorTrends(token).catch(() => null),
+  ])
   if (!data) notFound()
 
   if (data.competitors.length === 0) {
@@ -71,7 +75,32 @@ export default async function ViewCompetitorsPage({
           )}
           .
         </p>
+        {Object.keys(data.your_platform_visibility).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+            {Object.entries(data.your_platform_visibility).map(([label, value]) => (
+              <span
+                key={label}
+                className="rounded-full border bg-muted/30 px-2.5 py-1 text-xs tabular-nums"
+              >
+                {label}: <span className="font-semibold">{value.toFixed(0)}%</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Visibility trend over time */}
+      {trends && trends.checked_at.length >= 2 && (
+        <VisibilityTrendChart
+          dates={trends.checked_at}
+          series={trends.series.map((s) => ({
+            name: s.name,
+            isYou: s.is_you,
+            points: s.points,
+          }))}
+          heading="Your visibility frequency over time"
+        />
+      )}
 
       {/* Winning competitors callout */}
       {winning.length > 0 && (
@@ -113,6 +142,13 @@ export default async function ViewCompetitorsPage({
             <div className="mt-3">
               <FrequencyBar value={c.visibility_frequency} />
             </div>
+            {c.winning_platform_labels.length > 0 && (
+              <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-score-watch">
+                <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+                Your competitors are winning here:{" "}
+                {c.winning_platform_labels.join(", ")}
+              </p>
+            )}
             {c.queries.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {c.queries.map((q, i) => (
@@ -120,8 +156,13 @@ export default async function ViewCompetitorsPage({
                     key={`${c.name}-${i}`}
                     className="flex items-center justify-between gap-3 text-sm"
                   >
-                    <span className="truncate text-muted-foreground">
-                      &ldquo;{q.query_text}&rdquo;
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="shrink-0 rounded-full border bg-muted/30 px-2 py-0.5 text-[10px] font-medium">
+                        {q.platform_label}
+                      </span>
+                      <span className="truncate text-muted-foreground">
+                        &ldquo;{q.query_text}&rdquo;
+                      </span>
                     </span>
                     <VisibilityBadge seen={q.seen_by_ai} className="text-[10px]" />
                   </li>

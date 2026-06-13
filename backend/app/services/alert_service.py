@@ -1,8 +1,9 @@
+import html
 import uuid
 from sqlalchemy.orm import Session
 import structlog
 
-from app.core.constants import ALERTS_EMAIL
+from app.core.constants import ALERTS_EMAIL, PLATFORM_LABELS
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
@@ -10,8 +11,17 @@ from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.services.email_service import send_email
+from app.services.telegram_service import send_telegram
 
 logger = structlog.get_logger()
+
+
+def _dispatch_admin_alert(subject: str, html_body: str, telegram_text: str) -> None:
+    """Send an admin alert to email (always) and Telegram (if configured).
+    Telegram is best-effort and never raises; the email send keeps its existing
+    behaviour."""
+    send_email(to=ALERTS_EMAIL, subject=subject, html_body=html_body)
+    send_telegram(telegram_text)
 
 
 def check_score_drop_alert(
@@ -30,13 +40,17 @@ def check_score_drop_alert(
     if not (was_above and now_below):
         return
 
-    send_email(
-        to=ALERTS_EMAIL,
+    _dispatch_admin_alert(
         subject=f"Score drop alert: {client.name} — GEO Score dropped to {current_geo_score.overall_score:.0f}",
         html_body=_build_score_drop_email(
             client,
             current_geo_score.overall_score,
             prev_geo_score.overall_score,
+        ),
+        telegram_text=(
+            f"⚠️ <b>{html.escape(client.name)}</b>: GEO Score dropped "
+            f"{prev_geo_score.overall_score:.0f}→{current_geo_score.overall_score:.0f} "
+            f"(below threshold {client.score_drop_threshold})."
         ),
     )
     db.add(ActivityLog(
@@ -64,20 +78,42 @@ def check_competitor_overtake_alert(client: Client, scan_id: uuid.UUID, db: Sess
         .all()
     )
 
+    from app.services.competitor_intelligence_service import visibility_by_platform
+
     client_results = [r for r in all_results if r.competitor_id is None]
     client_citability = _compute_citability(client_results)
+    client_platform = visibility_by_platform(client_results)
 
     sent = False
     for competitor in competitors:
         comp_results = [r for r in all_results if r.competitor_id == competitor.id]
         comp_citability = _compute_citability(comp_results)
+        # Trigger stays overall-only: a competitor ahead on individual platforms
+        # but behind overall does not fire — same email volume as before.
         if comp_citability > client_citability:
+            comp_platform = visibility_by_platform(comp_results)
+            winning_platforms = [
+                (p, comp_platform[p], client_platform.get(p, 0.0))
+                for p in comp_platform
+                if comp_platform[p] > client_platform.get(p, 0.0)
+            ]
             delta = round(comp_citability - client_citability, 1)
-            send_email(
-                to=ALERTS_EMAIL,
+            platform_note = (
+                " Ahead on: "
+                + ", ".join(PLATFORM_LABELS.get(p, p) for p, _, _ in winning_platforms)
+                + "."
+                if winning_platforms else ""
+            )
+            _dispatch_admin_alert(
                 subject=f"Competitor overtake: {competitor.name} is ahead of {client.name}",
                 html_body=_build_overtake_email(
-                    client, competitor.name, comp_citability, client_citability, delta
+                    client, competitor.name, comp_citability, client_citability, delta,
+                    winning_platforms,
+                ),
+                telegram_text=(
+                    f"📉 <b>{html.escape(client.name)}</b>: {html.escape(competitor.name)} now ahead "
+                    f"in AI visibility ({comp_citability:.0f}% vs {client_citability:.0f}%, +{delta:.0f}%)."
+                    f"{html.escape(platform_note)}"
                 ),
             )
             db.add(ActivityLog(
@@ -86,7 +122,7 @@ def check_competitor_overtake_alert(client: Client, scan_id: uuid.UUID, db: Sess
                 note=(
                     f"Competitor overtake alert: {competitor.name} AI visibility "
                     f"({comp_citability:.0f}%) now exceeds {client.name} ({client_citability:.0f}%). "
-                    f"Delta: +{delta:.0f}%."
+                    f"Delta: +{delta:.0f}%.{platform_note}"
                 ),
             ))
             sent = True
@@ -119,10 +155,13 @@ def flag_hallucination(result_id: uuid.UUID, db: Session, expected_scan_id: uuid
     db.commit()
     logger.info("hallucination_flagged", client_id=str(client.id), result_id=str(result_id))
     try:
-        send_email(
-            to=ALERTS_EMAIL,
+        _dispatch_admin_alert(
             subject=f"Hallucination flagged: {client.name}",
             html_body=_build_hallucination_email(client, result),
+            telegram_text=(
+                f"🚩 <b>{html.escape(client.name)}</b>: hallucination flagged on "
+                f"\"{html.escape(result.query_text[:80])}\"."
+            ),
         )
     except Exception:
         logger.warning("hallucination_flag_email_failed", client_id=str(client.id), result_id=str(result_id))
@@ -184,7 +223,26 @@ def _build_overtake_email(
     comp_citability: float,
     client_citability: float,
     delta: float,
+    winning_platforms: list[tuple[str, float, float]] | None = None,
 ) -> str:
+    platform_section = ""
+    if winning_platforms:
+        platform_rows = "".join(
+            f"""<tr>
+              <td style="padding:6px 0;color:#6b7280;font-size:14px;">{PLATFORM_LABELS.get(p, p)}</td>
+              <td style="padding:6px 0;font-weight:600;text-align:right;">
+                <span style="color:#f59e0b;">{comp_pct:.0f}%</span>
+                <span style="color:#9ca3af;font-weight:400;"> vs {client_pct:.0f}%</span>
+              </td>
+            </tr>"""
+            for p, comp_pct, client_pct in winning_platforms
+        )
+        platform_section = f"""
+          <p style="margin:16px 0 4px;color:#374151;font-weight:600;font-size:14px;">
+            Platforms where {competitor_name} is ahead
+          </p>
+          <table style="width:100%;border-collapse:collapse;">{platform_rows}</table>"""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"></head>
@@ -217,7 +275,7 @@ def _build_overtake_email(
               <td style="padding:8px 0;color:#6b7280;font-size:14px;">Gap</td>
               <td style="padding:8px 0;font-weight:600;color:#dc2626;text-align:right;">+{delta:.0f}% ahead</td>
             </tr>
-          </table>
+          </table>{platform_section}
           <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             SeenBy &middot;

@@ -1,5 +1,6 @@
 import uuid
 
+from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
 from app.models.competitor import Competitor
@@ -9,7 +10,12 @@ from app.schemas.competitor import (
     CompetitorIntelligenceResponse,
     CompetitorScore,
     CompetitorQueryBreakdown,
+    CompetitorTrendsResponse,
+    TrendScanPoint,
+    TrendSeries,
 )
+
+TREND_SCAN_LIMIT = 12
 
 
 def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> CompetitorIntelligenceResponse:
@@ -56,6 +62,7 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
         if client_results
         else 0.0
     )
+    client_platform_visibility = visibility_by_platform(client_results)
 
     competitor_scores = []
     for comp in competitors:
@@ -65,6 +72,7 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
             if comp_results
             else 0.0
         )
+        comp_platform_visibility = visibility_by_platform(comp_results)
         competitor_scores.append(
             CompetitorScore(
                 id=comp.id,
@@ -73,6 +81,7 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
                 ai_citability=comp_citability,
                 queries=[
                     CompetitorQueryBreakdown(
+                        platform=r.platform,
                         category=r.category,
                         query_text=r.query_text,
                         brand_detected=r.brand_detected,
@@ -80,11 +89,94 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
                     for r in comp_results
                 ],
                 is_winning=comp_citability > client_citability,
+                platform_visibility=comp_platform_visibility,
+                winning_platforms=[
+                    p
+                    for p, visibility in comp_platform_visibility.items()
+                    if visibility > client_platform_visibility.get(p, 0.0)
+                ],
             )
         )
 
     return CompetitorIntelligenceResponse(
         client_ai_citability=client_citability,
+        client_platform_visibility=client_platform_visibility,
         competitors=competitor_scores,
         last_scan_at=latest_scan.completed_at.isoformat() + "Z" if latest_scan.completed_at else None,
+    )
+
+
+def visibility_by_platform(results: list) -> dict[str, float]:
+    """Visibility frequency (% of queries where the brand was seen) per platform.
+
+    Public: also used by alert_service for per-platform overtake detail.
+    """
+    counts: dict[str, list[int]] = {}
+    for r in results:
+        detected, total = counts.setdefault(r.platform, [0, 0])
+        counts[r.platform] = [detected + (1 if r.brand_detected else 0), total + 1]
+    return {
+        platform: round(detected / total * 100, 1)
+        for platform, (detected, total) in counts.items()
+        if total
+    }
+
+
+def compute_competitor_trends(
+    client_id: uuid.UUID, db: Session, limit: int = TREND_SCAN_LIMIT
+) -> CompetitorTrendsResponse:
+    """Visibility frequency per scan for the client and each competitor.
+
+    Computed from persisted brand_detected flags (purge-proof — response_text
+    is never needed). A point is None when that competitor has no rows in a
+    scan (e.g. added after it ran).
+    """
+    from app.models.client import Client
+
+    client = db.get(Client, client_id)
+    client_name = client.name if client else "You"
+
+    scans = (
+        db.query(Scan.id, Scan.completed_at)
+        .filter(Scan.client_id == client_id, Scan.status == "completed")
+        .order_by(desc(Scan.completed_at))
+        .limit(limit)
+        .all()
+    )
+    scans = list(reversed(scans))  # oldest → newest for charting
+    scan_ids = [s.id for s in scans]
+
+    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+
+    visibility: dict[tuple, float] = {}
+    if scan_ids:
+        rows = (
+            db.query(
+                ScanQueryResult.scan_id,
+                ScanQueryResult.competitor_id,
+                func.count().label("total"),
+                func.sum(
+                    case((ScanQueryResult.brand_detected.is_(True), 1), else_=0)
+                ).label("detected"),
+            )
+            .filter(ScanQueryResult.scan_id.in_(scan_ids))
+            .group_by(ScanQueryResult.scan_id, ScanQueryResult.competitor_id)
+            .all()
+        )
+        visibility = {
+            (row.scan_id, row.competitor_id): round(row.detected / row.total * 100, 1)
+            for row in rows
+            if row.total
+        }
+
+    def series_for(competitor_id: uuid.UUID | None) -> list[float | None]:
+        return [visibility.get((scan_id, competitor_id)) for scan_id in scan_ids]
+
+    return CompetitorTrendsResponse(
+        scans=[TrendScanPoint(scan_id=s.id, completed_at=s.completed_at) for s in scans],
+        client=TrendSeries(competitor_id=None, name=client_name, points=series_for(None)),
+        competitors=[
+            TrendSeries(competitor_id=c.id, name=c.name, points=series_for(c.id))
+            for c in competitors
+        ],
     )

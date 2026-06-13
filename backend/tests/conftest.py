@@ -2,9 +2,18 @@ import pytest
 import sys
 from unittest.mock import MagicMock
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker, Session
 from app.models.base import Base
-from app.models import client, competitor, scan, scan_query_result, geo_score, activity_log, toolkit_files, report  # noqa: F401
+from app.models import client, competitor, scan, scan_query_result, geo_score, activity_log, toolkit_files, report, content_brief, content_analysis, content_roadmap  # noqa: F401
+
+
+# Other test modules import models with JSONB columns (content_analyses),
+# which SQLite can't compile during create_all — render them as JSON in tests.
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
 
 # Mock resend module if not installed
 if "resend" not in sys.modules:

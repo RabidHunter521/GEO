@@ -7,6 +7,7 @@ import type {
   ClientViewOverview,
   ClientViewScan,
   ClientViewCompetitors,
+  ClientViewCompetitorTrends,
   ClientViewReport,
   ClientViewAction,
   ClientViewIssueGroup,
@@ -35,6 +36,10 @@ export function getViewScan(token: string): Promise<ClientViewScan | null> {
 
 export function getViewCompetitors(token: string): Promise<ClientViewCompetitors | null> {
   return viewFetch<ClientViewCompetitors>(token, "/competitors")
+}
+
+export function getViewCompetitorTrends(token: string): Promise<ClientViewCompetitorTrends | null> {
+  return viewFetch<ClientViewCompetitorTrends>(token, "/competitors/trends")
 }
 
 export function getViewReports(token: string): Promise<ClientViewReport[] | null> {

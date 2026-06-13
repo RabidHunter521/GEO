@@ -82,7 +82,12 @@ export default async function ViewScanPage({
                 key={`${category}-${i}`}
                 className="flex flex-col gap-2 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
               >
-                <p className="text-sm">&ldquo;{r.query_text}&rdquo;</p>
+                <div className="flex items-center gap-3">
+                  <span className="shrink-0 rounded-full border bg-muted/30 px-2.5 py-0.5 text-xs font-medium">
+                    {r.platform_label}
+                  </span>
+                  <p className="text-sm">&ldquo;{r.query_text}&rdquo;</p>
+                </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {r.seen_by_ai && r.ai_search_ranking !== null && (
                     <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">

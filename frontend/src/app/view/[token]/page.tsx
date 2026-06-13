@@ -2,12 +2,13 @@
 // Read-only overview: overall score, dimension breakdown, AI visitor
 // traffic, score history, and recommended actions. Zero mutations.
 import { notFound } from "next/navigation"
-import { TrendingUp, TrendingDown, AlertCircle } from "lucide-react"
+import { TrendingUp, TrendingDown, AlertCircle, Sparkles } from "lucide-react"
 import { getViewOverview, getViewActions, getViewIssues } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { ScoreHistoryChart } from "@/components/view/ScoreHistoryChart"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
+import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { getScoreBand } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
@@ -124,6 +125,51 @@ export default async function ViewOverviewPage({
         </div>
       </div>
 
+      {/* Seen by AI — per platform */}
+      {overview.platforms.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Seen by AI — by Platform
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {overview.platforms.map((p) => {
+              const unavailable = p.visibility_frequency === null
+              return (
+                <div
+                  key={p.platform_label}
+                  className={`rounded-lg border p-4 ${unavailable ? "bg-muted/30" : "bg-card"}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{p.platform_label}</p>
+                    {unavailable ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        Checking soon
+                      </span>
+                    ) : p.seen_by_ai ? (
+                      <span className="rounded-full bg-score-strong-bg px-2 py-0.5 text-xs font-medium text-score-strong">
+                        Seen by AI
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        Not yet seen by AI
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 font-display text-xl font-bold tabular-nums">
+                    {unavailable ? "—" : `${Math.round(p.visibility_frequency!)}%`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {unavailable
+                      ? "This platform will be checked on the next scan"
+                      : "visibility frequency"}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 5-dimension breakdown */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -185,6 +231,28 @@ export default async function ViewOverviewPage({
             these — see Recommended Next Steps below.
           </p>
         </div>
+      )}
+
+      {/* What changed this month — from the latest delivered report */}
+      {overview.change_narrative && (
+        <div className="rounded-lg border bg-primary/5 p-5">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Sparkles className="h-4 w-4 text-primary" />
+            What Changed
+            {overview.change_narrative_period ? ` — ${overview.change_narrative_period}` : ""}
+          </h2>
+          <p className="text-sm leading-relaxed text-foreground">{overview.change_narrative}</p>
+        </div>
+      )}
+
+      {/* Industry benchmark */}
+      {overview.benchmark && (
+        <IndustryBenchmarkCard
+          industry={overview.benchmark.industry}
+          topPercent={overview.benchmark.top_percent}
+          peerCount={overview.benchmark.peer_count}
+          industryAverage={overview.benchmark.industry_average}
+        />
       )}
 
       {/* Score history */}

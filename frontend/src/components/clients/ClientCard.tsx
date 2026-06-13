@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Check } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
+import { scoreDelta } from "@/lib/client-list-utils"
 import { cn } from "@/lib/utils"
 import type { ClientListItem } from "@/types"
 
@@ -13,6 +14,8 @@ interface Props {
   selectMode?: boolean
   selected?: boolean
   onToggle?: () => void
+  // Tints the selection checkbox/ring: destructive for remove, primary for scan
+  selectionVariant?: "destructive" | "primary"
 }
 
 function initials(name: string) {
@@ -23,7 +26,29 @@ function initials(name: string) {
     .join("")
 }
 
-export function ClientCard({ client, selectMode = false, selected = false, onToggle }: Props) {
+function DeltaIndicator({ client }: { client: ClientListItem }) {
+  const delta = scoreDelta(client)
+  if (delta === null || Math.round(delta) === 0) return null
+  const rounded = Math.round(delta)
+  return (
+    <span
+      className={cn(
+        "text-xs font-medium tabular-nums",
+        rounded > 0 ? "text-emerald-600" : "text-red-600",
+      )}
+    >
+      {rounded > 0 ? `+${rounded}` : `${rounded}`}
+    </span>
+  )
+}
+
+export function ClientCard({
+  client,
+  selectMode = false,
+  selected = false,
+  onToggle,
+  selectionVariant = "destructive",
+}: Props) {
   const host = client.website?.replace(/^https?:\/\//, "").replace(/\/$/, "")
   const lastScan = client.last_scan_at
     ? new Date(client.last_scan_at).toLocaleDateString("en-MY", {
@@ -32,13 +57,17 @@ export function ClientCard({ client, selectMode = false, selected = false, onTog
         year: "numeric",
       })
     : null
+  const isDestructive = selectionVariant === "destructive"
+  const scanning =
+    client.latest_scan_status === "pending" || client.latest_scan_status === "running"
 
   const card = (
     <Card
       className={cn(
         "relative h-full transition-all duration-200",
         !selectMode && "group-hover:-translate-y-0.5 group-hover:border-primary/30 group-hover:shadow-brand",
-        selectMode && selected && "border-destructive/50 ring-1 ring-destructive/30",
+        selectMode && selected && isDestructive && "border-destructive/50 ring-1 ring-destructive/30",
+        selectMode && selected && !isDestructive && "border-primary/50 ring-1 ring-primary/30",
       )}
     >
       {selectMode && (
@@ -46,7 +75,9 @@ export function ClientCard({ client, selectMode = false, selected = false, onTog
           className={cn(
             "absolute right-3 top-3 z-10 flex h-5 w-5 items-center justify-center rounded-full border",
             selected
-              ? "border-destructive bg-destructive text-destructive-foreground"
+              ? isDestructive
+                ? "border-destructive bg-destructive text-destructive-foreground"
+                : "border-primary bg-primary text-primary-foreground"
               : "border-muted-foreground/30 bg-card",
           )}
         >
@@ -63,12 +94,17 @@ export function ClientCard({ client, selectMode = false, selected = false, onTog
             <p className="truncate text-xs text-muted-foreground">{host}</p>
           </div>
         </div>
-        {!selectMode && <ScoreBadge score={client.latest_overall_score} className="ml-2 shrink-0" />}
+        {!selectMode && (
+          <span className="ml-2 flex shrink-0 items-center gap-1.5">
+            <DeltaIndicator client={client} />
+            <ScoreBadge score={client.latest_overall_score} />
+          </span>
+        )}
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-2">
         <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{client.industry}</p>
         <p className="shrink-0 text-xs text-muted-foreground">
-          {lastScan ? `Last scan ${lastScan}` : "No scans yet"}
+          {scanning ? "Scanning…" : lastScan ? `Last scan ${lastScan}` : "No scans yet"}
         </p>
       </CardContent>
     </Card>

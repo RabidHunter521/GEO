@@ -1,7 +1,10 @@
 import Link from "next/link"
 import { CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { getCompetitorIntelligence } from "@/lib/api"
+import { getCompetitorIntelligence, getCompetitorTrends, getWinLoss } from "@/lib/api"
+import { VisibilityTrendChart } from "@/components/competitors/VisibilityTrendChart"
+import { WinLossSection } from "@/components/competitors/WinLossSection"
+import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -17,12 +20,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default async function CompetitorsPage({ params }: Props) {
   const { id } = await params
 
-  let data = null
-  try {
-    data = await getCompetitorIntelligence(id)
-  } catch {
-    // backend down — show error state
-  }
+  const [data, winLoss, trends] = await Promise.all([
+    getCompetitorIntelligence(id).catch(() => null),
+    getWinLoss(id).catch(() => null),
+    getCompetitorTrends(id).catch(() => null),
+  ])
 
   if (!data) {
     return (
@@ -122,16 +124,51 @@ export default async function CompetitorsPage({ params }: Props) {
       </div>
 
       {/* Client score summary */}
-      <div className="flex items-center justify-between rounded-xl border bg-card px-5 py-4 shadow-brand">
-        <div>
-          <p className="text-sm text-muted-foreground">Your AI visibility</p>
-          <p className="font-display text-3xl font-bold tabular-nums text-primary">
-            {data.client_ai_citability.toFixed(0)}
-            <span className="text-base font-normal text-muted-foreground">%</span>
-          </p>
+      <div className="rounded-xl border bg-card px-5 py-4 shadow-brand">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">Your AI visibility</p>
+            <p className="font-display text-3xl font-bold tabular-nums text-primary">
+              {data.client_ai_citability.toFixed(0)}
+              <span className="text-base font-normal text-muted-foreground">%</span>
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground">visibility frequency</p>
         </div>
-        <p className="text-sm text-muted-foreground">visibility frequency</p>
+        {Object.keys(data.client_platform_visibility).length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+            {SCAN_PLATFORMS.filter((p) => data.client_platform_visibility[p] != null).map((p) => (
+              <span
+                key={p}
+                className="rounded-full border bg-muted/30 px-2.5 py-1 text-xs tabular-nums"
+              >
+                {PLATFORM_LABELS[p]}:{" "}
+                <span className="font-semibold">
+                  {data.client_platform_visibility[p]!.toFixed(0)}%
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Visibility trends */}
+      {trends && trends.scans.length >= 2 && (
+        <VisibilityTrendChart
+          dates={trends.scans.map((s) => s.completed_at)}
+          series={[
+            { name: trends.client.name, isYou: true, points: trends.client.points },
+            ...trends.competitors.map((c) => ({
+              name: c.name,
+              isYou: false,
+              points: c.points,
+            })),
+          ]}
+        />
+      )}
+
+      {/* Win/loss by query */}
+      {winLoss && <WinLossSection clientId={id} data={winLoss} />}
 
       {/* Competitor cards */}
       <div className="space-y-4">
@@ -166,12 +203,34 @@ export default async function CompetitorsPage({ params }: Props) {
               </div>
             </div>
 
+            {/* Per-platform comparison */}
+            {Object.keys(comp.platform_visibility).length > 0 && (
+              <div className="flex flex-wrap gap-2 border-b bg-muted/10 px-5 py-3">
+                {SCAN_PLATFORMS.filter((p) => comp.platform_visibility[p] != null).map((p) => {
+                  const winning = comp.winning_platforms.includes(p)
+                  return (
+                    <span
+                      key={p}
+                      className={`rounded-full border px-2.5 py-1 text-xs tabular-nums ${
+                        winning
+                          ? "border-score-watch/30 bg-score-watch-bg text-score-watch font-medium"
+                          : "bg-muted/30"
+                      }`}
+                    >
+                      {PLATFORM_LABELS[p]}: {comp.platform_visibility[p]!.toFixed(0)}%
+                      {winning && " · winning here"}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
             {/* Query breakdown */}
             {comp.queries.length > 0 ? (
               <div className="divide-y">
                 {comp.queries.map((q) => (
                   <div
-                    key={`${comp.id}-${q.category}`}
+                    key={`${comp.id}-${q.platform}-${q.category}-${q.query_text}`}
                     className="flex items-center justify-between px-5 py-3 text-sm"
                   >
                     <div className="flex items-center gap-3">
@@ -180,6 +239,9 @@ export default async function CompetitorsPage({ params }: Props) {
                       ) : (
                         <XCircle className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                       )}
+                      <span className="text-xs font-medium w-20 shrink-0">
+                        {PLATFORM_LABELS[q.platform] ?? q.platform}
+                      </span>
                       <span className="text-muted-foreground font-medium">
                         {CATEGORY_LABELS[q.category] ?? q.category}
                       </span>

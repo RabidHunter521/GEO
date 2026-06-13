@@ -222,6 +222,104 @@ def test_generate_report_pdf_logs_report_generated_activity():
     assert "report_generated" in event_types
 
 
+# ── change narrative ──────────────────────────────────────────────────────────
+
+def test_fallback_narrative_first_report():
+    from app.services.report_service import _fallback_narrative, ReportData
+    data = _make_report_data()
+    data.trend = "first"
+    data.prev_overall_score = None
+    text = _fallback_narrative(data)
+    assert "first" in text.lower()
+    assert "6 of 8" in text
+
+
+def test_fallback_narrative_uses_seen_by_ai_language():
+    from app.services.report_service import _fallback_narrative
+    data = _make_report_data()
+    text = _fallback_narrative(data)
+    assert "seen by AI" in text
+    # terminology guard — never leak forbidden terms
+    assert "cited" not in text.lower()
+    assert "ranking" not in text.lower()
+
+
+def test_generate_change_narrative_first_report_skips_claude():
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    data.trend = "first"
+    data.prev_overall_score = None
+    with patch("app.services.report_service.anthropic_client") as mock_client:
+        text = _generate_change_narrative(data)
+    mock_client.assert_not_called()
+    assert "first" in text.lower()
+
+
+def test_generate_change_narrative_falls_back_on_api_error():
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()  # trend="up", prev=65.0 → would call Claude
+    with patch("app.services.report_service.anthropic_client", side_effect=RuntimeError("api down")):
+        text = _generate_change_narrative(data)
+    # deterministic fallback, not an exception
+    assert "72" in text and "65" in text
+
+
+def test_generate_change_narrative_returns_claude_text():
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    fake_msg = MagicMock()
+    fake_msg.content = [MagicMock(text="Your visibility improved this month, seen by AI in more queries.")]
+    with patch("app.services.report_service.anthropic_client") as mock_client:
+        mock_client.return_value.messages.create.return_value = fake_msg
+        text = _generate_change_narrative(data)
+    assert text == "Your visibility improved this month, seen by AI in more queries."
+
+
+def test_build_report_html_renders_narrative_when_present():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.change_narrative = "Your score rose because more platforms saw your brand."
+    html = _build_report_html(client, data)
+    assert "What Changed This Month" in html
+    assert "Your score rose because more platforms saw your brand." in html
+
+
+def test_build_report_html_omits_narrative_section_when_empty():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.change_narrative = ""
+    html = _build_report_html(client, data)
+    assert "What Changed This Month" not in html
+
+
+def test_generate_report_pdf_persists_narrative_on_report():
+    from app.services.report_service import generate_report_pdf
+    db = MagicMock()
+    client = MagicMock()
+    client.id = uuid.uuid4()
+    client.name = "Acme Corp"
+    client.archived_at = None
+    db.get.return_value = client
+
+    data = _make_report_data()
+    data.change_narrative = "Narrative for the month."
+    added = []
+    db.add.side_effect = lambda obj: added.append(obj)
+
+    with patch("app.services.report_service._gather_report_data", return_value=data), \
+         patch("app.services.report_service.weasyprint") as mock_wp, \
+         patch("app.services.report_service.upload_pdf", return_value="https://pub.seenby.my/r.pdf"):
+        mock_wp.HTML.return_value.write_pdf.return_value = b"pdf"
+        generate_report_pdf(client.id, db)
+
+    reports = [o for o in added if hasattr(o, "change_narrative")]
+    assert reports and reports[0].change_narrative == "Narrative for the month."
+
+
 # ── send_report_email ─────────────────────────────────────────────────────────
 
 def _make_mock_report(sent_at=None):

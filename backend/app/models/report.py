@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Float, ForeignKey, String
+from sqlalchemy import Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
@@ -20,5 +20,7 @@ class Report(Base):
     period_start: Mapped[datetime] = mapped_column(nullable=False)
     period_end: Mapped[datetime] = mapped_column(nullable=False)
     overall_score: Mapped[float] = mapped_column(Float, nullable=False)
+    # Claude "what changed this month" narrative, generated when the PDF is built
+    change_narrative: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(nullable=True)

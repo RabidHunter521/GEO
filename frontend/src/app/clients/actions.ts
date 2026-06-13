@@ -8,6 +8,7 @@ import {
   deleteClient as apiDeleteClient,
   addCompetitor as apiAddCompetitor,
   deleteCompetitor as apiDeleteCompetitor,
+  triggerScan as apiTriggerScan,
 } from "@/lib/api"
 
 export async function createClientAction(data: {
@@ -48,4 +49,23 @@ export async function archiveClientsAction(ids: string[]) {
     await apiDeleteClient(id)
   }
   revalidatePath("/clients")
+}
+
+export async function bulkScanAction(
+  ids: string[],
+): Promise<{ triggered: number; skipped: number }> {
+  let triggered = 0
+  let skipped = 0
+  for (const id of ids) {
+    try {
+      await apiTriggerScan(id)
+      triggered++
+    } catch {
+      // 409 (scan already running) or any other per-client failure — the rest
+      // of the batch still proceeds
+      skipped++
+    }
+  }
+  revalidatePath("/clients")
+  return { triggered, skipped }
 }

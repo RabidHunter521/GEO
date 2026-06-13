@@ -21,6 +21,7 @@ class ScanResponse(BaseModel):
 class ScanQueryResultResponse(BaseModel):
     id: uuid.UUID
     scan_id: uuid.UUID
+    platform: str = "gemini"
     competitor_id: uuid.UUID | None = None
     competitor_name: str | None = None
     category: str

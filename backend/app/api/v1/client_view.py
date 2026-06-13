@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
+from app.core.constants import PLATFORM_LABELS
 from app.core.database import get_db
 from app.models.client import Client
 from app.models.scan import Scan
@@ -18,8 +19,12 @@ from app.models.report import Report
 from app.models.action_recommendation import ActionRecommendation
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.schemas.client_view import (
+    ClientViewBenchmark,
+    ClientViewCompetitorTrends,
+    ClientViewPlatform,
     ClientViewProfile,
     ClientViewScore,
+    ClientViewTrendSeries,
     ClientViewScorePoint,
     ClientViewTrafficPoint,
     ClientViewOverview,
@@ -32,10 +37,33 @@ from app.schemas.client_view import (
     ClientViewAction,
     ClientViewIssueGroup,
 )
-from app.services.competitor_intelligence_service import compute_competitor_intelligence
+from app.services.benchmark_service import compute_industry_benchmark
+from app.services.competitor_intelligence_service import (
+    compute_competitor_intelligence,
+    compute_competitor_trends,
+)
 from app.services.issue_detection_service import detect_client_issues
 
 SCORE_HISTORY_LIMIT = 12
+
+
+def _platform_label(platform: str) -> str:
+    return PLATFORM_LABELS.get(platform, platform.title())
+
+
+def _view_platforms(platform_breakdown: dict | None) -> list[ClientViewPlatform]:
+    """Whitelist the GeoScore platform breakdown for the client-facing surface."""
+    if not platform_breakdown:
+        return []
+    platforms = []
+    for platform, entry in platform_breakdown.items():
+        unavailable = entry.get("status") != "ok"
+        platforms.append(ClientViewPlatform(
+            platform_label=_platform_label(platform),
+            seen_by_ai=entry.get("detected", 0) > 0,
+            visibility_frequency=None if unavailable else entry.get("visibility", 0.0),
+        ))
+    return platforms
 
 
 def require_share_client(
@@ -81,6 +109,15 @@ def get_overview(
         .all()
     )
 
+    benchmark = compute_industry_benchmark(client, db)
+
+    latest_report = (
+        db.query(Report)
+        .filter(Report.client_id == client.id, Report.change_narrative.isnot(None))
+        .order_by(desc(Report.generated_at))
+        .first()
+    )
+
     return ClientViewOverview(
         profile=ClientViewProfile(
             name=client.name,
@@ -96,6 +133,13 @@ def get_overview(
             structured_data=latest.structured_data,
             computed_at=latest.computed_at,
         ) if latest else None,
+        platforms=_view_platforms(latest.platform_breakdown) if latest else [],
+        benchmark=ClientViewBenchmark(
+            industry=benchmark.industry,
+            peer_count=benchmark.peer_count,
+            industry_average=benchmark.industry_average,
+            top_percent=benchmark.top_percent,
+        ) if benchmark else None,
         score_history=[
             ClientViewScorePoint(overall_score=s.overall_score, computed_at=s.computed_at)
             for s in reversed(history)  # oldest → newest for charting
@@ -104,6 +148,10 @@ def get_overview(
             ClientViewTrafficPoint(period=t.period, ai_visitors=t.ai_visitors)
             for t in traffic
         ],
+        change_narrative=latest_report.change_narrative if latest_report else None,
+        change_narrative_period=(
+            latest_report.period_start.strftime("%B %Y") if latest_report else None
+        ),
     )
 
 
@@ -136,6 +184,7 @@ def get_scan(
         completed_at=latest_scan.completed_at,
         results=[
             ClientViewScanResult(
+                platform_label=_platform_label(r.platform),
                 category=r.category,
                 query_text=r.query_text,
                 seen_by_ai=r.brand_detected,
@@ -154,14 +203,22 @@ def get_competitors(
     intel = compute_competitor_intelligence(client.id, db)
     return ClientViewCompetitors(
         your_visibility_frequency=intel.client_ai_citability,
+        your_platform_visibility={
+            _platform_label(p): v for p, v in intel.client_platform_visibility.items()
+        },
         competitors=[
             ClientViewCompetitor(
                 name=c.name,
                 website=c.website,
                 visibility_frequency=c.ai_citability,
                 is_winning=c.is_winning,
+                platform_visibility={
+                    _platform_label(p): v for p, v in c.platform_visibility.items()
+                },
+                winning_platform_labels=[_platform_label(p) for p in c.winning_platforms],
                 queries=[
                     ClientViewCompetitorQuery(
+                        platform_label=_platform_label(q.platform),
                         category=q.category,
                         query_text=q.query_text,
                         seen_by_ai=q.brand_detected,
@@ -172,6 +229,24 @@ def get_competitors(
             for c in intel.competitors
         ],
         last_scan_at=intel.last_scan_at,
+    )
+
+
+@router.get("/competitors/trends", response_model=ClientViewCompetitorTrends)
+def get_competitor_trends(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+):
+    trends = compute_competitor_trends(client.id, db)
+    return ClientViewCompetitorTrends(
+        checked_at=[s.completed_at for s in trends.scans],
+        series=[
+            ClientViewTrendSeries(name=client.name, is_you=True, points=trends.client.points),
+            *[
+                ClientViewTrendSeries(name=c.name, is_you=False, points=c.points)
+                for c in trends.competitors
+            ],
+        ],
     )
 
 

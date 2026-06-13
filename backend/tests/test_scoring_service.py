@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 from app.services.scoring_service import (
     compute_ai_citability,
     compute_geo_score,
+    compute_platform_breakdown,
     get_score_band,
 )
 
@@ -28,6 +29,57 @@ def test_citability_ignores_competitor_queries():
     client_results = [MagicMock(brand_detected=True, competitor_id=None) for _ in range(4)]
     competitor_results = [MagicMock(brand_detected=False, competitor_id="some-id") for _ in range(4)]
     assert compute_ai_citability(client_results + competitor_results) == 100.0
+
+
+def _result(platform, detected, competitor_id=None):
+    return MagicMock(platform=platform, brand_detected=detected, competitor_id=competitor_id)
+
+
+def test_platform_breakdown_per_platform_visibility():
+    results = [
+        _result("gemini", True), _result("gemini", False),
+        _result("claude", True), _result("claude", True),
+    ]
+    breakdown = compute_platform_breakdown(results)
+    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok"}
+    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok"}
+
+
+def test_platform_breakdown_ignores_competitor_results():
+    results = [
+        _result("gemini", True),
+        _result("gemini", True, competitor_id="some-id"),
+    ]
+    breakdown = compute_platform_breakdown(results)
+    assert breakdown["gemini"]["queries"] == 1
+
+
+def test_platform_breakdown_marks_failed_platforms_unavailable():
+    breakdown = compute_platform_breakdown([_result("gemini", True)], failed_platforms=["claude"])
+    assert breakdown["claude"] == {"visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable"}
+
+
+def test_citability_averages_across_platforms():
+    breakdown = {
+        "gemini": {"visibility": 50.0, "queries": 8, "detected": 4, "status": "ok"},
+        "claude": {"visibility": 100.0, "queries": 8, "detected": 8, "status": "ok"},
+    }
+    assert compute_ai_citability([], breakdown) == 75.0
+
+
+def test_citability_excludes_unavailable_platforms_from_average():
+    breakdown = {
+        "gemini": {"visibility": 60.0, "queries": 8, "detected": 5, "status": "ok"},
+        "claude": {"visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable"},
+    }
+    assert compute_ai_citability([], breakdown) == 60.0
+
+
+def test_citability_zero_when_all_platforms_unavailable():
+    breakdown = {
+        "gemini": {"visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable"},
+    }
+    assert compute_ai_citability([], breakdown) == 0.0
 
 
 def test_geo_score_full_weights():

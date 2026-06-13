@@ -4,7 +4,8 @@ import { useState, useEffect, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Play, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
-import type { Scan, ScanQueryResult } from "@/types"
+import type { Platform, Scan, ScanQueryResult } from "@/types"
+import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
 
 interface Props {
@@ -27,6 +28,7 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(
     () => new Set(initialScan?.results.filter((r) => r.hallucination_flagged).map((r) => r.id) ?? [])
   )
+  const [platformFilter, setPlatformFilter] = useState<Platform | "all">("all")
 
   const isActive = scan?.status === "running" || scan?.status === "pending"
 
@@ -66,9 +68,15 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
     })
   }
 
-  const clientResults = scan?.results.filter((r) => r.competitor_id === null) ?? []
+  const allClientResults = scan?.results.filter((r) => r.competitor_id === null) ?? []
+  const scannedPlatforms = SCAN_PLATFORMS.filter((p) =>
+    allClientResults.some((r) => r.platform === p),
+  )
+  const matchesFilter = (r: ScanQueryResult) =>
+    platformFilter === "all" || r.platform === platformFilter
+  const clientResults = allClientResults.filter(matchesFilter)
   const competitorGroups = groupByCompetitor(
-    scan?.results.filter((r) => r.competitor_id !== null) ?? [],
+    scan?.results.filter((r) => r.competitor_id !== null && matchesFilter(r)) ?? [],
   )
 
   return (
@@ -112,8 +120,8 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
           <Loader2 className="h-6 w-6 animate-spin mx-auto mb-3 text-muted-foreground" />
           <p className="text-sm font-medium">Scan in progress</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Querying Gemini across {clientResults.length > 0 ? clientResults.length : "8"} topics.
-            This takes about 30 seconds.
+            Querying ChatGPT, Perplexity, Gemini and Claude across 8 topics each.
+            This can take a few minutes.
           </p>
         </div>
       )}
@@ -121,9 +129,54 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
       {scan?.status === "completed" && (
         <div className="space-y-6">
           <p className="text-xs text-muted-foreground">
-            Completed {formatDate(scan.completed_at!)} &middot; Platform:{" "}
-            {scan.platform}
+            Completed {formatDate(scan.completed_at!)} &middot;{" "}
+            {scannedPlatforms.length > 0
+              ? `Platforms: ${scannedPlatforms.map((p) => PLATFORM_LABELS[p]).join(", ")}`
+              : `Platform: ${scan.platform}`}
           </p>
+
+          {/* Per-platform visibility summary */}
+          {scannedPlatforms.length > 1 && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {scannedPlatforms.map((p) => {
+                const platformResults = allClientResults.filter((r) => r.platform === p)
+                const seen = platformResults.filter((r) => r.brand_detected).length
+                const pct = platformResults.length
+                  ? Math.round((seen / platformResults.length) * 100)
+                  : 0
+                return (
+                  <div key={p} className="rounded-lg border bg-card px-4 py-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {PLATFORM_LABELS[p]}
+                    </p>
+                    <p className="font-display text-xl font-bold tabular-nums mt-1">
+                      {pct}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      visibility frequency &middot; {seen}/{platformResults.length} queries
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Platform filter */}
+          {scannedPlatforms.length > 1 && (
+            <div className="flex flex-wrap gap-1.5">
+              {(["all", ...scannedPlatforms] as const).map((p) => (
+                <Button
+                  key={p}
+                  variant={platformFilter === p ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setPlatformFilter(p)}
+                >
+                  {p === "all" ? "All platforms" : PLATFORM_LABELS[p]}
+                </Button>
+              ))}
+            </div>
+          )}
 
           {/* Summary stats */}
           {clientResults.length > 0 && (() => {
@@ -214,6 +267,9 @@ function ResultsTable({
         <thead>
           <tr className="border-b bg-muted/40">
             <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-28">
+              Platform
+            </th>
+            <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-28">
               Category
             </th>
             <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
@@ -233,6 +289,11 @@ function ResultsTable({
               key={r.id}
               className={`${i < results.length - 1 ? "border-b" : ""} hover:bg-muted/20 transition-colors`}
             >
+              <td className="px-4 py-3">
+                <span className="text-xs font-medium">
+                  {PLATFORM_LABELS[r.platform] ?? r.platform}
+                </span>
+              </td>
               <td className="px-4 py-3">
                 <Badge variant="outline" className="text-xs font-normal">
                   {CATEGORY_LABELS[r.category] ?? r.category}

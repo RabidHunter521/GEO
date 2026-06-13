@@ -1,6 +1,8 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core.constants import SCAN_PLATFORMS
 
 # Lightweight email check — full RFC validation needs the email-validator
 # package, which we deliberately avoid adding for an admin-entered field.
@@ -28,6 +30,21 @@ class ClientUpdate(BaseModel):
     content_quality_score: int | None = Field(default=None, ge=0, le=100)
     content_quality_evidence: str | None = None
     score_drop_threshold: int | None = Field(default=None, ge=1, le=100)
+    enabled_platforms: list[str] | None = None
+
+    @field_validator("enabled_platforms")
+    @classmethod
+    def validate_enabled_platforms(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        unknown = [p for p in value if p not in SCAN_PLATFORMS]
+        if unknown:
+            raise ValueError(f"Unknown platforms: {', '.join(unknown)}")
+        # canonical order, de-duplicated
+        ordered = [p for p in SCAN_PLATFORMS if p in value]
+        if not ordered:
+            raise ValueError("At least one platform must be enabled")
+        return ordered
 
 
 class ClientResponse(BaseModel):
@@ -48,6 +65,7 @@ class ClientResponse(BaseModel):
     technical_foundations_verified: bool
     structured_data_verified: bool
     score_drop_threshold: int
+    enabled_platforms: list[str] = SCAN_PLATFORMS
     share_token: str | None = None
     share_token_created_at: datetime | None = None
     created_at: datetime
@@ -64,5 +82,8 @@ class ShareTokenResponse(BaseModel):
 class ClientListItem(ClientResponse):
     latest_overall_score: float | None = None
     last_scan_at: datetime | None = None
+    previous_overall_score: float | None = None
+    latest_scan_status: str | None = None
+    latest_scan_triggered_at: datetime | None = None
 
     model_config = {"from_attributes": False}

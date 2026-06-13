@@ -11,6 +11,8 @@ class ScanQueryResult(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     scan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
+    # AI platform that produced this result (see SCAN_PLATFORMS). Pre-multi-platform rows are "gemini".
+    platform: Mapped[str] = mapped_column(String(50), nullable=False, server_default="gemini")
     competitor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("competitors.id", ondelete="SET NULL"), nullable=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     query_text: Mapped[str] = mapped_column(Text, nullable=False)

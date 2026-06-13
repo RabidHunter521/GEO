@@ -26,10 +26,14 @@ router = APIRouter(prefix="/scans", tags=["scans"])
 def trigger_scan(payload: TriggerScanRequest, db: Session = Depends(get_db)):
     from workers.tasks.scan_tasks import execute_scan
     from app.models.client import Client
+    from app.services.scan_service import has_active_scan
     client = db.get(Client, payload.client_id)
     if not client or client.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    scan = Scan(client_id=payload.client_id)
+    if has_active_scan(payload.client_id, db):
+        raise HTTPException(status_code=409, detail="Scan already in progress")
+    from app.core.constants import SCAN_PLATFORM_MULTI
+    scan = Scan(client_id=payload.client_id, platform=SCAN_PLATFORM_MULTI)
     db.add(scan)
     db.commit()
     db.refresh(scan)
@@ -73,6 +77,7 @@ def get_latest_scan(client_id: uuid.UUID, db: Session = Depends(get_db)):
         ScanQueryResultResponse(
             id=row.ScanQueryResult.id,
             scan_id=row.ScanQueryResult.scan_id,
+            platform=row.ScanQueryResult.platform,
             competitor_id=row.ScanQueryResult.competitor_id,
             competitor_name=row.competitor_name,
             category=row.ScanQueryResult.category,

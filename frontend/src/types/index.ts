@@ -1,5 +1,25 @@
 // frontend/src/types/index.ts
 
+export type Platform = "chatgpt" | "perplexity" | "gemini" | "claude"
+
+export const SCAN_PLATFORMS: Platform[] = ["chatgpt", "perplexity", "gemini", "claude"]
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  chatgpt: "ChatGPT",
+  perplexity: "Perplexity",
+  gemini: "Gemini",
+  claude: "Claude",
+}
+
+export interface PlatformBreakdownEntry {
+  visibility: number
+  queries: number
+  detected: number
+  status: "ok" | "unavailable"
+}
+
+export type PlatformBreakdown = Partial<Record<Platform, PlatformBreakdownEntry>>
+
 export interface Client {
   id: string
   name: string
@@ -18,6 +38,7 @@ export interface Client {
   technical_foundations_verified: boolean
   structured_data_verified: boolean
   score_drop_threshold: number
+  enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
   created_at: string
@@ -32,6 +53,9 @@ export interface ShareTokenResponse {
 export interface ClientListItem extends Client {
   latest_overall_score: number | null
   last_scan_at: string | null
+  previous_overall_score: number | null
+  latest_scan_status: "pending" | "running" | "completed" | "failed" | null
+  latest_scan_triggered_at: string | null
 }
 
 export interface Competitor {
@@ -51,6 +75,7 @@ export interface GeoScore {
   technical_foundations: number
   structured_data: number
   overall_score: number
+  platform_breakdown: PlatformBreakdown | null
   computed_at: string
 }
 
@@ -81,6 +106,7 @@ export interface VerificationResult {
 }
 
 export interface CompetitorQueryBreakdown {
+  platform: Platform
   category: string
   query_text: string
   brand_detected: boolean
@@ -93,12 +119,76 @@ export interface CompetitorScore {
   ai_citability: number
   queries: CompetitorQueryBreakdown[]
   is_winning: boolean
+  platform_visibility: Partial<Record<Platform, number>>
+  winning_platforms: Platform[]
 }
 
 export interface CompetitorIntelligenceResponse {
   client_ai_citability: number | null
+  client_platform_visibility: Partial<Record<Platform, number>>
   competitors: CompetitorScore[]
   last_scan_at: string | null
+}
+
+// ── Win/loss analysis (admin only) ───────────────────────────────────────────
+
+export type WinLossOutcome = "won" | "lost" | "shared" | "open"
+
+export interface ContentBrief {
+  id: string
+  title: string
+  angle: string
+  outline: string[]
+  competitors_seen: string[]
+  generated_at: string
+}
+
+export interface WinLossEntry {
+  result_id: string
+  platform: Platform
+  category: string
+  query_text: string
+  client_seen: boolean
+  competitors_seen: string[]
+  outcome: WinLossOutcome
+  brief: ContentBrief | null
+}
+
+export interface WinLossResponse {
+  scan_id: string | null
+  last_scan_at: string | null
+  summary: Partial<Record<WinLossOutcome, number>>
+  entries: WinLossEntry[]
+}
+
+// ── Visibility trends ─────────────────────────────────────────────────────────
+
+export interface TrendScanPoint {
+  scan_id: string
+  completed_at: string
+}
+
+export interface TrendSeries {
+  competitor_id: string | null // null = the client
+  name: string
+  points: (number | null)[]
+}
+
+export interface CompetitorTrendsResponse {
+  scans: TrendScanPoint[]
+  client: TrendSeries
+  competitors: TrendSeries[]
+}
+
+// ── Industry benchmark ────────────────────────────────────────────────────────
+
+export interface IndustryBenchmark {
+  industry: string
+  peer_count: number
+  client_score: number
+  industry_average: number
+  rank: number
+  top_percent: number
 }
 
 export interface ActivityLogEntry {
@@ -122,6 +212,7 @@ export interface Report {
 export interface ScanQueryResult {
   id: string
   scan_id: string
+  platform: Platform
   competitor_id: string | null
   competitor_name: string | null
   category: string
@@ -169,6 +260,26 @@ export interface ContentAnalysis {
   content_quality_recommendation: string | null
   pages_crawled: number
   analyzed_at: string
+}
+
+export interface RoadmapItem {
+  month: number // 1, 2, or 3
+  theme: string
+  priority: "high" | "medium" | "low"
+  target_queries: string[]
+  competitors_winning: string[]
+  content_type: string
+  suggested_title: string
+  rationale: string
+}
+
+export interface ContentRoadmap {
+  id: string
+  client_id: string
+  status: "pending" | "running" | "completed" | "failed"
+  roadmap_json: RoadmapItem[]
+  source_query_count: number
+  generated_at: string
 }
 
 export interface ActionRecommendation {
@@ -231,14 +342,32 @@ export interface ClientViewTrafficPoint {
   ai_visitors: number
 }
 
+export interface ClientViewPlatform {
+  platform_label: string
+  seen_by_ai: boolean
+  visibility_frequency: number | null // null = platform unavailable during latest scan
+}
+
+export interface ClientViewBenchmark {
+  industry: string
+  peer_count: number
+  industry_average: number
+  top_percent: number
+}
+
 export interface ClientViewOverview {
   profile: ClientViewProfile
   latest_score: ClientViewScore | null
+  platforms: ClientViewPlatform[]
+  benchmark: ClientViewBenchmark | null
   score_history: ClientViewScorePoint[]
   traffic: ClientViewTrafficPoint[]
+  change_narrative: string | null
+  change_narrative_period: string | null
 }
 
 export interface ClientViewScanResult {
+  platform_label: string
   category: string
   query_text: string
   seen_by_ai: boolean
@@ -251,6 +380,7 @@ export interface ClientViewScan {
 }
 
 export interface ClientViewCompetitorQuery {
+  platform_label: string
   category: string
   query_text: string
   seen_by_ai: boolean
@@ -261,13 +391,27 @@ export interface ClientViewCompetitor {
   website: string | null
   visibility_frequency: number
   is_winning: boolean
+  platform_visibility: Record<string, number>
+  winning_platform_labels: string[]
   queries: ClientViewCompetitorQuery[]
 }
 
 export interface ClientViewCompetitors {
   your_visibility_frequency: number | null
+  your_platform_visibility: Record<string, number>
   competitors: ClientViewCompetitor[]
   last_scan_at: string | null
+}
+
+export interface ClientViewTrendSeries {
+  name: string
+  is_you: boolean
+  points: (number | null)[]
+}
+
+export interface ClientViewCompetitorTrends {
+  checked_at: string[]
+  series: ClientViewTrendSeries[]
 }
 
 export interface ClientViewReport {
