@@ -42,6 +42,11 @@ def test_gemini_query_retries_on_exception_then_succeeds():
     assert mock_client.models.generate_content.call_count == 2
 
 
+def test_gemini_missing_key_raises_not_configured():
+    with pytest.raises(PlatformNotConfiguredError, match="GEMINI_API_KEY"):
+        GeminiClient(api_key="")
+
+
 def test_gemini_query_raises_after_two_failures():
     with patch("app.services.platform_clients.gemini.genai") as mock_genai:
         mock_client = MagicMock()

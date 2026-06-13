@@ -32,7 +32,9 @@ Output ONLY the raw llms.txt content. No explanations. No code block wrappers.""
             }
         ],
     )
-    return response.content[0].text.strip()
+    # Haiku occasionally wraps output in a ``` fence despite the instruction above;
+    # strip it so a stray fence never lands in the published llms.txt file.
+    return _strip_code_fences(response.content[0].text)
 
 
 def generate_schema_json(client: Client) -> str:

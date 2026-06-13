@@ -28,7 +28,7 @@ from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.services.scoring_service import get_score_band
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
-from app.services.claude_client import MODEL, anthropic_client
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
 from app.services.share_link_service import get_share_link_url
 
 logger = structlog.get_logger()
@@ -192,7 +192,7 @@ def _generate_change_narrative(data: "ReportData") -> str:
     )
     try:
         message = anthropic_client().messages.create(
-            model=MODEL,
+            model=MODEL_NARRATIVE,
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )

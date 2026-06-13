@@ -85,6 +85,17 @@ def test_generate_llms_txt_calls_claude_and_returns_content():
     assert result == "# Acme Corp\n> tagline"
 
 
+def test_generate_llms_txt_strips_code_fences():
+    client = _fake_client()
+    fenced = "```\n# Acme Corp\n> tagline\n```"
+
+    with patch("app.services.toolkit_service._anthropic_client", return_value=_mock_ac(fenced)):
+        result = generate_llms_txt(client)
+
+    assert result == "# Acme Corp\n> tagline"
+    assert "```" not in result
+
+
 # ── generate_schema_json ──────────────────────────────────────────────────────
 
 def test_generate_schema_json_returns_valid_json():

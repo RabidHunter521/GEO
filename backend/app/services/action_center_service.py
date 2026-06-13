@@ -26,7 +26,7 @@ from app.models.content_analysis import ContentAnalysis
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
-from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
 
 logger = structlog.get_logger()
 
@@ -140,7 +140,7 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
 
     try:
         response = anthropic_client().messages.create(
-            model=MODEL,
+            model=MODEL_NARRATIVE,
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )

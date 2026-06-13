@@ -8,6 +8,10 @@ from app.core.config import settings
 
 MODEL = "claude-haiku-4-5-20251001"
 
+# Used for higher-stakes prose (e.g. monthly report narratives) where writing
+# quality matters more than per-call cost — call volume is low (1/report).
+MODEL_NARRATIVE = "claude-sonnet-4-6"
+
 
 def anthropic_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)

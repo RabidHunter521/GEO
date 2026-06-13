@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import PLATFORM_LABELS
 from app.models.client import Client
-from app.services.claude_client import anthropic_client, strip_code_fences, MODEL
+from app.services.claude_client import anthropic_client, strip_code_fences, MODEL_NARRATIVE
 from app.services.win_loss_service import compute_win_loss
 
 logger = structlog.get_logger()
@@ -76,7 +76,7 @@ def generate_roadmap(client: Client, db: Session) -> dict:
 
     prompt = _build_prompt(client, queries[:_MAX_QUERIES])
     response = anthropic_client().messages.create(
-        model=MODEL,
+        model=MODEL_NARRATIVE,
         max_tokens=_MAX_TOKENS,
         messages=[{"role": "user", "content": prompt}],
     )
