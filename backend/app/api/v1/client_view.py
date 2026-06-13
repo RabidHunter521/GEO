@@ -18,6 +18,10 @@ from app.models.geo_score import GeoScore
 from app.models.report import Report
 from app.models.action_recommendation import ActionRecommendation
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
+from app.models.toolkit_files import ToolkitFiles
+from app.models.content_roadmap import ContentRoadmap
+from app.models.content_analysis import ContentAnalysis
+from app.models.activity_log import ActivityLog
 from app.schemas.client_view import (
     ClientViewBenchmark,
     ClientViewCompetitorTrends,
@@ -36,6 +40,14 @@ from app.schemas.client_view import (
     ClientViewReport,
     ClientViewAction,
     ClientViewIssueGroup,
+    ClientViewToolkit,
+    ClientViewRoadmap,
+    ClientViewRoadmapItem,
+    ClientViewContentGaps,
+    ClientViewTopic,
+    ClientViewEntity,
+    ClientViewSuggestedContent,
+    ClientViewActivity,
 )
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.competitor_intelligence_service import (
@@ -118,11 +130,39 @@ def get_overview(
         .first()
     )
 
+    # Cheap existence checks so the client view can hide deliverable tabs that
+    # have no content yet (a brand-new client never sees an empty tab).
+    has_toolkit = (
+        db.query(ToolkitFiles.id).filter(ToolkitFiles.client_id == client.id).first() is not None
+    )
+    has_activity = (
+        db.query(ActivityLog.id)
+        .filter(
+            ActivityLog.client_id == client.id,
+            ActivityLog.event_type.in_(list(_CLIENT_ACTIVITY_LABELS.keys())),
+        )
+        .first()
+        is not None
+    )
+    has_roadmap = (
+        db.query(ContentRoadmap.id)
+        .filter(ContentRoadmap.client_id == client.id, ContentRoadmap.status == "completed")
+        .first()
+        is not None
+    )
+    has_gaps = (
+        db.query(ContentAnalysis.id)
+        .filter(ContentAnalysis.client_id == client.id, ContentAnalysis.status == "completed")
+        .first()
+        is not None
+    )
+
     return ClientViewOverview(
         profile=ClientViewProfile(
             name=client.name,
             website=client.website,
             industry=client.industry,
+            logo_url=client.logo_url,
         ),
         latest_score=ClientViewScore(
             overall_score=latest.overall_score,
@@ -152,6 +192,8 @@ def get_overview(
         change_narrative_period=(
             latest_report.period_start.strftime("%B %Y") if latest_report else None
         ),
+        has_our_work=has_toolkit or has_activity,
+        has_content_plan=has_roadmap or has_gaps,
     )
 
 
@@ -306,3 +348,147 @@ def get_actions(
         )
         for a in actions
     ]
+
+
+# Whitelist of activity events the client should see, mapped to a stable UI
+# `kind` (icon) and a friendly headline. Events not listed here (alerts,
+# hallucination flags, traffic syncs, share-link churn, scan failures, internal
+# pre-review report builds) never reach this surface.
+_CLIENT_ACTIVITY_LABELS: dict[str, tuple[str, str]] = {
+    "scan_completed": ("scan", "AI visibility scan completed"),
+    "toolkit_generated": ("toolkit", "AI Readiness files prepared"),
+    "toolkit_verified": ("verified", "Site changes verified live"),
+    "content_analyzed": ("content", "Content gap analysis completed"),
+    "roadmap_generated": ("roadmap", "90-day content plan created"),
+    "report_sent": ("report", "Monthly report delivered"),
+}
+
+ACTIVITY_LIMIT = 30
+
+
+@router.get("/toolkit", response_model=ClientViewToolkit | None)
+def get_toolkit(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+):
+    files = (
+        db.query(ToolkitFiles)
+        .filter(ToolkitFiles.client_id == client.id)
+        .order_by(desc(ToolkitFiles.generated_at))
+        .first()
+    )
+    if not files:
+        return None
+    return ClientViewToolkit(
+        llms_txt=files.llms_txt,
+        schema_json=files.schema_json,
+        robots_txt=files.robots_txt,
+        llms_verified=files.llms_verified,
+        schema_verified=files.schema_verified,
+        robots_verified=files.robots_verified,
+        verified_at=files.verified_at,
+        generated_at=files.generated_at,
+    )
+
+
+@router.get("/roadmap", response_model=ClientViewRoadmap | None)
+def get_roadmap(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+):
+    roadmap = (
+        db.query(ContentRoadmap)
+        .filter(
+            ContentRoadmap.client_id == client.id,
+            ContentRoadmap.status == "completed",
+        )
+        .order_by(desc(ContentRoadmap.generated_at))
+        .first()
+    )
+    if not roadmap:
+        return None
+    items = [
+        ClientViewRoadmapItem(
+            month=item.get("month", 1),
+            theme=item.get("theme", ""),
+            priority=item.get("priority", "medium"),
+            content_type=item.get("content_type", ""),
+            suggested_title=item.get("suggested_title", ""),
+            rationale=item.get("rationale", ""),
+            target_queries=item.get("target_queries", []) or [],
+            competitors_winning=item.get("competitors_winning", []) or [],
+        )
+        for item in (roadmap.roadmap_json or [])
+    ]
+    return ClientViewRoadmap(
+        items=items,
+        source_query_count=roadmap.source_query_count,
+        generated_at=roadmap.generated_at,
+    )
+
+
+@router.get("/content-gaps", response_model=ClientViewContentGaps | None)
+def get_content_gaps(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+):
+    analysis = (
+        db.query(ContentAnalysis)
+        .filter(
+            ContentAnalysis.client_id == client.id,
+            ContentAnalysis.status == "completed",
+        )
+        .order_by(desc(ContentAnalysis.analyzed_at))
+        .first()
+    )
+    if not analysis:
+        return None
+    return ClientViewContentGaps(
+        topics=[
+            ClientViewTopic(topic=t.get("topic", ""), status=t.get("status", "missing"))
+            for t in (analysis.topics_json or [])
+        ],
+        entities=[
+            ClientViewEntity(entity=e.get("entity", ""), covered=bool(e.get("covered")))
+            for e in (analysis.entities_json or [])
+        ],
+        suggested_content=[
+            ClientViewSuggestedContent(
+                topic=s.get("topic", ""),
+                title=s.get("title", ""),
+                rationale=s.get("rationale", ""),
+            )
+            for s in (analysis.suggested_content_json or [])
+        ],
+        quality_recommendation=analysis.content_quality_recommendation,
+        analyzed_at=analysis.analyzed_at,
+    )
+
+
+@router.get("/activity", response_model=list[ClientViewActivity])
+def get_activity(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+):
+    rows = (
+        db.query(ActivityLog)
+        .filter(
+            ActivityLog.client_id == client.id,
+            ActivityLog.event_type.in_(list(_CLIENT_ACTIVITY_LABELS.keys())),
+        )
+        .order_by(desc(ActivityLog.created_at))
+        .limit(ACTIVITY_LIMIT)
+        .all()
+    )
+    out = []
+    for r in rows:
+        kind, label = _CLIENT_ACTIVITY_LABELS[r.event_type]
+        out.append(
+            ClientViewActivity(
+                kind=kind,
+                label=label,
+                note=r.note,
+                created_at=r.created_at,
+            )
+        )
+    return out

@@ -26,6 +26,18 @@ def upload_pdf(key: str, pdf_bytes: bytes) -> str:
     return f"{settings.CLOUDFLARE_R2_PUBLIC_URL.rstrip('/')}/{key}"
 
 
+def upload_image(key: str, image_bytes: bytes, content_type: str) -> str:
+    """Upload image bytes to R2; return public URL. Used for client logos."""
+    _s3().put_object(
+        Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME,
+        Key=key,
+        Body=image_bytes,
+        ContentType=content_type,
+        CacheControl="public, max-age=31536000",
+    )
+    return f"{settings.CLOUDFLARE_R2_PUBLIC_URL.rstrip('/')}/{key}"
+
+
 def download_pdf(key: str) -> bytes:
     """Download PDF bytes from R2 by key."""
     resp = _s3().get_object(Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME, Key=key)

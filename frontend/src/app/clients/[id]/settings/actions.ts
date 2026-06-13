@@ -2,7 +2,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken } from "@/lib/api"
+import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo } from "@/lib/api"
 import type { Platform } from "@/types"
 
 export async function updateClientAction(
@@ -17,6 +17,7 @@ export async function updateClientAction(
     state?: string
     country?: string
     contact_email?: string
+    logo_url?: string
     brand_authority_score?: number
     brand_authority_evidence?: string
     content_quality_score?: number
@@ -28,6 +29,13 @@ export async function updateClientAction(
   const client = await updateClient(id, data)
   revalidatePath(`/clients/${id}`)
   revalidatePath("/clients")
+  return client
+}
+
+export async function uploadClientLogoAction(id: string, formData: FormData) {
+  const client = await uploadClientLogo(id, formData)
+  revalidatePath(`/clients/${id}`)
+  revalidatePath(`/clients/${id}/settings`)
   return client
 }
 

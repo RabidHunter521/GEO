@@ -11,6 +11,10 @@ import type {
   ClientViewReport,
   ClientViewAction,
   ClientViewIssueGroup,
+  ClientViewToolkit,
+  ClientViewRoadmap,
+  ClientViewContentGaps,
+  ClientViewActivity,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -52,4 +56,20 @@ export function getViewActions(token: string): Promise<ClientViewAction[] | null
 
 export function getViewIssues(token: string): Promise<ClientViewIssueGroup[] | null> {
   return viewFetch<ClientViewIssueGroup[]>(token, "/issues")
+}
+
+export function getViewToolkit(token: string): Promise<ClientViewToolkit | null> {
+  return viewFetch<ClientViewToolkit>(token, "/toolkit")
+}
+
+export function getViewRoadmap(token: string): Promise<ClientViewRoadmap | null> {
+  return viewFetch<ClientViewRoadmap>(token, "/roadmap")
+}
+
+export function getViewContentGaps(token: string): Promise<ClientViewContentGaps | null> {
+  return viewFetch<ClientViewContentGaps>(token, "/content-gaps")
+}
+
+export function getViewActivity(token: string): Promise<ClientViewActivity[] | null> {
+  return viewFetch<ClientViewActivity[]>(token, "/activity")
 }

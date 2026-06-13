@@ -15,6 +15,7 @@ class ClientViewProfile(BaseModel):
     name: str
     website: str
     industry: str
+    logo_url: str | None = None
 
 
 class ClientViewScore(BaseModel):
@@ -63,6 +64,9 @@ class ClientViewOverview(BaseModel):
     # "What changed this month" narrative from the latest delivered report
     change_narrative: str | None = None
     change_narrative_period: str | None = None
+    # Whether deliverable tabs have any content yet — drives tab visibility.
+    has_our_work: bool = False
+    has_content_plan: bool = False
 
 
 class ClientViewScanResult(BaseModel):
@@ -135,3 +139,72 @@ class ClientViewCompetitorTrends(BaseModel):
     """Dates only — scan ids and internal ids never reach this surface."""
     checked_at: list[datetime]  # oldest → newest
     series: list[ClientViewTrendSeries]
+
+
+# --- Deliverables surfaced read-only on the client view ----------------------
+# Each is a strict whitelist of an admin-side artifact. Internal fields
+# (entity_coverage_score, content_metrics, raw verification timing details,
+# non-whitelisted activity events) are structurally excluded.
+
+
+class ClientViewToolkit(BaseModel):
+    """AI Readiness files prepared for the client, with live-verification status.
+    The file bodies are publishable assets — safe to show with copy/download."""
+    llms_txt: str
+    schema_json: str
+    robots_txt: str
+    llms_verified: bool
+    schema_verified: bool
+    robots_verified: bool
+    verified_at: datetime | None = None
+    generated_at: datetime
+
+
+class ClientViewRoadmapItem(BaseModel):
+    month: int
+    theme: str
+    priority: str
+    content_type: str
+    suggested_title: str
+    rationale: str
+    target_queries: list[str] = []
+    competitors_winning: list[str] = []
+
+
+class ClientViewRoadmap(BaseModel):
+    items: list[ClientViewRoadmapItem]
+    source_query_count: int
+    generated_at: datetime
+
+
+class ClientViewTopic(BaseModel):
+    topic: str
+    status: str  # strong | weak | missing
+
+
+class ClientViewEntity(BaseModel):
+    entity: str
+    covered: bool
+
+
+class ClientViewSuggestedContent(BaseModel):
+    topic: str
+    title: str
+    rationale: str
+
+
+class ClientViewContentGaps(BaseModel):
+    topics: list[ClientViewTopic]
+    entities: list[ClientViewEntity]
+    suggested_content: list[ClientViewSuggestedContent]
+    quality_recommendation: str | None = None
+    analyzed_at: datetime
+
+
+class ClientViewActivity(BaseModel):
+    """One client-meaningful activity event. `kind` is a stable key for the UI
+    icon; `label` is the friendly headline; `note` is the persisted detail."""
+    kind: str
+    label: str
+    note: str
+    created_at: datetime

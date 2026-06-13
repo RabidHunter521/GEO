@@ -1,21 +1,24 @@
 // frontend/src/app/view/[token]/page.tsx
-// Read-only overview: overall score, dimension breakdown, AI visitor
-// traffic, score history, and recommended actions. Zero mutations.
+// Read-only overview, sequenced as a narrative: where you stand → what
+// changed → the breakdown → what we're working on → trends. Zero mutations.
+import Link from "next/link"
 import { notFound } from "next/navigation"
-import { TrendingUp, TrendingDown, AlertCircle, Sparkles } from "lucide-react"
-import { getViewOverview, getViewActions, getViewIssues } from "@/lib/view-api"
+import { AlertCircle, ArrowRight, Sparkles } from "lucide-react"
+import {
+  getViewOverview,
+  getViewActions,
+  getViewIssues,
+  getViewScan,
+} from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { ScoreHistoryChart } from "@/components/view/ScoreHistoryChart"
+import { AiTrafficChart } from "@/components/view/AiTrafficChart"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { getScoreBand } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
-
-function periodKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`
-}
 
 const DIMENSIONS = [
   {
@@ -67,34 +70,38 @@ export default async function ViewOverviewPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const [overview, actions, issues] = await Promise.all([
+  const [overview, actions, issues, scan] = await Promise.all([
     getViewOverview(token),
     getViewActions(token),
     getViewIssues(token),
+    getViewScan(token),
   ])
   if (!overview) notFound()
 
   const score = overview.latest_score
   const band = score ? getScoreBand(score.overall_score) : null
 
-  const now = new Date()
-  const currentSnap = overview.traffic.find((t) => t.period.slice(0, 10) === periodKey(now))
-  const prevSnap = overview.traffic.find(
-    (t) => t.period.slice(0, 10) === periodKey(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-  )
-  let trafficChange: { label: string; up: boolean } | null = null
-  if (currentSnap && prevSnap) {
-    if (prevSnap.ai_visitors > 0) {
-      const pct = Math.round(((currentSnap.ai_visitors - prevSnap.ai_visitors) / prevSnap.ai_visitors) * 100)
-      trafficChange = { label: `${pct >= 0 ? "+" : ""}${pct}% vs last month`, up: pct >= 0 }
-    } else if (currentSnap.ai_visitors > 0) {
-      trafficChange = { label: "New vs last month", up: true }
+  // Plain-English headline derived from existing data.
+  const seenCount = scan ? scan.results.filter((r) => r.seen_by_ai).length : 0
+  const totalCount = scan ? scan.results.length : 0
+  const seenPlatforms = overview.platforms.filter((p) => p.seen_by_ai).length
+  let headline = ""
+  if (score) {
+    if (totalCount > 0) {
+      headline = `You're seen by AI in ${seenCount} of ${totalCount} buyer questions`
+    } else if (overview.platforms.length > 0) {
+      headline = `You're seen by AI on ${seenPlatforms} of ${overview.platforms.length} AI platforms`
+    } else {
+      headline = band ? BAND_LABEL[band.name] : ""
+    }
+    if (overview.benchmark) {
+      headline += ` — top ${overview.benchmark.top_percent}% of ${overview.benchmark.industry}`
     }
   }
 
   return (
     <div className="space-y-6">
-      {/* Overall score hero */}
+      {/* 1. Hero — score + plain-English headline + freshness */}
       <div className="flex flex-col gap-6 rounded-xl border bg-card p-6 shadow-brand sm:flex-row sm:items-center">
         <ScoreRing score={score ? score.overall_score : null} />
         <div className="flex-1">
@@ -103,12 +110,20 @@ export default async function ViewOverviewPage({
           </p>
           {score ? (
             <>
-              <p className="mt-1 font-display text-2xl font-semibold text-foreground">
-                {band ? BAND_LABEL[band.name] : ""}
+              <p className="mt-1 font-display text-2xl font-semibold leading-snug text-foreground">
+                {headline}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                How visible you are across AI search — ChatGPT, Perplexity,
-                Gemini and Claude.
+                {band ? `${BAND_LABEL[band.name]} · ` : ""}How visible you are
+                across AI search — ChatGPT, Perplexity, Gemini and Claude.
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Last updated{" "}
+                {new Date(score.computed_at).toLocaleDateString("en-MY", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
               </p>
             </>
           ) : (
@@ -125,7 +140,28 @@ export default async function ViewOverviewPage({
         </div>
       </div>
 
-      {/* Seen by AI — per platform */}
+      {/* 2. What Changed — promoted: the most human, most flattering piece */}
+      {overview.change_narrative && (
+        <div className="rounded-lg border bg-primary/5 p-5">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Sparkles className="h-4 w-4 text-primary" />
+            What Changed
+            {overview.change_narrative_period ? ` — ${overview.change_narrative_period}` : ""}
+          </h2>
+          <p className="text-sm leading-relaxed text-foreground">{overview.change_narrative}</p>
+        </div>
+      )}
+
+      {/* 3. Where you stand — benchmark + per-platform visibility */}
+      {overview.benchmark && (
+        <IndustryBenchmarkCard
+          industry={overview.benchmark.industry}
+          topPercent={overview.benchmark.top_percent}
+          peerCount={overview.benchmark.peer_count}
+          industryAverage={overview.benchmark.industry_average}
+        />
+      )}
+
       {overview.platforms.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -170,7 +206,7 @@ export default async function ViewOverviewPage({
         </div>
       )}
 
-      {/* 5-dimension breakdown */}
+      {/* 4. Score breakdown — the 5 dimensions */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Score Breakdown
@@ -205,117 +241,66 @@ export default async function ViewOverviewPage({
         </div>
       </div>
 
-      {/* Issues found that impact the GEO score */}
-      {issues && issues.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Issues Found That Impact Your GEO Score
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {issues.map((group) => (
-              <div key={group.dimension} className="rounded-lg border bg-card p-4">
-                <p className="text-sm font-medium">{group.dimension_label}</p>
-                <ul className="mt-2 space-y-1.5">
-                  {group.issues.map((issue) => (
-                    <li key={issue} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-watch" />
-                      {issue}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Identified from your latest scan. The SeenBy team is working on
-            these — see Recommended Next Steps below.
-          </p>
-        </div>
-      )}
-
-      {/* What changed this month — from the latest delivered report */}
-      {overview.change_narrative && (
-        <div className="rounded-lg border bg-primary/5 p-5">
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <Sparkles className="h-4 w-4 text-primary" />
-            What Changed
-            {overview.change_narrative_period ? ` — ${overview.change_narrative_period}` : ""}
-          </h2>
-          <p className="text-sm leading-relaxed text-foreground">{overview.change_narrative}</p>
-        </div>
-      )}
-
-      {/* Industry benchmark */}
-      {overview.benchmark && (
-        <IndustryBenchmarkCard
-          industry={overview.benchmark.industry}
-          topPercent={overview.benchmark.top_percent}
-          peerCount={overview.benchmark.peer_count}
-          industryAverage={overview.benchmark.industry_average}
-        />
-      )}
-
-      {/* Score history */}
-      <ScoreHistoryChart points={overview.score_history} />
-
-      {/* AI Referral Traffic */}
-      {currentSnap && (
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm font-medium">AI Visitors This Month</p>
-          <p className="mt-1 font-display text-2xl font-semibold text-foreground">
-            {currentSnap.ai_visitors.toLocaleString()}
-          </p>
-          {trafficChange && (
-            <p className={`mt-1 flex items-center gap-1 text-xs font-medium ${trafficChange.up ? "text-score-strong" : "text-score-watch"}`}>
-              {trafficChange.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-              {trafficChange.label}
-            </p>
-          )}
-          <p className="mt-1 text-xs text-muted-foreground">
-            Visitors arriving at your website via ChatGPT, Perplexity, Gemini
-            and Claude — tracked by the SeenBy team.
-          </p>
-        </div>
-      )}
-
-      {/* Recommended actions — read-only */}
-      {actions && actions.length > 0 && (
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm font-medium">Recommended Next Steps</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            What the SeenBy team is focusing on to improve your visibility.
-          </p>
-          <ul className="mt-3 space-y-2">
-            {actions.map((a, i) => (
-              <li
-                key={`${a.generated_at}-${i}`}
-                className="flex items-start gap-3 rounded-md border bg-background p-3"
+      {/* 5. What we're working on — condensed issues + top next steps */}
+      {((issues && issues.length > 0) || (actions && actions.length > 0)) && (
+        <div className="rounded-lg border bg-card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              What We&apos;re Working On
+            </h2>
+            {overview.has_content_plan && (
+              <Link
+                href={`/view/${token}/content-plan`}
+                className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
               >
-                <span
-                  className={cn(
-                    "mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                    PRIORITY_CLASS[a.priority] ?? PRIORITY_CLASS.low,
-                  )}
+                See the full plan
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </div>
+
+          {issues && issues.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {issues.flatMap((group) =>
+                group.issues.slice(0, 1).map((issue) => (
+                  <li
+                    key={`${group.dimension}-${issue}`}
+                    className="flex items-start gap-2 text-sm text-muted-foreground"
+                  >
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-watch" />
+                    {issue}
+                  </li>
+                )),
+              )}
+            </ul>
+          )}
+
+          {actions && actions.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {actions.slice(0, 3).map((a, i) => (
+                <li
+                  key={`${a.generated_at}-${i}`}
+                  className="flex items-start gap-3 rounded-md border bg-background p-3"
                 >
-                  {a.priority}
-                </span>
-                <p className="text-sm">{a.action_text}</p>
-              </li>
-            ))}
-          </ul>
+                  <span
+                    className={cn(
+                      "mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                      PRIORITY_CLASS[a.priority] ?? PRIORITY_CLASS.low,
+                    )}
+                  >
+                    {a.priority}
+                  </span>
+                  <p className="text-sm">{a.action_text}</p>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
-      {score && (
-        <p className="text-xs text-muted-foreground">
-          Score updated{" "}
-          {new Date(score.computed_at).toLocaleDateString("en-MY", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}
-        </p>
-      )}
+      {/* 6. Trends — score history + AI traffic */}
+      <ScoreHistoryChart points={overview.score_history} />
+      <AiTrafficChart points={overview.traffic} />
     </div>
   )
 }

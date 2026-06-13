@@ -25,6 +25,7 @@ def _fake_client(name="Acme Corp"):
     m.state = None
     m.country = None
     m.contact_email = None
+    m.logo_url = None
     m.brand_authority_score = 0
     m.brand_authority_evidence = None
     m.content_quality_score = 0
@@ -153,6 +154,51 @@ def test_update_client():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["city"] == "Kuala Lumpur"
+
+
+def _logo_ready_client(name="Logo Co"):
+    existing = _fake_client(name)
+    existing.enabled_platforms = ["chatgpt"]
+    existing.is_prospect = False
+    return existing
+
+
+def test_upload_logo_rejects_unsupported_type():
+    app, get_db = _make_app()
+    existing = _logo_ready_client()
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.post(
+        f"/api/v1/clients/{existing.id}/logo",
+        files={"file": ("logo.txt", b"not an image", "text/plain")},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+
+
+def test_upload_logo_success_sets_url():
+    from unittest.mock import patch
+    app, get_db = _make_app()
+    existing = _logo_ready_client()
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    with patch(
+        "app.api.v1.clients.r2_service.upload_image",
+        return_value="https://cdn.example/logos/abc.png",
+    ) as mock_upload:
+        response = client.post(
+            f"/api/v1/clients/{existing.id}/logo",
+            files={"file": ("logo.png", b"\x89PNG\r\n", "image/png")},
+        )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["logo_url"] == "https://cdn.example/logos/abc.png"
+    assert mock_upload.called
 
 
 def test_latest_geo_score_returns_none_when_no_scans():

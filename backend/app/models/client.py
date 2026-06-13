@@ -19,6 +19,9 @@ class Client(Base):
     state: Mapped[str | None] = mapped_column(String(255), nullable=True)
     country: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Hosted URL of the client's logo, shown in the read-only client view header.
+    # Admin-entered (paste a URL) — no upload infra in MVP. NULL = text-only header.
+    logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     brand_authority_score: Mapped[int] = mapped_column(Integer, default=0)
     brand_authority_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_quality_score: Mapped[int] = mapped_column(Integer, default=0)

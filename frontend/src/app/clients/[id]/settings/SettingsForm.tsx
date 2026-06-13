@@ -1,7 +1,7 @@
 // frontend/src/app/clients/[id]/settings/SettingsForm.tsx
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,7 +20,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Loader2, CheckCircle, Plus, Trash2, HelpCircle, Lightbulb } from "lucide-react"
-import { updateClientAction, updateTrafficAction } from "./actions"
+import { updateClientAction, updateTrafficAction, uploadClientLogoAction } from "./actions"
 import {
   addCompetitorAction,
   deleteCompetitorAction,
@@ -89,6 +89,43 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       return SCAN_PLATFORMS.filter((p) => prev.includes(p) || p === platform)
     })
     setIsDirty(true)
+  }
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(client.logo_url)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = "" // allow re-selecting the same file later
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError("Image too large (max 2 MB).")
+      return
+    }
+    setLogoError(null)
+    setUploadingLogo(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const updated = await uploadClientLogoAction(client.id, fd)
+      setLogoUrl(updated.logo_url)
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Logo upload failed.")
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  async function handleLogoRemove() {
+    setLogoError(null)
+    try {
+      await updateClientAction(client.id, { logo_url: "" })
+      setLogoUrl(null)
+    } catch {
+      setLogoError("Failed to remove logo.")
+    }
   }
 
   const currentPeriod = currentMonthPeriod()
@@ -252,6 +289,55 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             type="email"
             defaultValue={client.contact_email ?? ""}
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label>Logo</Label>
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/30">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="Client logo" className="h-full w-full object-contain p-1" />
+              ) : (
+                <span className="text-[10px] text-muted-foreground">No logo</span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                onChange={handleLogoSelect}
+                className="hidden"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingLogo}
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  {uploadingLogo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {logoUrl ? "Replace logo" : "Upload logo"}
+                </Button>
+                {logoUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={handleLogoRemove}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Shown in the client&apos;s shared view header. PNG, JPG, WEBP, SVG or GIF, up to 2&nbsp;MB.
+              </p>
+              {logoError && <p className="text-xs text-destructive">{logoError}</p>}
+            </div>
+          </div>
         </div>
       </section>
 

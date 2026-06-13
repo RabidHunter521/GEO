@@ -26,6 +26,7 @@ class ClientUpdate(BaseModel):
     state: str | None = Field(default=None, max_length=255)
     country: str | None = Field(default=None, max_length=255)
     contact_email: str | None = Field(default=None, pattern=_EMAIL_PATTERN, max_length=320)
+    logo_url: str | None = Field(default=None, max_length=512)
     brand_authority_score: int | None = Field(default=None, ge=0, le=100)
     brand_authority_evidence: str | None = None
     content_quality_score: int | None = Field(default=None, ge=0, le=100)
@@ -60,6 +61,7 @@ class ClientResponse(BaseModel):
     state: str | None = None
     country: str | None = None
     contact_email: str | None = None
+    logo_url: str | None = None
     brand_authority_score: int
     brand_authority_evidence: str | None = None
     content_quality_score: int

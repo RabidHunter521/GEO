@@ -31,6 +31,7 @@ export interface Client {
   state: string | null
   country: string | null
   contact_email: string | null
+  logo_url: string | null
   brand_authority_score: number
   brand_authority_evidence: string | null
   content_quality_score: number
@@ -321,6 +322,7 @@ export interface ClientViewProfile {
   name: string
   website: string
   industry: string
+  logo_url: string | null
 }
 
 export interface ClientViewScore {
@@ -365,6 +367,8 @@ export interface ClientViewOverview {
   traffic: ClientViewTrafficPoint[]
   change_narrative: string | null
   change_narrative_period: string | null
+  has_our_work: boolean
+  has_content_plan: boolean
 }
 
 export interface ClientViewScanResult {
@@ -435,4 +439,65 @@ export interface ClientViewIssueGroup {
   dimension: "ai_visibility" | "brand_authority" | "content_quality" | "technical_foundations" | "structured_data"
   dimension_label: string
   issues: string[]
+}
+
+// --- Deliverables surfaced read-only on the client view ---
+
+export interface ClientViewToolkit {
+  llms_txt: string
+  schema_json: string
+  robots_txt: string
+  llms_verified: boolean
+  schema_verified: boolean
+  robots_verified: boolean
+  verified_at: string | null
+  generated_at: string
+}
+
+export interface ClientViewRoadmapItem {
+  month: number
+  theme: string
+  priority: "high" | "medium" | "low"
+  content_type: string
+  suggested_title: string
+  rationale: string
+  target_queries: string[]
+  competitors_winning: string[]
+}
+
+export interface ClientViewRoadmap {
+  items: ClientViewRoadmapItem[]
+  source_query_count: number
+  generated_at: string
+}
+
+export interface ClientViewTopic {
+  topic: string
+  status: "strong" | "weak" | "missing"
+}
+
+export interface ClientViewEntity {
+  entity: string
+  covered: boolean
+}
+
+export interface ClientViewSuggestedContent {
+  topic: string
+  title: string
+  rationale: string
+}
+
+export interface ClientViewContentGaps {
+  topics: ClientViewTopic[]
+  entities: ClientViewEntity[]
+  suggested_content: ClientViewSuggestedContent[]
+  quality_recommendation: string | null
+  analyzed_at: string
+}
+
+export interface ClientViewActivity {
+  kind: string
+  label: string
+  note: string
+  created_at: string
 }

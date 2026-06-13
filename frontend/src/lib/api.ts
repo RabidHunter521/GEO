@@ -79,6 +79,27 @@ export function deleteClient(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/clients/${id}`, { method: "DELETE" })
 }
 
+export async function uploadClientLogo(id: string, formData: FormData): Promise<Client> {
+  // Multipart upload — must NOT set Content-Type (fetch sets the boundary).
+  const res = await fetch(`${BASE}/api/v1/clients/${id}/logo`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.ADMIN_API_KEY}` },
+    body: formData,
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    let detail = "Logo upload failed"
+    try {
+      const body = await res.json()
+      if (body?.detail) detail = body.detail
+    } catch {
+      // ignore non-JSON error bodies
+    }
+    throw new Error(detail)
+  }
+  return res.json() as Promise<Client>
+}
+
 export function getLatestGeoScore(clientId: string): Promise<GeoScore | null> {
   return apiFetch<GeoScore | null>(`/api/v1/clients/${clientId}/geo-score/latest`)
 }

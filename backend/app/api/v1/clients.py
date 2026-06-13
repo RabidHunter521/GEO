@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -15,8 +15,19 @@ from app.schemas.benchmark import IndustryBenchmarkResponse
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.client_list_service import build_client_list
 from app.services.share_link_service import generate_share_token, revoke_share_token
+from app.services import r2_service
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+
+# Accepted logo image types → file extension for the R2 object key.
+_LOGO_TYPES = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/svg+xml": "svg",
+    "image/gif": "gif",
+}
+_LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
 
 
 @router.get("", response_model=list[ClientListItem], dependencies=[Depends(require_api_key)])
@@ -67,6 +78,41 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Client not found")
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(c, field, value)
+    db.commit()
+    db.refresh(c)
+    return c
+
+
+@router.post(
+    "/{client_id}/logo",
+    response_model=ClientResponse,
+    dependencies=[Depends(require_api_key)],
+)
+async def upload_client_logo(
+    client_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    ext = _LOGO_TYPES.get(file.content_type or "")
+    if not ext:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported image type. Use PNG, JPG, WEBP, SVG, or GIF.",
+        )
+
+    data = await file.read()
+    if len(data) > _LOGO_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Image too large (max 2 MB).")
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file.")
+
+    # Timestamp suffix busts CDN/browser cache when a logo is replaced.
+    key = f"logos/{client_id}-{int(datetime.now(timezone.utc).timestamp())}.{ext}"
+    c.logo_url = r2_service.upload_image(key, data, file.content_type)
     db.commit()
     db.refresh(c)
     return c

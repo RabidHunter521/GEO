@@ -36,7 +36,16 @@ export default async function ClientViewLayout({
       <header className="border-b bg-card">
         <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-4">
+              {profile.logo_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={profile.logo_url}
+                  alt={`${profile.name} logo`}
+                  className="h-12 w-12 shrink-0 rounded-lg border bg-card object-contain p-1"
+                />
+              )}
+              <div className="min-w-0">
               <p className="font-display text-lg font-bold tracking-tight text-primary">
                 SeenBy
               </p>
@@ -61,9 +70,14 @@ export default async function ClientViewLayout({
                   </span>
                 )}
               </div>
+              </div>
             </div>
           </div>
-          <ViewTabs token={token} />
+          <ViewTabs
+            token={token}
+            showOurWork={overview.has_our_work}
+            showContentPlan={overview.has_content_plan}
+          />
         </div>
       </header>
 
