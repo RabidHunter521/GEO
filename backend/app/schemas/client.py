@@ -13,6 +13,7 @@ class ClientCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     website: str = Field(min_length=4, max_length=500)
     industry: str = Field(min_length=1, max_length=255)
+    is_prospect: bool = False
 
 
 class ClientUpdate(BaseModel):
@@ -31,6 +32,7 @@ class ClientUpdate(BaseModel):
     content_quality_evidence: str | None = None
     score_drop_threshold: int | None = Field(default=None, ge=1, le=100)
     enabled_platforms: list[str] | None = None
+    is_prospect: bool | None = None
 
     @field_validator("enabled_platforms")
     @classmethod
@@ -70,6 +72,7 @@ class ClientResponse(BaseModel):
     share_token_created_at: datetime | None = None
     created_at: datetime
     archived_at: datetime | None = None
+    is_prospect: bool = False
 
     model_config = {"from_attributes": True}
 

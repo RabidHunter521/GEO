@@ -39,3 +39,8 @@ class Client(Base):
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Prospect = a not-yet-paying lead scanned for cold outreach. Kept out of
+    # the portfolio dashboard; flip to False ("Convert to Client") once signed.
+    is_prospect: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )

@@ -43,6 +43,7 @@ export interface Client {
   share_token_created_at: string | null
   created_at: string
   archived_at: string | null
+  is_prospect: boolean
 }
 
 export interface ShareTokenResponse {

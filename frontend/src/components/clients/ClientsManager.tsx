@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button"
 import { ClientCard } from "@/components/clients/ClientCard"
 import { ClientFilterBar } from "@/components/clients/ClientFilterBar"
 import { AddClientButton } from "@/components/clients/AddClientButton"
+import { AddProspectButton } from "@/components/clients/AddProspectButton"
 import { NeedsAttentionQueue } from "@/components/clients/NeedsAttentionQueue"
 import { PortfolioSummary } from "@/components/clients/PortfolioSummary"
+import { ProspectsSection } from "@/components/clients/ProspectsSection"
 import { archiveClientsAction, bulkScanAction } from "@/app/clients/actions"
 import { applyFilters, DEFAULT_FILTERS, type ClientFilters } from "@/lib/client-list-utils"
 import type { ClientListItem } from "@/types"
@@ -31,9 +33,21 @@ export function ClientsManager({ clients }: Props) {
   // Stable per mount — keeps attention/recency math consistent across renders
   const [now] = useState(() => new Date())
 
+  // Prospects (cold-outreach leads) live in their own section and are kept out
+  // of every portfolio surface — dashboard stats, attention queue, filters,
+  // and bulk selection all operate on real clients only.
+  const portfolioClients = useMemo(
+    () => clients.filter((c) => !c.is_prospect),
+    [clients],
+  )
+  const prospects = useMemo(
+    () => clients.filter((c) => c.is_prospect),
+    [clients],
+  )
+
   const visible = useMemo(
-    () => applyFilters(clients, filters, now),
-    [clients, filters, now],
+    () => applyFilters(portfolioClients, filters, now),
+    [portfolioClients, filters, now],
   )
 
   function toggle(id: string) {
@@ -96,11 +110,16 @@ export function ClientsManager({ clients }: Props) {
         <div>
           <h1 className="font-display text-2xl font-bold tracking-tight">Clients</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {clients.length} client{clients.length !== 1 ? "s" : ""}
+            {portfolioClients.length} client{portfolioClients.length !== 1 ? "s" : ""}
+            {prospects.length > 0 &&
+              ` · ${prospects.length} prospect${prospects.length !== 1 ? "s" : ""}`}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <AddClientButton />
+          <div className="flex items-center gap-2">
+            <AddProspectButton />
+            <AddClientButton />
+          </div>
           {inSelection ? (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={cancel} disabled={busy}>
@@ -158,46 +177,52 @@ export function ClientsManager({ clients }: Props) {
         <div className="rounded-xl border border-dashed bg-card/50 py-16 text-center">
           <p className="font-display text-lg font-semibold">No clients yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add your first client to get started.
+            Add your first client, or scan a prospect to get started.
           </p>
-          <div className="mt-4 flex justify-center">
+          <div className="mt-4 flex justify-center gap-2">
+            <AddProspectButton />
             <AddClientButton />
           </div>
         </div>
       ) : (
         <>
-          <PortfolioSummary clients={clients} now={now} />
-          <NeedsAttentionQueue clients={clients} now={now} />
-          <ClientFilterBar
-            clients={clients}
-            filters={filters}
-            onChange={setFilters}
-            visibleCount={visible.length}
-          />
-          {visible.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-card/50 py-16 text-center">
-              <p className="font-display text-lg font-semibold">No clients match these filters</p>
-              <div className="mt-4 flex justify-center">
-                <Button variant="outline" size="sm" onClick={() => setFilters({ ...DEFAULT_FILTERS })}>
-                  <X className="h-4 w-4 mr-1" />
-                  Clear filters
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {visible.map((client) => (
-                <ClientCard
-                  key={client.id}
-                  client={client}
-                  selectMode={inSelection}
-                  selected={selected.has(client.id)}
-                  onToggle={() => toggle(client.id)}
-                  selectionVariant={selectionMode === "scan" ? "primary" : "destructive"}
-                />
-              ))}
-            </div>
+          {portfolioClients.length > 0 && (
+            <>
+              <PortfolioSummary clients={portfolioClients} now={now} />
+              <NeedsAttentionQueue clients={portfolioClients} now={now} />
+              <ClientFilterBar
+                clients={portfolioClients}
+                filters={filters}
+                onChange={setFilters}
+                visibleCount={visible.length}
+              />
+              {visible.length === 0 ? (
+                <div className="rounded-xl border border-dashed bg-card/50 py-16 text-center">
+                  <p className="font-display text-lg font-semibold">No clients match these filters</p>
+                  <div className="mt-4 flex justify-center">
+                    <Button variant="outline" size="sm" onClick={() => setFilters({ ...DEFAULT_FILTERS })}>
+                      <X className="h-4 w-4 mr-1" />
+                      Clear filters
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {visible.map((client) => (
+                    <ClientCard
+                      key={client.id}
+                      client={client}
+                      selectMode={inSelection}
+                      selected={selected.has(client.id)}
+                      onToggle={() => toggle(client.id)}
+                      selectionVariant={selectionMode === "scan" ? "primary" : "destructive"}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
+          <ProspectsSection prospects={prospects} />
         </>
       )}
     </div>

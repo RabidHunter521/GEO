@@ -36,7 +36,8 @@ export function getClient(id: string): Promise<Client> {
 }
 
 export function createClient(
-  body: Pick<Client, "name" | "website" | "industry">,
+  body: Pick<Client, "name" | "website" | "industry"> &
+    Partial<Pick<Client, "is_prospect">>,
 ): Promise<Client> {
   return apiFetch<Client>("/api/v1/clients", {
     method: "POST",
@@ -64,6 +65,7 @@ export function updateClient(
       | "content_quality_evidence"
       | "score_drop_threshold"
       | "enabled_platforms"
+      | "is_prospect"
     >
   >,
 ): Promise<Client> {
