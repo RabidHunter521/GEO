@@ -56,6 +56,9 @@ COMPETITOR_QUERY_TEMPLATES: Final = {
 }
 
 RAW_RESPONSE_RETENTION_DAYS: Final = 90
+# Hard-delete a client's data this long after it was archived (churned).
+# CLAUDE.md §8: "Client data archived 6 months after churn, then auto-deleted."
+CHURN_DELETE_DAYS: Final = 180
 MAX_COMPETITORS: Final = 5
 PLATFORM_GEMINI: Final = "gemini"
 

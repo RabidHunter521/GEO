@@ -11,6 +11,7 @@ celery_app = Celery(
         "workers.tasks.digest_tasks",
         "workers.tasks.report_tasks",
         "workers.tasks.content_tasks",
+        "workers.tasks.maintenance_tasks",
     ],
 )
 
@@ -29,6 +30,10 @@ celery_app.conf.update(
         "daily-report-check-9am-utc": {
             "task": "workers.tasks.report_tasks.check_and_generate_due_reports",
             "schedule": crontab(hour=9, minute=0),
+        },
+        "daily-data-retention-4am-utc": {
+            "task": "workers.tasks.maintenance_tasks.run_data_retention",
+            "schedule": crontab(hour=4, minute=0),
         },
     },
 )
