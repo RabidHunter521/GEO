@@ -2,9 +2,11 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app.api.v1.router import router
 from app.core.config import settings
+from app.core.database import engine
 
 logger = structlog.get_logger()
 
@@ -13,7 +15,9 @@ app = FastAPI(title="SeenBy API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,
-    allow_credentials=True,
+    # Auth is a bearer token, not cookies — credentials aren't needed, and
+    # disabling them avoids the credentialed-CORS + wildcard pitfalls.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -39,4 +43,17 @@ app.include_router(router)
 
 @app.get("/health")
 def health():
+    """Liveness — the process is up. Cheap; no dependencies touched."""
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def readiness():
+    """Readiness — can we actually reach the database?"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ready"}
+    except Exception as exc:
+        logger.warning("readiness_check_failed", error=str(exc))
+        return JSONResponse(status_code=503, content={"status": "not ready"})

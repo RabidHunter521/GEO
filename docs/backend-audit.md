@@ -15,8 +15,12 @@ Severity legend: **Critical** (fix before more load) · **High** · **Medium** �
 > - **3.2** boto3 client cached (thread-safe singleton) with connect/read timeouts; the logo upload now offloads the blocking call via `run_in_threadpool` so it no longer stalls the event loop.
 > - **1.1** Global exception handler — unhandled errors return a uniform `{"detail": ...}` 500 and are logged with request context (no leaked stack traces).
 > - **1.2** Per-IP rate limiting on the public `/view/*` router (`app/core/rate_limit.py`, Redis-backed, 120/min/IP, fails open if Redis is down); `tests/test_rate_limit.py` (6 tests).
+> - **1.3** CORS `allow_credentials` set to `False` (bearer auth uses no cookies).
+> - **1.4** Added `/health/ready` readiness probe that pings the DB (503 if unreachable); `/health` stays a dependency-free liveness check.
+> - **4.5** Removed dead `ADMIN_JWT_SECRET` from config and the env files.
+> - **4.6** `email_service` sets the Resend key once at import and uses a bounded 10s HTTP timeout (was a default 30s, re-set per call).
 >
-> Remaining items below are not yet addressed.
+> Remaining low-severity items below are not yet addressed: **2.4** (timezone-aware datetimes — repo-wide), **4.2** (upload magic-byte sniffing), **4.3** (escape admin-email HTML), **4.4** (SSRF guard on crawlers), **3.3** (DB pool sizing/recycle), **3.4** (parallelize platform scans), **3.6**/**1.5** (view query count, request-id logging).
 
 ---
 
