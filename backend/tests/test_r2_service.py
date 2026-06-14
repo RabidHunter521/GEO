@@ -1,5 +1,18 @@
 from unittest.mock import MagicMock, patch
+
+import pytest
+
+from app.services import r2_service
 from app.services.r2_service import upload_pdf, download_pdf
+
+
+@pytest.fixture(autouse=True)
+def _reset_cached_client():
+    # The client is cached module-level; clear it so each test builds a fresh
+    # one under its own boto3/settings patch.
+    r2_service.reset_s3_client()
+    yield
+    r2_service.reset_s3_client()
 
 
 def _mock_settings(**overrides):

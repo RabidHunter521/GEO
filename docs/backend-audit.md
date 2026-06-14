@@ -12,6 +12,9 @@ Severity legend: **Critical** (fix before more load) · **High** · **Medium** �
 > - **3.1** Per-call HTTP timeouts (90s) on every platform client, with SDK self-retries disabled so they don't stack with `query_with_retry`; Celery `task_soft_time_limit`/`task_time_limit` (25/30 min).
 > - **3.5** Celery `result_expires` (24h).
 > - **4.1** SVG logo uploads rejected (backend + frontend accept filter/help text).
+> - **3.2** boto3 client cached (thread-safe singleton) with connect/read timeouts; the logo upload now offloads the blocking call via `run_in_threadpool` so it no longer stalls the event loop.
+> - **1.1** Global exception handler — unhandled errors return a uniform `{"detail": ...}` 500 and are logged with request context (no leaked stack traces).
+> - **1.2** Per-IP rate limiting on the public `/view/*` router (`app/core/rate_limit.py`, Redis-backed, 120/min/IP, fails open if Redis is down); `tests/test_rate_limit.py` (6 tests).
 >
 > Remaining items below are not yet addressed.
 

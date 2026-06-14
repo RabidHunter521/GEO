@@ -1,18 +1,46 @@
+import threading
+
 import boto3
 from botocore.config import Config
+
 from app.core.config import settings
+
+# boto3 client construction is expensive (loads botocore data + builds the
+# session). The client is thread-safe for calls, so cache a single instance
+# instead of rebuilding it on every upload/download.
+_client = None
+_lock = threading.Lock()
+
+_CONFIG = Config(
+    signature_version="s3v4",
+    connect_timeout=10,
+    read_timeout=30,
+    retries={"max_attempts": 3, "mode": "standard"},
+)
 
 
 def _s3():
-    if not settings.CLOUDFLARE_R2_ENDPOINT_URL:
-        raise RuntimeError("CLOUDFLARE_R2_ENDPOINT_URL is not configured")
-    return boto3.client(
-        "s3",
-        endpoint_url=settings.CLOUDFLARE_R2_ENDPOINT_URL,
-        aws_access_key_id=settings.CLOUDFLARE_R2_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
-        config=Config(signature_version="s3v4"),
-    )
+    global _client
+    if _client is None:
+        with _lock:
+            if _client is None:
+                if not settings.CLOUDFLARE_R2_ENDPOINT_URL:
+                    raise RuntimeError("CLOUDFLARE_R2_ENDPOINT_URL is not configured")
+                _client = boto3.client(
+                    "s3",
+                    endpoint_url=settings.CLOUDFLARE_R2_ENDPOINT_URL,
+                    aws_access_key_id=settings.CLOUDFLARE_R2_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
+                    config=_CONFIG,
+                )
+    return _client
+
+
+def reset_s3_client() -> None:
+    """Drop the cached client. For tests that patch boto3/settings per case."""
+    global _client
+    with _lock:
+        _client = None
 
 
 def upload_pdf(key: str, pdf_bytes: bytes) -> str:

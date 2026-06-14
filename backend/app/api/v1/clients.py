@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -113,7 +114,10 @@ async def upload_client_logo(
 
     # Timestamp suffix busts CDN/browser cache when a logo is replaced.
     key = f"logos/{client_id}-{int(datetime.now(timezone.utc).timestamp())}.{ext}"
-    c.logo_url = r2_service.upload_image(key, data, file.content_type)
+    # boto3 is blocking — offload so it doesn't stall the event loop.
+    c.logo_url = await run_in_threadpool(
+        r2_service.upload_image, key, data, file.content_type
+    )
     db.commit()
     db.refresh(c)
     return c

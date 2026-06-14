@@ -11,6 +11,7 @@ from sqlalchemy import desc
 
 from app.core.constants import PLATFORM_LABELS
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.models.client import Client
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
@@ -93,10 +94,15 @@ def _view_headers(response: Response) -> None:
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
 
 
+# Per-IP budget across the whole view surface. A normal page load hits several
+# endpoints, so 120/min/IP leaves ample room for real use while throttling abuse
+# of a leaked link. Fails open if Redis is down (see rate_limit).
+_view_rate_limit = rate_limit("client_view", max_requests=120, window_seconds=60)
+
 router = APIRouter(
     prefix="/view/{token}",
     tags=["client-view"],
-    dependencies=[Depends(_view_headers)],
+    dependencies=[Depends(_view_headers), Depends(_view_rate_limit)],
 )
 
 
