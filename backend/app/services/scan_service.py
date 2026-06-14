@@ -1,6 +1,7 @@
 # backend/app/services/scan_service.py
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 import structlog
@@ -54,15 +55,28 @@ def _enabled_platforms(client: Client) -> list[str]:
     return valid or list(SCAN_PLATFORMS)
 
 
+def _log_platform_unavailable(
+    db: Session, client: Client, scan_id: uuid.UUID, platform: str, exc: Exception
+) -> None:
+    db.add(ActivityLog(
+        client_id=client.id,
+        event_type="scan_platform_unavailable",
+        note=f"{PLATFORM_LABELS.get(platform, platform)} was unavailable this scan: {str(exc)[:150]}",
+    ))
+    logger.error("scan_platform_failed", scan_id=str(scan_id), platform=platform, error=str(exc))
+
+
 def _run_platform_queries(
     platform: str,
+    platform_client,
     scan: Scan,
     client: Client,
     competitors: list[Competitor],
 ) -> list[ScanQueryResult]:
-    """Run all queries for one platform. Raises on platform failure — results
-    are returned (not persisted) so a failed platform leaves no partial rows."""
-    platform_client = get_platform_client(platform)
+    """Run all queries for one platform using a pre-built client. Raises on
+    platform failure — results are returned (not persisted) so a failed platform
+    leaves no partial rows. Touches no shared state (no DB session), so it is
+    safe to run concurrently per platform."""
     results: list[ScanQueryResult] = []
 
     for q in build_client_queries(client, competitors):
@@ -132,24 +146,40 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
 
         # Per-platform isolation: one provider outage never fails the whole scan.
         failed_platforms: list[str] = []
-        for platform in _enabled_platforms(client):
+        platforms = _enabled_platforms(client)
+
+        # Build clients up front in canonical order (deterministic, and where a
+        # missing API key surfaces), then run the slow query work for all
+        # platforms concurrently — wall time ≈ the slowest platform, not the sum.
+        clients_by_platform: dict[str, object] = {}
+        for platform in platforms:
             try:
-                platform_results = _run_platform_queries(platform, scan, client, competitors)
+                clients_by_platform[platform] = get_platform_client(platform)
             except Exception as exc:
                 failed_platforms.append(platform)
-                db.add(ActivityLog(
-                    client_id=client.id,
-                    event_type="scan_platform_unavailable",
-                    note=f"{PLATFORM_LABELS.get(platform, platform)} was unavailable this scan: {str(exc)[:150]}",
-                ))
-                logger.error(
-                    "scan_platform_failed",
-                    scan_id=str(scan_id),
-                    platform=platform,
-                    error=str(exc),
-                )
-                continue
-            db.add_all(platform_results)
+                _log_platform_unavailable(db, client, scan_id, platform, exc)
+
+        results_by_platform: dict[str, list[ScanQueryResult]] = {}
+        if clients_by_platform:
+            with ThreadPoolExecutor(max_workers=len(clients_by_platform)) as pool:
+                future_to_platform = {
+                    pool.submit(
+                        _run_platform_queries, platform, pc, scan, client, competitors
+                    ): platform
+                    for platform, pc in clients_by_platform.items()
+                }
+                for future in future_to_platform:
+                    platform = future_to_platform[future]
+                    try:
+                        results_by_platform[platform] = future.result()
+                    except Exception as exc:
+                        failed_platforms.append(platform)
+                        _log_platform_unavailable(db, client, scan_id, platform, exc)
+
+        # Persist in canonical order for deterministic row ordering.
+        for platform in platforms:
+            if platform in results_by_platform:
+                db.add_all(results_by_platform[platform])
 
         db.commit()
 

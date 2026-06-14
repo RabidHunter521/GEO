@@ -60,14 +60,14 @@ def list_clients(db: Session = Depends(get_db)):
 def create_client(body: ClientCreate, db: Session = Depends(get_db)):
     c = Client(**body.model_dump())
     db.add(c)
-    db.commit()
-    db.refresh(c)
+    db.flush()  # assign c.id without committing, so both rows share one transaction
     db.add(ActivityLog(
         client_id=c.id,
         event_type="client_created",
         note=f"Client '{c.name}' added to SeenBy.",
     ))
     db.commit()
+    db.refresh(c)
     return c
 
 
@@ -147,7 +147,8 @@ def archive_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    c.archived_at = datetime.now(timezone.utc)
+    # Naive UTC to match the rest of the schema (columns are timestamp-without-tz)
+    c.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
 
 

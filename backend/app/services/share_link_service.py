@@ -23,7 +23,8 @@ def generate_share_token(client: Client, db: Session) -> str:
     is_rotation = client.share_token is not None
     token = secrets.token_urlsafe(32)  # 256 bits — enumeration infeasible
     client.share_token = token
-    client.share_token_created_at = datetime.now(timezone.utc)
+    # Naive UTC to match the rest of the schema (columns are timestamp-without-tz)
+    client.share_token_created_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.add(ActivityLog(
         client_id=client.id,
         event_type="share_link_regenerated" if is_rotation else "share_link_generated",

@@ -22,8 +22,13 @@ Severity legend: **Critical** (fix before more load) · **High** · **Medium** �
 > - **4.2** Logo uploads are validated by sniffing the actual image bytes (Pillow); the client-supplied content-type is no longer trusted and the stored content-type is derived from the sniffed format.
 > - **4.3** Admin alert emails escape all user/AI-derived values (`client.name`, competitor name, query text, raw response excerpt) with `html.escape`.
 > - **4.4** Outbound crawls (`verification_crawler`, `content_crawler`) are gated by `app/services/url_safety.is_safe_crawl_url`, which blocks localhost-style hosts and private/loopback/link-local IP literals (incl. the cloud metadata range); `tests/test_url_safety.py` (19 cases).
+> - **3.3** DB engine now sets `pool_recycle=1800` + `pool_size`/`max_overflow` for the Supavisor pooler.
+> - **1.5** Request-id + access-logging middleware (honors inbound `X-Request-ID`, binds it to the log context, echoes it back); structlog configured with `merge_contextvars` (`app/core/logging.py`).
+> - **2.5** `create_client` now writes the client + activity log in a single transaction (`flush` then one `commit`).
+> - **2.4** The two timezone-aware datetime outliers (`archive_client`, share-token creation) now use naive UTC, matching the rest of the (timestamp-without-tz) schema. *Full migration to tz-aware columns is still deferred — see below.*
+> - **3.4** Platforms are scanned concurrently via a thread pool (wall time ≈ slowest platform, not the sum); canonical order and per-platform failure isolation are preserved. Verified against `test_scan_service`.
 >
-> Remaining low-severity items below are not yet addressed: **2.4** (timezone-aware datetimes — repo-wide), **3.3** (DB pool sizing/recycle), **3.4** (parallelize platform scans), **3.6**/**1.5** (view query count, request-id logging).
+> **Deliberately not doing now** (accepted, with rationale): **2.4-full** tz-aware column migration — functionally inert today (psycopg2 coerces to the naive columns) and a broad, migration-heavy refactor disproportionate to the risk; **2.6** `updated_at` columns — schema churn for low observability value; **3.6** `/view/overview` query count — mitigated by the 2.1 indexes; **4.7** single static admin API key — acceptable for the single-admin MVP.
 
 ---
 

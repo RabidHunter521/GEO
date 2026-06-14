@@ -1,3 +1,6 @@
+import time
+import uuid
+
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,10 +10,36 @@ from sqlalchemy import text
 from app.api.v1.router import router
 from app.core.config import settings
 from app.core.database import engine
+from app.core.logging import configure_logging
 
+configure_logging()
 logger = structlog.get_logger()
 
 app = FastAPI(title="SeenBy API", version="0.1.0")
+
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    """Tag every request with an id (honoring an inbound X-Request-ID), bind it
+    to the log context so all logs in the request carry it, and emit one access
+    line with status + duration. The id is echoed back in the response header."""
+    request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+    )
+    start = time.perf_counter()
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    logger.info(
+        "request_completed",
+        status_code=response.status_code,
+        duration_ms=round((time.perf_counter() - start) * 1000, 1),
+    )
+    structlog.contextvars.clear_contextvars()
+    return response
 
 app.add_middleware(
     CORSMiddleware,
