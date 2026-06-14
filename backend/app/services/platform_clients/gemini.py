@@ -2,6 +2,7 @@
 from google import genai
 
 from app.services.platform_clients.base import (
+    PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
     query_with_retry,
 )
@@ -15,7 +16,11 @@ class GeminiClient:
     def __init__(self, api_key: str):
         if not api_key:
             raise PlatformNotConfiguredError(self.platform, "GEMINI_API_KEY")
-        self._client = genai.Client(api_key=api_key)
+        # http_options timeout is in milliseconds (per google-genai SDK).
+        self._client = genai.Client(
+            api_key=api_key,
+            http_options={"timeout": int(PLATFORM_QUERY_TIMEOUT_SECONDS * 1000)},
+        )
 
     def query(self, prompt: str) -> str:
         def _call() -> str:

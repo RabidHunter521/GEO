@@ -19,6 +19,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Loader2, CheckCircle, Plus, Trash2, HelpCircle, Lightbulb } from "lucide-react"
 import { updateClientAction, updateTrafficAction, uploadClientLogoAction } from "./actions"
 import {
@@ -28,6 +39,7 @@ import {
 } from "@/app/clients/actions"
 import type { Client, Competitor, AiTrafficSnapshot, Platform } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
+import { industryOptions } from "@/lib/industries"
 
 interface Props {
   client: Client
@@ -43,16 +55,6 @@ function currentMonthPeriod(): string {
 
 function formatPeriod(period: string): string {
   return new Date(period).toLocaleDateString("en-MY", { month: "long", year: "numeric" })
-}
-
-const INDUSTRIES = [
-  "Technology", "SaaS", "E-commerce", "Healthcare", "Finance",
-  "Education", "Real Estate", "Food & Beverage", "Retail", "Other",
-]
-
-function industryOptions(current: string) {
-  if (!current || INDUSTRIES.includes(current)) return INDUSTRIES
-  return [current, ...INDUSTRIES]
 }
 
 export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory }: Props) {
@@ -204,14 +206,18 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
     }
   }
 
-  async function handleRemoveComp(compId: string, compName: string) {
-    if (!window.confirm(`Remove "${compName}"? This will also remove their data from past scan results.`)) return
+  async function handleRemoveComp(compId: string) {
     try {
       await deleteCompetitorAction(client.id, compId)
       setCompetitors((prev) => prev.filter((c) => c.id !== compId))
     } catch {
       setError("Failed to remove competitor.")
     }
+  }
+
+  async function handleArchive() {
+    setArchiving(true)
+    await archiveClientAction(client.id)
   }
 
   return (
@@ -305,7 +311,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               <input
                 ref={logoInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                accept="image/png,image/jpeg,image/webp,image/gif"
                 onChange={handleLogoSelect}
                 className="hidden"
               />
@@ -333,7 +339,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Shown in the client&apos;s shared view header. PNG, JPG, WEBP, SVG or GIF, up to 2&nbsp;MB.
+                Shown in the client&apos;s shared view header. PNG, JPG, WEBP or GIF, up to 2&nbsp;MB.
               </p>
               {logoError && <p className="text-xs text-destructive">{logoError}</p>}
             </div>
@@ -499,15 +505,37 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                     <span className="text-muted-foreground ml-2">{c.website}</span>
                   )}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveComp(c.id, c.name ?? "Unnamed competitor")}
-                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Remove {c.name ?? "this competitor"}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This also removes their data from past scan results.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleRemoveComp(c.id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </li>
             ))}
           </ul>
@@ -518,7 +546,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               <Label className="text-xs">Name</Label>
               <Input
                 value={compName}
-                onChange={(e) => setCompName(e.target.value)}
+                // Competitors save on their own — don't dirty the main form.
+                onChange={(e) => {
+                  e.stopPropagation()
+                  setCompName(e.target.value)
+                }}
                 placeholder="Rival Co"
               />
             </div>
@@ -526,7 +558,10 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               <Label className="text-xs">Website (optional)</Label>
               <Input
                 value={compWebsite}
-                onChange={(e) => setCompWebsite(e.target.value)}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  setCompWebsite(e.target.value)
+                }}
                 placeholder="https://rival.com"
               />
             </div>
@@ -565,7 +600,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               type="number"
               min="0"
               value={trafficInput}
-              onChange={(e) => setTrafficInput(e.target.value)}
+              // AI traffic saves on its own — don't dirty the main form.
+              onChange={(e) => {
+                e.stopPropagation()
+                setTrafficInput(e.target.value)
+              }}
               placeholder="e.g. 187"
             />
           </div>
@@ -618,20 +657,37 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
         <p className="text-sm text-muted-foreground">
           Archiving removes this client from the dashboard. All data is retained for 6 months per our retention policy.
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
-          disabled={archiving}
-          onClick={async () => {
-            if (!window.confirm(`Archive "${client.name}"? They will be removed from your dashboard.`)) return
-            setArchiving(true)
-            await archiveClientAction(client.id)
-          }}
-        >
-          {archiving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          Archive client
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              disabled={archiving}
+            >
+              {archiving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Archive client
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Archive {client.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                They will be removed from your dashboard. All data is retained for
+                6 months per the retention policy, then auto-deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleArchive}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Archive
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     </form>
   )

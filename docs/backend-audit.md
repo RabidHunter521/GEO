@@ -6,7 +6,14 @@
 
 Severity legend: **Critical** (fix before more load) · **High** · **Medium** · **Low**.
 
-> **Update 2026-06-14 (branch `backend-audit-fixes`):** findings **2.1** (FK/hot-column indexes), **2.2** (90-day raw-response purge), and **2.3** (6-month post-churn delete) are implemented. New: migration `f1a2b3c4d5e6_add_performance_indexes`, `app/services/retention_service.py`, `workers/tasks/maintenance_tasks.py` (daily Beat job at 04:00 UTC), `CHURN_DELETE_DAYS` constant, and `tests/test_retention_service.py` (4 tests passing). Remaining items below are not yet addressed.
+> **Update 2026-06-14 (branch `backend-audit-fixes`):** the following are implemented.
+> - **2.1** FK/hot-column indexes — migration `f1a2b3c4d5e6_add_performance_indexes`.
+> - **2.2** 90-day raw-response purge + **2.3** 6-month post-churn delete — `app/services/retention_service.py`, `workers/tasks/maintenance_tasks.py` (daily Beat job 04:00 UTC), `CHURN_DELETE_DAYS` constant, `tests/test_retention_service.py` (4 tests).
+> - **3.1** Per-call HTTP timeouts (90s) on every platform client, with SDK self-retries disabled so they don't stack with `query_with_retry`; Celery `task_soft_time_limit`/`task_time_limit` (25/30 min).
+> - **3.5** Celery `result_expires` (24h).
+> - **4.1** SVG logo uploads rejected (backend + frontend accept filter/help text).
+>
+> Remaining items below are not yet addressed.
 
 ---
 

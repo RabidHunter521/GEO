@@ -2,6 +2,7 @@
 import anthropic
 
 from app.services.platform_clients.base import (
+    PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
     query_with_retry,
 )
@@ -18,7 +19,12 @@ class ClaudeClient:
     def __init__(self, api_key: str):
         if not api_key:
             raise PlatformNotConfiguredError(self.platform, "ANTHROPIC_API_KEY")
-        self._client = anthropic.Anthropic(api_key=api_key)
+        # max_retries=0: query_with_retry owns the retry-once policy.
+        self._client = anthropic.Anthropic(
+            api_key=api_key,
+            timeout=PLATFORM_QUERY_TIMEOUT_SECONDS,
+            max_retries=0,
+        )
 
     def query(self, prompt: str) -> str:
         def _call() -> str:

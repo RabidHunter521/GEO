@@ -20,11 +20,12 @@ from app.services import r2_service
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 # Accepted logo image types → file extension for the R2 object key.
+# SVG is intentionally excluded: it can embed <script>, and logos are served
+# from a public URL rendered in the client view (stored-XSS risk).
 _LOGO_TYPES = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/webp": "webp",
-    "image/svg+xml": "svg",
     "image/gif": "gif",
 }
 _LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
@@ -101,7 +102,7 @@ async def upload_client_logo(
     if not ext:
         raise HTTPException(
             status_code=400,
-            detail="Unsupported image type. Use PNG, JPG, WEBP, SVG, or GIF.",
+            detail="Unsupported image type. Use PNG, JPG, WEBP, or GIF.",
         )
 
     data = await file.read()

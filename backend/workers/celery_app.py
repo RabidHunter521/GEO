@@ -22,6 +22,14 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
+    # Bound task runtime so a hung provider call can't pin a worker forever.
+    # A full 4-platform scan (~112 sequential calls) normally finishes in
+    # minutes; these leave generous headroom. soft_time_limit raises
+    # SoftTimeLimitExceeded (catchable); time_limit is the hard SIGKILL ceiling.
+    task_soft_time_limit=1500,  # 25 min
+    task_time_limit=1800,       # 30 min
+    # Don't let task results accumulate in Redis indefinitely.
+    result_expires=86400,       # 24h
     beat_schedule={
         "weekly-digest-monday-9am-utc": {
             "task": "workers.tasks.digest_tasks.send_all_weekly_digests",

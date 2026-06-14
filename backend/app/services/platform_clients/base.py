@@ -8,6 +8,11 @@ logger = structlog.get_logger()
 
 _MAX_ATTEMPTS = 2  # retry once on failure, per scan engine rules
 
+# Per-call HTTP timeout for every platform query. Bounds a single hung provider
+# call so it can't pin a Celery worker (which also has a hard time limit). SDK
+# clients set this AND disable their own retries — query_with_retry owns retries.
+PLATFORM_QUERY_TIMEOUT_SECONDS = 90.0
+
 
 class PlatformClient(Protocol):
     platform: str

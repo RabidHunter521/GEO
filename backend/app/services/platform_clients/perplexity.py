@@ -2,13 +2,14 @@
 import httpx
 
 from app.services.platform_clients.base import (
+    PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
     query_with_retry,
 )
 
 API_URL = "https://api.perplexity.ai/chat/completions"
 MODEL_NAME = "sonar"  # web-grounded by default
-_TIMEOUT_SECONDS = 60.0
+_TIMEOUT_SECONDS = PLATFORM_QUERY_TIMEOUT_SECONDS
 
 
 class PerplexityClient:
