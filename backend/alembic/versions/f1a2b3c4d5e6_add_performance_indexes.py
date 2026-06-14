@@ -21,8 +21,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 # (index_name, table, [columns])
+# Note: scan_query_results(scan_id) is already indexed as
+# ix_scan_query_results_scan_id, so only the (scan_id, competitor_id) composite
+# is added here.
 _INDEXES = [
-    ("ix_sqr_scan_id", "scan_query_results", ["scan_id"]),
     ("ix_sqr_scan_competitor", "scan_query_results", ["scan_id", "competitor_id"]),
     ("ix_sqr_created_at", "scan_query_results", ["created_at"]),
     ("ix_geo_scores_client_computed", "geo_scores", ["client_id", "computed_at"]),
