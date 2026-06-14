@@ -9,29 +9,23 @@ import Link from "next/link"
 import { ArrowRight, Copy, Loader2, Trash2, UserCheck } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { getScoreBand } from "@/lib/score-utils"
+import { ScoreBadge } from "@/components/score/ScoreBadge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   archiveClientsAction,
   convertProspectToClientAction,
 } from "@/app/clients/actions"
 import type { ClientListItem } from "@/types"
-
-const BAND_CLASSES: Record<string, string> = {
-  green: "bg-green-100 text-green-700",
-  yellow: "bg-yellow-100 text-yellow-700",
-  red: "bg-red-100 text-red-700",
-}
-
-function ScoreBadge({ score }: { score: number }) {
-  const band = getScoreBand(score)
-  return (
-    <span
-      className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-2 text-sm font-semibold ${BAND_CLASSES[band.color]}`}
-    >
-      {Math.round(score)}
-    </span>
-  )
-}
 
 function ProspectRow({ prospect }: { prospect: ClientListItem }) {
   const [pending, startTransition] = useTransition()
@@ -64,7 +58,6 @@ function ProspectRow({ prospect }: { prospect: ClientListItem }) {
   }
 
   function handleRemove() {
-    if (!window.confirm(`Remove prospect ${prospect.name}?`)) return
     startTransition(async () => {
       try {
         await archiveClientsAction([prospect.id])
@@ -90,7 +83,7 @@ function ProspectRow({ prospect }: { prospect: ClientListItem }) {
 
       <div className="flex items-center gap-2">
         {prospect.latest_overall_score !== null ? (
-          <ScoreBadge score={prospect.latest_overall_score} />
+          <ScoreBadge score={prospect.latest_overall_score} className="text-sm" />
         ) : scanning ? (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -129,17 +122,38 @@ function ProspectRow({ prospect }: { prospect: ClientListItem }) {
           )}
           Convert
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={handleRemove}
-          disabled={pending}
-          title="Remove prospect"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={pending}
+              title="Remove prospect"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove this prospect?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {prospect.name} will be removed from your prospects list. This
+                can&apos;t be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleRemove}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

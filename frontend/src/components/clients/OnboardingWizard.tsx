@@ -11,11 +11,19 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   createClientAction,
   addCompetitorAction,
   deleteCompetitorAction,
 } from "@/app/clients/actions"
 import { updateClientAction } from "@/app/clients/[id]/settings/actions"
+import { INDUSTRIES } from "@/lib/industries"
 import type { Client, Competitor } from "@/types"
 
 type Step = 1 | 2 | 3
@@ -23,11 +31,6 @@ type Step = 1 | 2 | 3
 interface Props {
   onClose: () => void
 }
-
-const INDUSTRIES = [
-  "Technology", "SaaS", "E-commerce", "Healthcare", "Finance",
-  "Education", "Real Estate", "Food & Beverage", "Retail", "Other",
-]
 
 export function OnboardingWizard({ onClose }: Props) {
   const router = useRouter()
@@ -71,6 +74,10 @@ export function OnboardingWizard({ onClose }: Props) {
   // ── Step 1 ──────────────────────────────────────────────────────────────────
   async function handleStep1(e: React.FormEvent) {
     e.preventDefault()
+    if (!industry) {
+      setError("Please select an industry.")
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -218,20 +225,18 @@ export function OnboardingWizard({ onClose }: Props) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="wiz-industry">Industry *</Label>
-            <select
-              id="wiz-industry"
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-              required
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              <option value="">Select industry…</option>
-              {INDUSTRIES.map((i) => (
-                <option key={i} value={i}>
-                  {i}
-                </option>
-              ))}
-            </select>
+            <Select value={industry} onValueChange={setIndustry}>
+              <SelectTrigger id="wiz-industry">
+                <SelectValue placeholder="Select industry…" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDUSTRIES.map((i) => (
+                  <SelectItem key={i} value={i}>
+                    {i}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={onClose}>

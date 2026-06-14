@@ -8,6 +8,17 @@ import { useMemo, useState } from "react"
 import { Loader2, RefreshCw, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { ClientCard } from "@/components/clients/ClientCard"
 import { ClientFilterBar } from "@/components/clients/ClientFilterBar"
 import { AddClientButton } from "@/components/clients/AddClientButton"
@@ -66,13 +77,6 @@ export function ClientsManager({ clients }: Props) {
 
   async function confirmRemove() {
     if (selected.size === 0) return
-    if (
-      !window.confirm(
-        `Remove ${selected.size} client${selected.size !== 1 ? "s" : ""}? They will be removed from your dashboard.`,
-      )
-    ) {
-      return
-    }
     setBusy(true)
     await archiveClientsAction(Array.from(selected))
     setBusy(false)
@@ -81,13 +85,6 @@ export function ClientsManager({ clients }: Props) {
 
   async function confirmScan() {
     if (selected.size === 0) return
-    if (
-      !window.confirm(
-        `Run a scan for ${selected.size} client${selected.size !== 1 ? "s" : ""}? Each scan runs on the client's enabled platforms.`,
-      )
-    ) {
-      return
-    }
     setBusy(true)
     const { triggered, skipped } = await bulkScanAction(Array.from(selected))
     setBusy(false)
@@ -127,35 +124,78 @@ export function ClientsManager({ clients }: Props) {
                 Cancel
               </Button>
               {selectionMode === "remove" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
-                  disabled={selected.size === 0 || busy}
-                  onClick={confirmRemove}
-                >
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4 mr-1" />
-                  )}
-                  Remove{selected.size > 0 ? ` (${selected.size})` : ""}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                      disabled={selected.size === 0 || busy}
+                    >
+                      {busy ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-1" />
+                      )}
+                      Remove{selected.size > 0 ? ` (${selected.size})` : ""}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Remove {selected.size} client{selected.size !== 1 ? "s" : ""}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        They will be removed from your dashboard. Data is retained
+                        for 6 months per the retention policy.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={confirmRemove}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
-                  disabled={selected.size === 0 || busy}
-                  onClick={confirmScan}
-                >
-                  {busy ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                  )}
-                  Scan{selected.size > 0 ? ` (${selected.size})` : ""}
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
+                      disabled={selected.size === 0 || busy}
+                    >
+                      {busy ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                      )}
+                      Scan{selected.size > 0 ? ` (${selected.size})` : ""}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Run a scan for {selected.size} client{selected.size !== 1 ? "s" : ""}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Each scan runs on the client&apos;s enabled platforms.
+                        Clients with a scan already running are skipped.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={confirmScan}>
+                        Run scan
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
             </div>
           ) : (

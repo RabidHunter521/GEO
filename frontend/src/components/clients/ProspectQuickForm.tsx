@@ -11,14 +11,16 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { createProspectAction } from "@/app/clients/actions"
+import { INDUSTRIES } from "@/lib/industries"
 import type { Client } from "@/types"
-
-// Mirrors the industry list used in OnboardingWizard.
-const INDUSTRIES = [
-  "Technology", "SaaS", "E-commerce", "Healthcare", "Finance",
-  "Education", "Real Estate", "Food & Beverage", "Retail", "Other",
-]
 
 interface Props {
   onClose: () => void
@@ -43,6 +45,10 @@ export function ProspectQuickForm({ onClose }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!industry) {
+      setError("Please select an industry.")
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -141,20 +147,18 @@ export function ProspectQuickForm({ onClose }: Props) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="prospect-industry">Industry *</Label>
-        <select
-          id="prospect-industry"
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
-          required
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="">Select industry…</option>
-          {INDUSTRIES.map((i) => (
-            <option key={i} value={i}>
-              {i}
-            </option>
-          ))}
-        </select>
+        <Select value={industry} onValueChange={setIndustry}>
+          <SelectTrigger id="prospect-industry">
+            <SelectValue placeholder="Select industry…" />
+          </SelectTrigger>
+          <SelectContent>
+            {INDUSTRIES.map((i) => (
+              <SelectItem key={i} value={i}>
+                {i}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>

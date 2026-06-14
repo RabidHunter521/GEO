@@ -38,7 +38,16 @@ export default async function ViewContentPlanPage({
   }
   const months = [...byMonth.keys()].sort((a, b) => a - b)
 
-  if (!gaps && !roadmap) {
+  // Treat as "has content" only when there's something to render — a gaps
+  // object with empty arrays must not slip past and show a bare heading.
+  const hasGaps =
+    !!gaps &&
+    (gaps.topics.length > 0 ||
+      gaps.entities.length > 0 ||
+      !!gaps.quality_recommendation)
+  const hasRoadmap = !!roadmap && roadmap.items.length > 0
+
+  if (!hasGaps && !hasRoadmap) {
     return (
       <div className="rounded-xl border bg-card p-8 text-center">
         <Lightbulb className="mx-auto h-8 w-8 text-muted-foreground/50" />
@@ -56,7 +65,7 @@ export default async function ViewContentPlanPage({
   return (
     <div className="space-y-8">
       {/* Content Gaps — the "why" */}
-      {gaps && (
+      {hasGaps && gaps && (
         <section className="space-y-4">
           <div>
             <h2 className="font-display text-lg font-semibold">Where Your Content Stands</h2>
@@ -122,7 +131,7 @@ export default async function ViewContentPlanPage({
       )}
 
       {/* 90-day Roadmap — the "what's next" */}
-      {roadmap && roadmap.items.length > 0 && (
+      {hasRoadmap && roadmap && (
         <section className="space-y-4">
           <div>
             <h2 className="font-display text-lg font-semibold">Your 90-Day Content Plan</h2>

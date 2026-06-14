@@ -31,9 +31,18 @@ export default async function ClientLayout({
   return (
     <div>
       <div className="mb-6 flex items-center gap-4 border-b pb-5">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-display text-lg font-semibold text-primary">
-          {initials(client.name)}
-        </span>
+        {client.logo_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={client.logo_url}
+            alt={`${client.name} logo`}
+            className="h-12 w-12 shrink-0 rounded-xl border bg-card object-contain p-1"
+          />
+        ) : (
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-display text-lg font-semibold text-primary">
+            {initials(client.name)}
+          </span>
+        )}
         <div className="min-w-0">
           <h1 className="truncate font-display text-2xl font-semibold tracking-tight">
             {client.name}
