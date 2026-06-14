@@ -19,8 +19,11 @@ Severity legend: **Critical** (fix before more load) · **High** · **Medium** �
 > - **1.4** Added `/health/ready` readiness probe that pings the DB (503 if unreachable); `/health` stays a dependency-free liveness check.
 > - **4.5** Removed dead `ADMIN_JWT_SECRET` from config and the env files.
 > - **4.6** `email_service` sets the Resend key once at import and uses a bounded 10s HTTP timeout (was a default 30s, re-set per call).
+> - **4.2** Logo uploads are validated by sniffing the actual image bytes (Pillow); the client-supplied content-type is no longer trusted and the stored content-type is derived from the sniffed format.
+> - **4.3** Admin alert emails escape all user/AI-derived values (`client.name`, competitor name, query text, raw response excerpt) with `html.escape`.
+> - **4.4** Outbound crawls (`verification_crawler`, `content_crawler`) are gated by `app/services/url_safety.is_safe_crawl_url`, which blocks localhost-style hosts and private/loopback/link-local IP literals (incl. the cloud metadata range); `tests/test_url_safety.py` (19 cases).
 >
-> Remaining low-severity items below are not yet addressed: **2.4** (timezone-aware datetimes — repo-wide), **4.2** (upload magic-byte sniffing), **4.3** (escape admin-email HTML), **4.4** (SSRF guard on crawlers), **3.3** (DB pool sizing/recycle), **3.4** (parallelize platform scans), **3.6**/**1.5** (view query count, request-id logging).
+> Remaining low-severity items below are not yet addressed: **2.4** (timezone-aware datetimes — repo-wide), **3.3** (DB pool sizing/recycle), **3.4** (parallelize platform scans), **3.6**/**1.5** (view query count, request-id logging).
 
 ---
 

@@ -1,3 +1,4 @@
+import base64
 import uuid
 import pytest
 from unittest.mock import MagicMock
@@ -178,6 +179,13 @@ def test_upload_logo_rejects_unsupported_type():
     assert response.status_code == 400
 
 
+# A real 1x1 PNG — the upload path now sniffs the actual bytes, so a fake
+# header no longer passes.
+_VALID_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
 def test_upload_logo_success_sets_url():
     from unittest.mock import patch
     app, get_db = _make_app()
@@ -193,7 +201,7 @@ def test_upload_logo_success_sets_url():
     ) as mock_upload:
         response = client.post(
             f"/api/v1/clients/{existing.id}/logo",
-            files={"file": ("logo.png", b"\x89PNG\r\n", "image/png")},
+            files={"file": ("logo.png", _VALID_PNG, "image/png")},
         )
     app.dependency_overrides.clear()
     assert response.status_code == 200

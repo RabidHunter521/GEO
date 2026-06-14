@@ -174,6 +174,7 @@ def _compute_citability(results: list[ScanQueryResult]) -> float:
 
 
 def _build_score_drop_email(client: Client, current: float, prev: float) -> str:
+    name = html.escape(client.name)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"></head>
@@ -188,7 +189,7 @@ def _build_score_drop_email(client: Client, current: float, prev: float) -> str:
           <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">SeenBy Admin Notification</p>
         </td></tr>
         <tr><td style="padding:32px;">
-          <h2 style="margin:0 0 16px;color:#0f172a;">{client.name}</h2>
+          <h2 style="margin:0 0 16px;color:#0f172a;">{name}</h2>
           <p style="color:#374151;">The overall GEO Score has crossed below the alert threshold.</p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0;">
             <tr>
@@ -225,6 +226,8 @@ def _build_overtake_email(
     delta: float,
     winning_platforms: list[tuple[str, float, float]] | None = None,
 ) -> str:
+    name = html.escape(client.name)
+    comp = html.escape(competitor_name)
     platform_section = ""
     if winning_platforms:
         platform_rows = "".join(
@@ -239,7 +242,7 @@ def _build_overtake_email(
         )
         platform_section = f"""
           <p style="margin:16px 0 4px;color:#374151;font-weight:600;font-size:14px;">
-            Platforms where {competitor_name} is ahead
+            Platforms where {comp} is ahead
           </p>
           <table style="width:100%;border-collapse:collapse;">{platform_rows}</table>"""
 
@@ -257,18 +260,18 @@ def _build_overtake_email(
           <p style="margin:4px 0 0;color:#fef3c7;font-size:13px;">SeenBy Admin Notification</p>
         </td></tr>
         <tr><td style="padding:32px;">
-          <h2 style="margin:0 0 16px;color:#0f172a;">{client.name}</h2>
+          <h2 style="margin:0 0 16px;color:#0f172a;">{name}</h2>
           <p style="color:#374151;">
-            <strong>{competitor_name}</strong> is now ahead in AI visibility.
+            <strong>{comp}</strong> is now ahead in AI visibility.
             Your competitors are winning here.
           </p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0;">
             <tr>
-              <td style="padding:8px 0;color:#6b7280;font-size:14px;">{client.name} AI visibility</td>
+              <td style="padding:8px 0;color:#6b7280;font-size:14px;">{name} AI visibility</td>
               <td style="padding:8px 0;font-weight:600;text-align:right;">{client_citability:.0f}%</td>
             </tr>
             <tr>
-              <td style="padding:8px 0;color:#6b7280;font-size:14px;">{competitor_name} AI visibility</td>
+              <td style="padding:8px 0;color:#6b7280;font-size:14px;">{comp} AI visibility</td>
               <td style="padding:8px 0;font-weight:600;color:#f59e0b;text-align:right;">{comp_citability:.0f}%</td>
             </tr>
             <tr>
@@ -290,7 +293,9 @@ def _build_overtake_email(
 
 
 def _build_hallucination_email(client: Client, result: ScanQueryResult) -> str:
-    response_preview = (result.response_text or "")[:500]
+    name = html.escape(client.name)
+    query = html.escape(result.query_text)
+    response_preview = html.escape((result.response_text or "")[:500])
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"></head>
@@ -305,11 +310,11 @@ def _build_hallucination_email(client: Client, result: ScanQueryResult) -> str:
           <p style="margin:4px 0 0;color:#ede9fe;font-size:13px;">SeenBy Admin Notification</p>
         </td></tr>
         <tr><td style="padding:32px;">
-          <h2 style="margin:0 0 16px;color:#0f172a;">{client.name}</h2>
+          <h2 style="margin:0 0 16px;color:#0f172a;">{name}</h2>
           <p style="color:#6b7280;font-size:14px;font-weight:600;margin:0 0 8px;">Query</p>
           <p style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;
                     padding:12px;font-size:14px;color:#374151;margin:0 0 16px;">
-            {result.query_text}
+            {query}
           </p>
           <p style="color:#6b7280;font-size:14px;font-weight:600;margin:0 0 8px;">AI Response (excerpt)</p>
           <p style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;

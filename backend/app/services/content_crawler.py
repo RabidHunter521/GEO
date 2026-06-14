@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.services.url_safety import is_safe_crawl_url
+
 _TIMEOUT = 10
 _MAX_PAGES = 15
 _MAX_CORPUS_CHARS = 30_000  # cost guard before any Claude call
@@ -42,6 +44,8 @@ class CrawlResult:
 def discover_pages(website: str) -> list[str]:
     """Return up to _MAX_PAGES same-domain URLs: homepage first, then sitemap URLs."""
     base = _domain_base(website)
+    if not is_safe_crawl_url(base):
+        return []
     pages: list[str] = [base]
     seen = {base}
     try:
@@ -76,6 +80,8 @@ def crawl_site(website: str) -> CrawlResult:
     corpus_parts: list[str] = []
     faq_count = 0
     for url in pages:
+        if not is_safe_crawl_url(url):
+            continue
         try:
             r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
             content_type = r.headers.get("content-type", "").lower()

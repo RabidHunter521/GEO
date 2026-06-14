@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime, timezone
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.concurrency import run_in_threadpool
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -20,16 +23,27 @@ from app.services import r2_service
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
-# Accepted logo image types → file extension for the R2 object key.
-# SVG is intentionally excluded: it can embed <script>, and logos are served
-# from a public URL rendered in the client view (stored-XSS risk).
-_LOGO_TYPES = {
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/webp": "webp",
-    "image/gif": "gif",
+# Sniffed PIL format → (extension, canonical content-type). The uploaded bytes
+# are inspected; the client-supplied content-type is never trusted. SVG is not
+# in the map — it can embed <script> and logos render in the public client view
+# (stored-XSS risk) — and raster sniffing rejects it anyway.
+_LOGO_FORMATS = {
+    "PNG":  ("png", "image/png"),
+    "JPEG": ("jpg", "image/jpeg"),
+    "WEBP": ("webp", "image/webp"),
+    "GIF":  ("gif", "image/gif"),
 }
 _LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+def _sniff_logo(data: bytes) -> tuple[str, str] | None:
+    """Return (ext, content_type) from the actual image bytes, or None if the
+    bytes aren't a supported raster image."""
+    try:
+        with Image.open(BytesIO(data)) as img:
+            return _LOGO_FORMATS.get(img.format)
+    except (UnidentifiedImageError, OSError):
+        return None
 
 
 @router.get("", response_model=list[ClientListItem], dependencies=[Depends(require_api_key)])
@@ -99,24 +113,25 @@ async def upload_client_logo(
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    ext = _LOGO_TYPES.get(file.content_type or "")
-    if not ext:
-        raise HTTPException(
-            status_code=400,
-            detail="Unsupported image type. Use PNG, JPG, WEBP, or GIF.",
-        )
-
     data = await file.read()
-    if len(data) > _LOGO_MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Image too large (max 2 MB).")
     if not data:
         raise HTTPException(status_code=400, detail="Empty file.")
+    if len(data) > _LOGO_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Image too large (max 2 MB).")
+
+    sniffed = _sniff_logo(data)
+    if not sniffed:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported or invalid image. Use PNG, JPG, WEBP, or GIF.",
+        )
+    ext, content_type = sniffed
 
     # Timestamp suffix busts CDN/browser cache when a logo is replaced.
     key = f"logos/{client_id}-{int(datetime.now(timezone.utc).timestamp())}.{ext}"
     # boto3 is blocking — offload so it doesn't stall the event loop.
     c.logo_url = await run_in_threadpool(
-        r2_service.upload_image, key, data, file.content_type
+        r2_service.upload_image, key, data, content_type
     )
     db.commit()
     db.refresh(c)

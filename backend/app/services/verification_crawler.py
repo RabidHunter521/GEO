@@ -2,6 +2,8 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app.services.url_safety import is_safe_crawl_url
+
 _TIMEOUT = 10
 
 
@@ -15,6 +17,8 @@ def _domain_base(website: str) -> str:
 def verify_llms_txt(website: str) -> bool:
     try:
         url = f"{_domain_base(website)}/llms.txt"
+        if not is_safe_crawl_url(url):
+            return False
         r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
         return r.status_code == 200 and len(r.text.strip()) > 0
     except Exception:
@@ -24,6 +28,8 @@ def verify_llms_txt(website: str) -> bool:
 def verify_schema_json(website: str) -> bool:
     try:
         url = f"{_domain_base(website)}/schema.json"
+        if not is_safe_crawl_url(url):
+            return False
         r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
         if r.status_code != 200:
             return False
@@ -36,6 +42,8 @@ def verify_schema_json(website: str) -> bool:
 def verify_robots_txt(website: str) -> bool:
     try:
         url = f"{_domain_base(website)}/robots.txt"
+        if not is_safe_crawl_url(url):
+            return False
         r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
         if r.status_code != 200:
             return False
