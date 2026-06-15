@@ -7,6 +7,7 @@ import { signOut } from "next-auth/react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {
   LayoutDashboard,
+  ListChecks,
   Search,
   BarChart3,
   Wrench,
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils"
 
 const CLIENT_NAV = [
   { href: "",             label: "Overview",                icon: LayoutDashboard },
+  { href: "/checklist",   label: "Checklist",               icon: ListChecks },
   { href: "/scan",        label: "Scan & Visibility",       icon: Search },
   { href: "/competitors", label: "Competitor Intelligence", icon: BarChart3 },
   { href: "/toolkit",     label: "AI Readiness Toolkit",   icon: Wrench },
