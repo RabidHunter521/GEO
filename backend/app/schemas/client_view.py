@@ -16,6 +16,8 @@ class ClientViewProfile(BaseModel):
     website: str
     industry: str
     logo_url: str | None = None
+    # Prospects get a deliberately simplified view (overview + scan only).
+    is_prospect: bool = False
 
 
 class ClientViewScore(BaseModel):
@@ -161,7 +163,7 @@ class ClientViewToolkit(BaseModel):
 
 
 class ClientViewRoadmapItem(BaseModel):
-    month: int
+    week: int
     theme: str
     priority: str
     content_type: str
@@ -169,6 +171,8 @@ class ClientViewRoadmapItem(BaseModel):
     rationale: str
     target_queries: list[str] = []
     competitors_winning: list[str] = []
+    # Full article draft, shown read-only when the SeenBy team has generated it.
+    article_content: str | None = None
 
 
 class ClientViewRoadmap(BaseModel):

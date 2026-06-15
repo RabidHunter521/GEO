@@ -67,7 +67,7 @@ def test_generate_roadmap_builds_items_from_lost_queries(db):
                  query_text="Top tech firms")  # open
 
     claude_payload = {"roadmap": [{
-        "month": 1, "theme": "Local authority", "priority": "high",
+        "week": 1, "theme": "Local authority", "priority": "high",
         "target_queries": ["Best tech company in KL"], "competitors_winning": ["RivalCo"],
         "content_type": "Blog post", "suggested_title": "Why ACME Corp Leads Tech in KL",
         "rationale": "Targets the exact lost query.",
@@ -80,7 +80,7 @@ def test_generate_roadmap_builds_items_from_lost_queries(db):
     assert result["source_query_count"] == 2
     assert len(result["roadmap_json"]) == 1
     item = result["roadmap_json"][0]
-    assert item["month"] == 1
+    assert item["week"] == 1
     assert item["priority"] == "high"
     assert item["suggested_title"] == "Why ACME Corp Leads Tech in KL"
     assert item["competitors_winning"] == ["RivalCo"]
@@ -92,7 +92,7 @@ def test_generate_roadmap_accepts_bare_list_payload(db):
     _seed_result(db, scan, response_text="Many options.", brand_detected=False)  # open
 
     bare = [{
-        "month": 2, "theme": "FAQ", "priority": "medium",
+        "week": 2, "theme": "FAQ", "priority": "medium",
         "target_queries": [], "competitors_winning": [],
         "content_type": "FAQ page", "suggested_title": "Tech FAQ", "rationale": "Covers gaps.",
     }]
@@ -110,8 +110,8 @@ def test_generate_roadmap_skips_items_missing_title_or_theme(db):
     _seed_result(db, scan, response_text="Many options.", brand_detected=False)  # open
 
     payload = {"roadmap": [
-        {"month": 1, "theme": "", "priority": "high", "suggested_title": "Has title but no theme"},
-        {"month": 1, "theme": "Valid", "priority": "low", "suggested_title": "Valid Title",
+        {"week": 1, "theme": "", "priority": "high", "suggested_title": "Has title but no theme"},
+        {"week": 1, "theme": "Valid", "priority": "low", "suggested_title": "Valid Title",
          "content_type": "Blog post", "rationale": "ok"},
     ]}
     with patch("app.services.content_roadmap_service.anthropic_client",
@@ -127,7 +127,7 @@ def test_generate_roadmap_raises_when_no_valid_items(db):
     scan = _seed_scan(db, client)
     _seed_result(db, scan, response_text="Many options.", brand_detected=False)  # open
 
-    payload = {"roadmap": [{"month": 1, "theme": "", "suggested_title": ""}]}
+    payload = {"roadmap": [{"week": 1, "theme": "", "suggested_title": ""}]}
     with patch("app.services.content_roadmap_service.anthropic_client",
                return_value=_fake_claude(payload)):
         try:

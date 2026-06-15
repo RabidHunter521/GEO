@@ -67,6 +67,22 @@ def test_invalid_token_returns_404(db):
         client.app.dependency_overrides.clear()
 
 
+def test_prospect_view_blocks_competitors_and_reports(db):
+    # Prospects get overview + scan only; competitors/reports return uniform 404.
+    c = _seed_client(db)
+    c.is_prospect = True
+    db.commit()
+    client = TestClient(_app(db))
+    try:
+        assert client.get(f"/api/v1/view/{TOKEN}/competitors").status_code == 404
+        assert client.get(f"/api/v1/view/{TOKEN}/competitors/trends").status_code == 404
+        assert client.get(f"/api/v1/view/{TOKEN}/reports").status_code == 404
+        # Overview stays reachable for prospects.
+        assert client.get(f"/api/v1/view/{TOKEN}/overview").status_code == 200
+    finally:
+        client.app.dependency_overrides.clear()
+
+
 def test_toolkit_returns_files_and_verification(db):
     c = _seed_client(db)
     db.add(ToolkitFiles(

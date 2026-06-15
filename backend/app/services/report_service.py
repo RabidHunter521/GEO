@@ -392,7 +392,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             f"""<tr>
               <td>{PLATFORM_LABELS.get(platform, platform.title())}</td>
               <td class="{_score_css(get_score_band(entry.get('visibility', 0.0))[1])}">{entry.get('visibility', 0.0):.0f}%</td>
-              <td>{"Seen by AI" if entry.get('detected', 0) > 0 else "Not yet seen by AI"}</td>
+              <td>{"Seen by AI" if entry.get('detected', 0) > 0 else "Not seen by AI"}</td>
             </tr>"""
             if entry.get("status") == "ok"
             else f"""<tr>

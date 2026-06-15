@@ -1,6 +1,6 @@
 // frontend/src/components/view/VisibilityBadge.tsx
 // Client-facing visibility status. Language rules: only ever
-// "Seen by AI" / "Not yet seen by AI" — never "cited" or "mentioned".
+// "Seen by AI" / "Not seen by AI" — never "cited" or "mentioned".
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
@@ -21,7 +21,7 @@ export function VisibilityBadge({ seen, className }: Props) {
         className,
       )}
     >
-      {seen ? "Seen by AI" : "Not yet seen by AI"}
+      {seen ? "Seen by AI" : "Not seen by AI"}
     </Badge>
   )
 }

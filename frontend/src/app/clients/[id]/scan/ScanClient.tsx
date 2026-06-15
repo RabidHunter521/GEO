@@ -310,7 +310,7 @@ function ResultsTable({
                   ) : (
                     <span className="flex items-center gap-1.5 text-muted-foreground text-sm">
                       <XCircle className="h-3.5 w-3.5 shrink-0" />
-                      Not yet seen by AI
+                      Not seen by AI
                     </span>
                   )}
                   {r.recommendation_position != null && (

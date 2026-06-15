@@ -265,7 +265,7 @@ export interface ContentAnalysis {
 }
 
 export interface RoadmapItem {
-  month: number // 1, 2, or 3
+  week: number // 1–12
   theme: string
   priority: "high" | "medium" | "low"
   target_queries: string[]
@@ -273,6 +273,7 @@ export interface RoadmapItem {
   content_type: string
   suggested_title: string
   rationale: string
+  article_content: string | null
 }
 
 export interface ContentRoadmap {
@@ -323,6 +324,7 @@ export interface ClientViewProfile {
   website: string
   industry: string
   logo_url: string | null
+  is_prospect: boolean
 }
 
 export interface ClientViewScore {
@@ -455,7 +457,7 @@ export interface ClientViewToolkit {
 }
 
 export interface ClientViewRoadmapItem {
-  month: number
+  week: number
   theme: string
   priority: "high" | "medium" | "low"
   content_type: string
@@ -463,6 +465,7 @@ export interface ClientViewRoadmapItem {
   rationale: string
   target_queries: string[]
   competitors_winning: string[]
+  article_content: string | null
 }
 
 export interface ClientViewRoadmap {

@@ -1,6 +1,6 @@
 // frontend/src/components/score/ScoreBadge.tsx
 import { Badge } from "@/components/ui/badge"
-import { getScoreBand } from "@/lib/score-utils"
+import { getScoreColor } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 
 interface Props {
@@ -23,12 +23,10 @@ export function ScoreBadge({ score, className }: Props) {
     )
   }
 
-  const band = getScoreBand(score)
-
   return (
     <Badge
       variant="outline"
-      className={cn("font-semibold tabular-nums", BAND_CLASS[band.color], className)}
+      className={cn("font-semibold tabular-nums", BAND_CLASS[getScoreColor(score)], className)}
     >
       {score.toFixed(0)}
     </Badge>

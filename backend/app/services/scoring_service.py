@@ -1,4 +1,4 @@
-from app.core.constants import SCORE_BANDS, SCORE_COLORS, SCORE_WEIGHTS
+from app.core.constants import SCORE_BANDS, SCORE_WEIGHTS
 
 
 def compute_platform_breakdown(
@@ -57,10 +57,22 @@ def compute_geo_score(client, ai_citability: float) -> float:
     )
 
 
+def get_score_color(score: float) -> str:
+    """3-band traffic-light color, independent of the named bands:
+    0-29 red, 30-69 yellow, 70-100 green."""
+    floored = int(score)
+    if floored >= 70:
+        return "green"
+    if floored >= 30:
+        return "yellow"
+    return "red"
+
+
 def get_score_band(score: float) -> tuple[str, str]:
-    """Return (band_name, color) for a given score."""
+    """Return (band_name, color) for a given score. The band name still drives
+    labels (5 bands); the color is the 3-band traffic light (get_score_color)."""
     floored = int(score)
     for band, (low, high) in SCORE_BANDS.items():
         if low <= floored <= high:
-            return band, SCORE_COLORS[band]
-    return "low", SCORE_COLORS["low"]
+            return band, get_score_color(score)
+    return "low", get_score_color(score)

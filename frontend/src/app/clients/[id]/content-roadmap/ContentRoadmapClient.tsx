@@ -1,10 +1,22 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
-import { Loader2, RefreshCw, FileText, Trophy } from "lucide-react"
+import { Loader2, RefreshCw, FileText, Trophy, Sparkles, Copy } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { generateRoadmapAction, refreshRoadmapAction } from "./actions"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
+  generateRoadmapAction,
+  refreshRoadmapAction,
+  generateRoadmapItemContentAction,
+} from "./actions"
 import type { ContentRoadmap, RoadmapItem } from "@/types"
 
 interface Props {
@@ -18,8 +30,135 @@ const PRIORITY_STYLE: Record<string, string> = {
   low: "border-muted-foreground/30 text-muted-foreground",
 }
 
-const MONTHS = [1, 2, 3] as const
-const MONTH_LABEL: Record<number, string> = { 1: "Month 1", 2: "Month 2", 3: "Month 3" }
+function RoadmapItemCard({
+  clientId,
+  roadmapId,
+  index,
+  item,
+  onUpdated,
+}: {
+  clientId: string
+  roadmapId: string
+  index: number
+  item: RoadmapItem
+  onUpdated: (roadmap: ContentRoadmap) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const hasArticle = !!item.article_content
+
+  async function handleGenerate() {
+    setGenerating(true)
+    setError(null)
+    try {
+      const updated = await generateRoadmapItemContentAction(clientId, roadmapId, index)
+      onUpdated(updated)
+    } catch {
+      setError("Couldn't write this article. Please try again.")
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleCopy() {
+    if (!item.article_content) return
+    await navigator.clipboard.writeText(item.article_content)
+    toast.success("Article copied to clipboard")
+  }
+
+  return (
+    <>
+      <div className="rounded-lg border bg-card p-4 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="font-semibold">
+            Week {item.week}
+          </Badge>
+          <Badge variant="outline" className={PRIORITY_STYLE[item.priority] ?? PRIORITY_STYLE.low}>
+            {item.priority}
+          </Badge>
+          <Badge variant="outline" className="gap-1 text-muted-foreground">
+            <FileText className="h-3 w-3" />
+            {item.content_type}
+          </Badge>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="block text-left text-sm font-medium leading-snug text-foreground hover:text-primary hover:underline"
+        >
+          {item.suggested_title}
+        </button>
+
+        <p className="text-xs text-muted-foreground">{item.theme}</p>
+        {item.rationale && (
+          <p className="text-xs text-muted-foreground leading-relaxed">{item.rationale}</p>
+        )}
+        {item.competitors_winning.length > 0 && (
+          <p className="text-xs text-score-low">
+            Your competitors are winning here: {item.competitors_winning.join(", ")}
+          </p>
+        )}
+
+        <div className="pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setOpen(true)}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5" />
+            {hasArticle ? "Read article" : "Write article"}
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{item.suggested_title}</DialogTitle>
+            <DialogDescription>
+              Week {item.week} · {item.content_type} · {item.theme}
+            </DialogDescription>
+          </DialogHeader>
+
+          {hasArticle ? (
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5" />
+                  Copy
+                </Button>
+              </div>
+              <article className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                {item.article_content}
+              </article>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-8 text-center">
+              <Sparkles className="mx-auto mb-3 h-6 w-6 text-primary" />
+              <p className="text-sm font-medium">No draft written yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Generate a full, publish-ready article draft for this piece with Claude.
+              </p>
+              {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+              <Button type="button" className="mt-4" onClick={handleGenerate} disabled={generating}>
+                {generating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-2" />
+                )}
+                {generating ? "Writing…" : "Write the article"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
 
 export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
   const [roadmap, setRoadmap] = useState<ContentRoadmap | null>(initialRoadmap)
@@ -49,12 +188,14 @@ export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
     })
   }
 
-  function itemsForMonth(month: number): RoadmapItem[] {
-    return (roadmap?.roadmap_json ?? []).filter((i) => i.month === month)
-  }
-
   const showResults = roadmap && roadmap.status === "completed"
   const isEmptyResult = showResults && roadmap.roadmap_json.length === 0
+
+  // Keep each item's original index (needed to address it for article generation)
+  // while presenting the plan ordered week 1 → 12.
+  const orderedItems = (roadmap?.roadmap_json ?? [])
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => a.item.week - b.item.week)
 
   return (
     <div className="space-y-6">
@@ -65,8 +206,8 @@ export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
             Content Roadmap
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            A prioritized 90-day content plan built from the questions where your competitors are
-            winning — the queries AI assistants don&apos;t yet associate with this brand.
+            A prioritized 90-day plan of 12 weekly content pieces, built from the questions where
+            your competitors are winning. Click any title to read or generate the full article.
           </p>
         </div>
         <Button onClick={handleRun} disabled={isPending || isRunning} className="shrink-0">
@@ -92,7 +233,7 @@ export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
         <div className="rounded-lg border border-dashed p-14 text-center text-muted-foreground">
           <p className="font-medium">No roadmap yet</p>
           <p className="text-sm mt-1">
-            Click &ldquo;Generate plan&rdquo; to turn this client&apos;s lost queries into a 90-day
+            Click &ldquo;Generate plan&rdquo; to turn this client&apos;s lost queries into a 12-week
             content plan. Run a scan first so there&apos;s competitor data to work from.
           </p>
         </div>
@@ -119,7 +260,7 @@ export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
         </div>
       )}
 
-      {showResults && !isEmptyResult && (
+      {showResults && !isEmptyResult && roadmap && (
         <>
           <p className="text-xs text-muted-foreground">
             Generated{" "}
@@ -132,56 +273,17 @@ export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
             {roadmap.source_query_count === 1 ? "y" : "ies"}
           </p>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {MONTHS.map((month) => {
-              const items = itemsForMonth(month)
-              return (
-                <div key={month} className="rounded-lg border p-4 space-y-3">
-                  <div className="flex items-baseline justify-between">
-                    <h3 className="text-sm font-semibold">{MONTH_LABEL[month]}</h3>
-                    <span className="text-sm font-medium text-muted-foreground">
-                      {items.length}
-                    </span>
-                  </div>
-                  {items.length === 0 ? (
-                    <p className="text-xs text-muted-foreground/60">Nothing planned.</p>
-                  ) : (
-                    items.map((item, i) => (
-                      <div key={`${item.suggested_title}-${i}`} className="rounded-md border bg-muted/10 p-3 space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className={PRIORITY_STYLE[item.priority] ?? PRIORITY_STYLE.low}>
-                            {item.priority}
-                          </Badge>
-                          <Badge variant="outline" className="gap-1 text-muted-foreground">
-                            <FileText className="h-3 w-3" />
-                            {item.content_type}
-                          </Badge>
-                        </div>
-                        <p className="text-sm font-medium leading-snug">{item.suggested_title}</p>
-                        <p className="text-xs text-muted-foreground">{item.theme}</p>
-                        {item.rationale && (
-                          <p className="text-xs text-muted-foreground leading-relaxed">{item.rationale}</p>
-                        )}
-                        {item.competitors_winning.length > 0 && (
-                          <p className="text-xs text-score-low">
-                            Your competitors are winning here: {item.competitors_winning.join(", ")}
-                          </p>
-                        )}
-                        {item.target_queries.length > 0 && (
-                          <ul className="space-y-0.5">
-                            {item.target_queries.map((q) => (
-                              <li key={q} className="text-xs text-muted-foreground">
-                                &ldquo;{q}&rdquo;
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )
-            })}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {orderedItems.map(({ item, index }) => (
+              <RoadmapItemCard
+                key={index}
+                clientId={clientId}
+                roadmapId={roadmap.id}
+                index={index}
+                item={item}
+                onUpdated={setRoadmap}
+              />
+            ))}
           </div>
         </>
       )}

@@ -6,31 +6,33 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 
-const BASE_TABS = [
-  { segment: "", label: "Overview" },
-  { segment: "/scan", label: "Scan & Visibility" },
-  { segment: "/competitors", label: "Competitors" },
-] as const
-
+const OVERVIEW_TAB = { segment: "", label: "Overview" } as const
+const SCAN_TAB = { segment: "/scan", label: "Scan & Visibility" } as const
+const COMPETITORS_TAB = { segment: "/competitors", label: "Competitors" } as const
 const REPORTS_TAB = { segment: "/reports", label: "Reports" } as const
 
 interface Props {
   token: string
-  showOurWork?: boolean
   showContentPlan?: boolean
+  isProspect?: boolean
 }
 
-export function ViewTabs({ token, showOurWork, showContentPlan }: Props) {
+export function ViewTabs({ token, showContentPlan, isProspect }: Props) {
   const pathname = usePathname()
   const base = `/view/${token}`
 
-  // Deliverable tabs only appear once they have content (set by the overview).
-  const tabs = [
-    ...BASE_TABS,
-    ...(showOurWork ? [{ segment: "/our-work", label: "Our Work" }] : []),
-    ...(showContentPlan ? [{ segment: "/content-plan", label: "Content Plan" }] : []),
-    REPORTS_TAB,
-  ]
+  // Prospects get a deliberately simple view: Overview + Scan only. Everything
+  // else (competitors, content plan, reports) is reserved for converted clients.
+  // "Our Work" is intentionally admin-only and never surfaced to clients.
+  const tabs = isProspect
+    ? [OVERVIEW_TAB, SCAN_TAB]
+    : [
+        OVERVIEW_TAB,
+        SCAN_TAB,
+        COMPETITORS_TAB,
+        ...(showContentPlan ? [{ segment: "/content-plan", label: "Content Plan" }] : []),
+        REPORTS_TAB,
+      ]
 
   return (
     <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Sections">

@@ -19,6 +19,11 @@ SCORE_BANDS: Final = {
     "low":        (0,  34),
 }
 
+# Score color is a 3-band traffic light keyed off the raw score, independent of
+# the named bands above: 0-29 red, 30-69 yellow, 70-100 green.
+# See scoring_service.get_score_color. (SCORE_COLORS retained for reference.)
+SCORE_COLOR_THRESHOLDS: Final = {"green": 70, "yellow": 30, "red": 0}
+
 SCORE_COLORS: Final = {
     "excellent":  "green",
     "good":       "green",
@@ -28,22 +33,36 @@ SCORE_COLORS: Final = {
 }
 
 # Static query templates per category. {brand}, {competitor}, {industry}, {location}, {city} are filled at runtime.
+# 5 per category × 4 categories = up to 20 client queries per platform per scan
+# (comparison is capped by the number of competitors, max 5).
 QUERY_TEMPLATES: Final = {
     "brand": [
         "Tell me about {brand}",
         "What is {brand} known for?",
+        "Is {brand} a good choice?",
+        "What services does {brand} offer?",
+        "What do people say about {brand}?",
     ],
     "comparison": [
         "{brand} vs {competitor}",
         "Compare {brand} and {competitor}",
+        "Is {brand} or {competitor} better?",
+        "{brand} vs {competitor}: which should I choose?",
+        "How does {brand} compare to {competitor}?",
     ],
     "recommendation": [
         "Best {industry} in {location}",
         "Top {industry} in {location}",
+        "Who are the leading {industry} providers in {location}?",
+        "Recommend a good {industry} in {location}",
+        "Most trusted {industry} in {location}",
     ],
     "local": [
         "Best {industry} near me in {city}",
         "{industry} services in {city}",
+        "Where can I find {industry} in {city}?",
+        "Top-rated {industry} in {city}",
+        "Affordable {industry} in {city}",
     ],
 }
 

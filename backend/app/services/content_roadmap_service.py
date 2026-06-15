@@ -17,8 +17,10 @@ from app.services.win_loss_service import compute_win_loss
 
 logger = structlog.get_logger()
 
-_MAX_TOKENS = 2048
+_MAX_TOKENS = 4096
 _MAX_QUERIES = 24  # cap the prompt; the most recent lost/open queries are enough
+_ARTICLE_MAX_TOKENS = 3000  # one full article draft
+_PLAN_WEEKS = 12  # 90-day plan == 12 weekly content pieces
 
 
 def _lost_queries(client_id, db: Session) -> list[dict]:
@@ -50,9 +52,9 @@ Business context: {client.description or "n/a"}. Target audience: {client.target
 These are the questions where AI assistants did NOT yet see {client.name}, and where competitors often are seen instead:
 {query_lines}
 
-Build a prioritized 90-day content roadmap to make AI assistants start seeing {client.name} for these questions. Group the work into 3 monthly blocks (month 1, 2, 3), highest-impact first. Produce 5-9 items total across the three months.
+Build a prioritized 90-day content roadmap to make AI assistants start seeing {client.name} for these questions. Plan it as exactly {_PLAN_WEEKS} weekly content pieces — one piece per week, week 1 through week {_PLAN_WEEKS}, highest-impact first. Produce exactly {_PLAN_WEEKS} items.
 For each item:
-- month: 1, 2, or 3
+- week: an integer from 1 to {_PLAN_WEEKS} (each week appears exactly once)
 - theme: the topic cluster it addresses
 - priority: "high", "medium", or "low"
 - target_queries: the exact question(s) from the list above this item helps win
@@ -62,7 +64,7 @@ For each item:
 - rationale: 1 sentence on why this wins the questions
 Never use the words "citation", "cited", "mentioned", "ranking position", or "visibility gap" — use "seen by AI", "AI Search Ranking", and "Your competitors are winning here" instead.
 Output ONLY valid JSON, no code fences, exactly:
-{{"roadmap": [{{"month": 1, "theme": "string", "priority": "high", "target_queries": ["string"], "competitors_winning": ["string"], "content_type": "string", "suggested_title": "string", "rationale": "string"}}]}}"""
+{{"roadmap": [{{"week": 1, "theme": "string", "priority": "high", "target_queries": ["string"], "competitors_winning": ["string"], "content_type": "string", "suggested_title": "string", "rationale": "string"}}]}}"""
 
 
 def generate_roadmap(client: Client, db: Session) -> dict:
@@ -84,13 +86,16 @@ def generate_roadmap(client: Client, db: Session) -> dict:
     items = payload["roadmap"] if isinstance(payload, dict) else payload
 
     roadmap_json = []
-    for item in items:
+    for fallback_week, item in enumerate(items, start=1):
         title = str(item.get("suggested_title", "")).strip()
         theme = str(item.get("theme", "")).strip()
         if not title or not theme:
             continue
+        # Clamp the week into 1..12; fall back to position if the model omits it.
+        week = int(item.get("week", fallback_week) or fallback_week)
+        week = max(1, min(_PLAN_WEEKS, week))
         roadmap_json.append({
-            "month": int(item.get("month", 1)),
+            "week": week,
             "theme": theme,
             "priority": str(item.get("priority", "medium")).strip().lower(),
             "target_queries": [str(q).strip() for q in item.get("target_queries", []) if str(q).strip()],
@@ -98,9 +103,49 @@ def generate_roadmap(client: Client, db: Session) -> dict:
             "content_type": str(item.get("content_type", "Blog post")).strip(),
             "suggested_title": title,
             "rationale": str(item.get("rationale", "")).strip(),
+            "article_content": None,
         })
 
     if not roadmap_json:
         raise ValueError("roadmap generation produced no valid items")
 
     return {"roadmap_json": roadmap_json, "source_query_count": len(queries)}
+
+
+def _build_article_prompt(client: Client, item: dict) -> str:
+    location = ", ".join(p for p in (client.city, client.state, client.country) if p)
+    queries = item.get("target_queries") or []
+    query_lines = "\n".join(f'- "{q}"' for q in queries) or "- (general brand visibility)"
+    return f"""You are a GEO (Generative Engine Optimization) content writer for a {client.industry} business called {client.name}{f" based in {location}" if location else ""}.
+Business context: {client.description or "n/a"}. Target audience: {client.target_audience or "n/a"}.
+
+Write the full, publish-ready draft of this content piece:
+- Title: {item.get("suggested_title", "")}
+- Format: {item.get("content_type", "Blog post")}
+- Topic cluster: {item.get("theme", "")}
+- It should help this business get seen by AI assistants for these questions:
+{query_lines}
+
+Requirements:
+- Write the complete article in Markdown (use ## headings, short paragraphs, bullet lists where useful).
+- Aim for 600-900 words, genuinely useful and specific to this business and its audience.
+- Naturally include the business name and the kind of language a buyer would use when asking AI assistants the questions above.
+- Be accurate and concrete; do not invent fake statistics, awards, or quotes.
+- Never use the words "citation", "cited", "mentioned", "ranking position", or "visibility gap".
+Output ONLY the Markdown article — no preamble, no code fences, no JSON."""
+
+
+def generate_article_content(client: Client, item: dict) -> str:
+    """Generate the full Markdown article draft for a single roadmap item.
+
+    Raises on Claude failure / empty output so the caller can surface an error."""
+    prompt = _build_article_prompt(client, item)
+    response = anthropic_client().messages.create(
+        model=MODEL_NARRATIVE,
+        max_tokens=_ARTICLE_MAX_TOKENS,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    content = strip_code_fences(response.content[0].text).strip()
+    if not content:
+        raise ValueError("article generation produced no content")
+    return content

@@ -15,5 +15,16 @@ export function getScoreBand(score: number): ScoreBand & { min: number; max: num
   )
 }
 
+// Score color is a simple 3-band traffic-light, independent of the named
+// bands above (which still drive labels). Thresholds: 0–29 red, 30–69 yellow,
+// 70–100 green.
+export type ScoreColor = "red" | "yellow" | "green"
+
+export function getScoreColor(score: number): ScoreColor {
+  if (score >= 70) return "green"
+  if (score >= 30) return "yellow"
+  return "red"
+}
+
 // Band names best-to-worst, for filter dropdowns etc.
 export const SCORE_BAND_NAMES: ScoreBand["name"][] = SCORE_BANDS.map((b) => b.name)

@@ -157,7 +157,7 @@ function WinLossRow({
           ) : (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <XCircle className="h-3.5 w-3.5" />
-              Not yet seen by AI
+              Not seen by AI
             </span>
           )}
           {canGenerate && !brief && (

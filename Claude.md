@@ -19,8 +19,8 @@ copy, or comment that surfaces to clients.
 
 | Never use | Always use |
 |---|---|
-| cited / uncited | Seen by AI / Not yet seen by AI |
-| mentioned / not mentioned | Seen by AI / Not yet seen by AI |
+| cited / uncited | Seen by AI / Not seen by AI |
+| mentioned / not mentioned | Seen by AI / Not seen by AI |
 | citation rate | visibility frequency |
 | ranking position | AI Search Ranking |
 | visibility gap | Your competitors are winning here |
@@ -43,13 +43,13 @@ SCORE_BANDS = {
     "low":       (0,  34),
 }
 
-SCORE_COLORS = {
-    "excellent": "green",
-    "good":      "green",
-    "fair":      "yellow",
-    "developing":"yellow",
-    "low":       "red",
-}
+# SCORE_BANDS drive labels only. Color is a separate 3-band traffic light
+# keyed off the raw score, independent of the named bands:
+#   0–29  → red
+#   30–69 → yellow
+#   70–100 → green
+# Frontend: getScoreColor() in src/lib/score-utils.ts
+# Backend:  get_score_color() in app/services/scoring_service.py
 ```
 
 ## 4. GEO Score Dimensions
@@ -72,7 +72,9 @@ across the client's enabled platforms; unavailable platforms are excluded.)
 
 ## 5. Scan Engine Rules
 
-- 8 queries per scan (2 per category × 4 categories), run on every enabled platform
+- Up to 20 queries per platform per scan (5 per category × 4 categories), run on
+  every enabled platform. Comparison queries are capped by the number of
+  competitors (max 5), so a client with no competitors runs 15.
 - 4 platforms: chatgpt, perplexity, gemini, claude (per-client toggle in settings, ≥1 required)
 - Retry once on API failure, flag if fails again
 - If one platform fails entirely, the scan still completes: score uses the

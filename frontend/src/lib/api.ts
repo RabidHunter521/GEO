@@ -214,6 +214,17 @@ export function generateContentRoadmap(clientId: string): Promise<ContentRoadmap
   })
 }
 
+export function generateRoadmapItemContent(
+  clientId: string,
+  roadmapId: string,
+  itemIndex: number,
+): Promise<ContentRoadmap> {
+  return apiFetch<ContentRoadmap>(
+    `/api/v1/clients/${clientId}/content-roadmap/${roadmapId}/items/${itemIndex}/content`,
+    { method: "POST" },
+  )
+}
+
 // ── Action Center ─────────────────────────────────────────────────────────────
 
 export function getActionRecommendations(clientId: string): Promise<ActionRecommendation[]> {

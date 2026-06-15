@@ -89,6 +89,16 @@ def require_share_client(
     return client
 
 
+def require_non_prospect_share_client(
+    client: Client = Depends(require_share_client),
+) -> Client:
+    """Prospects get a deliberately limited view (overview + scan only).
+    Every other surface returns the uniform 404 so the link reveals no more."""
+    if client.is_prospect:
+        raise HTTPException(status_code=404, detail="Not found")
+    return client
+
+
 def _view_headers(response: Response) -> None:
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
@@ -169,6 +179,7 @@ def get_overview(
             website=client.website,
             industry=client.industry,
             logo_url=client.logo_url,
+            is_prospect=client.is_prospect,
         ),
         latest_score=ClientViewScore(
             overall_score=latest.overall_score,
@@ -245,7 +256,7 @@ def get_scan(
 
 @router.get("/competitors", response_model=ClientViewCompetitors)
 def get_competitors(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     intel = compute_competitor_intelligence(client.id, db)
@@ -282,7 +293,7 @@ def get_competitors(
 
 @router.get("/competitors/trends", response_model=ClientViewCompetitorTrends)
 def get_competitor_trends(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     trends = compute_competitor_trends(client.id, db)
@@ -300,7 +311,7 @@ def get_competitor_trends(
 
 @router.get("/reports", response_model=list[ClientViewReport])
 def get_reports(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     # Only reports that have actually been delivered to the client.
@@ -415,7 +426,7 @@ def get_roadmap(
         return None
     items = [
         ClientViewRoadmapItem(
-            month=item.get("month", 1),
+            week=item.get("week", item.get("month", 1)),
             theme=item.get("theme", ""),
             priority=item.get("priority", "medium"),
             content_type=item.get("content_type", ""),
@@ -423,6 +434,7 @@ def get_roadmap(
             rationale=item.get("rationale", ""),
             target_queries=item.get("target_queries", []) or [],
             competitors_winning=item.get("competitors_winning", []) or [],
+            article_content=item.get("article_content"),
         )
         for item in (roadmap.roadmap_json or [])
     ]

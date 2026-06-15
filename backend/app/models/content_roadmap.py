@@ -20,8 +20,9 @@ class ContentRoadmap(Base):
     )
     # pending | running | completed | failed — the Claude generation runs in a Celery task
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    # [{month: 1|2|3, theme, priority: high|medium|low, target_queries: [str],
-    #   competitors_winning: [str], content_type, suggested_title, rationale}]
+    # [{week: 1..12, theme, priority: high|medium|low, target_queries: [str],
+    #   competitors_winning: [str], content_type, suggested_title, rationale,
+    #   article_content: str|None (full draft, generated on demand)}]
     roadmap_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     # How many lost/open queries fed the plan — drives the empty-state message
     source_query_count: Mapped[int] = mapped_column(Integer, default=0)

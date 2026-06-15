@@ -137,10 +137,11 @@ def test_run_scan_tags_results_with_platform():
 
     platforms = {r.platform for r in persisted}
     assert platforms == {"gemini", "claude"}
-    # 6 client queries per platform (comparison category is skipped with no competitors)
-    assert len(persisted) == 12
+    # 15 client queries per platform (5 per category; comparison is skipped with
+    # no competitors) × 2 platforms = 30
+    assert len(persisted) == 30
     per_platform = {p: sum(1 for r in persisted if r.platform == p) for p in platforms}
-    assert per_platform == {"gemini": 6, "claude": 6}
+    assert per_platform == {"gemini": 15, "claude": 15}
 
 
 def test_run_scan_populates_recommendation_position_for_ranked_categories():

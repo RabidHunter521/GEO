@@ -4,6 +4,7 @@ from app.services.scoring_service import (
     compute_geo_score,
     compute_platform_breakdown,
     get_score_band,
+    get_score_color,
 )
 
 
@@ -130,4 +131,15 @@ def test_get_score_band_boundary_80():
 
 
 def test_get_score_band_boundary_65():
-    assert get_score_band(65) == ("good", "green")
+    # "good" band starts at 65, but color is the 3-band traffic light:
+    # 65 falls in the 30-69 yellow range; green only starts at 70.
+    assert get_score_band(65) == ("good", "yellow")
+
+
+def test_get_score_color_thresholds():
+    assert get_score_color(0) == "red"
+    assert get_score_color(29) == "red"
+    assert get_score_color(30) == "yellow"
+    assert get_score_color(69) == "yellow"
+    assert get_score_color(70) == "green"
+    assert get_score_color(100) == "green"

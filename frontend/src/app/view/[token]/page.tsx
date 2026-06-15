@@ -78,6 +78,11 @@ export default async function ViewOverviewPage({
   ])
   if (!overview) notFound()
 
+  // Prospects get a stripped-down overview: just the score hero and the
+  // per-platform visibility. The deeper breakdown, benchmark, action plan and
+  // trends are reserved for converted clients (who have manual + competitor data).
+  const isProspect = overview.profile.is_prospect
+
   const score = overview.latest_score
   const band = score ? getScoreBand(score.overall_score) : null
 
@@ -94,7 +99,7 @@ export default async function ViewOverviewPage({
     } else {
       headline = band ? BAND_LABEL[band.name] : ""
     }
-    if (overview.benchmark) {
+    if (!isProspect && overview.benchmark) {
       headline += ` — top ${overview.benchmark.top_percent}% of ${overview.benchmark.industry}`
     }
   }
@@ -141,7 +146,7 @@ export default async function ViewOverviewPage({
       </div>
 
       {/* 2. What Changed — promoted: the most human, most flattering piece */}
-      {overview.change_narrative && (
+      {!isProspect && overview.change_narrative && (
         <div className="rounded-lg border bg-primary/5 p-5">
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Sparkles className="h-4 w-4 text-primary" />
@@ -153,7 +158,7 @@ export default async function ViewOverviewPage({
       )}
 
       {/* 3. Where you stand — benchmark + per-platform visibility */}
-      {overview.benchmark && (
+      {!isProspect && overview.benchmark && (
         <IndustryBenchmarkCard
           industry={overview.benchmark.industry}
           topPercent={overview.benchmark.top_percent}
@@ -187,7 +192,7 @@ export default async function ViewOverviewPage({
                       </span>
                     ) : (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        Not yet seen by AI
+                        Not seen by AI
                       </span>
                     )}
                   </div>
@@ -206,7 +211,8 @@ export default async function ViewOverviewPage({
         </div>
       )}
 
-      {/* 4. Score breakdown — the 5 dimensions */}
+      {/* 4. Score breakdown — the 5 dimensions (clients only) */}
+      {!isProspect && (
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Score Breakdown
@@ -240,9 +246,10 @@ export default async function ViewOverviewPage({
           })}
         </div>
       </div>
+      )}
 
-      {/* 5. What we're working on — condensed issues + top next steps */}
-      {((issues && issues.length > 0) || (actions && actions.length > 0)) && (
+      {/* 5. What we're working on — condensed issues + top next steps (clients only) */}
+      {!isProspect && ((issues && issues.length > 0) || (actions && actions.length > 0)) && (
         <div className="rounded-lg border bg-card p-5">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -298,9 +305,13 @@ export default async function ViewOverviewPage({
         </div>
       )}
 
-      {/* 6. Trends — score history + AI traffic */}
-      <ScoreHistoryChart points={overview.score_history} />
-      <AiTrafficChart points={overview.traffic} />
+      {/* 6. Trends — score history + AI traffic (clients only) */}
+      {!isProspect && (
+        <>
+          <ScoreHistoryChart points={overview.score_history} />
+          <AiTrafficChart points={overview.traffic} />
+        </>
+      )}
     </div>
   )
 }

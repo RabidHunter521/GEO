@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getScoreBand } from "@/lib/score-utils"
+import { getScoreColor } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 
 const BAND_TOKEN: Record<string, string> = {
@@ -33,8 +33,9 @@ export function ScoreRing({
 
   const hasScore = score !== null
   const clamped = hasScore ? Math.max(0, Math.min(100, score!)) : 0
-  const band = hasScore ? getScoreBand(clamped) : null
-  const color = band ? `hsl(${BAND_TOKEN[band.color]})` : "hsl(var(--muted-foreground))"
+  const color = hasScore
+    ? `hsl(${BAND_TOKEN[getScoreColor(clamped)]})`
+    : "hsl(var(--muted-foreground))"
 
   // Animate the stroke drawing in on mount
   const [progress, setProgress] = useState(0)

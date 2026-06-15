@@ -129,7 +129,7 @@ export default async function ClientOverviewPage({
                       </span>
                     ) : (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                        Not yet seen by AI
+                        Not seen by AI
                       </span>
                     )}
                   </div>

@@ -1,20 +1,14 @@
 // frontend/src/app/view/[token]/content-plan/page.tsx
 // Read-only content strategy: where the gaps are (the "why"), then the
 // 90-day roadmap built from competitor-won queries (the "what's next").
-import { Lightbulb, Target } from "lucide-react"
+import { Lightbulb } from "lucide-react"
 import { getViewContentGaps, getViewRoadmap } from "@/lib/view-api"
-import type { ClientViewRoadmapItem } from "@/types"
+import { ClientRoadmapList } from "@/components/view/ClientRoadmapList"
 
 const TOPIC_STATUS: Record<string, { label: string; cls: string }> = {
   strong: { label: "Strong", cls: "bg-score-strong-bg text-score-strong border-score-strong/25" },
   weak: { label: "Needs work", cls: "bg-score-watch-bg text-score-watch border-score-watch/30" },
   missing: { label: "Missing", cls: "bg-score-low-bg text-score-low border-score-low/25" },
-}
-
-const PRIORITY_CLASS: Record<string, string> = {
-  high: "bg-score-low-bg text-score-low border-score-low/25",
-  medium: "bg-score-watch-bg text-score-watch border-score-watch/30",
-  low: "bg-muted text-muted-foreground border-border",
 }
 
 export default async function ViewContentPlanPage({
@@ -27,16 +21,6 @@ export default async function ViewContentPlanPage({
     getViewContentGaps(token),
     getViewRoadmap(token),
   ])
-
-  const byMonth = new Map<number, ClientViewRoadmapItem[]>()
-  if (roadmap) {
-    for (const item of roadmap.items) {
-      const arr = byMonth.get(item.month) ?? []
-      arr.push(item)
-      byMonth.set(item.month, arr)
-    }
-  }
-  const months = [...byMonth.keys()].sort((a, b) => a - b)
 
   // Treat as "has content" only when there's something to render — a gaps
   // object with empty arrays must not slip past and show a bare heading.
@@ -136,62 +120,12 @@ export default async function ViewContentPlanPage({
           <div>
             <h2 className="font-display text-lg font-semibold">Your 90-Day Content Plan</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Built from the questions where your competitors are currently
-              winning. Each piece is chosen to win back AI visibility.
+              12 weekly content pieces, built from the questions where your
+              competitors are currently winning. Click any title to read the full draft.
             </p>
           </div>
 
-          {months.map((month) => (
-            <div key={month}>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Month {month}
-              </h3>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {byMonth.get(month)!.map((item, i) => (
-                  <div key={`${month}-${i}`} className="rounded-lg border bg-card p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {item.theme}
-                        </p>
-                        <p className="mt-1 font-medium leading-snug">{item.suggested_title}</p>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          PRIORITY_CLASS[item.priority] ?? PRIORITY_CLASS.low
-                        }`}
-                      >
-                        {item.priority}
-                      </span>
-                    </div>
-                    {item.content_type && (
-                      <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
-                        {item.content_type}
-                      </p>
-                    )}
-                    {item.rationale && (
-                      <p className="mt-2 text-sm text-muted-foreground">{item.rationale}</p>
-                    )}
-                    {item.target_queries.length > 0 && (
-                      <div className="mt-3 border-t pt-2.5">
-                        <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                          <Target className="h-3 w-3" />
-                          Wins back these questions
-                        </p>
-                        <ul className="mt-1.5 space-y-1">
-                          {item.target_queries.slice(0, 3).map((q) => (
-                            <li key={q} className="text-xs text-muted-foreground">
-                              &ldquo;{q}&rdquo;
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <ClientRoadmapList items={roadmap.items} />
         </section>
       )}
     </div>

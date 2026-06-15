@@ -75,8 +75,8 @@ export default async function ClientViewLayout({
           </div>
           <ViewTabs
             token={token}
-            showOurWork={overview.has_our_work}
             showContentPlan={overview.has_content_plan}
+            isProspect={profile.is_prospect}
           />
         </div>
       </header>

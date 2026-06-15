@@ -253,7 +253,7 @@ export default async function CompetitorsPage({ params }: Props) {
                           : "text-muted-foreground"
                       }
                     >
-                      {q.brand_detected ? "Seen by AI" : "Not yet seen by AI"}
+                      {q.brand_detected ? "Seen by AI" : "Not seen by AI"}
                     </span>
                   </div>
                 ))}

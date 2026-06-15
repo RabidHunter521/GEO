@@ -315,8 +315,8 @@ All alerts sent to `contact@seenby.my` and create an `activity_log` entry automa
 
 | Never use | Always use |
 |---|---|
-| cited / uncited | Seen by AI / Not yet seen by AI |
-| mentioned / not mentioned | Seen by AI / Not yet seen by AI |
+| cited / uncited | Seen by AI / Not seen by AI |
+| mentioned / not mentioned | Seen by AI / Not seen by AI |
 | citation rate | visibility frequency |
 | ranking position | AI Search Ranking |
 | visibility gap | Your competitors are winning here |

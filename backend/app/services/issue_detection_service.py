@@ -22,10 +22,10 @@ _DEVELOPING = SCORE_BANDS["developing"][0]  # 35
 # Category-specific findings when the brand was not seen in any query of
 # that category in the latest scan.
 _CATEGORY_ISSUES = {
-    "brand": "Not yet seen by AI when people ask directly about your brand",
-    "comparison": "Not yet seen by AI in comparison questions against competitors",
-    "recommendation": "Not yet seen by AI in 'best in your industry' recommendation questions",
-    "local": "Not yet seen by AI in local search questions for your area",
+    "brand": "Not seen by AI when people ask directly about your brand",
+    "comparison": "Not seen by AI in comparison questions against competitors",
+    "recommendation": "Not seen by AI in 'best in your industry' recommendation questions",
+    "local": "Not seen by AI in local search questions for your area",
 }
 
 # Generic issue pools per manually assessed dimension. Lower scores surface
