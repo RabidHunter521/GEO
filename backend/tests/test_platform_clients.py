@@ -2,6 +2,8 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
+from google.genai import types
+
 from app.services.platform_clients import get_platform_client, PlatformNotConfiguredError
 from app.services.platform_clients.gemini import GeminiClient
 from app.services.platform_clients.chatgpt import ChatGPTClient
@@ -24,6 +26,22 @@ def test_gemini_query_returns_text_response():
         result = client.query("Tell me about ACME Corp")
 
     assert result == "ACME Corp is a leading consulting firm in KL."
+
+
+def test_gemini_query_uses_google_search_grounding():
+    mock_response = MagicMock()
+    mock_response.text = "ACME Corp is a leading consulting firm in KL."
+
+    with patch("app.services.platform_clients.gemini.genai") as mock_genai:
+        mock_client = MagicMock()
+        mock_client.models.generate_content.return_value = mock_response
+        mock_genai.Client.return_value = mock_client
+
+        client = GeminiClient(api_key="fake-key")
+        client.query("Tell me about ACME Corp")
+
+    config = mock_client.models.generate_content.call_args.kwargs["config"]
+    assert config.tools == [types.Tool(google_search=types.GoogleSearch())]
 
 
 def test_gemini_query_retries_on_exception_then_succeeds():
