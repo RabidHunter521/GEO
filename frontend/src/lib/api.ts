@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -301,4 +301,8 @@ export function flagHallucination(
     `/api/v1/scans/${scanId}/results/${resultId}/flag-hallucination`,
     { method: "POST" },
   )
+}
+
+export function getScanDiff(clientId: string): Promise<ScanDiffResponse> {
+  return apiFetch<ScanDiffResponse>(`/api/v1/scans/client/${clientId}/diff`)
 }

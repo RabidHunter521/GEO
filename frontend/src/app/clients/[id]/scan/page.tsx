@@ -1,5 +1,6 @@
 // frontend/src/app/clients/[id]/scan/page.tsx
-import { getClient, getLatestScan } from "@/lib/api"
+import { getClient, getLatestScan, getScanDiff } from "@/lib/api"
+import type { ScanDiffResponse } from "@/types"
 import { ScanClient } from "./ScanClient"
 
 interface Props {
@@ -10,14 +11,27 @@ export default async function ScanPage({ params }: Props) {
   const { id } = await params
   let clientName = "this client"
   let initialScan = null
+  let initialDiff: ScanDiffResponse | null = null
 
   try {
-    const [client, scan] = await Promise.all([getClient(id), getLatestScan(id)])
+    const [client, scan, diff] = await Promise.all([
+      getClient(id),
+      getLatestScan(id),
+      getScanDiff(id),
+    ])
     clientName = client.name
     initialScan = scan
+    initialDiff = diff
   } catch {
     // backend down — show empty state
   }
 
-  return <ScanClient clientId={id} clientName={clientName} initialScan={initialScan} />
+  return (
+    <ScanClient
+      clientId={id}
+      clientName={clientName}
+      initialScan={initialScan}
+      initialDiff={initialDiff}
+    />
+  )
 }

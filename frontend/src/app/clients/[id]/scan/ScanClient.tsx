@@ -4,14 +4,16 @@ import { useState, useEffect, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Play, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
-import type { Platform, Scan, ScanQueryResult } from "@/types"
+import type { Platform, Scan, ScanQueryResult, ScanDiffResponse } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
+import { SinceLastScanCard } from "@/components/scan/SinceLastScanCard"
 
 interface Props {
   clientId: string
   clientName: string
   initialScan: Scan | null
+  initialDiff: ScanDiffResponse | null
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -21,8 +23,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   local: "Local",
 }
 
-export function ScanClient({ clientId, clientName, initialScan }: Props) {
+export function ScanClient({ clientId, clientName, initialScan, initialDiff }: Props) {
   const [scan, setScan] = useState<Scan | null>(initialScan)
+  const [diff] = useState<ScanDiffResponse | null>(initialDiff)
   const [isPending, startTransition] = useTransition()
   const [flaggingId, setFlaggingId] = useState<string | null>(null)
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(
@@ -134,6 +137,9 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
               ? `Platforms: ${scannedPlatforms.map((p) => PLATFORM_LABELS[p]).join(", ")}`
               : `Platform: ${scan.platform}`}
           </p>
+
+          {/* Since last scan diff */}
+          {diff && <SinceLastScanCard diff={diff} />}
 
           {/* Per-platform visibility summary */}
           {scannedPlatforms.length > 1 && (

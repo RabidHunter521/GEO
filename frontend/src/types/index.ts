@@ -197,6 +197,26 @@ export interface IndustryBenchmark {
   top_percent: number
 }
 
+// ── Scan diff ("Since last scan") ────────────────────────────────────────────
+
+export interface ScanDiffQuery {
+  platform: string
+  category: string
+  query_text: string
+}
+
+export interface ScanDiffResponse {
+  latest_scan_id: string | null
+  previous_scan_id: string | null
+  latest_scan_at: string | null
+  previous_scan_at: string | null
+  latest_visibility: number | null
+  previous_visibility: number | null
+  newly_seen: ScanDiffQuery[]
+  newly_unseen: ScanDiffQuery[]
+  has_comparison: boolean
+}
+
 export interface ActivityLogEntry {
   id: string
   event_type: string
