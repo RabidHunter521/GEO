@@ -13,6 +13,17 @@ export async function GET(
       cache: "no-store",
     },
   )
-  if (!res.ok) return new Response("Not found", { status: 404 })
-  return new Response(res.body, { headers: { "Content-Type": "image/png" } })
+  if (!res.ok) {
+    // Forward the real status (404 = no shareable excerpt; 5xx = backend error)
+    // so failures aren't silently masked as "not found".
+    return new Response(res.status === 404 ? "Not found" : "Snippet unavailable", {
+      status: res.status,
+    })
+  }
+  return new Response(res.body, {
+    headers: {
+      "Content-Type": "image/png",
+      "Content-Disposition": 'inline; filename="seenby-snippet.png"',
+    },
+  })
 }
