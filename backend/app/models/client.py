@@ -42,6 +42,8 @@ class Client(Base):
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Free-text admin notes (CRM-style). Admin-only — never exposed in client view.
+    internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Prospect = a not-yet-paying lead scanned for cold outreach. Kept out of
     # the portfolio dashboard; flip to False ("Convert to Client") once signed.
     is_prospect: Mapped[bool] = mapped_column(
