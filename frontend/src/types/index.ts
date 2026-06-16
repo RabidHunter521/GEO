@@ -39,6 +39,7 @@ export interface Client {
   technical_foundations_verified: boolean
   structured_data_verified: boolean
   score_drop_threshold: number
+  scan_cadence_days: number
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
@@ -59,6 +60,8 @@ export interface ClientListItem extends Client {
   previous_overall_score: number | null
   latest_scan_status: "pending" | "running" | "completed" | "failed" | null
   latest_scan_triggered_at: string | null
+  next_scan_due: string | null
+  is_scan_overdue: boolean
 }
 
 export interface Competitor {

@@ -164,6 +164,9 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           score_drop_threshold: fd.get("score_drop_threshold")
             ? Number(fd.get("score_drop_threshold"))
             : undefined,
+          scan_cadence_days: fd.get("scan_cadence_days")
+            ? Number(fd.get("scan_cadence_days"))
+            : undefined,
           enabled_platforms: enabledPlatforms,
         })
         setSaved(true)
@@ -401,6 +404,31 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               min="0"
               max="100"
               defaultValue={client.score_drop_threshold}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <Label htmlFor="s-cadence">Review cadence (days)</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 text-sm">
+                  How many days between recommended scans. The client card on the dashboard will flag a &quot;Scan due&quot; reminder when this period has passed since the last scan. Nothing auto-scans — all scans are triggered manually.
+                </PopoverContent>
+              </Popover>
+            </div>
+            <Input
+              id="s-cadence"
+              name="scan_cadence_days"
+              type="number"
+              min="1"
+              max="365"
+              defaultValue={client.scan_cadence_days}
             />
           </div>
         </div>

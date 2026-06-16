@@ -23,6 +23,7 @@ export async function updateClientAction(
     content_quality_score?: number
     content_quality_evidence?: string
     score_drop_threshold?: number
+    scan_cadence_days?: number
     enabled_platforms?: Platform[]
   },
 ) {

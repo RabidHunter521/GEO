@@ -64,6 +64,7 @@ export function updateClient(
       | "content_quality_score"
       | "content_quality_evidence"
       | "score_drop_threshold"
+      | "scan_cadence_days"
       | "enabled_platforms"
       | "is_prospect"
       | "internal_notes"
