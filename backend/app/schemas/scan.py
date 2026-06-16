@@ -45,3 +45,21 @@ class ScanWithResultsResponse(BaseModel):
     results: list[ScanQueryResultResponse] = []
 
     model_config = {"from_attributes": True}
+
+
+class ScanDiffQuery(BaseModel):
+    platform: str
+    category: str
+    query_text: str
+
+
+class ScanDiffResponse(BaseModel):
+    latest_scan_id: uuid.UUID | None = None
+    previous_scan_id: uuid.UUID | None = None
+    latest_scan_at: datetime | None = None
+    previous_scan_at: datetime | None = None
+    latest_visibility: float | None = None
+    previous_visibility: float | None = None
+    newly_seen: list[ScanDiffQuery] = []
+    newly_unseen: list[ScanDiffQuery] = []
+    has_comparison: bool = False

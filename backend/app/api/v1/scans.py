@@ -12,7 +12,9 @@ from app.schemas.scan import (
     ScanResponse,
     ScanQueryResultResponse,
     ScanWithResultsResponse,
+    ScanDiffResponse,
 )
+from app.services.scan_diff_service import compute_scan_diff
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -99,6 +101,15 @@ def get_latest_scan(client_id: uuid.UUID, db: Session = Depends(get_db)):
         completed_at=scan.completed_at,
         results=results,
     )
+
+
+@router.get(
+    "/client/{client_id}/diff",
+    response_model=ScanDiffResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_scan_diff(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    return compute_scan_diff(client_id, db)
 
 
 @router.get(

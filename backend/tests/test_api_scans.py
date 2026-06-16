@@ -1,6 +1,7 @@
 import uuid
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
+from app.schemas.scan import ScanDiffQuery, ScanDiffResponse
 
 
 def test_health_endpoint():
@@ -129,3 +130,69 @@ def test_get_scan_not_found():
     app.dependency_overrides.clear()
 
     assert response.status_code == 404
+
+
+def test_get_scan_diff_returns_200_with_comparison():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+
+    client_id = uuid.uuid4()
+    mock_diff = ScanDiffResponse(
+        has_comparison=True,
+        newly_seen=[
+            ScanDiffQuery(platform="chatgpt", category="recommendation", query_text="q1")
+        ],
+        newly_unseen=[],
+    )
+
+    def fake_get_db():
+        yield MagicMock()
+
+    with patch("app.api.v1.scans.compute_scan_diff", return_value=mock_diff):
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        http_client = TestClient(app)
+        response = http_client.get(f"/api/v1/scans/client/{client_id}/diff")
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_comparison"] is True
+    assert len(body["newly_seen"]) == 1
+    assert body["newly_seen"][0]["query_text"] == "q1"
+    assert body["newly_seen"][0]["platform"] == "chatgpt"
+    assert body["newly_unseen"] == []
+
+
+def test_get_scan_diff_no_comparison():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+
+    client_id = uuid.uuid4()
+    mock_diff = ScanDiffResponse(has_comparison=False)
+
+    def fake_get_db():
+        yield MagicMock()
+
+    with patch("app.api.v1.scans.compute_scan_diff", return_value=mock_diff):
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        http_client = TestClient(app)
+        response = http_client.get(f"/api/v1/scans/client/{client_id}/diff")
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_comparison"] is False
+    assert body["newly_seen"] == []
+    assert body["newly_unseen"] == []
+
+
+def test_get_scan_diff_requires_auth():
+    from app.main import app
+
+    http_client = TestClient(app)
+    response = http_client.get(f"/api/v1/scans/client/{uuid.uuid4()}/diff")
+    assert response.status_code == 401
