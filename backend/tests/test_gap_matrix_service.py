@@ -199,3 +199,26 @@ def test_equal_visibility_is_not_winning(db):
     assert local_cell.competitors_winning is False
     assert local_cell.client_visibility == 100.0
     assert local_cell.top_competitor_visibility == 100.0
+
+
+# ── test 9: hallucination-flagged rows are excluded ──────────────────────────
+
+def test_hallucination_flagged_results_excluded(db):
+    """A flagged 'seen' row must not inflate visibility — consistent with win_loss_service."""
+    client = _make_client(db, "Flagged Co")
+    scan = _make_scan(db, client)
+
+    # Flagged + detected → must be ignored.
+    db.add(ScanQueryResult(
+        scan_id=scan.id, platform="chatgpt", competitor_id=None,
+        category="recommendation", query_text="rec q1", response_text="x",
+        brand_detected=True, hallucination_flagged=True,
+    ))
+    # Unflagged + not detected → counts.
+    _make_result(db, scan, "recommendation", brand_detected=False, competitor_id=None)
+
+    matrix = compute_gap_matrix(db)
+
+    rec_cell = next(c for c in matrix.rows[0].cells if c.category == "recommendation")
+    # Only the unflagged (not-detected) row counts → 0%, not 50%.
+    assert rec_cell.client_visibility == 0.0

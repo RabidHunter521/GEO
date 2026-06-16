@@ -1,5 +1,3 @@
-import uuid
-
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -38,7 +36,17 @@ def compute_gap_matrix(db: Session) -> GapMatrixResponse:
                 comp.id: comp.name
                 for comp in db.query(Competitor).filter(Competitor.client_id == c.id).all()
             }
-            results = db.query(ScanQueryResult).filter(ScanQueryResult.scan_id == latest.id).all()
+            # Only the win/loss categories are surfaced; exclude hallucination-flagged
+            # rows (consistent with win_loss_service — their brand_detected is unreliable).
+            results = (
+                db.query(ScanQueryResult)
+                .filter(
+                    ScanQueryResult.scan_id == latest.id,
+                    ScanQueryResult.category.in_(WIN_LOSS_CATEGORIES),
+                    ScanQueryResult.hallucination_flagged.is_(False),
+                )
+                .all()
+            )
             for category in WIN_LOSS_CATEGORIES:
                 cat = [r for r in results if r.category == category]
                 client_vis = _visibility([r for r in cat if r.competitor_id is None])
