@@ -261,9 +261,58 @@ def test_update_internal_notes():
     ("GET",   f"/api/v1/clients/{uuid.uuid4()}"),
     ("PATCH", f"/api/v1/clients/{uuid.uuid4()}"),
     ("GET",   f"/api/v1/clients/{uuid.uuid4()}/geo-score/latest"),
+    ("GET",   "/api/v1/clients/gap-matrix"),
 ])
 def test_endpoints_require_auth(method, path):
     from app.main import app
     client = TestClient(app)
     response = client.request(method, path, json={})
     assert response.status_code == 401
+
+
+def test_get_gap_matrix_returns_200_with_matrix():
+    """
+    GET /api/v1/clients/gap-matrix returns 200 with categories and rows.
+    Also proves route ordering: a 422 would indicate FastAPI parsed 'gap-matrix'
+    as a /{client_id} UUID path param instead of hitting the dedicated route.
+    """
+    from unittest.mock import patch
+    from app.schemas.gap_matrix import GapMatrixResponse, GapMatrixRow, GapCell
+
+    row_id = uuid.uuid4()
+    fake_matrix = GapMatrixResponse(
+        categories=["recommendation", "local"],
+        rows=[
+            GapMatrixRow(
+                client_id=row_id,
+                client_name="Acme",
+                cells=[
+                    GapCell(
+                        category="recommendation",
+                        competitors_winning=True,
+                        top_competitor_name="Rival",
+                        client_visibility=0.0,
+                        top_competitor_visibility=100.0,
+                    )
+                ],
+            )
+        ],
+    )
+
+    app, get_db = _make_app()
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    with patch("app.api.v1.clients.compute_gap_matrix", return_value=fake_matrix):
+        client = TestClient(app)
+        response = client.get("/api/v1/clients/gap-matrix")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} (422 = route ordering bug)"
+    body = response.json()
+    assert body["categories"] == ["recommendation", "local"]
+    assert len(body["rows"]) == 1
+    assert body["rows"][0]["client_name"] == "Acme"
+    assert body["rows"][0]["cells"][0]["competitors_winning"] is True
+    assert body["rows"][0]["cells"][0]["top_competitor_name"] == "Rival"

@@ -18,8 +18,10 @@ from app.schemas.geo_score import GeoScoreResponse
 from app.schemas.benchmark import IndustryBenchmarkResponse
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.client_list_service import build_client_list
+from app.services.gap_matrix_service import compute_gap_matrix
 from app.services.share_link_service import generate_share_token, revoke_share_token
 from app.services import r2_service
+from app.schemas.gap_matrix import GapMatrixResponse
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -69,6 +71,15 @@ def create_client(body: ClientCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(c)
     return c
+
+
+@router.get(
+    "/gap-matrix",
+    response_model=GapMatrixResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_gap_matrix(db: Session = Depends(get_db)):
+    return compute_gap_matrix(db)
 
 
 @router.get(
