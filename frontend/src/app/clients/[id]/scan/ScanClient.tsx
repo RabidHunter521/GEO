@@ -25,7 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function ScanClient({ clientId, clientName, initialScan, initialDiff }: Props) {
   const [scan, setScan] = useState<Scan | null>(initialScan)
-  const [diff] = useState<ScanDiffResponse | null>(initialDiff)
+  const diff = initialDiff
   const [isPending, startTransition] = useTransition()
   const [flaggingId, setFlaggingId] = useState<string | null>(null)
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(

@@ -35,11 +35,15 @@ def compute_scan_diff(client_id: uuid.UUID, db: Session) -> ScanDiffResponse:
     previous = scans[1] if len(scans) > 1 else None
 
     def own_results(scan_id):
+        # Exclude hallucination-flagged rows — consistent with win_loss_service;
+        # a flagged response's brand_detected is unreliable and would surface
+        # spurious changes in the diff.
         return (
             db.query(ScanQueryResult)
             .filter(
                 ScanQueryResult.scan_id == scan_id,
                 ScanQueryResult.competitor_id.is_(None),
+                ScanQueryResult.hallucination_flagged.is_(False),
             )
             .all()
         )
