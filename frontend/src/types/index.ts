@@ -528,3 +528,24 @@ export interface ClientViewActivity {
   note: string
   created_at: string
 }
+
+// ── Competitor Gap Matrix (/clients/gap-matrix) ───────────────────────────────
+
+export interface GapCell {
+  category: string
+  client_visibility: number | null
+  top_competitor_visibility: number | null
+  top_competitor_name: string | null
+  competitors_winning: boolean
+}
+
+export interface GapMatrixRow {
+  client_id: string
+  client_name: string
+  cells: GapCell[]
+}
+
+export interface GapMatrixResponse {
+  categories: string[]
+  rows: GapMatrixRow[]
+}

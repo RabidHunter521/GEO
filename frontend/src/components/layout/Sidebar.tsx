@@ -17,6 +17,7 @@ import {
   Activity,
   Settings,
   Users,
+  Table2,
   LogOut,
   Eye,
   Menu,
@@ -78,6 +79,16 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         <Users className="h-4 w-4 shrink-0" />
         All Clients
       </Link>
+      {(() => {
+        const gapActive = pathname === "/clients/gap-matrix"
+        return (
+          <Link href="/clients/gap-matrix" onClick={onNavigate} className={linkClass(gapActive)}>
+            {activeBar(gapActive)}
+            <Table2 className="h-4 w-4 shrink-0" />
+            Gap Matrix
+          </Link>
+        )
+      })()}
 
       {clientId && (
         <div className="pt-4">
