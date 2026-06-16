@@ -38,6 +38,8 @@ def _fake_client(name="Acme Corp"):
     m.share_token_created_at = None
     m.created_at = datetime(2026, 1, 1)
     m.archived_at = None
+    m.is_prospect = False
+    m.internal_notes = None
     return m
 
 
@@ -222,6 +224,32 @@ def test_latest_geo_score_returns_none_when_no_scans():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json() is None
+
+
+def test_update_internal_notes():
+    """PATCH internal_notes is accepted and echoed in the response."""
+    app, get_db = _make_app()
+    existing = _fake_client("Notes Co")
+    # internal_notes and is_prospect must exist on the mock for ClientResponse validation
+    existing.is_prospect = False
+    existing.internal_notes = None
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    def fake_refresh(obj):
+        obj.internal_notes = "Follow up after July demo"
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock(side_effect=fake_refresh)
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"internal_notes": "Follow up after July demo"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["internal_notes"] == "Follow up after July demo"
 
 
 @pytest.mark.parametrize("method,path", [

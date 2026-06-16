@@ -34,6 +34,7 @@ class ClientUpdate(BaseModel):
     score_drop_threshold: int | None = Field(default=None, ge=1, le=100)
     enabled_platforms: list[str] | None = None
     is_prospect: bool | None = None
+    internal_notes: str | None = None
 
     @field_validator("enabled_platforms")
     @classmethod
@@ -75,6 +76,7 @@ class ClientResponse(BaseModel):
     created_at: datetime
     archived_at: datetime | None = None
     is_prospect: bool = False
+    internal_notes: str | None = None
 
     model_config = {"from_attributes": True}
 
