@@ -58,3 +58,8 @@ export async function revokeShareLinkAction(id: string) {
   revalidatePath(`/clients/${id}`)
   revalidatePath(`/clients/${id}/settings`)
 }
+
+export async function saveInternalNotesAction(clientId: string, notes: string) {
+  await updateClient(clientId, { internal_notes: notes })
+  revalidatePath(`/clients/${clientId}/settings`)
+}

@@ -45,6 +45,7 @@ export interface Client {
   created_at: string
   archived_at: string | null
   is_prospect: boolean
+  internal_notes: string | null
 }
 
 export interface ShareTokenResponse {

@@ -66,6 +66,7 @@ export function updateClient(
       | "score_drop_threshold"
       | "enabled_platforms"
       | "is_prospect"
+      | "internal_notes"
     >
   >,
 ): Promise<Client> {
