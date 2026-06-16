@@ -235,12 +235,12 @@ def test_update_internal_notes():
     existing.internal_notes = None
     existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
 
-    def fake_refresh(obj):
-        obj.internal_notes = "Follow up after July demo"
-
+    # refresh is a no-op, so the field can only appear in the response if the
+    # route's setattr loop actually applied it — i.e. internal_notes is a real
+    # ClientUpdate field. If it were dropped from the schema, this would fail.
     mock_db = MagicMock()
     mock_db.get.return_value = existing
-    mock_db.refresh = MagicMock(side_effect=fake_refresh)
+    mock_db.refresh = MagicMock()
     app.dependency_overrides[get_db] = lambda: mock_db
     client = TestClient(app)
     response = client.patch(
@@ -250,6 +250,7 @@ def test_update_internal_notes():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["internal_notes"] == "Follow up after July demo"
+    assert existing.internal_notes == "Follow up after July demo"
 
 
 @pytest.mark.parametrize("method,path", [

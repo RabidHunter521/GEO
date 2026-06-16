@@ -61,5 +61,6 @@ export async function revokeShareLinkAction(id: string) {
 
 export async function saveInternalNotesAction(clientId: string, notes: string) {
   await updateClient(clientId, { internal_notes: notes })
+  revalidatePath(`/clients/${clientId}`)
   revalidatePath(`/clients/${clientId}/settings`)
 }

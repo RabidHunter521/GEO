@@ -32,14 +32,15 @@ export function InternalNotesCard({ clientId, initialNotes }: Props) {
 
   return (
     <div className="rounded-lg border bg-card p-4">
-      <p className="flex items-center gap-2 text-sm font-medium">
+      <label htmlFor="internal-notes" className="flex items-center gap-2 text-sm font-medium">
         <NotebookPen className="h-4 w-4 text-primary" />
         Internal notes
-      </p>
+      </label>
       <p className="mt-0.5 text-xs text-muted-foreground">
         Admin only — never shown to the client.
       </p>
       <Textarea
+        id="internal-notes"
         className="mt-3 min-h-[120px] resize-y text-sm"
         placeholder="Add notes about this client (calls, next steps, context)…"
         value={notes}
