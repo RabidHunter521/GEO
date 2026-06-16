@@ -4,6 +4,7 @@ from sqlalchemy import String, Boolean, Integer, Text, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS
 
 
 class Client(Base):
@@ -30,7 +31,11 @@ class Client(Base):
     structured_data_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     score_drop_threshold: Mapped[int] = mapped_column(Integer, default=35)
     # Admin review cadence in days; drives the "next scan due" reminder. Reminder only.
-    scan_cadence_days: Mapped[int] = mapped_column(Integer, default=30, server_default=text("30"))
+    scan_cadence_days: Mapped[int] = mapped_column(
+        Integer,
+        default=DEFAULT_SCAN_CADENCE_DAYS,
+        server_default=text(str(DEFAULT_SCAN_CADENCE_DAYS)),
+    )
     # Platforms scanned for this client (subset of SCAN_PLATFORMS) — per-client cost control
     enabled_platforms: Mapped[list] = mapped_column(
         JSON,

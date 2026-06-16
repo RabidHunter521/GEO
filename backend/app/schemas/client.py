@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.constants import SCAN_PLATFORMS
+from app.core.constants import SCAN_PLATFORMS, DEFAULT_SCAN_CADENCE_DAYS
 
 # Lightweight email check — full RFC validation needs the email-validator
 # package, which we deliberately avoid adding for an admin-entered field.
@@ -71,7 +71,7 @@ class ClientResponse(BaseModel):
     technical_foundations_verified: bool
     structured_data_verified: bool
     score_drop_threshold: int
-    scan_cadence_days: int = 30
+    scan_cadence_days: int = DEFAULT_SCAN_CADENCE_DAYS
     enabled_platforms: list[str] = SCAN_PLATFORMS
     share_token: str | None = None
     share_token_created_at: datetime | None = None

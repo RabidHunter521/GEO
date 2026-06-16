@@ -428,6 +428,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               type="number"
               min="1"
               max="365"
+              step="1"
               defaultValue={client.scan_cadence_days}
             />
           </div>
