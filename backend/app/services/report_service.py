@@ -30,6 +30,8 @@ from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
 from app.services.share_link_service import get_share_link_url
+from app.services.cost_tracker import record_llm_call
+from app.prompts.report import build_change_narrative
 
 logger = structlog.get_logger()
 
@@ -165,38 +167,30 @@ def _fallback_narrative(data: "ReportData") -> str:
     )
 
 
-def _generate_change_narrative(data: "ReportData") -> str:
+def _generate_change_narrative(
+    data: "ReportData",
+    client_id: uuid.UUID | None = None,
+    db: Session | None = None,
+) -> str:
     """Claude-written 2-3 sentence "what changed this month" summary. Falls back
     to a deterministic sentence on first report or any API failure — never raises."""
     if data.trend == "first" or data.prev_overall_score is None:
         return _fallback_narrative(data)
 
-    winning = [c.name for c in data.competitors if c.is_winning]
-    competitor_note = (
-        f"Competitors currently ahead in AI visibility: {', '.join(winning)}."
-        if winning else "No competitors are ahead in AI visibility this month."
-    )
-    prompt = (
-        "You are an AI visibility analyst writing a brief monthly summary for a client report. "
-        "Write 2-3 sentences (plain text, no headings, under 70 words) explaining what changed this month. "
-        "Use the phrase 'seen by AI' rather than 'cited' or 'mentioned'; say 'visibility frequency' not "
-        "'citation rate'; never use 'ranking', 'confidence score', or internal jargon. Be specific and factual.\n\n"
-        f"Business: {data.period_label} report.\n"
-        f"Overall score: {data.prev_overall_score:.0f} -> {data.overall_score:.0f}.\n"
-        f"AI visibility frequency (citability): {data.ai_citability:.0f}%.\n"
-        f"Seen by AI in {data.seen_count} of {data.total_count} tracked queries.\n"
-        f"Dimension scores now — Brand Authority {data.brand_authority:.0f}, Content Quality "
-        f"{data.content_quality:.0f}, Technical Foundations {data.technical_foundations:.0f}, "
-        f"Structured Data {data.structured_data:.0f}.\n"
-        f"{competitor_note}"
-    )
     try:
-        message = anthropic_client().messages.create(
+        response = anthropic_client().messages.create(
             model=MODEL_NARRATIVE,
             max_tokens=300,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": build_change_narrative(data)}],
         )
-        text = message.content[0].text.strip()
+        record_llm_call(
+            service="report_narrative",
+            model=MODEL_NARRATIVE,
+            response=response,
+            client_id=client_id,
+            db=db,
+        )
+        text = response.content[0].text.strip()
         return text or _fallback_narrative(data)
     except Exception:
         logger.warning("change_narrative_generation_failed")
@@ -332,7 +326,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
         platform_breakdown=current_gs.platform_breakdown,
     )
-    data.change_narrative = _generate_change_narrative(data)
+    data.change_narrative = _generate_change_narrative(data, client_id=client.id, db=db)
     return data
 
 

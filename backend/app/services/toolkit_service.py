@@ -3,62 +3,35 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 
 from app.models.client import Client
+from app.prompts.toolkit import build_llms_txt, build_schema_json
 from app.services.claude_client import MODEL as _MODEL
 from app.services.claude_client import anthropic_client as _anthropic_client
 from app.services.claude_client import strip_code_fences as _strip_code_fences
+from app.services.cost_tracker import record_llm_call
 
 
 def generate_llms_txt(client: Client) -> str:
     response = _anthropic_client().messages.create(
         model=_MODEL,
         max_tokens=2048,
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Generate an llms.txt file for this business.
-llms.txt is a standard file (similar to robots.txt) that helps AI language models understand a website.
-Follow the Answer.AI spec: start with # Brand Name on the first line, then > short one-sentence tagline, then markdown sections with relevant information.
-
-Business details:
-Name: {client.name}
-Website: {client.website}
-Industry: {client.industry}
-Description: {client.description or 'Not provided'}
-Target audience: {client.target_audience or 'Not provided'}
-City: {client.city or 'Not provided'}
-State: {client.state or 'Not provided'}
-
-Output ONLY the raw llms.txt content. No explanations. No code block wrappers.""",
-            }
-        ],
+        messages=[{"role": "user", "content": build_llms_txt(client)}],
     )
+    record_llm_call(service="toolkit_llms_txt", model=_MODEL, response=response, client_id=client.id)
     # Haiku occasionally wraps output in a ``` fence despite the instruction above;
     # strip it so a stray fence never lands in the published llms.txt file.
     return _strip_code_fences(response.content[0].text)
 
 
 def generate_schema_json(client: Client) -> str:
-    prompt = f"""Generate a JSON-LD structured data file for this business.
-Include these schema types in a @graph array:
-1. LocalBusiness (or an appropriate subtype like ProfessionalService, Restaurant, etc.)
-2. Organization
-3. FAQPage with 3-5 realistic FAQ items about this specific business
-
-Business details:
-Name: {client.name}
-Website: {client.website}
-Industry: {client.industry}
-Description: {client.description or 'Not provided'}
-City: {client.city or 'Not provided'}
-State: {client.state or 'Not provided'}
-
-Output ONLY valid JSON. No explanations. No ```json code block wrapper. Start directly with the opening brace."""
-
+    prompt = build_schema_json(client)
     for attempt in range(2):
         response = _anthropic_client().messages.create(
             model=_MODEL,
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
+        )
+        record_llm_call(
+            service="toolkit_schema_json", model=_MODEL, response=response, client_id=client.id
         )
         raw = _strip_code_fences(response.content[0].text)
         try:

@@ -10,41 +10,28 @@ from concurrent.futures import ThreadPoolExecutor
 import structlog
 
 from app.models.client import Client
+from app.prompts.content_analysis import (
+    build_quality_recommendation,
+    build_suggested_content,
+    build_topics_entities,
+)
 from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
 from app.services.content_crawler import CrawlResult, crawl_site
+from app.services.cost_tracker import record_llm_call
 
 logger = structlog.get_logger()
 
-_CORPUS_SAMPLE_CHARS = 6000  # smaller slice for the quality recommendation call
+_MAX_SUGGESTED_TOPICS = 5
 
 
 def _topics_entities(client: Client, corpus: str) -> dict:
-    prompt = f"""You analyse how well a business website covers the topics and entities
-that AI language models associate with its industry.
-
-Industry: {client.industry}
-Business: {client.name}
-
-Below is the visible text crawled from the business website. Based ONLY on this text:
-1. List the ~20 most important TOPICS an authoritative {client.industry} website should cover.
-   For each, mark status as "strong" (covered in depth), "weak" (mentioned only briefly),
-   or "missing" (not covered).
-2. List the key named ENTITIES (concepts, services, products, certifications, terms) that AI
-   models associate with this industry. For each, mark covered true/false.
-
-Website text:
-\"\"\"
-{corpus}
-\"\"\"
-
-Output ONLY valid JSON, no code fences, in exactly this shape:
-{{"topics": [{{"topic": "string", "status": "strong|weak|missing"}}],
-  "entities": [{{"entity": "string", "covered": true}}]}}"""
-
     response = anthropic_client().messages.create(
         model=MODEL,
         max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": build_topics_entities(client, corpus)}],
+    )
+    record_llm_call(
+        service="content_analysis_topics", model=MODEL, response=response, client_id=client.id
     )
     raw = strip_code_fences(response.content[0].text)
     data = json.loads(raw)
@@ -54,35 +41,15 @@ Output ONLY valid JSON, no code fences, in exactly this shape:
 
 
 def _quality_recommendation(client: Client, crawl: CrawlResult) -> str:
-    prompt = f"""You advise on website content quality for AI search visibility.
-
-Business: {client.name} ({client.industry})
-Crawl metrics:
-- Pages analysed: {crawl.pages_crawled}
-- Total word count: {crawl.word_count}
-- H1 headings: {crawl.h1_count}
-- FAQ sections found: {crawl.faq_count}
-- Blog/article pages: {crawl.blog_count}
-- Structured data present: {crawl.schema_present}
-
-Sample of the site text:
-\"\"\"
-{crawl.text_corpus[:_CORPUS_SAMPLE_CHARS]}
-\"\"\"
-
-Write 2-3 plain-English sentences recommending how this business could improve its content so AI
-systems are more likely to feature it. Be specific and practical. Do not mention scores, tokens,
-or technical jargon. Output only the recommendation text."""
-
     response = anthropic_client().messages.create(
         model=MODEL,
         max_tokens=400,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": build_quality_recommendation(client, crawl)}],
+    )
+    record_llm_call(
+        service="content_analysis_quality", model=MODEL, response=response, client_id=client.id
     )
     return response.content[0].text.strip()
-
-
-_MAX_SUGGESTED_TOPICS = 5
 
 
 def _suggested_content(client: Client, topics: list) -> list:
@@ -90,26 +57,14 @@ def _suggested_content(client: Client, topics: list) -> list:
     if not missing:
         return []
 
-    topics_list = "\n".join(f"- {topic}" for topic in missing)
-    prompt = f"""You suggest content ideas for a {client.industry} business called {client.name}
-to help AI search engines feature them more often.
-
-The business does not currently cover these topics on its website:
-{topics_list}
-
-For EACH topic above, suggest exactly 2 concrete content/blog post titles the business could
-publish, plus a one-sentence rationale for each. The rationale should explain the opportunity in
-plain English — for example, framing it as competitors already covering this topic. Do not use
-the words "gap", "citation", "mentioned", or "ranking".
-
-Output ONLY valid JSON, no code fences, in exactly this shape:
-{{"suggestions": [{{"topic": "string", "title": "string", "rationale": "string"}}]}}"""
-
     try:
         response = anthropic_client().messages.create(
             model=MODEL,
             max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": build_suggested_content(client, missing)}],
+        )
+        record_llm_call(
+            service="content_analysis_suggested", model=MODEL, response=response, client_id=client.id
         )
         raw = strip_code_fences(response.content[0].text)
         data = json.loads(raw)

@@ -16,7 +16,6 @@ from app.core.constants import (
     ACTION_IMPACT_MAX_PER_ACTION,
     ACTION_PRIORITY_BANDS,
     MAX_OPEN_ACTIONS,
-    SCORE_BANDS,
     SCORE_WEIGHTS,
 )
 from app.models.action_recommendation import ActionRecommendation
@@ -26,29 +25,15 @@ from app.models.content_analysis import ContentAnalysis
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.prompts.action_center import DIMENSIONS, build as build_prompt
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
+from app.services.cost_tracker import record_llm_call
 
 logger = structlog.get_logger()
 
-_DIMENSIONS = (
-    "ai_citability",
-    "brand_authority",
-    "content_quality",
-    "technical_foundations",
-    "structured_data",
-)
-
-_DIMENSION_LABELS = {
-    "ai_citability": "AI Citability",
-    "brand_authority": "Brand Authority",
-    "content_quality": "Content Quality",
-    "technical_foundations": "Technical Foundations",
-    "structured_data": "Structured Data",
-}
-
 
 def _dimension_scores(geo_score: GeoScore) -> dict[str, float]:
-    return {dim: float(getattr(geo_score, dim)) for dim in _DIMENSIONS}
+    return {dim: float(getattr(geo_score, dim)) for dim in DIMENSIONS}
 
 
 def _missing_topics(client: Client, db: Session) -> list[str]:
@@ -86,44 +71,6 @@ def _competitor_winning(client: Client, geo_score: GeoScore, db: Session) -> boo
     return False
 
 
-def _build_prompt(client: Client, scores: dict[str, float], missing_topics: list[str], competitor_winning: bool) -> str:
-    score_lines = []
-    for dim in _DIMENSIONS:
-        score = scores[dim]
-        band = next((name for name, (lo, hi) in SCORE_BANDS.items() if lo <= int(score) <= hi), "low")
-        score_lines.append(
-            f"- {_DIMENSION_LABELS[dim]} ({dim}): {score:.0f}/100, weight {SCORE_WEIGHTS[dim] * 100:.0f}%, band: {band}"
-        )
-
-    context_lines = []
-    if missing_topics:
-        context_lines.append("Topics not yet covered on the website: " + ", ".join(missing_topics))
-    if competitor_winning:
-        context_lines.append("At least one competitor currently appears in AI answers more often than this business.")
-
-    context_block = "\n".join(context_lines) if context_lines else "No additional context available."
-
-    return f"""You are a GEO (Generative Engine Optimization) advisor for a {client.industry} business
-called {client.name}. Their AI visibility score breaks down into 5 dimensions:
-
-{chr(10).join(score_lines)}
-
-Additional context:
-{context_block}
-
-Suggest 3-5 specific, practical actions this business could take to improve their AI visibility
-score, prioritizing dimensions that are weakest and have the highest weight. For each action:
-- action_text: one specific, plain-English sentence describing the action. Use phrases like
-  "Your competitors are winning here" instead of "visibility gap", and never use the words
-  "citation", "ranking position", "confidence", or "token".
-- dimension: which one of {", ".join(_DIMENSIONS)} this action primarily improves.
-- closable_gap_fraction: your estimate (0.0 to 1.0) of how much of that dimension's remaining
-  gap to 100 this single action could realistically close.
-
-Output ONLY valid JSON, no code fences, in exactly this shape:
-{{"actions": [{{"action_text": "string", "dimension": "string", "closable_gap_fraction": 0.0}}]}}"""
-
-
 def _priority_for_impact(impact: float) -> str:
     for priority, (lo, hi) in ACTION_PRIORITY_BANDS.items():
         if lo <= impact <= hi:
@@ -136,13 +83,20 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
     missing_topics = _missing_topics(client, db)
     competitor_winning = _competitor_winning(client, geo_score, db)
 
-    prompt = _build_prompt(client, scores, missing_topics, competitor_winning)
+    prompt = build_prompt(client, scores, missing_topics, competitor_winning)
 
     try:
         response = anthropic_client().messages.create(
             model=MODEL_NARRATIVE,
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
+        )
+        record_llm_call(
+            service="action_center",
+            model=MODEL_NARRATIVE,
+            response=response,
+            client_id=client.id,
+            db=db,
         )
         raw = strip_code_fences(response.content[0].text)
         data = json.loads(raw)
@@ -155,7 +109,7 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
     for item in raw_actions:
         dimension = item.get("dimension")
         action_text = item.get("action_text")
-        if dimension not in _DIMENSIONS or not action_text:
+        if dimension not in DIMENSIONS or not action_text:
             continue
 
         fraction = max(0.0, min(1.0, float(item.get("closable_gap_fraction", 0.0))))
