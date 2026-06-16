@@ -29,6 +29,8 @@ class Client(Base):
     technical_foundations_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     structured_data_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     score_drop_threshold: Mapped[int] = mapped_column(Integer, default=35)
+    # Admin review cadence in days; drives the "next scan due" reminder. Reminder only.
+    scan_cadence_days: Mapped[int] = mapped_column(Integer, default=30, server_default=text("30"))
     # Platforms scanned for this client (subset of SCAN_PLATFORMS) — per-client cost control
     enabled_platforms: Mapped[list] = mapped_column(
         JSON,

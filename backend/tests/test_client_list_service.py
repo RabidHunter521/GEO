@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
-from app.services.client_list_service import build_client_list
+from app.services.client_list_service import build_client_list, compute_next_scan_due
 
 
 def _make_client(db, name="Acme Corp", **kwargs):
@@ -126,3 +126,48 @@ def test_enrichment_is_per_client(db):
     assert items["A"].latest_overall_score == 55.0
     assert items["B"].latest_overall_score is None
     assert items["B"].latest_scan_status is None
+
+
+# ── compute_next_scan_due unit tests ─────────────────────────────────────────
+
+def test_compute_next_scan_due_adds_cadence():
+    last = datetime(2026, 6, 1, 12, 0, 0)
+    result = compute_next_scan_due(last, 30)
+    assert result == datetime(2026, 7, 1, 12, 0, 0)
+
+
+def test_compute_next_scan_due_returns_none_when_never_scanned():
+    assert compute_next_scan_due(None, 30) is None
+
+
+def test_compute_next_scan_due_overdue_flag_via_build(db):
+    """Client scanned 40 days ago with 30-day cadence should be overdue."""
+    last_scan = datetime.utcnow() - timedelta(days=40)
+    c = _make_client(db, scan_cadence_days=30)
+    scan = _make_scan(db, c)
+    _make_score(db, c, scan, 65.0, last_scan)
+    items = build_client_list(db)
+    item = items[0]
+    assert item.next_scan_due is not None
+    assert item.is_scan_overdue is True
+
+
+def test_compute_next_scan_due_not_overdue_when_recent(db):
+    """Client scanned yesterday with 30-day cadence should NOT be overdue."""
+    last_scan = datetime.utcnow() - timedelta(days=1)
+    c = _make_client(db, scan_cadence_days=30)
+    scan = _make_scan(db, c)
+    _make_score(db, c, scan, 72.0, last_scan)
+    items = build_client_list(db)
+    item = items[0]
+    assert item.next_scan_due is not None
+    assert item.is_scan_overdue is False
+
+
+def test_compute_next_scan_due_none_when_no_scans(db):
+    """Client with no scans should have next_scan_due=None and is_scan_overdue=False."""
+    _make_client(db, scan_cadence_days=30)
+    items = build_client_list(db)
+    item = items[0]
+    assert item.next_scan_due is None
+    assert item.is_scan_overdue is False

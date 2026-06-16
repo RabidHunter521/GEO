@@ -34,6 +34,7 @@ def _fake_client(name="Acme Corp"):
     m.technical_foundations_verified = False
     m.structured_data_verified = False
     m.score_drop_threshold = 35
+    m.scan_cadence_days = 30
     m.share_token = None
     m.share_token_created_at = None
     m.created_at = datetime(2026, 1, 1)
@@ -108,6 +109,7 @@ def test_create_client_returns_201():
         obj.technical_foundations_verified = False
         obj.structured_data_verified = False
         obj.score_drop_threshold = 35
+        obj.scan_cadence_days = 30
         obj.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
         from datetime import datetime
         obj.created_at = datetime(2026, 1, 1)

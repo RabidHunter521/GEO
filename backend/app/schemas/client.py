@@ -32,6 +32,7 @@ class ClientUpdate(BaseModel):
     content_quality_score: int | None = Field(default=None, ge=0, le=100)
     content_quality_evidence: str | None = None
     score_drop_threshold: int | None = Field(default=None, ge=1, le=100)
+    scan_cadence_days: int | None = Field(default=None, ge=1, le=365)
     enabled_platforms: list[str] | None = None
     is_prospect: bool | None = None
     internal_notes: str | None = None
@@ -70,6 +71,7 @@ class ClientResponse(BaseModel):
     technical_foundations_verified: bool
     structured_data_verified: bool
     score_drop_threshold: int
+    scan_cadence_days: int = 30
     enabled_platforms: list[str] = SCAN_PLATFORMS
     share_token: str | None = None
     share_token_created_at: datetime | None = None
@@ -92,5 +94,7 @@ class ClientListItem(ClientResponse):
     previous_overall_score: float | None = None
     latest_scan_status: str | None = None
     latest_scan_triggered_at: datetime | None = None
+    next_scan_due: datetime | None = None
+    is_scan_overdue: bool = False
 
     model_config = {"from_attributes": False}
