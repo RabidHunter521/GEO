@@ -1,9 +1,11 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.constants import PLATFORM_LABELS
+from app.models.client import Client
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.competitor import Competitor
@@ -15,6 +17,7 @@ from app.schemas.scan import (
     ScanDiffResponse,
 )
 from app.services.scan_diff_service import compute_scan_diff
+from app.services import snippet_service
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -139,3 +142,27 @@ def flag_hallucination_result(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return {"flagged": True, "result_id": str(result_id)}
+
+
+@router.get(
+    "/{scan_id}/results/{result_id}/snippet.png",
+    dependencies=[Depends(require_api_key)],
+)
+def get_result_snippet(scan_id: uuid.UUID, result_id: uuid.UUID, db: Session = Depends(get_db)):
+    result = db.get(ScanQueryResult, result_id)
+    if not result or result.scan_id != scan_id or result.competitor_id is not None:
+        raise HTTPException(status_code=404, detail="Result not found")
+    scan = db.get(Scan, scan_id)
+    client = db.get(Client, scan.client_id) if scan else None
+    if not client:
+        raise HTTPException(status_code=404, detail="Result not found")
+    competitors = [c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()]
+    excerpt = snippet_service.build_excerpt(result.response_text or "", client.name, competitors)
+    if not excerpt:
+        raise HTTPException(status_code=404, detail="No shareable excerpt for this result")
+    png = snippet_service.render_snippet_png(
+        platform_label=PLATFORM_LABELS.get(result.platform, result.platform),
+        brand=client.name,
+        excerpt=excerpt,
+    )
+    return Response(content=png, media_type="image/png")

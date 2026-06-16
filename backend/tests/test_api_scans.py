@@ -196,3 +196,117 @@ def test_get_scan_diff_requires_auth():
     http_client = TestClient(app)
     response = http_client.get(f"/api/v1/scans/client/{uuid.uuid4()}/diff")
     assert response.status_code == 401
+
+
+# --- snippet endpoint tests ---
+
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def test_get_result_snippet_returns_png():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+
+    scan_id = uuid.uuid4()
+    result_id = uuid.uuid4()
+    client_id = uuid.uuid4()
+
+    mock_result = MagicMock()
+    mock_result.scan_id = scan_id
+    mock_result.competitor_id = None
+    mock_result.response_text = "Acme Dental is the best clinic in KL."
+    mock_result.platform = "chatgpt"
+
+    mock_scan = MagicMock()
+    mock_scan.client_id = client_id
+
+    mock_client = MagicMock()
+    mock_client.id = client_id
+    mock_client.name = "Acme Dental"
+
+    mock_db = MagicMock()
+    mock_db.get.side_effect = [mock_result, mock_scan, mock_client]
+    mock_db.query.return_value.filter.return_value.all.return_value = []
+
+    def fake_get_db():
+        yield mock_db
+
+    with patch("app.api.v1.scans.snippet_service.build_excerpt", return_value="Acme Dental is the best clinic in KL.") as mock_excerpt, \
+         patch("app.api.v1.scans.snippet_service.render_snippet_png", return_value=PNG_MAGIC + b"\x00" * 2000) as mock_render:
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        http_client = TestClient(app)
+        response = http_client.get(f"/api/v1/scans/{scan_id}/results/{result_id}/snippet.png")
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/png")
+    assert response.content[:8] == PNG_MAGIC
+
+
+def test_get_result_snippet_404_when_result_missing():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = None
+
+    def fake_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = fake_get_db
+    app.dependency_overrides[require_api_key] = lambda: None
+    http_client = TestClient(app)
+    response = http_client.get(f"/api/v1/scans/{uuid.uuid4()}/results/{uuid.uuid4()}/snippet.png")
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+
+
+def test_get_result_snippet_401_without_auth():
+    from app.main import app
+
+    http_client = TestClient(app)
+    response = http_client.get(f"/api/v1/scans/{uuid.uuid4()}/results/{uuid.uuid4()}/snippet.png")
+    assert response.status_code == 401
+
+
+def test_get_result_snippet_404_when_no_excerpt():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+
+    scan_id = uuid.uuid4()
+    result_id = uuid.uuid4()
+    client_id = uuid.uuid4()
+
+    mock_result = MagicMock()
+    mock_result.scan_id = scan_id
+    mock_result.competitor_id = None
+    mock_result.response_text = "No mention of the brand here."
+    mock_result.platform = "chatgpt"
+
+    mock_scan = MagicMock()
+    mock_scan.client_id = client_id
+
+    mock_client = MagicMock()
+    mock_client.id = client_id
+    mock_client.name = "Acme Dental"
+
+    mock_db = MagicMock()
+    mock_db.get.side_effect = [mock_result, mock_scan, mock_client]
+    mock_db.query.return_value.filter.return_value.all.return_value = []
+
+    def fake_get_db():
+        yield mock_db
+
+    with patch("app.api.v1.scans.snippet_service.build_excerpt", return_value=None):
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        http_client = TestClient(app)
+        response = http_client.get(f"/api/v1/scans/{scan_id}/results/{result_id}/snippet.png")
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 404
