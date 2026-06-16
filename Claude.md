@@ -135,6 +135,7 @@ Admin alerts (score drop / competitor overtake / hallucination):
 Exact structure — do not add pages without updating this:
 /                        → redirect to /clients
 /clients                 → all clients overview
+/clients/gap-matrix      → cross-client competitor gap matrix
 /clients/[id]            → client detail
 /clients/[id]/scan       → scan & visibility
 /clients/[id]/competitors→ competitor intelligence
