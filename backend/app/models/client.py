@@ -4,6 +4,7 @@ from sqlalchemy import String, Boolean, Integer, Text, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS
 
 
 class Client(Base):
@@ -29,6 +30,12 @@ class Client(Base):
     technical_foundations_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     structured_data_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     score_drop_threshold: Mapped[int] = mapped_column(Integer, default=35)
+    # Admin review cadence in days; drives the "next scan due" reminder. Reminder only.
+    scan_cadence_days: Mapped[int] = mapped_column(
+        Integer,
+        default=DEFAULT_SCAN_CADENCE_DAYS,
+        server_default=text(str(DEFAULT_SCAN_CADENCE_DAYS)),
+    )
     # Platforms scanned for this client (subset of SCAN_PLATFORMS) — per-client cost control
     enabled_platforms: Mapped[list] = mapped_column(
         JSON,
@@ -42,6 +49,8 @@ class Client(Base):
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Free-text admin notes (CRM-style). Admin-only — never exposed in client view.
+    internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Prospect = a not-yet-paying lead scanned for cold outreach. Kept out of
     # the portfolio dashboard; flip to False ("Convert to Client") once signed.
     is_prospect: Mapped[bool] = mapped_column(

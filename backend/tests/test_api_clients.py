@@ -34,10 +34,13 @@ def _fake_client(name="Acme Corp"):
     m.technical_foundations_verified = False
     m.structured_data_verified = False
     m.score_drop_threshold = 35
+    m.scan_cadence_days = 30
     m.share_token = None
     m.share_token_created_at = None
     m.created_at = datetime(2026, 1, 1)
     m.archived_at = None
+    m.is_prospect = False
+    m.internal_notes = None
     return m
 
 
@@ -106,6 +109,7 @@ def test_create_client_returns_201():
         obj.technical_foundations_verified = False
         obj.structured_data_verified = False
         obj.score_drop_threshold = 35
+        obj.scan_cadence_days = 30
         obj.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
         from datetime import datetime
         obj.created_at = datetime(2026, 1, 1)
@@ -224,15 +228,91 @@ def test_latest_geo_score_returns_none_when_no_scans():
     assert response.json() is None
 
 
+def test_update_internal_notes():
+    """PATCH internal_notes is accepted and echoed in the response."""
+    app, get_db = _make_app()
+    existing = _fake_client("Notes Co")
+    # internal_notes and is_prospect must exist on the mock for ClientResponse validation
+    existing.is_prospect = False
+    existing.internal_notes = None
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    # refresh is a no-op, so the field can only appear in the response if the
+    # route's setattr loop actually applied it — i.e. internal_notes is a real
+    # ClientUpdate field. If it were dropped from the schema, this would fail.
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"internal_notes": "Follow up after July demo"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["internal_notes"] == "Follow up after July demo"
+    assert existing.internal_notes == "Follow up after July demo"
+
+
 @pytest.mark.parametrize("method,path", [
     ("GET",   "/api/v1/clients"),
     ("POST",  "/api/v1/clients"),
     ("GET",   f"/api/v1/clients/{uuid.uuid4()}"),
     ("PATCH", f"/api/v1/clients/{uuid.uuid4()}"),
     ("GET",   f"/api/v1/clients/{uuid.uuid4()}/geo-score/latest"),
+    ("GET",   "/api/v1/clients/gap-matrix"),
 ])
 def test_endpoints_require_auth(method, path):
     from app.main import app
     client = TestClient(app)
     response = client.request(method, path, json={})
     assert response.status_code == 401
+
+
+def test_get_gap_matrix_returns_200_with_matrix():
+    """
+    GET /api/v1/clients/gap-matrix returns 200 with categories and rows.
+    Also proves route ordering: a 422 would indicate FastAPI parsed 'gap-matrix'
+    as a /{client_id} UUID path param instead of hitting the dedicated route.
+    """
+    from unittest.mock import patch
+    from app.schemas.gap_matrix import GapMatrixResponse, GapMatrixRow, GapCell
+
+    row_id = uuid.uuid4()
+    fake_matrix = GapMatrixResponse(
+        categories=["recommendation", "local"],
+        rows=[
+            GapMatrixRow(
+                client_id=row_id,
+                client_name="Acme",
+                cells=[
+                    GapCell(
+                        category="recommendation",
+                        competitors_winning=True,
+                        top_competitor_name="Rival",
+                        client_visibility=0.0,
+                        top_competitor_visibility=100.0,
+                    )
+                ],
+            )
+        ],
+    )
+
+    app, get_db = _make_app()
+    mock_db = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    with patch("app.api.v1.clients.compute_gap_matrix", return_value=fake_matrix):
+        client = TestClient(app)
+        response = client.get("/api/v1/clients/gap-matrix")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code} (422 = route ordering bug)"
+    body = response.json()
+    assert body["categories"] == ["recommendation", "local"]
+    assert len(body["rows"]) == 1
+    assert body["rows"][0]["client_name"] == "Acme"
+    assert body["rows"][0]["cells"][0]["competitors_winning"] is True
+    assert body["rows"][0]["cells"][0]["top_competitor_name"] == "Rival"

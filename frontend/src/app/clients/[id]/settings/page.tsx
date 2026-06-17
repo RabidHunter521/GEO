@@ -2,6 +2,7 @@
 import { getClient, getCompetitors, getContentGaps, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 import { ShareLinkCard } from "./ShareLinkCard"
+import { InternalNotesCard } from "@/components/clients/InternalNotesCard"
 
 export default async function SettingsPage({
   params,
@@ -33,6 +34,10 @@ export default async function SettingsPage({
         trafficHistory={trafficHistory}
       />
       <ShareLinkCard client={client} />
+      <InternalNotesCard
+        clientId={client.id}
+        initialNotes={client.internal_notes ?? ""}
+      />
     </div>
   )
 }

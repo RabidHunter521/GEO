@@ -23,6 +23,7 @@ export async function updateClientAction(
     content_quality_score?: number
     content_quality_evidence?: string
     score_drop_threshold?: number
+    scan_cadence_days?: number
     enabled_platforms?: Platform[]
   },
 ) {
@@ -57,4 +58,10 @@ export async function revokeShareLinkAction(id: string) {
   await revokeShareToken(id)
   revalidatePath(`/clients/${id}`)
   revalidatePath(`/clients/${id}/settings`)
+}
+
+export async function saveInternalNotesAction(clientId: string, notes: string) {
+  await updateClient(clientId, { internal_notes: notes })
+  revalidatePath(`/clients/${clientId}`)
+  revalidatePath(`/clients/${clientId}/settings`)
 }

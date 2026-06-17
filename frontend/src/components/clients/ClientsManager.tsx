@@ -5,7 +5,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Loader2, RefreshCw, Trash2, X } from "lucide-react"
+import Link from "next/link"
+import { Loader2, RefreshCw, Table2, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -200,6 +201,12 @@ export function ClientsManager({ clients }: Props) {
             </div>
           ) : (
             <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/clients/gap-matrix">
+                  <Table2 className="h-4 w-4 mr-1" />
+                  Gap matrix
+                </Link>
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setSelectionMode("scan")}>
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Scan clients

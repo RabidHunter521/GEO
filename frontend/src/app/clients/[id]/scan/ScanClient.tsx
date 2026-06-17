@@ -3,15 +3,17 @@
 import { useState, useEffect, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Play, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
-import type { Platform, Scan, ScanQueryResult } from "@/types"
+import { Loader2, Play, CheckCircle, XCircle, AlertTriangle, ImageDown } from "lucide-react"
+import type { Platform, Scan, ScanQueryResult, ScanDiffResponse } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
+import { SinceLastScanCard } from "@/components/scan/SinceLastScanCard"
 
 interface Props {
   clientId: string
   clientName: string
   initialScan: Scan | null
+  initialDiff: ScanDiffResponse | null
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -21,8 +23,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   local: "Local",
 }
 
-export function ScanClient({ clientId, clientName, initialScan }: Props) {
+export function ScanClient({ clientId, clientName, initialScan, initialDiff }: Props) {
   const [scan, setScan] = useState<Scan | null>(initialScan)
+  const diff = initialDiff
   const [isPending, startTransition] = useTransition()
   const [flaggingId, setFlaggingId] = useState<string | null>(null)
   const [flaggedIds, setFlaggedIds] = useState<Set<string>>(
@@ -135,6 +138,9 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
               : `Platform: ${scan.platform}`}
           </p>
 
+          {/* Since last scan diff */}
+          {diff && <SinceLastScanCard diff={diff} />}
+
           {/* Per-platform visibility summary */}
           {scannedPlatforms.length > 1 && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -228,6 +234,8 @@ export function ScanClient({ clientId, clientName, initialScan }: Props) {
               flaggingId={flaggingId}
               flaggedIds={flaggedIds}
               onFlag={handleFlag}
+              scanId={scan.id}
+              clientId={clientId}
             />
           </section>
 
@@ -255,11 +263,15 @@ function ResultsTable({
   flaggingId,
   flaggedIds,
   onFlag,
+  scanId,
+  clientId,
 }: {
   results: ScanQueryResult[]
   flaggingId: string | null
   flaggedIds: Set<string>
   onFlag: (id: string) => void
+  scanId?: string
+  clientId?: string
 }) {
   return (
     <div className="rounded-lg border overflow-hidden bg-card overflow-x-auto">
@@ -278,8 +290,8 @@ function ResultsTable({
             <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-40">
               Status
             </th>
-            <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground w-24">
-              Flag
+            <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground w-36">
+              Actions
             </th>
           </tr>
         </thead>
@@ -324,24 +336,43 @@ function ResultsTable({
                 </div>
               </td>
               <td className="px-4 py-3 text-right">
-                {flaggedIds.has(r.id) ? (
-                  <span className="text-xs text-muted-foreground">Flagged</span>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-score-watch hover:text-score-watch hover:bg-score-watch-bg"
-                    onClick={() => onFlag(r.id)}
-                    disabled={flaggingId === r.id}
-                  >
-                    {flaggingId === r.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                    ) : (
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                    )}
-                    Flag
-                  </Button>
-                )}
+                <div className="flex items-center justify-end gap-1">
+                  {scanId && clientId && r.brand_detected && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      asChild
+                    >
+                      <a
+                        href={`/clients/${clientId}/scan/snippet/${scanId}/${r.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ImageDown className="h-3 w-3 mr-1" />
+                        Share
+                      </a>
+                    </Button>
+                  )}
+                  {flaggedIds.has(r.id) ? (
+                    <span className="text-xs text-muted-foreground">Flagged</span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-score-watch hover:text-score-watch hover:bg-score-watch-bg"
+                      onClick={() => onFlag(r.id)}
+                      disabled={flaggingId === r.id}
+                    >
+                      {flaggingId === r.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                      )}
+                      Flag
+                    </Button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

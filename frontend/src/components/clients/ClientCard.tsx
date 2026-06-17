@@ -60,6 +60,13 @@ export function ClientCard({
   const isDestructive = selectionVariant === "destructive"
   const scanning =
     client.latest_scan_status === "pending" || client.latest_scan_status === "running"
+  const nextScanDue = client.next_scan_due
+    ? new Date(client.next_scan_due).toLocaleDateString("en-MY", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null
 
   const card = (
     <Card
@@ -103,9 +110,23 @@ export function ClientCard({
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-2">
         <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{client.industry}</p>
-        <p className="shrink-0 text-xs text-muted-foreground">
-          {scanning ? "Scanning…" : lastScan ? `Last scan ${lastScan}` : "No scans yet"}
-        </p>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          {client.is_scan_overdue && !scanning && (
+            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+              Scan due
+            </span>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {scanning
+              ? "Scanning…"
+              : lastScan
+              ? `Last scan ${lastScan}`
+              : "No scans yet"}
+          </p>
+          {!scanning && !client.is_scan_overdue && nextScanDue && (
+            <p className="text-[10px] text-muted-foreground/60">Next: {nextScanDue}</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

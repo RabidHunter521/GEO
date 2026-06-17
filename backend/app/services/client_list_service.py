@@ -4,6 +4,7 @@ Each client is decorated with its latest + previous GeoScore (for portfolio
 score deltas) and the most recent Scan's status (so the dashboard can flag
 failed or in-flight scans even when no score was produced).
 """
+from datetime import datetime, timedelta
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,13 @@ from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.schemas.client import ClientListItem, ClientResponse
+
+
+def compute_next_scan_due(last_scan_at: datetime | None, cadence_days: int) -> datetime | None:
+    """Next-scan-due timestamp = last completed scan + cadence. None if never scanned."""
+    if last_scan_at is None:
+        return None
+    return last_scan_at + timedelta(days=cadence_days)
 
 
 def build_client_list(db: Session) -> list[ClientListItem]:
@@ -78,15 +86,19 @@ def build_client_list(db: Session) -> list[ClientListItem]:
         latest = latest_score_by_client.get(c.id)
         previous = previous_score_by_client.get(c.id)
         latest_scan = latest_scan_by_client.get(c.id)
+        last_scan_at = latest.computed_at if latest else None
+        next_due = compute_next_scan_due(last_scan_at, c.scan_cadence_days)
         base = ClientResponse.model_validate(c).model_dump()
         items.append(
             ClientListItem(
                 **base,
                 latest_overall_score=latest.overall_score if latest else None,
-                last_scan_at=latest.computed_at if latest else None,
+                last_scan_at=last_scan_at,
                 previous_overall_score=previous.overall_score if previous else None,
                 latest_scan_status=latest_scan.status if latest_scan else None,
                 latest_scan_triggered_at=latest_scan.triggered_at if latest_scan else None,
+                next_scan_due=next_due,
+                is_scan_overdue=bool(next_due and next_due < datetime.utcnow()),
             )
         )
     return items

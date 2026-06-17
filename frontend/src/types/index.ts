@@ -39,12 +39,14 @@ export interface Client {
   technical_foundations_verified: boolean
   structured_data_verified: boolean
   score_drop_threshold: number
+  scan_cadence_days: number
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
   created_at: string
   archived_at: string | null
   is_prospect: boolean
+  internal_notes: string | null
 }
 
 export interface ShareTokenResponse {
@@ -58,6 +60,8 @@ export interface ClientListItem extends Client {
   previous_overall_score: number | null
   latest_scan_status: "pending" | "running" | "completed" | "failed" | null
   latest_scan_triggered_at: string | null
+  next_scan_due: string | null
+  is_scan_overdue: boolean
 }
 
 export interface Competitor {
@@ -191,6 +195,26 @@ export interface IndustryBenchmark {
   industry_average: number
   rank: number
   top_percent: number
+}
+
+// ── Scan diff ("Since last scan") ────────────────────────────────────────────
+
+export interface ScanDiffQuery {
+  platform: string
+  category: string
+  query_text: string
+}
+
+export interface ScanDiffResponse {
+  latest_scan_id: string | null
+  previous_scan_id: string | null
+  latest_scan_at: string | null
+  previous_scan_at: string | null
+  latest_visibility: number | null
+  previous_visibility: number | null
+  newly_seen: ScanDiffQuery[]
+  newly_unseen: ScanDiffQuery[]
+  has_comparison: boolean
 }
 
 export interface ActivityLogEntry {
@@ -503,4 +527,25 @@ export interface ClientViewActivity {
   label: string
   note: string
   created_at: string
+}
+
+// ── Competitor Gap Matrix (/clients/gap-matrix) ───────────────────────────────
+
+export interface GapCell {
+  category: string
+  client_visibility: number | null
+  top_competitor_visibility: number | null
+  top_competitor_name: string | null
+  competitors_winning: boolean
+}
+
+export interface GapMatrixRow {
+  client_id: string
+  client_name: string
+  cells: GapCell[]
+}
+
+export interface GapMatrixResponse {
+  categories: string[]
+  rows: GapMatrixRow[]
 }
