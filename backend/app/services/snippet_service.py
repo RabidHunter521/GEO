@@ -48,10 +48,22 @@ _FG = (241, 245, 249)
 _ACCENT = (74, 222, 128)
 
 
-def _font(name: str, size: int):
-    path = _FONT_DIR / name
+_FONT_FILE = _FONT_DIR / "Inter-Variable.ttf"
+
+
+def _font(weight: str, size: int):
+    """Load Inter at the given named weight ('Regular'/'Bold').
+
+    Inter ships as a single variable TTF; we select the weight axis by name.
+    Falls back to Pillow's default bitmap font if the file is missing or the
+    weight axis is unavailable, so rendering never hard-fails."""
     try:
-        return ImageFont.truetype(str(path), size)
+        font = ImageFont.truetype(str(_FONT_FILE), size)
+        try:
+            font.set_variation_by_name(weight)
+        except (OSError, ValueError):
+            pass  # not a variable font / weight missing — use default instance
+        return font
     except OSError:
         return ImageFont.load_default()
 
@@ -83,10 +95,10 @@ def render_snippet_png(platform_label: str, brand: str, excerpt: str) -> bytes:
     img = Image.new("RGB", (_W, _H), _BG)
     draw = ImageDraw.Draw(img)
 
-    draw.text((80, 70), "SEEN BY AI", font=_font("Inter-Bold.ttf", 34), fill=_ACCENT)
-    draw.text((80, 120), f"What {platform_label} said about {brand}", font=_font("Inter-Bold.ttf", 48), fill=_FG)
+    draw.text((80, 70), "SEEN BY AI", font=_font("Bold", 34), fill=_ACCENT)
+    draw.text((80, 120), f"What {platform_label} said about {brand}", font=_font("Bold", 48), fill=_FG)
 
-    body = _font("Inter-Regular.ttf", 40)
+    body = _font("Regular", 40)
     y = _BODY_TOP
     for line in _wrap(draw, f"“{excerpt}”", body, _W - 160):
         if y + _LINE_HEIGHT > _BODY_MAX_Y:
@@ -94,7 +106,7 @@ def render_snippet_png(platform_label: str, brand: str, excerpt: str) -> bytes:
         draw.text((80, y), line, font=body, fill=_FG)
         y += _LINE_HEIGHT
 
-    draw.text((80, _WATERMARK_Y), "Tracked by SeenBy", font=_font("Inter-Regular.ttf", 28), fill=(148, 163, 184))
+    draw.text((80, _WATERMARK_Y), "Tracked by SeenBy", font=_font("Regular", 28), fill=(148, 163, 184))
 
     buf = BytesIO()
     img.save(buf, format="PNG")
