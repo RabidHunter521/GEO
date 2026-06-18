@@ -13,7 +13,11 @@ class ScanQueryResult(Base):
     scan_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
     # AI platform that produced this result (see SCAN_PLATFORMS). Pre-multi-platform rows are "gemini".
     platform: Mapped[str] = mapped_column(String(50), nullable=False, server_default="gemini")
-    competitor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("competitors.id", ondelete="SET NULL"), nullable=True)
+    # CASCADE (not SET NULL): deleting a competitor must remove its query rows,
+    # not null competitor_id — a nulled row reads as the client's own query and
+    # corrupts visibility metrics (edge case #38). NULL here only ever means a
+    # genuine client-owned query row.
+    competitor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("competitors.id", ondelete="CASCADE"), nullable=True)
     category: Mapped[str] = mapped_column(String(50), nullable=False)
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     response_text: Mapped[str | None] = mapped_column(Text, nullable=True)
