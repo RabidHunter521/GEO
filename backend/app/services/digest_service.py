@@ -1,3 +1,4 @@
+import html
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -32,7 +33,30 @@ class DigestData:
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
     """Returns True if digest was sent, False if skipped."""
     client = db.get(Client, client_id)
-    if not client or client.archived_at is not None or not client.contact_email:
+    # Prospects are cold leads — a "your weekly visibility update" implies an
+    # existing client relationship, so never send them one (covers both the
+    # weekly beat and the manual admin trigger).
+    if (
+        not client
+        or client.archived_at is not None
+        or client.is_prospect
+        or not client.contact_email
+    ):
+        return False
+
+    # Idempotency: don't send a second digest in the same week (e.g. the Monday
+    # beat plus a manual trigger). 6 days keeps the weekly cadence unblocked.
+    already_sent = (
+        db.query(ActivityLog.id)
+        .filter(
+            ActivityLog.client_id == client_id,
+            ActivityLog.event_type == "digest_sent",
+            ActivityLog.created_at >= datetime.utcnow() - timedelta(days=6),
+        )
+        .first()
+    )
+    if already_sent is not None:
+        logger.info("digest_skipped_recent", client_id=str(client_id))
         return False
 
     data = _compute_digest_data(client, db)
@@ -171,6 +195,11 @@ def _build_email_html(client: Client, data: DigestData) -> str:
     trend_msg = trend_messages[data.trend]
     trend_color = trend_colors[data.trend]
 
+    # Escape free-text fields (client name, Claude-written action) before they
+    # land in the email HTML — an "&" or "<" must not break the markup.
+    safe_name = html.escape(client.name)
+    safe_action = html.escape(data.action_text)
+
     view_url = get_share_link_url(client)
     dashboard_button = ""
     if view_url:
@@ -191,7 +220,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
                     margin-bottom:20px;border-radius:4px;">
           <strong style="color:#15803d;">First time AI models saw your brand!</strong>
           <p style="margin:4px 0 0;color:#166534;font-size:14px;">
-            AI models detected {client.name} in search results for the first time this week.
+            AI models detected {safe_name} in search results for the first time this week.
           </p>
         </div>"""
 
@@ -215,7 +244,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
 
         <tr><td style="padding:32px;">
           <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">
-            {client.name} &mdash; Weekly Update
+            {safe_name} &mdash; Weekly Update
           </h2>
           <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
             Here is how AI models saw your brand this week.
@@ -247,7 +276,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
               Action This Week
             </p>
             <p style="margin:0;font-size:15px;color:#0f172a;line-height:1.6;">
-              {data.action_text}
+              {safe_action}
             </p>
           </div>
 

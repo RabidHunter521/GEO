@@ -187,6 +187,7 @@ def test_generate_report_pdf_uploads_to_r2_and_returns_report():
     client.id = uuid.uuid4()
     client.name = "Acme Corp"
     client.archived_at = None
+    client.is_prospect = False
     db.get.return_value = client
 
     with patch("app.services.report_service._gather_report_data", return_value=_make_report_data()), \
@@ -207,6 +208,7 @@ def test_generate_report_pdf_logs_report_generated_activity():
     client = MagicMock()
     client.id = uuid.uuid4()
     client.archived_at = None
+    client.is_prospect = False
     db.get.return_value = client
 
     added_objects = []
@@ -303,6 +305,7 @@ def test_generate_report_pdf_persists_narrative_on_report():
     client.id = uuid.uuid4()
     client.name = "Acme Corp"
     client.archived_at = None
+    client.is_prospect = False
     db.get.return_value = client
 
     data = _make_report_data()

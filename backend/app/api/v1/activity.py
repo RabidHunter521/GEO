@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -19,8 +19,8 @@ router = APIRouter(prefix="/clients/{client_id}/activity", tags=["activity"])
 )
 def list_activity(
     client_id: uuid.UUID,
-    limit: int = 50,
-    skip: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    skip: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     c = db.get(Client, client_id)

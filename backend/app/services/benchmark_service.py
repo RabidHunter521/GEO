@@ -50,6 +50,9 @@ def compute_industry_benchmark(
         .join(Client, Client.id == GeoScore.client_id)
         .filter(
             Client.archived_at.is_(None),
+            # Prospects are cold leads, not portfolio peers — excluding them keeps
+            # the industry average/percentile a true peer comparison.
+            Client.is_prospect.is_(False),
             func.lower(func.trim(Client.industry)) == client.industry.strip().lower(),
         )
         .group_by(GeoScore.client_id)

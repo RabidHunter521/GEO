@@ -59,7 +59,7 @@ def test_add_competitor_returns_201():
 
     mock_db = MagicMock()
     mock_db.get.return_value = fake_c
-    mock_db.query.return_value.filter.return_value.count.return_value = 0
+    mock_db.query.return_value.filter.return_value.all.return_value = []
     mock_db.refresh = MagicMock(side_effect=fake_refresh)
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
@@ -76,9 +76,14 @@ def test_add_competitor_rejects_over_limit():
     app, get_db = _make_app()
     client_id = uuid.uuid4()
     fake_c = _fake_client()
+    existing = []
+    for i in range(5):
+        c = MagicMock()
+        c.name = f"Competitor {i}"  # distinct names so the dup check doesn't trip first
+        existing.append(c)
     mock_db = MagicMock()
     mock_db.get.return_value = fake_c
-    mock_db.query.return_value.filter.return_value.count.return_value = 5
+    mock_db.query.return_value.filter.return_value.all.return_value = existing
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
     resp = http.post(

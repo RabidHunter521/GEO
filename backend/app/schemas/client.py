@@ -11,21 +11,24 @@ _EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 class ClientCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
-    website: str = Field(min_length=4, max_length=500)
+    # max_length mirrors the DB columns (String(255)); a longer value would pass
+    # validation here and then fail at INSERT.
+    website: str = Field(min_length=4, max_length=255)
     industry: str = Field(min_length=1, max_length=255)
     is_prospect: bool = False
 
 
 class ClientUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
-    website: str | None = Field(default=None, min_length=4, max_length=500)
+    website: str | None = Field(default=None, min_length=4, max_length=255)
     industry: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     target_audience: str | None = None
     city: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=255)
     country: str | None = Field(default=None, max_length=255)
-    contact_email: str | None = Field(default=None, pattern=_EMAIL_PATTERN, max_length=320)
+    # max_length mirrors the DB column (String(255)), not the RFC 320 ceiling.
+    contact_email: str | None = Field(default=None, pattern=_EMAIL_PATTERN, max_length=255)
     logo_url: str | None = Field(default=None, max_length=512)
     brand_authority_score: int | None = Field(default=None, ge=0, le=100)
     brand_authority_evidence: str | None = None

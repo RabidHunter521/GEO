@@ -13,8 +13,17 @@ MODEL = "claude-haiku-4-5-20251001"
 MODEL_NARRATIVE = "claude-sonnet-4-6"
 
 
+# Bound a single Claude call so a hung request can't pin a Celery worker. Calls
+# happen inside the scan/report flows; without this the SDK has no overall
+# deadline. SDK retries (default) are kept — they cover transient 5xx/timeouts.
+_CLAUDE_TIMEOUT_SECONDS = 60.0
+
+
 def anthropic_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    return anthropic.Anthropic(
+        api_key=settings.ANTHROPIC_API_KEY,
+        timeout=_CLAUDE_TIMEOUT_SECONDS,
+    )
 
 
 def strip_code_fences(text: str) -> str:

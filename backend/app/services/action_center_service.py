@@ -72,8 +72,11 @@ def _competitor_winning(client: Client, geo_score: GeoScore, db: Session) -> boo
 
 
 def _priority_for_impact(impact: float) -> str:
-    for priority, (lo, hi) in ACTION_PRIORITY_BANDS.items():
-        if lo <= impact <= hi:
+    # Bands are ordered high→medium→low; match on the lower bound only so a
+    # fractional impact (e.g. 5.5) between two integer bands is never dropped
+    # to "low" by an upper-bound miss.
+    for priority, (lo, _hi) in ACTION_PRIORITY_BANDS.items():
+        if impact >= lo:
             return priority
     return "low"
 

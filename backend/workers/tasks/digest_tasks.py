@@ -19,6 +19,7 @@ def send_all_weekly_digests() -> dict:
             db.query(Client)
             .filter(
                 Client.archived_at.is_(None),
+                Client.is_prospect.is_(False),
                 Client.contact_email.isnot(None),
             )
             .all()

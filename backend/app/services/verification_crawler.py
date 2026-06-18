@@ -1,8 +1,6 @@
 from urllib.parse import urlparse
 
-import httpx
-
-from app.services.url_safety import is_safe_crawl_url
+from app.services.url_safety import is_safe_crawl_url, safe_get
 
 _TIMEOUT = 10
 
@@ -19,7 +17,7 @@ def verify_llms_txt(website: str) -> bool:
         url = f"{_domain_base(website)}/llms.txt"
         if not is_safe_crawl_url(url):
             return False
-        r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
+        r = safe_get(url, timeout=_TIMEOUT)
         return r.status_code == 200 and len(r.text.strip()) > 0
     except Exception:
         return False
@@ -30,7 +28,7 @@ def verify_schema_json(website: str) -> bool:
         url = f"{_domain_base(website)}/schema.json"
         if not is_safe_crawl_url(url):
             return False
-        r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
+        r = safe_get(url, timeout=_TIMEOUT)
         if r.status_code != 200:
             return False
         r.json()
@@ -44,7 +42,7 @@ def verify_robots_txt(website: str) -> bool:
         url = f"{_domain_base(website)}/robots.txt"
         if not is_safe_crawl_url(url):
             return False
-        r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
+        r = safe_get(url, timeout=_TIMEOUT)
         if r.status_code != 200:
             return False
         return "gptbot" in r.text.lower()

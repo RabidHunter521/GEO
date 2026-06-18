@@ -80,9 +80,14 @@ def _view_platforms(platform_breakdown: dict | None) -> list[ClientViewPlatform]
 
 
 def require_share_client(
-    token: str = Path(min_length=20, max_length=64),
+    token: str = Path(...),
     db: Session = Depends(get_db),
 ) -> Client:
+    # Length is validated here (not via Path min/max) so an out-of-range token
+    # returns the same uniform 404 as a non-matching one — a 422 would reveal
+    # that the token was the "wrong length" vs "valid length, no match".
+    if not 20 <= len(token) <= 64:
+        raise HTTPException(status_code=404, detail="Not found")
     client = db.query(Client).filter(Client.share_token == token).first()
     if not client or client.archived_at is not None:
         raise HTTPException(status_code=404, detail="Not found")
@@ -206,8 +211,11 @@ def get_overview(
             for t in traffic
         ],
         change_narrative=latest_report.change_narrative if latest_report else None,
+        # period_end (the month the report was generated for) matches the PDF's
+        # own period label, which is derived from the same end-of-window date —
+        # keeps the client view and the PDF showing the same month (#23).
         change_narrative_period=(
-            latest_report.period_start.strftime("%B %Y") if latest_report else None
+            latest_report.period_end.strftime("%B %Y") if latest_report else None
         ),
         has_our_work=has_toolkit or has_activity,
         has_content_plan=has_roadmap or has_gaps,

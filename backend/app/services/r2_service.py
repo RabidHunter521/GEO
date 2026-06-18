@@ -43,19 +43,33 @@ def reset_s3_client() -> None:
         _client = None
 
 
+def _public_base() -> str:
+    """Public R2 base URL, validated. Without it we'd build a host-less link like
+    "/reports/<key>" that silently renders as a dead download button."""
+    base = settings.CLOUDFLARE_R2_PUBLIC_URL
+    if not base:
+        raise RuntimeError(
+            "CLOUDFLARE_R2_PUBLIC_URL is not configured — cannot build a public "
+            "download URL for uploaded files."
+        )
+    return base.rstrip("/")
+
+
 def upload_pdf(key: str, pdf_bytes: bytes) -> str:
     """Upload PDF bytes to R2; return public URL."""
+    public_base = _public_base()
     _s3().put_object(
         Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME,
         Key=key,
         Body=pdf_bytes,
         ContentType="application/pdf",
     )
-    return f"{settings.CLOUDFLARE_R2_PUBLIC_URL.rstrip('/')}/{key}"
+    return f"{public_base}/{key}"
 
 
 def upload_image(key: str, image_bytes: bytes, content_type: str) -> str:
     """Upload image bytes to R2; return public URL. Used for client logos."""
+    public_base = _public_base()
     _s3().put_object(
         Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME,
         Key=key,
@@ -63,7 +77,7 @@ def upload_image(key: str, image_bytes: bytes, content_type: str) -> str:
         ContentType=content_type,
         CacheControl="public, max-age=31536000",
     )
-    return f"{settings.CLOUDFLARE_R2_PUBLIC_URL.rstrip('/')}/{key}"
+    return f"{public_base}/{key}"
 
 
 def download_pdf(key: str) -> bytes:

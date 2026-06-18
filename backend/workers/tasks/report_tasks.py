@@ -35,11 +35,18 @@ def check_and_generate_due_reports() -> dict:
             db.query(Client)
             .filter(
                 Client.archived_at.is_(None),
+                Client.is_prospect.is_(False),
                 Client.contact_email.isnot(None),
             )
             .all()
         )
         for client in clients:
+            # Don't generate a second report while one is still awaiting review
+            # (unsent). Otherwise an unsent report keeps advancing the clock and
+            # duplicates pile up in R2.
+            if _has_unsent_report(client, db):
+                skipped += 1
+                continue
             if not _is_report_due(client, db):
                 skipped += 1
                 continue
@@ -60,6 +67,16 @@ def check_and_generate_due_reports() -> dict:
         return {"generated": generated, "skipped": skipped}
     finally:
         db.close()
+
+
+def _has_unsent_report(client: Client, db: Session) -> bool:
+    """True if a generated-but-not-yet-sent report is awaiting Faris's review."""
+    return (
+        db.query(Report.id)
+        .filter(Report.client_id == client.id, Report.sent_at.is_(None))
+        .first()
+        is not None
+    )
 
 
 def _is_report_due(client: Client, db: Session) -> bool:

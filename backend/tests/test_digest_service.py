@@ -60,6 +60,7 @@ def _make_client(contact_email="client@example.com", archived=False):
     c.industry = "Technology"
     c.contact_email = contact_email
     c.archived_at = datetime.utcnow() if archived else None
+    c.is_prospect = False
     return c
 
 
@@ -102,6 +103,7 @@ def test_send_client_digest_sends_email_and_returns_true():
     db = MagicMock()
     client = _make_client()
     db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None  # no recent digest
     data = _make_digest_data()
     from app.services.digest_service import send_client_digest
     with patch("app.services.digest_service._compute_digest_data", return_value=data), \
@@ -119,6 +121,7 @@ def test_send_client_digest_writes_digest_sent_activity_log_entry():
     db = MagicMock()
     client = _make_client()
     db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None  # no recent digest
     data = _make_digest_data()
     from app.services.digest_service import send_client_digest
     with patch("app.services.digest_service._compute_digest_data", return_value=data), \
@@ -135,6 +138,7 @@ def test_email_html_contains_seen_count_and_trend_message():
     db = MagicMock()
     client = _make_client()
     db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None  # no recent digest
     data = _make_digest_data()  # trend="up", seen_count=5, total_count=8
     captured = {}
     def capture(**kwargs):

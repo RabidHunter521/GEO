@@ -12,6 +12,7 @@ from app.models.client import Client
 from app.models.content_brief import ContentBrief
 from app.models.scan_query_result import ScanQueryResult
 from app.services.claude_client import anthropic_client, strip_code_fences, MODEL
+from app.services.cost_tracker import record_llm_call
 
 logger = structlog.get_logger()
 
@@ -55,6 +56,9 @@ def generate_brief_for_result(
             model=MODEL,
             max_tokens=_MAX_TOKENS,
             messages=[{"role": "user", "content": _build_prompt(client, result, competitors_seen)}],
+        )
+        record_llm_call(
+            service="content_brief", model=MODEL, response=response, client_id=client.id, db=db
         )
         payload = json.loads(strip_code_fences(response.content[0].text))
         title = str(payload["title"]).strip()

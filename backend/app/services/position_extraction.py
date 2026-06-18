@@ -6,10 +6,16 @@ ordered list ("1. Company A, 2. Company B, ..."). Returns the 1-based position
 of the brand, or None when the response is not a ranked list or the brand is
 absent. Additive to the binary brand_detected — never replaces it.
 """
+import re
+import uuid
+
 from app.services.claude_client import MODEL, anthropic_client
+from app.services.cost_tracker import record_llm_call
 
 
-def extract_position(response_text: str, brand_name: str) -> int | None:
+def extract_position(
+    response_text: str, brand_name: str, client_id: uuid.UUID | None = None
+) -> int | None:
     if not response_text:
         return None
 
@@ -33,12 +39,18 @@ Reply with a single number or the word none. Nothing else."""
         max_tokens=8,
         messages=[{"role": "user", "content": prompt}],
     )
+    # db omitted on purpose: this runs in per-platform worker threads, so it must
+    # not write through a shared session — record_llm_call opens its own.
+    record_llm_call(
+        service="position_extraction", model=MODEL, response=response, client_id=client_id
+    )
     raw = response.content[0].text.strip().lower()
     if raw.startswith("none"):
         return None
-    # pull the first integer out of the reply, ignore anything else
-    digits = "".join(c for c in raw if c.isdigit())
-    if not digits:
+    # Take the FIRST run of digits only. Joining every digit would turn a reply
+    # like "3 (out of 10)" into 310; the first integer token is the position.
+    match = re.search(r"\d+", raw)
+    if not match:
         return None
-    position = int(digits)
+    position = int(match.group())
     return position if position > 0 else None

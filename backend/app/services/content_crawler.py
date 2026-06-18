@@ -12,10 +12,9 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-import httpx
 from bs4 import BeautifulSoup
 
-from app.services.url_safety import is_safe_crawl_url
+from app.services.url_safety import is_safe_crawl_url, safe_get
 
 _TIMEOUT = 10
 _MAX_PAGES = 15
@@ -49,7 +48,7 @@ def discover_pages(website: str) -> list[str]:
     pages: list[str] = [base]
     seen = {base}
     try:
-        r = httpx.get(f"{base}/sitemap.xml", timeout=_TIMEOUT, follow_redirects=True)
+        r = safe_get(f"{base}/sitemap.xml", timeout=_TIMEOUT)
         if r.status_code == 200:
             for loc in re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", r.text, re.IGNORECASE):
                 loc = loc.strip()
@@ -83,7 +82,7 @@ def crawl_site(website: str) -> CrawlResult:
         if not is_safe_crawl_url(url):
             continue
         try:
-            r = httpx.get(url, timeout=_TIMEOUT, follow_redirects=True)
+            r = safe_get(url, timeout=_TIMEOUT)
             content_type = r.headers.get("content-type", "").lower()
             if r.status_code != 200 or "html" not in content_type:
                 continue

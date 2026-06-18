@@ -87,7 +87,11 @@ def build_client_list(db: Session) -> list[ClientListItem]:
         previous = previous_score_by_client.get(c.id)
         latest_scan = latest_scan_by_client.get(c.id)
         last_scan_at = latest.computed_at if latest else None
-        next_due = compute_next_scan_due(last_scan_at, c.scan_cadence_days)
+        # Prospects run on ad-hoc outreach scans, not a review cadence — don't
+        # surface "scan overdue" reminders for them in the portfolio overview.
+        next_due = (
+            None if c.is_prospect else compute_next_scan_due(last_scan_at, c.scan_cadence_days)
+        )
         base = ClientResponse.model_validate(c).model_dump()
         items.append(
             ClientListItem(

@@ -5,8 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
-    GEMINI_API_KEY: str
-    # Empty default = platform marked unavailable at scan time, backend still boots
+    # Empty default = platform marked unavailable at scan time, backend still boots.
+    # Consistent across all four scan platforms; per-client toggles already let a
+    # client run without any one of them (ANTHROPIC stays required — it powers the
+    # non-platform Claude features the product depends on).
+    GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     PERPLEXITY_API_KEY: str = ""
     ADMIN_API_KEY: str

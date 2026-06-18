@@ -81,6 +81,13 @@ def _coverage_score(entities: list) -> float:
     return round((covered / len(entities)) * 100, 2)
 
 
+_EMPTY_SITE_RECOMMENDATION = (
+    "We could not read any content from your website during this analysis — it may be "
+    "blocking automated access, rendering entirely with JavaScript, or temporarily "
+    "unreachable. Confirm the site is live and publicly accessible, then re-run the analysis."
+)
+
+
 def analyze_content(client: Client) -> dict:
     """Crawl the client's website and return a full content analysis payload."""
     crawl = crawl_site(client.website)
@@ -91,9 +98,45 @@ def analyze_content(client: Client) -> dict:
         words=crawl.word_count,
     )
 
+    # No readable content → don't feed an empty corpus to Claude (it would
+    # hallucinate topics from nothing). Return an explicit "couldn't read" result.
+    if crawl.pages_crawled == 0 or not crawl.text_corpus.strip():
+        logger.warning("content_crawl_empty", client_id=str(client.id), website=client.website)
+        return {
+            "topics_json": [],
+            "entities_json": [],
+            "suggested_content_json": [],
+            "entity_coverage_score": 0.0,
+            "content_metrics_json": {
+                "word_count": crawl.word_count,
+                "h1_count": crawl.h1_count,
+                "faq_count": crawl.faq_count,
+                "blog_count": crawl.blog_count,
+                "schema_present": crawl.schema_present,
+            },
+            "content_quality_recommendation": _EMPTY_SITE_RECOMMENDATION,
+            "pages_crawled": crawl.pages_crawled,
+        }
+
+    # Each sub-call degrades independently: one failing Claude call (e.g. invalid
+    # JSON) must not abort the whole analysis.
+    def _safe_topics_entities():
+        try:
+            return _topics_entities(client, crawl.text_corpus)
+        except Exception:
+            logger.warning("topics_entities_failed", client_id=str(client.id))
+            return {"topics": [], "entities": []}
+
+    def _safe_recommendation():
+        try:
+            return _quality_recommendation(client, crawl)
+        except Exception:
+            logger.warning("quality_recommendation_failed", client_id=str(client.id))
+            return ""
+
     with ThreadPoolExecutor(max_workers=2) as executor:
-        te_future = executor.submit(_topics_entities, client, crawl.text_corpus)
-        rec_future = executor.submit(_quality_recommendation, client, crawl)
+        te_future = executor.submit(_safe_topics_entities)
+        rec_future = executor.submit(_safe_recommendation)
         topics_entities = te_future.result()
         recommendation = rec_future.result()
 

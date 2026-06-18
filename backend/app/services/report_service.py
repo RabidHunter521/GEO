@@ -1,3 +1,4 @@
+import html
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -337,6 +338,15 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     _, tf_color = get_score_band(data.technical_foundations)
     _, sd_color = get_score_band(data.structured_data)
 
+    # Escape every free-text field (client name, admin evidence notes, Claude
+    # narrative/recommendation, competitor names) before it enters the report
+    # HTML — a stray '<' or '&' in an evidence note must not break the PDF.
+    safe_name = html.escape(client.name)
+    safe_recommendation = html.escape(data.recommendation or "")
+    safe_narrative = html.escape(data.change_narrative or "")
+    safe_ba_evidence = html.escape(data.brand_authority_evidence) if data.brand_authority_evidence else ""
+    safe_cq_evidence = html.escape(data.content_quality_evidence) if data.content_quality_evidence else ""
+
     trend_colors = {"up": "#16a34a", "down": "#dc2626", "flat": "#6b7280", "first": "#6b7280"}
     trend_color = trend_colors[data.trend]
     if data.trend == "up":
@@ -351,7 +361,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     if data.competitors:
         comp_rows = "".join(
             f"""<tr>
-              <td>{c.name}</td>
+              <td>{html.escape(c.name)}</td>
               <td class="{_score_css(get_score_band(c.ai_citability)[1])}">{c.ai_citability:.0f}%</td>
               <td>{"<span class='badge-red'>Winning</span>" if c.is_winning else "<span class='badge-green'>You are ahead</span>"}</td>
             </tr>"""
@@ -419,7 +429,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
   <div class="cover page-break">
     <div class="logo">SeenBy</div>
     <div style="font-size:11pt;color:#64748b;margin-top:4px;">AI Visibility Intelligence</div>
-    <div class="cover-client">{client.name}</div>
+    <div class="cover-client">{safe_name}</div>
     <div class="cover-period">AI Visibility Report &middot; {data.period_label}</div>
     <div style="margin-top:56px;">
       <div class="score-box">
@@ -457,13 +467,13 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         <td>Brand Authority</td>
         <td class="{_score_css(ba_color)}">{data.brand_authority:.0f}</td>
         <td>20%</td><td>{data.brand_authority * 0.20:.1f}</td>
-        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {data.brand_authority_evidence}" if data.brand_authority_evidence else ""}</div></td>
+        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {safe_ba_evidence}" if safe_ba_evidence else ""}</div></td>
       </tr>
       <tr>
         <td>Content Quality</td>
         <td class="{_score_css(cq_color)}">{data.content_quality:.0f}</td>
         <td>20%</td><td>{data.content_quality * 0.20:.1f}</td>
-        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {data.content_quality_evidence}" if data.content_quality_evidence else ""}</div></td>
+        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {safe_cq_evidence}" if safe_cq_evidence else ""}</div></td>
       </tr>
       <tr>
         <td>Technical Foundations</td>
@@ -485,7 +495,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     <div class="stat-label">Seen by AI</div>
     <div class="stat-value">{data.seen_count}/{data.total_count}</div>
     <div class="stat-sub">
-      {client.name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.
+      {safe_name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.
     </div>
   </div>
 {platform_section}{traffic_section}
@@ -494,7 +504,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     <thead><tr><th>Name</th><th>AI Citability</th><th>Status</th></tr></thead>
     <tbody>
       <tr>
-        <td><strong>{client.name} (You)</strong></td>
+        <td><strong>{safe_name} (You)</strong></td>
         <td class="{_score_css(ai_color)}">{data.ai_citability:.0f}%</td>
         <td>&mdash;</td>
       </tr>
@@ -514,12 +524,12 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
   {f'''<h2>What Changed This Month</h2>
   <div class="rec-box">
-    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{data.change_narrative}</p>
-  </div>''' if data.change_narrative else ""}
+    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{safe_narrative}</p>
+  </div>''' if safe_narrative else ""}
 
   <h2>Recommended Action</h2>
   <div class="rec-box">
-    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{data.recommendation}</p>
+    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{safe_recommendation}</p>
   </div>
 
   <p style="margin-top:40px;font-size:9pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px;">
@@ -536,14 +546,30 @@ def generate_report_pdf(client_id: uuid.UUID, db: Session) -> Report | None:
     client = db.get(Client, client_id)
     if not client or client.archived_at is not None:
         return None
+    # Monthly PDF reports are a paying-client deliverable; the client view also
+    # gates the /reports tab behind non-prospect. Never auto- or manually
+    # generate one for a prospect.
+    if client.is_prospect:
+        logger.info("report_skipped_prospect", client_id=str(client_id))
+        return None
 
     data = _gather_report_data(client, db)
     if data is None:
         logger.warning("no_scan_data_for_report", client_id=str(client_id))
         return None
 
-    html = _build_report_html(client, data)
-    pdf_bytes = weasyprint.HTML(string=html).write_pdf()
+    if weasyprint is None:
+        # The import guard sets weasyprint=None when GTK/Pango native libs are
+        # unavailable (e.g. a bare Windows box). Fail loudly instead of an opaque
+        # AttributeError so the cause — a missing system dependency — is clear.
+        raise RuntimeError(
+            "WeasyPrint native libraries are not available — cannot render PDF reports "
+            "on this host. Install the GTK/Pango runtime or generate reports on a worker "
+            "that has it."
+        )
+
+    report_html = _build_report_html(client, data)
+    pdf_bytes = weasyprint.HTML(string=report_html).write_pdf()
 
     key = f"reports/{client_id}/{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
     r2_url = upload_pdf(key, pdf_bytes)
@@ -604,6 +630,7 @@ def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
 
 
 def _build_report_email_html(client: Client, report: Report, period_label: str) -> str:
+    safe_name = html.escape(client.name)
     view_url = get_share_link_url(client)
     dashboard_button = ""
     if view_url:
@@ -635,7 +662,7 @@ def _build_report_email_html(client: Client, report: Report, period_label: str) 
         </td></tr>
         <tr><td style="padding:32px;">
           <h2 style="margin:0 0 8px;font-size:18px;color:#0f172a;">
-            {client.name} &mdash; {period_label} Report
+            {safe_name} &mdash; {period_label} Report
           </h2>
           <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
             Your monthly AI Visibility Report is attached as a PDF. Open it to review

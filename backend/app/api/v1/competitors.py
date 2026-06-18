@@ -126,9 +126,20 @@ def add_competitor(
     body: CompetitorCreate,
     db: Session = Depends(get_db),
 ):
-    _get_client_or_404(client_id, db)
-    count = db.query(Competitor).filter(Competitor.client_id == client_id).count()
-    if count >= MAX_COMPETITORS:
+    client = _get_client_or_404(client_id, db)
+    new_name = body.name.strip()
+    if new_name.casefold() == (client.name or "").strip().casefold():
+        raise HTTPException(
+            status_code=422,
+            detail="A competitor cannot have the same name as the client.",
+        )
+    existing = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+    if any(c.name.strip().casefold() == new_name.casefold() for c in existing):
+        raise HTTPException(
+            status_code=422,
+            detail=f"'{new_name}' is already tracked as a competitor.",
+        )
+    if len(existing) >= MAX_COMPETITORS:
         raise HTTPException(
             status_code=422,
             detail=f"Maximum {MAX_COMPETITORS} competitors per client",

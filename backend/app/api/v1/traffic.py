@@ -38,9 +38,14 @@ def list_traffic(client_id: uuid.UUID, db: Session = Depends(get_db)):
 def upsert_traffic(client_id: uuid.UUID, body: AiTrafficSnapshotUpsert, db: Session = Depends(get_db)):
     _get_client_or_404(client_id, db)
 
+    # Snapshots are monthly; normalize to the first of the month so two entries
+    # for the same month collapse to one and the report's first-of-month lookup
+    # (report_service) always finds them.
+    period = body.period.replace(day=1)
+
     snapshot = (
         db.query(AiTrafficSnapshot)
-        .filter(AiTrafficSnapshot.client_id == client_id, AiTrafficSnapshot.period == body.period)
+        .filter(AiTrafficSnapshot.client_id == client_id, AiTrafficSnapshot.period == period)
         .first()
     )
     if snapshot:
@@ -49,7 +54,7 @@ def upsert_traffic(client_id: uuid.UUID, body: AiTrafficSnapshotUpsert, db: Sess
     else:
         snapshot = AiTrafficSnapshot(
             client_id=client_id,
-            period=body.period,
+            period=period,
             ai_visitors=body.ai_visitors,
         )
         db.add(snapshot)
@@ -57,7 +62,7 @@ def upsert_traffic(client_id: uuid.UUID, body: AiTrafficSnapshotUpsert, db: Sess
     db.add(ActivityLog(
         client_id=client_id,
         event_type="traffic_updated",
-        note=f"AI referral traffic for {body.period.strftime('%B %Y')} set to {body.ai_visitors} visitors.",
+        note=f"AI referral traffic for {period.strftime('%B %Y')} set to {body.ai_visitors} visitors.",
     ))
     db.commit()
     db.refresh(snapshot)

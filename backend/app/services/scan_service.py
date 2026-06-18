@@ -88,7 +88,7 @@ def _run_platform_queries(
         position = None
         if detected and q["category"] in _RANKED_CATEGORIES:
             try:
-                position = extract_position(response_text, client.name)
+                position = extract_position(response_text, client.name, client_id=client.id)
             except Exception as exc:
                 logger.error(
                     "position_extraction_failed",

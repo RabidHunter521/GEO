@@ -19,3 +19,24 @@ def test_partial_word_not_matched():
 
 def test_empty_response_returns_false():
     assert detect_brand_mention("", "ACME Corp") is False
+
+
+def test_short_brand_not_matched_inside_word():
+    # "Ace" must not match inside "surface" or "Acme" (boundary-aware).
+    assert detect_brand_mention("The surface was clean and Acme shipped it.", "Ace") is False
+
+
+def test_short_brand_matched_as_whole_word():
+    assert detect_brand_mention("We hired Ace for the job.", "Ace") is True
+
+
+def test_brand_with_trailing_punctuation_matches():
+    assert detect_brand_mention("I use Yahoo! every day.", "Yahoo!") is True
+
+
+def test_brand_with_ampersand_matches():
+    assert detect_brand_mention("Call AT&T for service.", "AT&T") is True
+
+
+def test_blank_brand_returns_false():
+    assert detect_brand_mention("Some text.", "   ") is False

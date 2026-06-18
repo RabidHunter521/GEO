@@ -23,7 +23,7 @@ def test_discover_pages_includes_homepage_and_caps_at_15():
     locs = "".join(f"<loc>https://acme.com/p{i}</loc>" for i in range(30))
     sitemap = _resp(text=f"<urlset>{locs}</urlset>")
 
-    with patch("app.services.content_crawler.httpx.get", return_value=sitemap):
+    with patch("app.services.content_crawler.safe_get", return_value=sitemap):
         pages = discover_pages("https://acme.com")
 
     assert pages[0] == "https://acme.com"
@@ -34,7 +34,7 @@ def test_discover_pages_skips_external_domains():
     sitemap = _resp(
         text="<urlset><loc>https://acme.com/a</loc><loc>https://evil.com/b</loc></urlset>"
     )
-    with patch("app.services.content_crawler.httpx.get", return_value=sitemap):
+    with patch("app.services.content_crawler.safe_get", return_value=sitemap):
         pages = discover_pages("https://acme.com")
 
     assert "https://evil.com/b" not in pages
@@ -42,7 +42,7 @@ def test_discover_pages_skips_external_domains():
 
 
 def test_discover_pages_survives_missing_sitemap():
-    with patch("app.services.content_crawler.httpx.get", side_effect=Exception("404")):
+    with patch("app.services.content_crawler.safe_get", side_effect=Exception("404")):
         pages = discover_pages("https://acme.com")
     assert pages == ["https://acme.com"]
 
@@ -67,7 +67,7 @@ def test_crawl_site_aggregates_metrics():
             "<p>We sell solar panels and inverters</p></body></html>"
         )
 
-    with patch("app.services.content_crawler.httpx.get", side_effect=dispatch):
+    with patch("app.services.content_crawler.safe_get", side_effect=dispatch):
         result = crawl_site("https://acme.com")
 
     # homepage + blog post + faq page
@@ -87,7 +87,7 @@ def test_crawl_site_skips_non_html_and_errors():
             return _resp(text="{}", content_type="application/json")
         return _resp(text="<html><body><h1>Home</h1></body></html>")
 
-    with patch("app.services.content_crawler.httpx.get", side_effect=dispatch):
+    with patch("app.services.content_crawler.safe_get", side_effect=dispatch):
         result = crawl_site("https://acme.com")
 
     # only the homepage counts; the JSON page is skipped

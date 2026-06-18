@@ -10,9 +10,11 @@ const SCORE_BANDS: Array<ScoreBand & { min: number; max: number }> = [
 ]
 
 export function getScoreBand(score: number): ScoreBand & { min: number; max: number } {
-  return (
-    SCORE_BANDS.find((b) => score >= b.min && score <= b.max) ?? SCORE_BANDS[4]
-  )
+  // Bands are ordered best→worst, so the first band whose `min` the score
+  // clears is the correct one. Matching on `min` alone (not `<= max`) avoids
+  // dropping a fractional score like 79.5 — which clears no band's integer
+  // `max` — through to the "low" fallback.
+  return SCORE_BANDS.find((b) => score >= b.min) ?? SCORE_BANDS[4]
 }
 
 // Score color is a simple 3-band traffic-light, independent of the named
