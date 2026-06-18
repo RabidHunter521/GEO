@@ -63,6 +63,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [archiving, setArchiving] = useState(false)
+  const [platformWarning, setPlatformWarning] = useState(false)
 
   useEffect(() => {
     if (!isDirty) return
@@ -85,9 +86,14 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   function togglePlatform(platform: Platform) {
     setEnabledPlatforms((prev) => {
       if (prev.includes(platform)) {
-        if (prev.length === 1) return prev // at least one platform must stay enabled
+        if (prev.length === 1) {
+          setPlatformWarning(true)
+          return prev
+        }
+        setPlatformWarning(false)
         return prev.filter((p) => p !== platform)
       }
+      setPlatformWarning(false)
       return SCAN_PLATFORMS.filter((p) => prev.includes(p) || p === platform)
     })
     setIsDirty(true)
@@ -485,6 +491,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             AI platforms queried on every scan. At least one must stay enabled — fewer platforms
             means lower scan cost but a narrower visibility picture.
           </p>
+          {platformWarning && (
+            <p className="text-xs text-destructive mt-1">
+              At least one platform must stay enabled.
+            </p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {SCAN_PLATFORMS.map((p) => {

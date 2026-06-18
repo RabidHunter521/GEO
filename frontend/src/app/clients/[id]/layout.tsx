@@ -3,8 +3,8 @@ import { notFound } from "next/navigation"
 import { ExternalLink } from "lucide-react"
 import { getClient } from "@/lib/api"
 
-function initials(name: string) {
-  return name
+function initials(name: string | null | undefined) {
+  return (name ?? "")
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
@@ -25,6 +25,7 @@ export default async function ClientLayout({
   } catch {
     notFound()
   }
+  if (!client) notFound()
 
   const host = client.website?.replace(/^https?:\/\//, "").replace(/\/$/, "")
 

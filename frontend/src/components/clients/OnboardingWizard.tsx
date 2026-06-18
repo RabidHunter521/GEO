@@ -78,6 +78,14 @@ export function OnboardingWizard({ onClose }: Props) {
       setError("Please select an industry.")
       return
     }
+    if (website) {
+      try {
+        new URL(website)
+      } catch {
+        setError("Please enter a valid website URL (e.g. https://example.com).")
+        return
+      }
+    }
     setLoading(true)
     setError(null)
     try {
