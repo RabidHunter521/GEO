@@ -323,6 +323,83 @@ def test_generate_report_pdf_persists_narrative_on_report():
     assert reports and reports[0].change_narrative == "Narrative for the month."
 
 
+# ── Score Trend chart ─────────────────────────────────────────────────────────
+
+def test_build_report_html_renders_trend_chart_with_history():
+    from app.services.report_service import _build_report_html, TrendPoint
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.score_history = [
+        TrendPoint(label="1 Apr", score=42.0, color="yellow"),
+        TrendPoint(label="1 May", score=58.0, color="yellow"),
+    ]
+    html = _build_report_html(client, data)
+    assert "Score Trend" in html
+    assert "<svg" in html
+    assert "1 Apr" in html and "1 May" in html
+
+
+def test_build_report_html_omits_trend_chart_with_single_point():
+    from app.services.report_service import _build_report_html, TrendPoint
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.score_history = [TrendPoint(label="1 May", score=58.0, color="yellow")]
+    html = _build_report_html(client, data)
+    assert "Score Trend" not in html
+
+
+# ── Content Gaps ──────────────────────────────────────────────────────────────
+
+def test_build_report_html_renders_content_gaps():
+    from app.services.report_service import _build_report_html, ContentGap
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.content_gaps = [
+        ContentGap(query_text="Best dentist in KL", platform="ChatGPT", competitors_seen=["Rival Co"]),
+    ]
+    html = _build_report_html(client, data)
+    assert "Your Competitors Are Winning Here" in html
+    assert "Best dentist in KL" in html
+    assert "Rival Co" in html
+
+
+def test_build_report_html_omits_content_gaps_when_empty():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.content_gaps = []
+    html = _build_report_html(client, data)
+    assert "Your Competitors Are Winning Here" not in html
+
+
+# ── Hallucinations ────────────────────────────────────────────────────────────
+
+def test_build_report_html_renders_hallucinations_query_only():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.hallucinations = [("Perplexity", "Does Acme Corp offer 24/7 support?")]
+    html = _build_report_html(client, data)
+    assert "Inaccurate AI Answers Flagged" in html
+    assert "Does Acme Corp offer 24/7 support?" in html
+    assert "Perplexity" in html
+
+
+def test_build_report_html_omits_hallucinations_when_none():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.hallucinations = []
+    html = _build_report_html(client, data)
+    assert "Inaccurate AI Answers Flagged" not in html
+
+
 # ── send_report_email ─────────────────────────────────────────────────────────
 
 def _make_mock_report(sent_at=None):

@@ -32,7 +32,13 @@ from app.services.claude_action import get_digest_action
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
 from app.services.share_link_service import get_share_link_url
 from app.services.cost_tracker import record_llm_call
+from app.services.win_loss_service import compute_win_loss
 from app.prompts.report import build_change_narrative
+
+# Max competitor-won topics surfaced in the Content Gaps section.
+_CONTENT_GAP_LIMIT = 3
+# Max history points plotted in the Score Trend chart (most recent N scans).
+_TREND_HISTORY_LIMIT = 6
 
 logger = structlog.get_logger()
 
@@ -100,6 +106,21 @@ class CompetitorSummary:
 
 
 @dataclass
+class ContentGap:
+    """A neutral-intent query where a competitor was seen by AI but the client was not."""
+    query_text: str
+    platform: str
+    competitors_seen: list[str]
+
+
+@dataclass
+class TrendPoint:
+    label: str
+    score: float
+    color: str
+
+
+@dataclass
 class ReportData:
     period_start: datetime
     period_end: datetime
@@ -127,6 +148,9 @@ class ReportData:
     ai_visitors_prev: int | None = None
     platform_breakdown: dict | None = None
     change_narrative: str = ""
+    score_history: list[TrendPoint] = field(default_factory=list)
+    hallucinations: list[tuple[str, str]] = field(default_factory=list)
+    content_gaps: list[ContentGap] = field(default_factory=list)
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -204,6 +228,46 @@ def _score_css(color: str) -> str:
 
 def _verified_badge(verified: bool) -> str:
     return '<span class="badge-green">Verified</span>' if verified else '<span class="badge-red">Not Verified</span>'
+
+
+_TREND_HEX = {"green": "#16a34a", "yellow": "#ca8a04", "red": "#dc2626"}
+
+
+def _build_trend_svg(history: list["TrendPoint"]) -> str:
+    """Inline SVG bar chart of overall score over the last few scans.
+
+    WeasyPrint renders inline SVG, so this needs no JS or external image. Bars
+    are coloured by each score's traffic-light band; value sits above, the scan
+    date below.
+    """
+    width, height = 500, 200
+    pad_top, pad_bottom = 28, 28
+    plot_h = height - pad_top - pad_bottom
+    n = len(history)
+    slot = width / n
+    bar_w = min(56.0, slot * 0.55)
+
+    bars: list[str] = []
+    for i, pt in enumerate(history):
+        cx = slot * i + slot / 2
+        bar_h = max(2.0, (pt.score / 100.0) * plot_h)
+        y = pad_top + (plot_h - bar_h)
+        hex_color = _TREND_HEX.get(pt.color, "#dc2626")
+        bars.append(
+            f'<rect x="{cx - bar_w / 2:.1f}" y="{y:.1f}" width="{bar_w:.1f}" '
+            f'height="{bar_h:.1f}" rx="4" fill="{hex_color}" />'
+            f'<text x="{cx:.1f}" y="{y - 6:.1f}" text-anchor="middle" '
+            f'font-size="13" font-weight="700" fill="#0f172a">{pt.score:.0f}</text>'
+            f'<text x="{cx:.1f}" y="{height - 8:.1f}" text-anchor="middle" '
+            f'font-size="10" fill="#64748b">{html.escape(pt.label)}</text>'
+        )
+    return (
+        f'<svg viewBox="0 0 {width} {height}" width="100%" '
+        f'xmlns="http://www.w3.org/2000/svg" role="img">'
+        f'<line x1="0" y1="{height - pad_bottom}" x2="{width}" '
+        f'y2="{height - pad_bottom}" stroke="#e2e8f0" stroke-width="1" />'
+        f'{"".join(bars)}</svg>'
+    )
 
 
 def _gather_report_data(client: Client, db: Session) -> ReportData | None:
@@ -300,6 +364,54 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         .first()
     )
 
+    # ── Score Trend — last N computed scores, oldest first ──────────────────
+    history_scores = (
+        db.query(GeoScore)
+        .filter(GeoScore.client_id == client.id)
+        .order_by(desc(GeoScore.computed_at))
+        .limit(_TREND_HISTORY_LIMIT)
+        .all()
+    )
+    score_history = [
+        TrendPoint(
+            label=f"{gs.computed_at.day} {gs.computed_at.strftime('%b')}",
+            score=gs.overall_score,
+            color=get_score_band(gs.overall_score)[1],
+        )
+        for gs in reversed(history_scores)
+    ]
+
+    # ── Hallucinations — admin-flagged incorrect AI answers about the client ──
+    # Client-safe: surface only platform + query. The raw AI response is never
+    # exposed to a client surface (CLAUDE.md §8).
+    hallucinated = (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == latest_scan.id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.hallucination_flagged.is_(True),
+        )
+        .order_by(ScanQueryResult.created_at)
+        .all()
+    )
+    hallucinations = [
+        (PLATFORM_LABELS.get(r.platform, r.platform.title()), r.query_text)
+        for r in hallucinated
+    ]
+
+    # ── Content Gaps — neutral-intent queries a competitor won and client lost ─
+    content_gaps: list[ContentGap] = []
+    win_loss = compute_win_loss(client.id, db)
+    for entry in win_loss.entries:
+        if entry.outcome == "lost":
+            content_gaps.append(ContentGap(
+                query_text=entry.query_text,
+                platform=PLATFORM_LABELS.get(entry.platform, entry.platform.title()),
+                competitors_seen=entry.competitors_seen,
+            ))
+        if len(content_gaps) >= _CONTENT_GAP_LIMIT:
+            break
+
     data = ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
@@ -326,6 +438,9 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         ai_visitors_current=current_traffic.ai_visitors if current_traffic else None,
         ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
         platform_breakdown=current_gs.platform_breakdown,
+        score_history=score_history,
+        hallucinations=hallucinations,
+        content_gaps=content_gaps,
     )
     data.change_narrative = _generate_change_narrative(data, client_id=client.id, db=db)
     return data
@@ -416,6 +531,65 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         platform_section = ""
 
+    # ── Score Trend chart — needs at least two scans to show movement ────────
+    if len(data.score_history) >= 2:
+        trend_section = f"""
+  <h2>Score Trend</h2>
+  <p style="font-size:10pt;color:#64748b;margin:0 0 8px;">
+    Your overall GEO Score across recent scans.
+  </p>
+  <div class="stat-box" style="padding:12px 16px;">{_build_trend_svg(data.score_history)}</div>
+"""
+    else:
+        trend_section = ""
+
+    # ── Content Gaps — competitor-won, client-lost neutral-intent queries ────
+    if data.content_gaps:
+        gap_rows = "".join(
+            f"""<tr>
+              <td>{html.escape(g.query_text)}</td>
+              <td>{html.escape(", ".join(g.competitors_seen)) or "&mdash;"}</td>
+              <td>{html.escape(g.platform)}</td>
+            </tr>"""
+            for g in data.content_gaps
+        )
+        content_gap_section = f"""
+  <h2>Your Competitors Are Winning Here</h2>
+  <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">
+    {len(data.content_gaps)} question{"s" if len(data.content_gaps) != 1 else ""} where AI recommended a competitor but not {safe_name}.
+    Each is a content opportunity to win back.
+  </p>
+  <table>
+    <thead><tr><th>When people ask AI</th><th>AI recommends</th><th>Platform</th></tr></thead>
+    <tbody>{gap_rows}</tbody>
+  </table>
+"""
+    else:
+        content_gap_section = ""
+
+    # ── Hallucinations — admin-flagged inaccurate AI answers (query only) ─────
+    if data.hallucinations:
+        hallu_rows = "".join(
+            f"""<tr>
+              <td>{html.escape(platform)}</td>
+              <td>{html.escape(query)}</td>
+            </tr>"""
+            for platform, query in data.hallucinations
+        )
+        hallucination_section = f"""
+  <h2>Inaccurate AI Answers Flagged</h2>
+  <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">
+    AI platforms gave inaccurate information about {safe_name} in response to these questions this period.
+    Our team has flagged each one so we can work to correct the record.
+  </p>
+  <table>
+    <thead><tr><th>Platform</th><th>Question asked</th></tr></thead>
+    <tbody>{hallu_rows}</tbody>
+  </table>
+"""
+    else:
+        hallucination_section = ""
+
     generated_date = datetime.utcnow().strftime("%d %B %Y")
 
     return f"""<!DOCTYPE html>
@@ -450,7 +624,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     <div class="stat-value">{data.overall_score:.0f} <span style="font-size:14pt;color:#64748b;">/ 100</span></div>
     <div class="stat-sub">{data.score_band.title()} band</div>
   </div>
-
+{trend_section}
   <h2>Score Breakdown</h2>
   <table>
     <thead>
@@ -511,7 +685,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
       {comp_rows}
     </tbody>
   </table>
-
+{content_gap_section}{hallucination_section}
   <h2>AI Readiness Toolkit</h2>
   <table>
     <thead><tr><th>File</th><th>Status</th></tr></thead>
