@@ -5,11 +5,17 @@ return a uniform 404 so responses never reveal which state applies. Every
 endpoint is read-only and serializes through the client_view whitelist
 schemas; raw AI responses and internal fields never reach this surface.
 """
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from app.core.constants import PLATFORM_LABELS
+from app.core.constants import (
+    PLATFORM_LABELS,
+    CLIENT_VIEW_STALE_AFTER_DAYS,
+    REMEDIATION_STATUS_LABELS,
+)
 from app.core.database import get_db
 from app.core.rate_limit import rate_limit
 from app.models.client import Client
@@ -23,6 +29,7 @@ from app.models.toolkit_files import ToolkitFiles
 from app.models.content_roadmap import ContentRoadmap
 from app.models.content_analysis import ContentAnalysis
 from app.models.activity_log import ActivityLog
+from app.models.remediation_item import RemediationItem
 from app.schemas.client_view import (
     ClientViewBenchmark,
     ClientViewCompetitorTrends,
@@ -49,8 +56,12 @@ from app.schemas.client_view import (
     ClientViewEntity,
     ClientViewSuggestedContent,
     ClientViewActivity,
+    ClientViewTrafficValue,
+    ClientViewProgressItem,
 )
 from app.services.benchmark_service import compute_industry_benchmark
+from app.services.revenue_service import estimate_pipeline
+from app.services.remediation_service import get_remediation_items
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
     compute_competitor_trends,
@@ -77,6 +88,13 @@ def _view_platforms(platform_breakdown: dict | None) -> list[ClientViewPlatform]
             visibility_frequency=None if unavailable else entry.get("visibility", 0.0),
         ))
     return platforms
+
+
+# Client-facing label for each remediation kind (never the internal item_type).
+_REMEDIATION_TYPE_LABELS: dict[str, str] = {
+    "hallucination": "Inaccurate AI answer",
+    "content_gap": "Competitor winning",
+}
 
 
 def require_share_client(
@@ -178,6 +196,34 @@ def get_overview(
         is not None
     )
 
+    # Latest-month AI-referral pipeline value (the one money number). traffic is
+    # ordered period-ascending, so the last element is the most recent month.
+    traffic_value = None
+    if traffic:
+        latest_traffic = traffic[-1]
+        est = estimate_pipeline(latest_traffic.ai_visitors, client)
+        traffic_value = ClientViewTrafficValue(
+            period=latest_traffic.period,
+            ai_visitors=latest_traffic.ai_visitors,
+            est_leads=est.est_leads if est else None,
+            est_pipeline_rm=est.est_pipeline_rm if est else None,
+            est_won_rm=est.est_won_rm if est else None,
+        )
+
+    # Freshness — driven by the client's review cadence (a reminder; nothing
+    # auto-scans). Stale only flips once the score is older than the threshold.
+    last_checked_at = latest.computed_at if latest else None
+    next_check_due = None
+    is_stale = False
+    if last_checked_at:
+        next_check_due = (last_checked_at + timedelta(days=client.scan_cadence_days)).date()
+        is_stale = (datetime.utcnow() - last_checked_at).days >= CLIENT_VIEW_STALE_AFTER_DAYS
+
+    has_progress = (
+        db.query(RemediationItem.id).filter(RemediationItem.client_id == client.id).first()
+        is not None
+    )
+
     return ClientViewOverview(
         profile=ClientViewProfile(
             name=client.name,
@@ -219,7 +265,35 @@ def get_overview(
         ),
         has_our_work=has_toolkit or has_activity,
         has_content_plan=has_roadmap or has_gaps,
+        traffic_value=traffic_value,
+        has_progress=has_progress,
+        last_checked_at=last_checked_at,
+        next_check_due=next_check_due,
+        is_stale=is_stale,
     )
+
+
+@router.get("/progress", response_model=list[ClientViewProgressItem])
+def get_progress(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    """The remediation loop, client-safe: tracked hallucinations and competitor-won
+    queries with their Flagged -> In progress -> Corrected status. Proof of the
+    work behind the retainer."""
+    items = get_remediation_items(client.id, db, include_corrected=True)
+    return [
+        ClientViewProgressItem(
+            item_type=i.item_type,
+            type_label=_REMEDIATION_TYPE_LABELS.get(i.item_type, "Tracked issue"),
+            platform_label=_platform_label(i.platform) if i.platform else None,
+            label=i.label,
+            detail=i.detail,
+            status=i.status,
+            status_label=REMEDIATION_STATUS_LABELS.get(i.status, i.status.title()),
+        )
+        for i in items
+    ]
 
 
 @router.get("/scan", response_model=ClientViewScan)

@@ -147,6 +147,23 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
     const fd = new FormData(e.currentTarget)
     setError(null)
     setSaved(false)
+
+    // A manual dimension score must never appear "naked" to the client — require
+    // an evidence line whenever a score is set above 0 (mirrors the backend rule).
+    const baScore = Number(fd.get("brand_authority_score") || 0)
+    const baEvidence = ((fd.get("brand_authority_evidence") as string) || "").trim()
+    if (baScore > 0 && !baEvidence) {
+      setError("Add a short evidence note for the Brand Authority score — it must never appear to the client without a reason.")
+      return
+    }
+    const cqScore = Number(fd.get("content_quality_score") || 0)
+    const cqEvidence = ((fd.get("content_quality_evidence") as string) || "").trim()
+    if (cqScore > 0 && !cqEvidence) {
+      setError("Add a short evidence note for the Content Quality score — it must never appear to the client without a reason.")
+      return
+    }
+
+    const dealRaw = (fd.get("avg_deal_value_rm") as string) ?? ""
     startTransition(async () => {
       try {
         await updateClientAction(client.id, {
@@ -173,12 +190,23 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           scan_cadence_days: fd.get("scan_cadence_days")
             ? Number(fd.get("scan_cadence_days"))
             : undefined,
+          // Empty deal value clears it (null); presence sets it. Conversion
+          // percentages always send a number (default to current).
+          avg_deal_value_rm: dealRaw.trim() === "" ? null : Number(dealRaw),
+          visitor_to_lead_pct: fd.get("visitor_to_lead_pct")
+            ? Number(fd.get("visitor_to_lead_pct"))
+            : undefined,
+          lead_to_customer_pct: fd.get("lead_to_customer_pct")
+            ? Number(fd.get("lead_to_customer_pct"))
+            : undefined,
           enabled_platforms: enabledPlatforms,
         })
         setSaved(true)
         setIsDirty(false)
-      } catch {
-        setError("Failed to save. Please try again.")
+      } catch (err) {
+        // Surface the backend's specific message (e.g. the evidence rule) instead
+        // of a generic failure when one is available.
+        setError(err instanceof Error ? err.message : "Failed to save. Please try again.")
       }
     })
   }
@@ -442,7 +470,10 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <Label htmlFor="s-authority-evidence">Brand Authority — why this score? (optional)</Label>
+            <Label htmlFor="s-authority-evidence">
+              Brand Authority — why this score?{" "}
+              <span className="text-muted-foreground">(required when score &gt; 0)</span>
+            </Label>
             <Textarea
               id="s-authority-evidence"
               name="brand_authority_evidence"
@@ -450,9 +481,15 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               placeholder="e.g. 150 Google reviews, featured in The Star, active LinkedIn page"
               defaultValue={client.brand_authority_evidence ?? ""}
             />
+            <p className="text-xs text-muted-foreground">
+              Shown to the client under &ldquo;Assessed by SeenBy team&rdquo; — never leave it blank with a score set.
+            </p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="s-content-evidence">Content Quality — why this score? (optional)</Label>
+            <Label htmlFor="s-content-evidence">
+              Content Quality — why this score?{" "}
+              <span className="text-muted-foreground">(required when score &gt; 0)</span>
+            </Label>
             <Textarea
               id="s-content-evidence"
               name="content_quality_evidence"
@@ -460,6 +497,9 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               placeholder="e.g. Blog publishes weekly, FAQ page present, thin product descriptions"
               defaultValue={client.content_quality_evidence ?? ""}
             />
+            <p className="text-xs text-muted-foreground">
+              Shown to the client under &ldquo;Assessed by SeenBy team&rdquo; — never leave it blank with a score set.
+            </p>
           </div>
         </div>
 
@@ -667,6 +707,64 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             ))}
           </ul>
         )}
+
+        {/* Pipeline value inputs — turn AI visitors into the one RM number the
+            client sees. Saved with the main form (Save changes below). */}
+        <div className="rounded-md border bg-muted/10 p-4 space-y-3">
+          <div className="flex items-center gap-1">
+            <p className="text-sm font-medium">Pipeline value estimate</p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 text-sm">
+                Turns monthly AI visitors into an estimated RM pipeline on the client report:
+                visitors × visitor-to-lead % × deal value = pipeline; × close rate = estimated won.
+                Leave deal value blank to show visitor counts only (no RM).
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="s-deal-value">Avg deal value (RM)</Label>
+              <Input
+                id="s-deal-value"
+                name="avg_deal_value_rm"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 5000"
+                defaultValue={client.avg_deal_value_rm ?? ""}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="s-v2l">Visitor → lead (%)</Label>
+              <Input
+                id="s-v2l"
+                name="visitor_to_lead_pct"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                defaultValue={client.visitor_to_lead_pct}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="s-l2c">Close rate (%)</Label>
+              <Input
+                id="s-l2c"
+                name="lead_to_customer_pct"
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                defaultValue={client.lead_to_customer_pct}
+              />
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* Save footer */}

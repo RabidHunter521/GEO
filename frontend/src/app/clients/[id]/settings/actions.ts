@@ -24,6 +24,9 @@ export async function updateClientAction(
     content_quality_evidence?: string
     score_drop_threshold?: number
     scan_cadence_days?: number
+    avg_deal_value_rm?: number | null
+    visitor_to_lead_pct?: number
+    lead_to_customer_pct?: number
     enabled_platforms?: Platform[]
   },
 ) {

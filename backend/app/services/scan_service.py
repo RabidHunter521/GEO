@@ -247,6 +247,12 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         except Exception as exc:
             logger.error("action_center_refresh_failed", scan_id=str(scan_id), error=str(exc))
 
+        # Remediation loop sync — newly flagged hallucinations / lost queries are
+        # tracked; issues no longer present auto-flip to "corrected". Best-effort:
+        # the service swallows and logs its own errors.
+        from app.services.remediation_service import sync_remediation_items
+        sync_remediation_items(client.id, db)
+
     except Exception as exc:
         # The session may hold a failed transaction — reset it so the
         # status update below can actually commit.

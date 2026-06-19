@@ -1,8 +1,14 @@
 "use server"
 
-import { triggerScan, flagHallucination, getLatestScan } from "@/lib/api"
+import {
+  triggerScan,
+  flagHallucination,
+  getLatestScan,
+  syncRemediation,
+  updateRemediationStatus,
+} from "@/lib/api"
 import { revalidatePath } from "next/cache"
-import type { Scan } from "@/types"
+import type { Scan, RemediationItem, RemediationStatus } from "@/types"
 
 export async function triggerScanAction(clientId: string): Promise<Scan | null> {
   try {
@@ -36,4 +42,20 @@ export async function refreshScanAction(clientId: string): Promise<Scan | null> 
   } catch {
     return null
   }
+}
+
+export async function syncRemediationAction(clientId: string): Promise<RemediationItem[]> {
+  const items = await syncRemediation(clientId)
+  revalidatePath(`/clients/${clientId}/scan`)
+  return items
+}
+
+export async function setRemediationStatusAction(
+  clientId: string,
+  itemId: string,
+  status: RemediationStatus,
+): Promise<RemediationItem> {
+  const item = await updateRemediationStatus(clientId, itemId, status)
+  revalidatePath(`/clients/${clientId}/scan`)
+  return item
 }

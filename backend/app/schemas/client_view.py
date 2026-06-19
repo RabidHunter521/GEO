@@ -56,6 +56,29 @@ class ClientViewBenchmark(BaseModel):
     top_percent: int
 
 
+class ClientViewTrafficValue(BaseModel):
+    """The single revenue number for the CEO, from the latest month's AI-referral
+    visitors. RM fields are None unless the admin has set a deal value."""
+    period: date
+    ai_visitors: int
+    est_leads: int | None = None
+    est_pipeline_rm: int | None = None
+    est_won_rm: int | None = None
+
+
+class ClientViewProgressItem(BaseModel):
+    """One tracked remediation item, client-safe: the question, the platform, the
+    competitors winning it, and where it is in the Flagged -> In progress ->
+    Corrected loop. Raw AI responses are never included."""
+    item_type: str          # hallucination | content_gap
+    type_label: str         # friendly: "Inaccurate AI answer" | "Competitor winning"
+    platform_label: str | None = None
+    label: str              # the question asked
+    detail: str | None = None  # competitors seen, for content gaps
+    status: str             # flagged | in_progress | corrected
+    status_label: str       # "Flagged" | "In progress" | "Corrected"
+
+
 class ClientViewOverview(BaseModel):
     profile: ClientViewProfile
     latest_score: ClientViewScore | None
@@ -63,12 +86,22 @@ class ClientViewOverview(BaseModel):
     benchmark: ClientViewBenchmark | None = None
     score_history: list[ClientViewScorePoint]
     traffic: list[ClientViewTrafficPoint]
+    # Latest-month AI-referral pipeline value (the one money number).
+    traffic_value: ClientViewTrafficValue | None = None
     # "What changed this month" narrative from the latest delivered report
     change_narrative: str | None = None
     change_narrative_period: str | None = None
     # Whether deliverable tabs have any content yet — drives tab visibility.
     has_our_work: bool = False
     has_content_plan: bool = False
+    # Whether the remediation loop has any tracked items (drives the progress card).
+    has_progress: bool = False
+    # Freshness: when the score was last computed, and the next check-in date
+    # derived from the client's review cadence. is_stale flags an aged score so
+    # the UI shows "next check due ~<date>" instead of a bare old date.
+    last_checked_at: datetime | None = None
+    next_check_due: date | None = None
+    is_stale: bool = False
 
 
 class ClientViewScanResult(BaseModel):

@@ -15,6 +15,7 @@ import type {
   ClientViewRoadmap,
   ClientViewContentGaps,
   ClientViewActivity,
+  ClientViewProgressItem,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -72,4 +73,8 @@ export function getViewContentGaps(token: string): Promise<ClientViewContentGaps
 
 export function getViewActivity(token: string): Promise<ClientViewActivity[] | null> {
   return viewFetch<ClientViewActivity[]>(token, "/activity")
+}
+
+export function getViewProgress(token: string): Promise<ClientViewProgressItem[] | null> {
+  return viewFetch<ClientViewProgressItem[]>(token, "/progress")
 }

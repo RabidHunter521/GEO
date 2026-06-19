@@ -40,6 +40,9 @@ export interface Client {
   structured_data_verified: boolean
   score_drop_threshold: number
   scan_cadence_days: number
+  avg_deal_value_rm: number | null
+  visitor_to_lead_pct: number
+  lead_to_customer_pct: number
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
@@ -384,6 +387,38 @@ export interface ClientViewBenchmark {
   top_percent: number
 }
 
+export interface ClientViewTrafficValue {
+  period: string
+  ai_visitors: number
+  est_leads: number | null
+  est_pipeline_rm: number | null
+  est_won_rm: number | null
+}
+
+export type RemediationStatus = "flagged" | "in_progress" | "corrected"
+
+// Admin-side remediation item (full detail; client view uses ClientViewProgressItem).
+export interface RemediationItem {
+  id: string
+  item_type: "hallucination" | "content_gap"
+  platform: string
+  label: string
+  detail: string | null
+  status: RemediationStatus
+  first_seen_at: string
+  resolved_at: string | null
+}
+
+export interface ClientViewProgressItem {
+  item_type: "hallucination" | "content_gap"
+  type_label: string
+  platform_label: string | null
+  label: string
+  detail: string | null
+  status: "flagged" | "in_progress" | "corrected"
+  status_label: string
+}
+
 export interface ClientViewOverview {
   profile: ClientViewProfile
   latest_score: ClientViewScore | null
@@ -391,10 +426,15 @@ export interface ClientViewOverview {
   benchmark: ClientViewBenchmark | null
   score_history: ClientViewScorePoint[]
   traffic: ClientViewTrafficPoint[]
+  traffic_value: ClientViewTrafficValue | null
   change_narrative: string | null
   change_narrative_period: string | null
   has_our_work: boolean
   has_content_plan: boolean
+  has_progress: boolean
+  last_checked_at: string | null
+  next_check_due: string | null
+  is_stale: boolean
 }
 
 export interface ClientViewScanResult {

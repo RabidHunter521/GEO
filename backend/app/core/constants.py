@@ -116,6 +116,29 @@ DIGEST_STATIC_TIPS: Final = {
 
 ALERTS_EMAIL: Final = "contact@seenby.my"
 
+# Remediation loop — the "Flagged -> In progress -> Corrected" status lifecycle
+# the SeenBy team works through for hallucinations and competitor-won queries.
+# Persisted per client so progress survives across scans (CLAUDE.md client-value
+# deliverable). "corrected" is set automatically when a re-scan no longer shows
+# the problem, or manually by the admin.
+REMEDIATION_STATUSES: Final = ("flagged", "in_progress", "corrected")
+REMEDIATION_STATUS_LABELS: Final = {
+    "flagged":     "Flagged",
+    "in_progress": "In progress",
+    "corrected":   "Corrected",
+}
+REMEDIATION_TYPES: Final = ("hallucination", "content_gap")
+
+# Client view freshness: a visibility score older than this many days surfaces a
+# reassuring "next visibility check due ~<date>" line (driven by scan_cadence_days)
+# instead of a bare stale date. Reminder framing only — nothing auto-scans (§11).
+CLIENT_VIEW_STALE_AFTER_DAYS: Final = 10
+
+# AI referral pipeline estimate defaults (admin-overridable per client). Used to
+# turn raw AI-referral visitor counts into a single revenue number for the CEO.
+DEFAULT_VISITOR_TO_LEAD_PCT: Final = 2
+DEFAULT_LEAD_TO_CUSTOMER_PCT: Final = 20
+
 # GEO Action Center — impact estimation and display caps
 ACTION_IMPACT_MAX_PER_ACTION: Final = 10.0
 ACTION_PRIORITY_BANDS: Final = {

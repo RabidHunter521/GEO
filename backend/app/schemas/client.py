@@ -36,6 +36,11 @@ class ClientUpdate(BaseModel):
     content_quality_evidence: str | None = None
     score_drop_threshold: int | None = Field(default=None, ge=1, le=100)
     scan_cadence_days: int | None = Field(default=None, ge=1, le=365)
+    # AI-referral pipeline inputs. avg_deal_value_rm has no default (deal size is
+    # client-specific); the report's RM line only renders once it's set.
+    avg_deal_value_rm: int | None = Field(default=None, ge=0, le=100_000_000)
+    visitor_to_lead_pct: int | None = Field(default=None, ge=0, le=100)
+    lead_to_customer_pct: int | None = Field(default=None, ge=0, le=100)
     enabled_platforms: list[str] | None = None
     is_prospect: bool | None = None
     internal_notes: str | None = None
@@ -75,6 +80,9 @@ class ClientResponse(BaseModel):
     structured_data_verified: bool
     score_drop_threshold: int
     scan_cadence_days: int = DEFAULT_SCAN_CADENCE_DAYS
+    avg_deal_value_rm: int | None = None
+    visitor_to_lead_pct: int = 2
+    lead_to_customer_pct: int = 20
     enabled_platforms: list[str] = SCAN_PLATFORMS
     share_token: str | None = None
     share_token_created_at: datetime | None = None

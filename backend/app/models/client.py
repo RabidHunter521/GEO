@@ -30,6 +30,15 @@ class Client(Base):
     technical_foundations_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     structured_data_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     score_drop_threshold: Mapped[int] = mapped_column(Integer, default=35)
+    # AI-referral pipeline inputs (admin-set) — turn raw AI visitor counts into a
+    # single revenue number on the report. avg_deal_value_rm NULL = RM line hidden.
+    avg_deal_value_rm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    visitor_to_lead_pct: Mapped[int] = mapped_column(
+        Integer, default=2, server_default=text("2")
+    )
+    lead_to_customer_pct: Mapped[int] = mapped_column(
+        Integer, default=20, server_default=text("20")
+    )
     # Admin review cadence in days; drives the "next scan due" reminder. Reminder only.
     scan_cadence_days: Mapped[int] = mapped_column(
         Integer,

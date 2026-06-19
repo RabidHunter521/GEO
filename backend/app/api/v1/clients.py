@@ -105,6 +105,22 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Client not found")
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(c, field, value)
+
+    # A manual dimension score must never appear "naked" to the client — if a
+    # score is set above 0, the SeenBy team must back it with an evidence line
+    # (CLAUDE.md §4: manual dimensions are "Assessed by SeenBy team"). Enforced on
+    # the merged state so it holds across partial updates.
+    if c.brand_authority_score and not (c.brand_authority_evidence or "").strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Brand Authority evidence is required when a Brand Authority score is set.",
+        )
+    if c.content_quality_score and not (c.content_quality_evidence or "").strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Content Quality evidence is required when a Content Quality score is set.",
+        )
+
     db.commit()
     db.refresh(c)
     return c

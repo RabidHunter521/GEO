@@ -9,11 +9,14 @@ import {
   getViewActions,
   getViewIssues,
   getViewScan,
+  getViewProgress,
 } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { ScoreHistoryChart } from "@/components/view/ScoreHistoryChart"
 import { AiTrafficChart } from "@/components/view/AiTrafficChart"
+import { AiPipelineValueCard } from "@/components/view/AiPipelineValueCard"
+import { ClientProgressList } from "@/components/view/ClientProgressList"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { getScoreBand } from "@/lib/score-utils"
@@ -70,11 +73,12 @@ export default async function ViewOverviewPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const [overview, actions, issues, scan] = await Promise.all([
+  const [overview, actions, issues, scan, progress] = await Promise.all([
     getViewOverview(token),
     getViewActions(token),
     getViewIssues(token),
     getViewScan(token),
+    getViewProgress(token),
   ])
   if (!overview) notFound()
 
@@ -129,6 +133,17 @@ export default async function ViewOverviewPage({
                   month: "short",
                   year: "numeric",
                 })}
+                {/* Older than the freshness window: reassure with the next
+                    scheduled check-in instead of leaving a bare stale date. */}
+                {overview.is_stale && overview.next_check_due && (
+                  <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/5 px-2 py-0.5 font-medium text-primary">
+                    Next visibility check due{" "}
+                    {new Date(overview.next_check_due).toLocaleDateString("en-MY", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                )}
               </p>
             </>
           ) : (
@@ -155,6 +170,11 @@ export default async function ViewOverviewPage({
           </h2>
           <p className="text-sm leading-relaxed text-foreground">{overview.change_narrative}</p>
         </div>
+      )}
+
+      {/* 2.5 What it's worth — the one money number (clients only) */}
+      {!isProspect && overview.traffic_value && (
+        <AiPipelineValueCard value={overview.traffic_value} />
       )}
 
       {/* 3. Where you stand — benchmark + per-platform visibility */}
@@ -303,6 +323,11 @@ export default async function ViewOverviewPage({
             </ul>
           )}
         </div>
+      )}
+
+      {/* 5.5 What we're fixing — remediation loop with status (clients only) */}
+      {!isProspect && progress && progress.length > 0 && (
+        <ClientProgressList items={progress} />
       )}
 
       {/* 6. Trends — score history + AI traffic (clients only) */}

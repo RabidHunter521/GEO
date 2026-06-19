@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -65,6 +65,9 @@ export function updateClient(
       | "content_quality_evidence"
       | "score_drop_threshold"
       | "scan_cadence_days"
+      | "avg_deal_value_rm"
+      | "visitor_to_lead_pct"
+      | "lead_to_customer_pct"
       | "enabled_platforms"
       | "is_prospect"
       | "internal_notes"
@@ -309,4 +312,27 @@ export function flagHallucination(
 
 export function getScanDiff(clientId: string): Promise<ScanDiffResponse> {
   return apiFetch<ScanDiffResponse>(`/api/v1/scans/client/${clientId}/diff`)
+}
+
+// --- Remediation loop (admin) ------------------------------------------------
+
+export function listRemediation(clientId: string): Promise<RemediationItem[]> {
+  return apiFetch<RemediationItem[]>(`/api/v1/clients/${clientId}/remediation`)
+}
+
+export function syncRemediation(clientId: string): Promise<RemediationItem[]> {
+  return apiFetch<RemediationItem[]>(`/api/v1/clients/${clientId}/remediation/sync`, {
+    method: "POST",
+  })
+}
+
+export function updateRemediationStatus(
+  clientId: string,
+  itemId: string,
+  status: RemediationStatus,
+): Promise<RemediationItem> {
+  return apiFetch<RemediationItem>(
+    `/api/v1/clients/${clientId}/remediation/${itemId}`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+  )
 }

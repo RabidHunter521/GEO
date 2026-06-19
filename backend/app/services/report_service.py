@@ -32,13 +32,31 @@ from app.services.claude_action import get_digest_action
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
 from app.services.share_link_service import get_share_link_url
 from app.services.cost_tracker import record_llm_call
-from app.services.win_loss_service import compute_win_loss
+from app.services.remediation_service import sync_remediation_items, get_remediation_items
+from app.services.revenue_service import estimate_pipeline, PipelineEstimate
+from app.core.constants import REMEDIATION_STATUS_LABELS
 from app.prompts.report import build_change_narrative
 
 # Max competitor-won topics surfaced in the Content Gaps section.
 _CONTENT_GAP_LIMIT = 3
 # Max history points plotted in the Score Trend chart (most recent N scans).
 _TREND_HISTORY_LIMIT = 6
+
+# Neutral evidence shown for a manual dimension when the admin hasn't written a
+# specific note — so "Assessed by SeenBy team" never appears naked (CLAUDE.md §4).
+_BRAND_AUTHORITY_FALLBACK = (
+    "Based on brand presence, reviews, backlinks and industry recognition."
+)
+_CONTENT_QUALITY_FALLBACK = (
+    "Based on content depth, accuracy, freshness and topical expertise."
+)
+
+# Traffic-light badge classes for a remediation status chip in the PDF.
+_REMEDIATION_BADGE = {
+    "flagged":     "badge-red",
+    "in_progress": "badge-yellow",
+    "corrected":   "badge-green",
+}
 
 logger = structlog.get_logger()
 
@@ -107,10 +125,22 @@ class CompetitorSummary:
 
 @dataclass
 class ContentGap:
-    """A neutral-intent query where a competitor was seen by AI but the client was not."""
+    """A neutral-intent query where a competitor was seen by AI but the client was not.
+    status tracks the remediation loop (flagged/in_progress/corrected)."""
     query_text: str
     platform: str
     competitors_seen: list[str]
+    status: str = "flagged"
+    status_label: str = "Flagged"
+
+
+@dataclass
+class HallucinationLine:
+    """An inaccurate AI answer about the client, with its remediation status."""
+    platform: str
+    query_text: str
+    status: str = "flagged"
+    status_label: str = "Flagged"
 
 
 @dataclass
@@ -149,8 +179,12 @@ class ReportData:
     platform_breakdown: dict | None = None
     change_narrative: str = ""
     score_history: list[TrendPoint] = field(default_factory=list)
-    hallucinations: list[tuple[str, str]] = field(default_factory=list)
+    hallucinations: list[HallucinationLine] = field(default_factory=list)
     content_gaps: list[ContentGap] = field(default_factory=list)
+    # Number of previously-lost questions now won back this period (proof of progress).
+    gaps_won_back: int = 0
+    # AI-referral pipeline estimate for the latest month, or None when unconfigured.
+    pipeline: PipelineEstimate | None = None
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -381,36 +415,41 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         for gs in reversed(history_scores)
     ]
 
-    # ── Hallucinations — admin-flagged incorrect AI answers about the client ──
-    # Client-safe: surface only platform + query. The raw AI response is never
-    # exposed to a client surface (CLAUDE.md §8).
-    hallucinated = (
-        db.query(ScanQueryResult)
-        .filter(
-            ScanQueryResult.scan_id == latest_scan.id,
-            ScanQueryResult.competitor_id.is_(None),
-            ScanQueryResult.hallucination_flagged.is_(True),
-        )
-        .order_by(ScanQueryResult.created_at)
-        .all()
-    )
+    # ── Remediation loop — tracked hallucinations & competitor-won queries with
+    #    their Flagged → In progress → Corrected status. Persisted across scans so
+    #    the report proves progress, not just status. Client-safe: only the
+    #    question, platform and competitor names — never the raw AI response (§8).
+    sync_remediation_items(client.id, db)
+    remediation = get_remediation_items(client.id, db, include_corrected=True)
+
     hallucinations = [
-        (PLATFORM_LABELS.get(r.platform, r.platform.title()), r.query_text)
-        for r in hallucinated
+        HallucinationLine(
+            platform=PLATFORM_LABELS.get(i.platform, i.platform.title()) if i.platform else "AI platforms",
+            query_text=i.label,
+            status=i.status,
+            status_label=REMEDIATION_STATUS_LABELS.get(i.status, i.status.title()),
+        )
+        for i in remediation if i.item_type == "hallucination"
     ]
 
-    # ── Content Gaps — neutral-intent queries a competitor won and client lost ─
-    content_gaps: list[ContentGap] = []
-    win_loss = compute_win_loss(client.id, db)
-    for entry in win_loss.entries:
-        if entry.outcome == "lost":
-            content_gaps.append(ContentGap(
-                query_text=entry.query_text,
-                platform=PLATFORM_LABELS.get(entry.platform, entry.platform.title()),
-                competitors_seen=entry.competitors_seen,
-            ))
-        if len(content_gaps) >= _CONTENT_GAP_LIMIT:
-            break
+    gap_items = [i for i in remediation if i.item_type == "content_gap"]
+    gaps_won_back = sum(1 for i in gap_items if i.status == "corrected")
+    # The "winning here" table lists only still-open gaps; won-back ones are
+    # surfaced separately as proof, not under a "competitors are winning" heading.
+    content_gaps = [
+        ContentGap(
+            query_text=i.label,
+            platform=PLATFORM_LABELS.get(i.platform, i.platform.title()) if i.platform else "—",
+            competitors_seen=[s.strip() for s in (i.detail or "").split(",") if s.strip()],
+            status=i.status,
+            status_label=REMEDIATION_STATUS_LABELS.get(i.status, i.status.title()),
+        )
+        for i in gap_items if i.status != "corrected"
+    ][:_CONTENT_GAP_LIMIT]
+
+    pipeline = estimate_pipeline(
+        current_traffic.ai_visitors if current_traffic else None, client
+    )
 
     data = ReportData(
         period_start=now - timedelta(days=30),
@@ -441,6 +480,8 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         score_history=score_history,
         hallucinations=hallucinations,
         content_gaps=content_gaps,
+        gaps_won_back=gaps_won_back,
+        pipeline=pipeline,
     )
     data.change_narrative = _generate_change_narrative(data, client_id=client.id, db=db)
     return data
@@ -459,8 +500,18 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     safe_name = html.escape(client.name)
     safe_recommendation = html.escape(data.recommendation or "")
     safe_narrative = html.escape(data.change_narrative or "")
-    safe_ba_evidence = html.escape(data.brand_authority_evidence) if data.brand_authority_evidence else ""
-    safe_cq_evidence = html.escape(data.content_quality_evidence) if data.content_quality_evidence else ""
+    # A manual dimension's evidence note must never be empty under the "Assessed
+    # by SeenBy team" label — fall back to a neutral methodology line (CLAUDE.md §4).
+    safe_ba_evidence = (
+        html.escape(data.brand_authority_evidence)
+        if data.brand_authority_evidence and data.brand_authority_evidence.strip()
+        else _BRAND_AUTHORITY_FALLBACK
+    )
+    safe_cq_evidence = (
+        html.escape(data.content_quality_evidence)
+        if data.content_quality_evidence and data.content_quality_evidence.strip()
+        else _CONTENT_QUALITY_FALLBACK
+    )
 
     trend_colors = {"up": "#16a34a", "down": "#dc2626", "flat": "#6b7280", "first": "#6b7280"}
     trend_color = trend_colors[data.trend]
@@ -485,6 +536,10 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         comp_rows = '<tr><td colspan="3" style="color:#9ca3af;">No competitors tracked yet.</td></tr>'
 
+    # AI Referral Traffic is always shown — it's the one section that ties AI
+    # visibility to business value. Degrades to an explicit "tracking begins"
+    # state rather than vanishing, and adds an RM pipeline estimate when the
+    # client's deal value is configured.
     if data.ai_visitors_current is not None:
         if data.ai_visitors_prev:
             pct = (data.ai_visitors_current - data.ai_visitors_prev) / data.ai_visitors_prev * 100
@@ -493,18 +548,45 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             change_label = "New vs last month"
         else:
             change_label = "No change vs last month"
-        traffic_section = f"""
-  <h2>AI Referral Traffic</h2>
+        visitor_stat = f"""
   <div class="stat-box">
     <div class="stat-label">AI Visitors This Month</div>
     <div class="stat-value">{data.ai_visitors_current:,}</div>
     <div class="stat-sub">
       Visitors arriving via ChatGPT, Perplexity, Gemini and Claude &mdash; {change_label}
     </div>
-  </div>
-"""
+  </div>"""
     else:
-        traffic_section = ""
+        visitor_stat = """
+  <div class="stat-box">
+    <div class="stat-label">AI Visitors This Month</div>
+    <div class="stat-value" style="font-size:16pt;color:#64748b;">Tracking begins soon</div>
+    <div class="stat-sub">
+      We&rsquo;re connecting your analytics to measure visitors arriving via
+      ChatGPT, Perplexity, Gemini and Claude.
+    </div>
+  </div>"""
+
+    if data.pipeline is not None:
+        p = data.pipeline
+        pipeline_stat = f"""
+  <div class="stat-box" style="background:#f0f9ff;border-color:#bae6fd;">
+    <div class="stat-label">Estimated Pipeline From AI This Month</div>
+    <div class="stat-value">RM {p.est_pipeline_rm:,}</div>
+    <div class="stat-sub">
+      &asymp; {p.ai_visitors:,} AI visitors &rarr; ~{p.est_leads:,} leads &rarr;
+      <strong>RM {p.est_pipeline_rm:,}</strong> in pipeline, with an estimated
+      <strong>RM {p.est_won_rm:,}</strong> won at your {p.lead_to_customer_pct}% close rate.
+      <br><span style="color:#94a3b8;">Estimate based on RM {p.avg_deal_value_rm:,} average deal value
+      and a {p.visitor_to_lead_pct}% visitor-to-lead rate.</span>
+    </div>
+  </div>"""
+    else:
+        pipeline_stat = ""
+
+    traffic_section = f"""
+  <h2>AI Referral Traffic</h2>{visitor_stat}{pipeline_stat}
+"""
 
     if data.platform_breakdown:
         platform_rows = "".join(
@@ -543,47 +625,65 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         trend_section = ""
 
-    # ── Content Gaps — competitor-won, client-lost neutral-intent queries ────
-    if data.content_gaps:
+    # ── Content Gaps — competitor-won queries, with remediation status. Shows a
+    #    "won back" proof line when previously-lost questions are now corrected. ─
+    won_back_note = ""
+    if data.gaps_won_back:
+        won_back_note = (
+            f"""<p style="font-size:10pt;color:#166534;margin:0 0 10px;font-weight:600;">"""
+            f"""&#10003; {data.gaps_won_back} previously-lost question"""
+            f"""{"s" if data.gaps_won_back != 1 else ""} won back this period &mdash; """
+            f"""{safe_name} is now seen by AI where a competitor used to win.</p>"""
+        )
+    if data.content_gaps or data.gaps_won_back:
         gap_rows = "".join(
             f"""<tr>
               <td>{html.escape(g.query_text)}</td>
               <td>{html.escape(", ".join(g.competitors_seen)) or "&mdash;"}</td>
               <td>{html.escape(g.platform)}</td>
+              <td><span class="{_REMEDIATION_BADGE.get(g.status, 'badge-red')}">{html.escape(g.status_label)}</span></td>
             </tr>"""
             for g in data.content_gaps
         )
+        gap_table = f"""
+  <table>
+    <thead><tr><th>When people ask AI</th><th>AI recommends</th><th>Platform</th><th>Status</th></tr></thead>
+    <tbody>{gap_rows}</tbody>
+  </table>""" if data.content_gaps else ""
+        open_count = len(data.content_gaps)
+        intro = (
+            f"""{open_count} open question{"s" if open_count != 1 else ""} where AI recommends a competitor but not {safe_name}. """
+            f"""We&rsquo;re working each one back."""
+            if open_count else
+            f"""No open competitor-won questions this period &mdash; nice work."""
+        )
         content_gap_section = f"""
   <h2>Your Competitors Are Winning Here</h2>
-  <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">
-    {len(data.content_gaps)} question{"s" if len(data.content_gaps) != 1 else ""} where AI recommended a competitor but not {safe_name}.
-    Each is a content opportunity to win back.
-  </p>
-  <table>
-    <thead><tr><th>When people ask AI</th><th>AI recommends</th><th>Platform</th></tr></thead>
-    <tbody>{gap_rows}</tbody>
-  </table>
+  {won_back_note}
+  <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">{intro}</p>
+  {gap_table}
 """
     else:
         content_gap_section = ""
 
-    # ── Hallucinations — admin-flagged inaccurate AI answers (query only) ─────
+    # ── Hallucinations — inaccurate AI answers, with remediation status. ──────
     if data.hallucinations:
         hallu_rows = "".join(
             f"""<tr>
-              <td>{html.escape(platform)}</td>
-              <td>{html.escape(query)}</td>
+              <td>{html.escape(h.platform)}</td>
+              <td>{html.escape(h.query_text)}</td>
+              <td><span class="{_REMEDIATION_BADGE.get(h.status, 'badge-red')}">{html.escape(h.status_label)}</span></td>
             </tr>"""
-            for platform, query in data.hallucinations
+            for h in data.hallucinations
         )
         hallucination_section = f"""
   <h2>Inaccurate AI Answers Flagged</h2>
   <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">
-    AI platforms gave inaccurate information about {safe_name} in response to these questions this period.
-    Our team has flagged each one so we can work to correct the record.
+    Where AI platforms gave inaccurate information about {safe_name}, our team flags it and works to
+    correct the record. Status shows where each fix stands.
   </p>
   <table>
-    <thead><tr><th>Platform</th><th>Question asked</th></tr></thead>
+    <thead><tr><th>Platform</th><th>Question asked</th><th>Status</th></tr></thead>
     <tbody>{hallu_rows}</tbody>
   </table>
 """

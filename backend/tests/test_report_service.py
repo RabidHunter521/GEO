@@ -379,15 +379,24 @@ def test_build_report_html_omits_content_gaps_when_empty():
 # ── Hallucinations ────────────────────────────────────────────────────────────
 
 def test_build_report_html_renders_hallucinations_query_only():
-    from app.services.report_service import _build_report_html
+    from app.services.report_service import _build_report_html, HallucinationLine
     client = MagicMock()
     client.name = "Acme Corp"
     data = _make_report_data()
-    data.hallucinations = [("Perplexity", "Does Acme Corp offer 24/7 support?")]
+    data.hallucinations = [
+        HallucinationLine(
+            platform="Perplexity",
+            query_text="Does Acme Corp offer 24/7 support?",
+            status="in_progress",
+            status_label="In progress",
+        )
+    ]
     html = _build_report_html(client, data)
     assert "Inaccurate AI Answers Flagged" in html
     assert "Does Acme Corp offer 24/7 support?" in html
     assert "Perplexity" in html
+    # remediation status is surfaced
+    assert "In progress" in html
 
 
 def test_build_report_html_omits_hallucinations_when_none():
@@ -398,6 +407,69 @@ def test_build_report_html_omits_hallucinations_when_none():
     data.hallucinations = []
     html = _build_report_html(client, data)
     assert "Inaccurate AI Answers Flagged" not in html
+
+
+# ── AI Referral pipeline (revenue) ─────────────────────────────────────────────
+
+def test_build_report_html_renders_pipeline_rm_when_configured():
+    from app.services.report_service import _build_report_html
+    from app.services.revenue_service import PipelineEstimate
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.ai_visitors_current = 1000
+    data.pipeline = PipelineEstimate(
+        ai_visitors=1000, est_leads=20, est_pipeline_rm=100_000, est_won_rm=20_000,
+        avg_deal_value_rm=5000, visitor_to_lead_pct=2, lead_to_customer_pct=20,
+    )
+    html = _build_report_html(client, data)
+    assert "Estimated Pipeline From AI This Month" in html
+    assert "RM 100,000" in html
+    assert "RM 20,000" in html
+
+
+def test_build_report_html_traffic_section_always_present():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()  # ai_visitors_current=None, pipeline=None
+    html = _build_report_html(client, data)
+    # Section is shown even with no data (degrades to a tracking-begins state).
+    assert "AI Referral Traffic" in html
+    assert "Tracking begins soon" in html
+
+
+# ── Content gaps: status + won-back proof ──────────────────────────────────────
+
+def test_build_report_html_content_gap_shows_status_and_won_back():
+    from app.services.report_service import _build_report_html, ContentGap
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.content_gaps = [
+        ContentGap(query_text="Best dentist in KL", platform="ChatGPT",
+                   competitors_seen=["Rival Co"], status="in_progress", status_label="In progress"),
+    ]
+    data.gaps_won_back = 2
+    html = _build_report_html(client, data)
+    assert "Your Competitors Are Winning Here" in html
+    assert "In progress" in html
+    assert "won back this period" in html
+    assert "2 previously-lost questions won back" in html
+
+
+# ── Manual-dimension evidence fallback ─────────────────────────────────────────
+
+def test_build_report_html_manual_evidence_never_naked():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()  # no evidence text set
+    html = _build_report_html(client, data)
+    # Label present, and a substantive methodology line backs it (not bare).
+    assert "Assessed by SeenBy team" in html
+    assert "Based on brand presence" in html
+    assert "Based on content depth" in html
 
 
 # ── send_report_email ─────────────────────────────────────────────────────────
