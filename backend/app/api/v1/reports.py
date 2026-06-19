@@ -8,6 +8,7 @@ from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.report import Report
 from app.schemas.report import ReportResponse
+from app.services.r2_service import presigned_pdf_url
 
 router = APIRouter(prefix="/clients/{client_id}/reports", tags=["reports"])
 
@@ -34,12 +35,27 @@ def list_reports(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    return (
+    reports = (
         db.query(Report)
         .filter(Report.client_id == client_id)
         .order_by(desc(Report.generated_at))
         .all()
     )
+    # Expose a freshly signed download URL rather than the stored permanent
+    # public link, so access expires once the bucket is private.
+    return [
+        ReportResponse(
+            id=r.id,
+            client_id=r.client_id,
+            r2_url=presigned_pdf_url(r.r2_key),
+            period_start=r.period_start,
+            period_end=r.period_end,
+            overall_score=r.overall_score,
+            generated_at=r.generated_at,
+            sent_at=r.sent_at,
+        )
+        for r in reports
+    ]
 
 
 @router.post(

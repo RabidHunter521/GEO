@@ -84,3 +84,22 @@ def download_pdf(key: str) -> bytes:
     """Download PDF bytes from R2 by key."""
     resp = _s3().get_object(Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME, Key=key)
     return resp["Body"].read()
+
+
+# Default lifetime for a report download link. Long enough that a client can
+# open the dashboard and click through, short enough that a leaked URL (forwarded
+# email, shoulder-surf) stops working within the hour.
+PRESIGNED_URL_TTL_SECONDS = 3600
+
+
+def presigned_pdf_url(key: str, expires_in: int = PRESIGNED_URL_TTL_SECONDS) -> str:
+    """Return a short-lived signed GET URL for an object in the (private) R2
+    bucket. This is the access path for report PDFs: the stored r2_url is a
+    permanent public link and is only safe while the bucket is private — serving
+    a freshly signed URL per request means access expires and can be revoked by
+    rotating R2 keys. Requires the bucket to be private to add any protection."""
+    return _s3().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": settings.CLOUDFLARE_R2_BUCKET_NAME, "Key": key},
+        ExpiresIn=expires_in,
+    )

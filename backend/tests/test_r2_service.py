@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services import r2_service
-from app.services.r2_service import upload_pdf, download_pdf
+from app.services.r2_service import upload_pdf, download_pdf, presigned_pdf_url
 
 
 @pytest.fixture(autouse=True)
@@ -67,3 +67,26 @@ def test_download_pdf_returns_bytes_from_s3():
         Bucket="seenby-reports",
         Key="reports/abc/20260601.pdf",
     )
+
+
+def test_presigned_pdf_url_signs_get_object_with_ttl():
+    mock_s3 = MagicMock()
+    mock_s3.generate_presigned_url.return_value = "https://acct.r2.cloudflarestorage.com/signed?sig=x"
+    with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
+         patch("app.services.r2_service.settings", _mock_settings()):
+        url = presigned_pdf_url("reports/abc/20260601.pdf")
+    assert url == "https://acct.r2.cloudflarestorage.com/signed?sig=x"
+    mock_s3.generate_presigned_url.assert_called_once_with(
+        "get_object",
+        Params={"Bucket": "seenby-reports", "Key": "reports/abc/20260601.pdf"},
+        ExpiresIn=r2_service.PRESIGNED_URL_TTL_SECONDS,
+    )
+
+
+def test_presigned_pdf_url_honors_custom_expiry():
+    mock_s3 = MagicMock()
+    with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
+         patch("app.services.r2_service.settings", _mock_settings()):
+        presigned_pdf_url("reports/abc/20260601.pdf", expires_in=120)
+    _, kwargs = mock_s3.generate_presigned_url.call_args
+    assert kwargs["ExpiresIn"] == 120

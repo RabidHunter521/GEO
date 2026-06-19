@@ -67,6 +67,7 @@ from app.services.competitor_intelligence_service import (
     compute_competitor_trends,
 )
 from app.services.issue_detection_service import detect_client_issues
+from app.services.r2_service import presigned_pdf_url
 
 SCORE_HISTORY_LIMIT = 12
 
@@ -410,7 +411,9 @@ def get_reports(
             period_end=r.period_end,
             overall_score=r.overall_score,
             generated_at=r.generated_at,
-            download_url=r.r2_url,
+            # Serve a short-lived signed URL, not the permanent public link, so a
+            # forwarded report URL stops working within the hour.
+            download_url=presigned_pdf_url(r.r2_key),
         )
         for r in reports
     ]
