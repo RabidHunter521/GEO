@@ -13,6 +13,8 @@ from app.services import snippet_service
 # "who got recommended", so they make the strongest proof.
 _CATEGORY_PRIORITY = {"recommendation": 0, "local": 1, "brand": 2, "comparison": 3}
 _LOSS_CATEGORIES = {"recommendation", "local"}
+_UNKNOWN_CATEGORY_RANK = 9
+_ABSENT_POSITION = 99
 
 
 @dataclass
@@ -24,8 +26,8 @@ class ProofCard:
 
 
 def _sort_key(result) -> tuple[int, int]:
-    cat_rank = _CATEGORY_PRIORITY.get(result.category, 9)
-    pos = result.recommendation_position if result.recommendation_position is not None else 99
+    cat_rank = _CATEGORY_PRIORITY.get(result.category, _UNKNOWN_CATEGORY_RANK)
+    pos = result.recommendation_position if result.recommendation_position is not None else _ABSENT_POSITION
     return (cat_rank, pos)
 
 

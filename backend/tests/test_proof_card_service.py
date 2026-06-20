@@ -41,6 +41,13 @@ def test_result_excerpt_none_for_absent_brand_in_brand_category():
     assert result_excerpt(r, "Acme Dental", ["RivalCo"]) == (None, None)
 
 
+def test_result_excerpt_none_when_excerpt_builder_returns_empty(monkeypatch):
+    import app.services.proof_card_service as svc
+    monkeypatch.setattr(svc.snippet_service, "build_excerpt", lambda *a, **k: "")
+    kind, ex = result_excerpt(_win(), "Acme Dental", ["RivalCo"])
+    assert (kind, ex) == (None, None)
+
+
 def test_select_caps_two_wins_one_loss():
     results = [_win(pos=1), _win(pos=2), _win(pos=3), _loss(), _loss()]
     cards = select_proof_cards(results, "Acme Dental", ["RivalCo"])
@@ -49,7 +56,7 @@ def test_select_caps_two_wins_one_loss():
 
 def test_select_orders_wins_before_losses():
     cards = select_proof_cards([_loss(), _win()], "Acme Dental", ["RivalCo"])
-    assert cards[0].kind == "win" and cards[-1].kind == "loss"
+    assert len(cards) == 2 and cards[0].kind == "win" and cards[1].kind == "loss"
 
 
 def test_select_empty_when_no_qualifying_results():
