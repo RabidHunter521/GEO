@@ -10,6 +10,8 @@ from datetime import datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from app.main import app
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,7 +22,7 @@ def _make_client(db, *, is_prospect=False, name="Acme Dental"):
         name=name,
         website="https://acmedental.com",
         industry="Dental",
-        share_token="a" * 32,  # 32-char token satisfies the 20-64 length check
+        share_token=uuid.uuid4().hex,  # unique 32-char hex token per client
         scan_cadence_days=30,
         is_prospect=is_prospect,
     )
@@ -82,7 +84,6 @@ def _make_geo_score(db, client_id, scan_id):
 
 def _build_test_client(db):
     """Return a FastAPI TestClient with get_db and rate-limit overridden."""
-    from app.main import app
     from app.core.database import get_db
     from app.api.v1.client_view import _view_rate_limit
 
@@ -110,6 +111,7 @@ def test_overview_includes_proof_cards_for_client(db):
     _make_geo_score(db, client.id, scan.id)
     db.commit()
 
+    _saved = dict(app.dependency_overrides)
     tc = _build_test_client(db)
     try:
         res = tc.get(f"/api/v1/view/{client.share_token}/overview")
@@ -122,8 +124,8 @@ def test_overview_includes_proof_cards_for_client(db):
         assert set(card.keys()) == {"kind", "platform_label", "category", "excerpt"}
         assert "response_text" not in card  # whitelist guard
     finally:
-        from app.main import app
         app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
 
 
 def test_overview_proof_cards_empty_for_prospect(db):
@@ -139,6 +141,7 @@ def test_overview_proof_cards_empty_for_prospect(db):
     _make_geo_score(db, client.id, scan.id)
     db.commit()
 
+    _saved = dict(app.dependency_overrides)
     tc = _build_test_client(db)
     try:
         res = tc.get(f"/api/v1/view/{client.share_token}/overview")
@@ -146,5 +149,25 @@ def test_overview_proof_cards_empty_for_prospect(db):
         body = res.json()
         assert body.get("proof_cards") == [], f"Expected [], got {body.get('proof_cards')}"
     finally:
-        from app.main import app
         app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
+def test_overview_proof_cards_empty_non_prospect_no_scan(db):
+    """Non-prospect with GeoScore but no ScanQueryResult rows must return proof_cards == []."""
+    client = _make_client(db, is_prospect=False, name="No Results Client")
+    scan = _make_scan(db, client.id)
+    # Create GeoScore but no ScanQueryResult rows for this scan
+    _make_geo_score(db, client.id, scan.id)
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body.get("proof_cards") == [], f"Expected [], got {body.get('proof_cards')}"
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
