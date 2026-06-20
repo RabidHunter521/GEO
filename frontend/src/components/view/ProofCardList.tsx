@@ -10,7 +10,7 @@ import type { ClientViewProofCard } from "@/types"
 function cardHeader(card: ClientViewProofCard): string {
   return card.kind === "win"
     ? `What ${card.platform_label} said about you`
-    : `${card.platform_label} recommended a competitor — you weren't mentioned`
+    : `${card.platform_label} recommended a competitor — they're winning this question`
 }
 
 export function ProofCardList({ cards }: { cards: ClientViewProofCard[] }) {
@@ -25,7 +25,7 @@ export function ProofCardList({ cards }: { cards: ClientViewProofCard[] }) {
           const isWin = card.kind === "win"
           return (
             <div
-              key={`${card.platform_label}-${i}`}
+              key={`${card.platform_label}-${card.category}-${i}`}
               className={cn(
                 "rounded-lg border bg-card p-4",
                 isWin ? "border-score-strong/30" : "border-score-watch/30",
@@ -45,12 +45,12 @@ export function ProofCardList({ cards }: { cards: ClientViewProofCard[] }) {
                 </span>
               </div>
               <p className="mt-2 text-sm font-medium text-foreground">{cardHeader(card)}</p>
-              <div className="mt-2 flex gap-2">
+              <blockquote className="mt-2 flex gap-2">
                 <Quote className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                 <p className="text-sm italic leading-relaxed text-muted-foreground">
                   &ldquo;{card.excerpt}&rdquo;
                 </p>
-              </div>
+              </blockquote>
             </div>
           )
         })}
