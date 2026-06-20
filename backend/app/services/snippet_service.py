@@ -42,6 +42,33 @@ def build_excerpt(response_text: str, brand: str, competitors: list[str]) -> str
     return chosen
 
 
+def build_loss_excerpt(response_text: str, brand: str, competitors: list[str]) -> str | None:
+    """Sentence naming a competitor, shown only when the brand is ABSENT.
+
+    The competitor name is redacted to '[a competitor]' so the card never
+    promotes a rival — it says 'AI recommended a competitor, not you'. Returns
+    None when the text is empty, the brand appears (that's a win, not a loss),
+    no competitor is configured, or no competitor is named in the text."""
+    if not response_text:
+        return None
+    names = [c for c in competitors if c]
+    if not names:
+        return None
+    if _brand_pattern(brand).search(response_text):
+        return None
+    comp_pattern = re.compile(
+        "|".join(rf"\b{re.escape(n)}\b" for n in names), re.IGNORECASE
+    )
+    sentences = re.split(r"(?<=[.!?])\s+", response_text.strip())
+    chosen = next((s for s in sentences if comp_pattern.search(s)), None)
+    if chosen is None:
+        return None
+    chosen = _redact(chosen.strip(), names)
+    if len(chosen) > _MAX_EXCERPT_CHARS:
+        chosen = chosen[: _MAX_EXCERPT_CHARS - 1].rstrip() + "…"
+    return chosen
+
+
 _W, _H = 1200, 630
 _BG = (15, 23, 42)
 _FG = (241, 245, 249)

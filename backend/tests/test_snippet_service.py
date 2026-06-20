@@ -1,4 +1,4 @@
-from app.services.snippet_service import build_excerpt, render_snippet_png
+from app.services.snippet_service import build_excerpt, build_loss_excerpt, render_snippet_png
 
 
 # --- build_excerpt tests ---
@@ -56,6 +56,39 @@ def test_excerpt_no_competitors_returns_verbatim_sentence():
     response = "Acme Dental is the top clinic in KL."
     result = build_excerpt(response, brand="Acme Dental", competitors=[])
     assert result == "Acme Dental is the top clinic in KL."
+
+
+# --- build_loss_excerpt tests ---
+
+def test_build_loss_excerpt_redacts_competitor_when_brand_absent():
+    response = "For dental care in KL, RivalCo is the most recommended clinic. They have great reviews."
+    result = build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"])
+    assert result == "For dental care in KL, [a competitor] is the most recommended clinic."
+
+
+def test_build_loss_excerpt_none_when_brand_present():
+    response = "Acme Dental and RivalCo are both strong choices in KL."
+    assert build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"]) is None
+
+
+def test_build_loss_excerpt_none_when_no_competitor_named():
+    response = "There are many good dental clinics in KL to choose from."
+    assert build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"]) is None
+
+
+def test_build_loss_excerpt_none_when_no_competitors_configured():
+    response = "RivalCo is the most recommended clinic in KL."
+    assert build_loss_excerpt(response, brand="Acme Dental", competitors=[]) is None
+
+
+def test_build_loss_excerpt_empty_text():
+    assert build_loss_excerpt("", brand="Acme Dental", competitors=["RivalCo"]) is None
+
+
+def test_build_loss_excerpt_truncates_long_sentence():
+    long_sentence = "RivalCo " + "is widely recommended " * 40 + "in KL."
+    result = build_loss_excerpt(long_sentence, brand="Acme Dental", competitors=["RivalCo"])
+    assert result is not None and len(result) <= 280 and result.endswith("…")
 
 
 # --- render_snippet_png tests ---
