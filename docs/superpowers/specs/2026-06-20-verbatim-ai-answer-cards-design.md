@@ -97,6 +97,12 @@ Backend wiring: the existing view service that builds the overview and scan payl
 as the admin snippet endpoint, `scans.py:159`). **No new endpoint** — data rides on the
 overview and scan responses already fetched. No extra client round-trips.
 
+**Prospect gating (scan page):** `excerpt` and `excerpt_kind` on `ClientViewScanResult` are
+populated for converted clients only. Prospects receive the same question list with seen/not-seen
+badges but both fields are `None` — consistent with the overview proof-card gating
+(`proof_cards: []` for prospects). This ensures verbatim AI excerpts are never surfaced during
+the pitch stage.
+
 Frontend types mirrored in `src/types/index.ts`.
 
 ## Section 3 — UI rendering
@@ -106,8 +112,8 @@ placed after the "What Changed" narrative and before the pipeline value card. Na
 where you stand → what changed → here's the literal proof → what it's worth. Per card:
 - Platform chip + kind label.
 - **Win:** green (`score-strong`) accent; header "What ChatGPT said about you"; quoted excerpt.
-- **Loss:** amber (`score-watch`) accent; header "ChatGPT recommended a competitor — you
-  weren't mentioned"; quoted excerpt. Opportunity framing, matching "What We're Working On".
+- **Loss:** amber (`score-watch`) accent; header "ChatGPT recommended a competitor — they're
+  winning this question"; quoted excerpt. Opportunity framing, matching "What We're Working On".
 - Empty `proof_cards` → renders nothing.
 
 **Scan page** (`frontend/src/app/view/[token]/scan/page.tsx`): when a row has an `excerpt`,

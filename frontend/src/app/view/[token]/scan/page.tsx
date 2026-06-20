@@ -100,8 +100,8 @@ export default async function ViewScanPage({
                   </div>
                 </div>
                 {r.excerpt && (
-                  <details className="mt-1 w-full">
-                    <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+                  <details className="mt-1 w-full" aria-label="AI answer excerpt">
+                    <summary className="list-none marker:hidden cursor-pointer text-xs font-medium text-primary hover:underline">
                       See what AI said
                     </summary>
                     <blockquote className="mt-2 border-l-2 border-muted pl-3 text-sm italic leading-relaxed text-muted-foreground">

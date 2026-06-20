@@ -236,6 +236,41 @@ def test_scan_result_carries_excerpt(http_client, seed_client_with_win_scan):
     assert "response_text" not in seen[0]  # whitelist guard
 
 
+def test_scan_excerpt_gated_for_prospect(db):
+    """Prospect scan results must always have excerpt=None and excerpt_kind=None,
+    even for brand_detected=True recommendation rows that would produce a win excerpt
+    for a converted client."""
+    client = _make_client(db, is_prospect=True, name="Prospect Dental")
+    client.share_token = uuid.uuid4().hex
+    db.flush()
+
+    scan = _make_scan(db, client.id)
+    _make_geo_score(db, client.id, scan.id)
+
+    # Seed a result that would produce a "win" excerpt for a non-prospect
+    _make_result(
+        db, scan.id,
+        brand_detected=True,
+        response_text="Prospect Dental is the top recommended clinic in KL.",
+        category="recommendation",
+    )
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/scan")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["results"], "Expected at least one scan result"
+        for row in body["results"]:
+            assert row["excerpt"] is None, f"Expected excerpt=None for prospect, got {row['excerpt']!r}"
+            assert row["excerpt_kind"] is None, f"Expected excerpt_kind=None for prospect, got {row['excerpt_kind']!r}"
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
 def test_scan_unseen_result_has_null_excerpt(db):
     """ScanQueryResult with brand_detected=False should serialize with null excerpt."""
     client = _make_client(db, is_prospect=False, name="NullExcerptClient")

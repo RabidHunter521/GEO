@@ -362,12 +362,18 @@ def get_scan(
         .order_by(ScanQueryResult.category, ScanQueryResult.created_at)
         .all()
     )
-    competitor_names = [
-        c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
-    ]
+    competitor_names = (
+        [c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()]
+        if not client.is_prospect
+        else []
+    )
     view_results = []
     for r in results:
-        kind, excerpt = result_excerpt(r, client.name, competitor_names)
+        kind, excerpt = (
+            result_excerpt(r, client.name, competitor_names)
+            if not client.is_prospect
+            else (None, None)
+        )
         view_results.append(
             ClientViewScanResult(
                 platform_label=_platform_label(r.platform),
