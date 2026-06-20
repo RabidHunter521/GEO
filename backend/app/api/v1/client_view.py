@@ -69,7 +69,7 @@ from app.services.competitor_intelligence_service import (
     compute_competitor_trends,
 )
 from app.services.issue_detection_service import detect_client_issues
-from app.services.proof_card_service import select_proof_cards
+from app.services.proof_card_service import select_proof_cards, result_excerpt
 from app.services.r2_service import presigned_pdf_url
 
 SCORE_HISTORY_LIMIT = 12
@@ -362,19 +362,24 @@ def get_scan(
         .order_by(ScanQueryResult.category, ScanQueryResult.created_at)
         .all()
     )
-    return ClientViewScan(
-        completed_at=latest_scan.completed_at,
-        results=[
+    competitor_names = [
+        c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
+    ]
+    view_results = []
+    for r in results:
+        kind, excerpt = result_excerpt(r, client.name, competitor_names)
+        view_results.append(
             ClientViewScanResult(
                 platform_label=_platform_label(r.platform),
                 category=r.category,
                 query_text=r.query_text,
                 seen_by_ai=r.brand_detected,
                 ai_search_ranking=r.recommendation_position,
+                excerpt=excerpt,
+                excerpt_kind=kind,
             )
-            for r in results
-        ],
-    )
+        )
+    return ClientViewScan(completed_at=latest_scan.completed_at, results=view_results)
 
 
 @router.get("/competitors", response_model=ClientViewCompetitors)

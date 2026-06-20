@@ -124,6 +124,8 @@ class ClientViewScanResult(BaseModel):
     query_text: str
     seen_by_ai: bool
     ai_search_ranking: int | None
+    excerpt: str | None = None
+    excerpt_kind: str | None = None  # "win" | "loss" | None
 
 
 class ClientViewScan(BaseModel):

@@ -171,3 +171,62 @@ def test_overview_proof_cards_empty_non_prospect_no_scan(db):
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(_saved)
+
+
+# ── fixtures for Task 4 ───────────────────────────────────────────────────────
+
+class _SeedResult:
+    """Lightweight container so the fixture can return both client and token."""
+    def __init__(self, share_token):
+        self.share_token = share_token
+
+
+@pytest.fixture
+def seed_client_with_win_scan(db):
+    """Seed a non-prospect client with a completed scan containing one win result."""
+    from app.models.scan_query_result import ScanQueryResult
+
+    client = _make_client(db, is_prospect=False, name="WinClient")
+    # Give it a unique share token so it never collides with other tests
+    client.share_token = uuid.uuid4().hex
+    db.flush()
+
+    scan = _make_scan(db, client.id)
+    _make_geo_score(db, client.id, scan.id)
+
+    # Seed one result that should produce a "win" excerpt
+    result = ScanQueryResult(
+        id=uuid.uuid4(),
+        scan_id=scan.id,
+        platform="chatgpt",
+        competitor_id=None,
+        category="recommendation",
+        query_text="best dental clinic in KL",
+        response_text="WinClient is the top recommended dental clinic in KL.",
+        brand_detected=True,
+        hallucination_flagged=False,
+    )
+    db.add(result)
+    db.commit()
+    return _SeedResult(client.share_token)
+
+
+@pytest.fixture
+def http_client(db, seed_client_with_win_scan):
+    """TestClient with DB and rate-limit overridden, cleaned up after."""
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    yield tc
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(_saved)
+
+
+# ── Task 4 tests ──────────────────────────────────────────────────────────────
+
+def test_scan_result_carries_excerpt(http_client, seed_client_with_win_scan):
+    token = seed_client_with_win_scan.share_token
+    body = http_client.get(f"/api/v1/view/{token}/scan").json()
+    seen = [r for r in body["results"] if r["seen_by_ai"]]
+    assert seen and seen[0]["excerpt"]
+    assert seen[0]["excerpt_kind"] in ("win", "loss")
+    assert "response_text" not in seen[0]  # whitelist guard
