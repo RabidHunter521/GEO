@@ -25,7 +25,7 @@ export function AiPipelineValueCard({ value }: { value: ClientViewTrafficValue }
       {hasRevenue ? (
         <>
           <p className="mt-3 font-display text-3xl font-bold tabular-nums text-foreground">
-            {rm(value.est_pipeline_rm as number)}
+            {rm(value.est_pipeline_rm as number)}{" "}
             <span className="ml-2 align-middle text-sm font-medium text-muted-foreground">
               estimated pipeline this month
             </span>
@@ -42,7 +42,7 @@ export function AiPipelineValueCard({ value }: { value: ClientViewTrafficValue }
       ) : (
         <>
           <p className="mt-3 font-display text-3xl font-bold tabular-nums text-foreground">
-            {value.ai_visitors.toLocaleString("en-MY")}
+            {value.ai_visitors.toLocaleString("en-MY")}{" "}
             <span className="ml-2 align-middle text-sm font-medium text-muted-foreground">
               visitors from AI search this month
             </span>

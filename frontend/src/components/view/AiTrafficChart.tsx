@@ -50,6 +50,18 @@ export function AiTrafficChart({ points }: Props) {
               {recent.length <= 8 && (
                 <text
                   x={x + barWidth / 2}
+                  y={height - barHeight - 6}
+                  textAnchor="middle"
+                  className="fill-foreground"
+                  fontSize="11"
+                  fontWeight="600"
+                >
+                  {p.ai_visitors.toLocaleString("en-MY")}
+                </text>
+              )}
+              {recent.length <= 8 && (
+                <text
+                  x={x + barWidth / 2}
                   y={height + 16}
                   textAnchor="middle"
                   className="fill-muted-foreground"

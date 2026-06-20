@@ -32,8 +32,11 @@
     --ring: 250 90% 60%;
     --radius: 0.625rem;
 
-    /* Score bands — semantic health colors, kept distinct from brand violet */
-    --score-strong: 152 60% 40%;
+    /* Score bands — semantic health colors, kept distinct from brand violet.
+       --score-strong darkened from 40%→29% L so green text on white and on
+       --score-strong-bg clears WCAG AA (was 2.9–3.1:1); stays clearly green
+       as a ring/bar fill. */
+    --score-strong: 152 62% 29%;
     --score-watch: 35 92% 48%;
     --score-low: 0 75% 55%;
     --score-strong-bg: 152 55% 94%;
