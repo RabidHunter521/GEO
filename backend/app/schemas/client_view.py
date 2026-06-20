@@ -6,6 +6,7 @@ visibility_frequency) so forbidden terms can't leak into the client UI.
 Structurally excluded: response_text, hallucination_flagged, contact_email,
 evidence text, score_drop_threshold, estimated_impact, internal ids.
 """
+# response_text is structurally excluded from all schemas in this module.
 import uuid
 from datetime import date, datetime
 from pydantic import BaseModel
@@ -28,6 +29,15 @@ class ClientViewScore(BaseModel):
     technical_foundations: float
     structured_data: float
     computed_at: datetime
+
+
+class ClientViewProofCard(BaseModel):
+    """One verbatim AI answer reduced to a single client-safe sentence. The
+    excerpt is competitor-redacted and never contains raw response_text."""
+    kind: str            # "win" | "loss"
+    platform_label: str
+    category: str
+    excerpt: str
 
 
 class ClientViewScorePoint(BaseModel):
@@ -96,6 +106,10 @@ class ClientViewOverview(BaseModel):
     has_content_plan: bool = False
     # Whether the remediation loop has any tracked items (drives the progress card).
     has_progress: bool = False
+    # Verbatim AI-answer proof cards — best wins + best loss from the latest
+    # completed scan. Populated for non-prospects only; always [] for prospects.
+    # response_text is structurally excluded: only the finished excerpt travels.
+    proof_cards: list[ClientViewProofCard] = []
     # Freshness: when the score was last computed, and the next check-in date
     # derived from the client's review cadence. is_stale flags an aged score so
     # the UI shows "next check due ~<date>" instead of a bare old date.

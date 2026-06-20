@@ -19,6 +19,7 @@ from app.core.constants import (
 from app.core.database import get_db
 from app.core.rate_limit import rate_limit
 from app.models.client import Client
+from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.geo_score import GeoScore
@@ -35,6 +36,7 @@ from app.schemas.client_view import (
     ClientViewCompetitorTrends,
     ClientViewPlatform,
     ClientViewProfile,
+    ClientViewProofCard,
     ClientViewScore,
     ClientViewTrendSeries,
     ClientViewScorePoint,
@@ -67,6 +69,7 @@ from app.services.competitor_intelligence_service import (
     compute_competitor_trends,
 )
 from app.services.issue_detection_service import detect_client_issues
+from app.services.proof_card_service import select_proof_cards
 from app.services.r2_service import presigned_pdf_url
 
 SCORE_HISTORY_LIMIT = 12
@@ -225,6 +228,42 @@ def get_overview(
         is not None
     )
 
+    # Verbatim proof cards (non-prospects only) — built from the latest completed
+    # scan's client-owned results. Compute-on-read; response_text stays server-side.
+    proof_cards: list[ClientViewProofCard] = []
+    if not client.is_prospect:
+        latest_scan = (
+            db.query(Scan)
+            .filter(Scan.client_id == client.id, Scan.status == "completed")
+            .order_by(desc(Scan.completed_at))
+            .first()
+        )
+        if latest_scan:
+            scan_results = (
+                db.query(ScanQueryResult)
+                .filter(
+                    ScanQueryResult.scan_id == latest_scan.id,
+                    ScanQueryResult.competitor_id.is_(None),
+                    ScanQueryResult.hallucination_flagged.is_(False),
+                )
+                .all()
+            )
+            competitor_names = [
+                c.name
+                for c in db.query(Competitor)
+                .filter(Competitor.client_id == client.id)
+                .all()
+            ]
+            proof_cards = [
+                ClientViewProofCard(
+                    kind=pc.kind,
+                    platform_label=_platform_label(pc.platform),
+                    category=pc.category,
+                    excerpt=pc.excerpt,
+                )
+                for pc in select_proof_cards(scan_results, client.name, competitor_names)
+            ]
+
     return ClientViewOverview(
         profile=ClientViewProfile(
             name=client.name,
@@ -268,6 +307,7 @@ def get_overview(
         has_content_plan=has_roadmap or has_gaps,
         traffic_value=traffic_value,
         has_progress=has_progress,
+        proof_cards=proof_cards,
         last_checked_at=last_checked_at,
         next_check_due=next_check_due,
         is_stale=is_stale,
