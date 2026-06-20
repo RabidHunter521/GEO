@@ -27,10 +27,13 @@ def _get_redis() -> "redis.Redis":
 
 
 def _client_ip(request: Request) -> str:
-    # Behind a proxy/CDN the real client IP is the first X-Forwarded-For entry.
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        return xff.split(",")[0].strip()
+    if settings.RATE_LIMIT_TRUSTED_PROXY:
+        # Behind a reverse proxy: take the rightmost XFF entry, which is
+        # appended by the proxy from its own $remote_addr and cannot be forged
+        # by the client. The leftmost entries are client-controlled.
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            return xff.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 

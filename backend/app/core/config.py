@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_SECRET_ACCESS_KEY: str = ""
     CLOUDFLARE_R2_BUCKET_NAME: str = "seenby-reports"
     CLOUDFLARE_R2_PUBLIC_URL: str = ""
+    # Set to any non-empty value when the app sits behind a reverse proxy
+    # (Nginx, Caddy, etc.). Causes the rate limiter to key on the rightmost
+    # X-Forwarded-For entry (proxy-appended) rather than the TCP connection IP.
+    RATE_LIMIT_TRUSTED_PROXY: str = ""
 
     @property
     def allowed_origins_list(self) -> list[str]:
