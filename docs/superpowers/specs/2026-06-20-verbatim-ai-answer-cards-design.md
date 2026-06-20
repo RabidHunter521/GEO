@@ -13,7 +13,7 @@ artifact in AI-visibility tracking is the verbatim answer itself:
 > "A buyer asked ChatGPT 'best dental clinic in KL' — here's the actual answer.
 > You're named in paragraph one." (win)
 >
-> "ChatGPT recommended a competitor — you weren't mentioned." (loss)
+> "ChatGPT recommended a competitor — they're winning this question." (loss)
 
 This is what a client screenshots and forwards to their boss. It is the strongest
 recurring justification for the RM4200/month price.
@@ -125,7 +125,7 @@ responses still never do.
 No new design system. Live HTML text — accessible, selectable, responsive, SEO-safe.
 
 **Language compliance (CLAUDE.md §2):** approved vocabulary only — "Seen by AI", "recommended a
-competitor", "you weren't mentioned". Never "cited/mentioned/citation".
+competitor", "they're winning this question". Never "cited/mentioned/citation".
 
 ## Testing
 
