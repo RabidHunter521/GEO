@@ -15,7 +15,7 @@ export function AiTrafficChart({ points }: Props) {
   const width = 560
   const height = 110
   const gap = 8
-  const barWidth = (width - gap * (recent.length - 1)) / recent.length
+  const barWidth = Math.min((width - gap * (recent.length - 1)) / recent.length, 48)
 
   return (
     <div className="rounded-lg border bg-card p-4">

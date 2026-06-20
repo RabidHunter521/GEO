@@ -5,7 +5,6 @@
 
 import { TrendingDown, TrendingUp, Users, AlertTriangle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { attentionReasons, scoreDelta } from "@/lib/client-list-utils"
 import type { ClientListItem } from "@/types"
 
@@ -37,11 +36,8 @@ export function PortfolioSummary({ clients, now }: Props) {
       icon: null,
       value:
         average !== null ? (
-          <span className="flex items-center gap-2">
-            <span className="font-display text-2xl font-bold tabular-nums">
-              {average.toFixed(0)}
-            </span>
-            <ScoreBadge score={average} />
+          <span className="font-display text-2xl font-bold tabular-nums">
+            {average.toFixed(0)}
           </span>
         ) : (
           <span className="font-display text-2xl font-bold text-muted-foreground">—</span>

@@ -20,7 +20,7 @@ export function ScoreHistoryChart({ points }: Props) {
   const width = 560
   const height = 120
   const gap = 8
-  const barWidth = (width - gap * (points.length - 1)) / points.length
+  const barWidth = Math.min((width - gap * (points.length - 1)) / points.length, 48)
 
   return (
     <div className="rounded-lg border bg-card p-4">
