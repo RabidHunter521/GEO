@@ -17,6 +17,7 @@ import { ScoreHistoryChart } from "@/components/view/ScoreHistoryChart"
 import { AiTrafficChart } from "@/components/view/AiTrafficChart"
 import { AiPipelineValueCard } from "@/components/view/AiPipelineValueCard"
 import { ClientProgressList } from "@/components/view/ClientProgressList"
+import { ProofCardList } from "@/components/view/ProofCardList"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { getScoreBand } from "@/lib/score-utils"
@@ -170,6 +171,11 @@ export default async function ViewOverviewPage({
           </h2>
           <p className="text-sm leading-relaxed text-foreground">{overview.change_narrative}</p>
         </div>
+      )}
+
+      {/* 2.25 Straight from AI — verbatim proof (clients only) */}
+      {!isProspect && overview.proof_cards && overview.proof_cards.length > 0 && (
+        <ProofCardList cards={overview.proof_cards} />
       )}
 
       {/* 2.5 What it's worth — the one money number (clients only) */}

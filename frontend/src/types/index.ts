@@ -419,6 +419,13 @@ export interface ClientViewProgressItem {
   status_label: string
 }
 
+export interface ClientViewProofCard {
+  kind: "win" | "loss"
+  platform_label: string
+  category: string
+  excerpt: string
+}
+
 export interface ClientViewOverview {
   profile: ClientViewProfile
   latest_score: ClientViewScore | null
@@ -435,6 +442,7 @@ export interface ClientViewOverview {
   last_checked_at: string | null
   next_check_due: string | null
   is_stale: boolean
+  proof_cards?: ClientViewProofCard[]
 }
 
 export interface ClientViewScanResult {
@@ -443,6 +451,8 @@ export interface ClientViewScanResult {
   query_text: string
   seen_by_ai: boolean
   ai_search_ranking: number | null
+  excerpt?: string | null
+  excerpt_kind?: "win" | "loss" | null
 }
 
 export interface ClientViewScan {
