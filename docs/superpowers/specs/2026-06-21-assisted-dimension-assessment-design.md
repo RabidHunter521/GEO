@@ -78,12 +78,18 @@ DimensionAssessment
 - **Accepted value stays on `client`** so scoring is untouched.
 - **Suggestion + history live in the table** → built-in audit trail ("Claude
   suggested 58, you set 65 on 2026-06-21"), and re-runs never clobber history.
-- **Client-facing evidence source of truth:** the client view reads
+- **Client-facing evidence source of truth:** the client view reads structured
   `evidence_bullets` from the latest **accepted** `DimensionAssessment` row.
-  The legacy `client.brand_authority_evidence` / `content_quality_evidence` text
-  fields remain only as a **manual fallback** — shown when a dimension has no
-  accepted assessment (admin typed evidence by hand). On accept, the assessment
-  row is the canonical evidence; the text field is not overwritten.
+- **Legacy text field stays in sync (denormalized).** On accept, a plain-text
+  rendering of the bullets (joined with newlines) is also written to
+  `client.brand_authority_evidence` / `content_quality_evidence`. This is
+  required, not optional: `update_client` rejects a score set without evidence
+  text (`clients.py:113-122`), and the PDF report reads `client.*_evidence`
+  (`report_service.py:744`). Keeping the text field populated lets both existing
+  consumers work unchanged. The row remains canonical for the structured list +
+  audit history; the text field is a denormalized convenience for legacy paths.
+  When a dimension has no accepted assessment, the text field is whatever the
+  admin typed by hand (manual fallback).
 
 ## Backend
 
@@ -101,9 +107,14 @@ Endpoints (routes in `app/api/v1/clients.py`, logic in the service):
   `suggested` row, returns the draft.
 - `POST /clients/{id}/assessments/{dimension}/accept` → body optionally carries
   an adjusted score; sets the row's `final_score`/`status`/`reviewed_at`, writes
-  the accepted score to `client.brand_authority_score`/`content_quality_score`,
-  recomputes GEO score, logs to activity. Evidence stays canonical on the row
-  (not copied to the `client.*_evidence` text field).
+  the accepted score to `client.brand_authority_score`/`content_quality_score`
+  and the denormalized evidence text to `client.*_evidence`, logs to activity.
+  **Does not** create a `GeoScore` row or live-recompute the overall score:
+  `GeoScore` rows require a `scan_id` and are written at scan time, and a manual
+  dimension edit today already takes effect at the next scan. The accepted score
+  flows into the overall GEO score on the next scan — identical, consistent
+  semantics. The evidence bullets surface in the client view immediately (they
+  read from the assessment row, not `GeoScore`).
 - `GET /clients/{id}/assessments` → latest draft + history for the panel.
 
 **Guardrail:** `raw_narrative` is admin-only — never added to any `client_view`
@@ -127,6 +138,8 @@ no new internal data exposed.
 
 - **`SCORE_VERSION` bump v1.1.0 → v1.2.0** — methodology of how two dimensions are
   *sourced* changed (formula weights unchanged), with a one-line changelog note.
+  The overall score still only materializes as a `GeoScore` row at scan time;
+  accept does not live-recompute (see Backend).
 - **Label swap in all 6 known locations:** "Assessed by SeenBy team" →
   "Based on public evidence · Reviewed by SeenBy":
   - `frontend/src/app/clients/[id]/checklist/ChecklistClient.tsx` (×2)
