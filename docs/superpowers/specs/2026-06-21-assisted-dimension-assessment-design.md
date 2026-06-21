@@ -30,7 +30,7 @@ admin remains the gate on every number that reaches a client.
 | Scoring engine | Claude API assessment, reusing `geo-brand-mentions` + `geo-content` rubrics as prompts |
 | Governance | Suggestion is a **draft**; admin must accept/adjust before it counts toward the GEO score |
 | Trigger | **On-demand** "Generate assessment" button per client (no auto/cadence in MVP) |
-| Client exposure | **Concise evidence summary** — 3–5 plain-English bullets per dimension, labeled "Evidence-based · Reviewed by SeenBy" |
+| Client exposure | **Concise evidence summary** — 3–5 plain-English bullets per dimension, labeled "Based on public evidence · Reviewed by SeenBy" |
 
 ## Architecture & Flow
 
@@ -118,8 +118,8 @@ through and the GEO score updates. The existing free-text evidence box stays as 
 manual fallback.
 
 **Client view (`/view/[token]`):** under Brand Authority and Content Quality,
-render accepted evidence bullets beneath a **"Evidence-based · Reviewed by
-SeenBy"** label (replacing "Assessed by SeenBy team"). Add
+render accepted evidence bullets beneath a **"Based on public evidence ·
+Reviewed by SeenBy"** label (replacing "Assessed by SeenBy team"). Add
 `evidence_bullets: list[str]` to the whitelisted client-view dimension schema —
 no new internal data exposed.
 
@@ -128,7 +128,7 @@ no new internal data exposed.
 - **`SCORE_VERSION` bump v1.1.0 → v1.2.0** — methodology of how two dimensions are
   *sourced* changed (formula weights unchanged), with a one-line changelog note.
 - **Label swap in all 6 known locations:** "Assessed by SeenBy team" →
-  "Evidence-based · Reviewed by SeenBy":
+  "Based on public evidence · Reviewed by SeenBy":
   - `frontend/src/app/clients/[id]/checklist/ChecklistClient.tsx` (×2)
   - `frontend/src/app/clients/[id]/page.tsx`
   - `frontend/src/app/clients/[id]/settings/SettingsForm.tsx` (×2 + helper copy)
