@@ -78,8 +78,12 @@ DimensionAssessment
 - **Accepted value stays on `client`** so scoring is untouched.
 - **Suggestion + history live in the table** → built-in audit trail ("Claude
   suggested 58, you set 65 on 2026-06-21"), and re-runs never clobber history.
-- The existing `client.brand_authority_evidence` / `content_quality_evidence`
-  text fields become the **accepted, client-facing** evidence, written on accept.
+- **Client-facing evidence source of truth:** the client view reads
+  `evidence_bullets` from the latest **accepted** `DimensionAssessment` row.
+  The legacy `client.brand_authority_evidence` / `content_quality_evidence` text
+  fields remain only as a **manual fallback** — shown when a dimension has no
+  accepted assessment (admin typed evidence by hand). On accept, the assessment
+  row is the canonical evidence; the text field is not overwritten.
 
 ## Backend
 
@@ -96,8 +100,10 @@ Endpoints (routes in `app/api/v1/clients.py`, logic in the service):
 - `POST /clients/{id}/assessments/{dimension}/generate` → runs Claude, stores a
   `suggested` row, returns the draft.
 - `POST /clients/{id}/assessments/{dimension}/accept` → body optionally carries
-  an adjusted score; writes `final_score` + evidence to `client.*`, recomputes
-  GEO score, logs to activity.
+  an adjusted score; sets the row's `final_score`/`status`/`reviewed_at`, writes
+  the accepted score to `client.brand_authority_score`/`content_quality_score`,
+  recomputes GEO score, logs to activity. Evidence stays canonical on the row
+  (not copied to the `client.*_evidence` text field).
 - `GET /clients/{id}/assessments` → latest draft + history for the panel.
 
 **Guardrail:** `raw_narrative` is admin-only — never added to any `client_view`
