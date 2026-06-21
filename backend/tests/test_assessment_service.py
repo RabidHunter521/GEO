@@ -1,6 +1,7 @@
 import uuid
 from app.models.client import Client
 from app.models.dimension_assessment import DimensionAssessment
+from app.core import constants
 
 
 def _client(db):
@@ -28,3 +29,10 @@ def test_dimension_assessment_row_roundtrips(db):
     assert row.evidence_bullets == ["Active on Reddit in 3 relevant communities"]
     assert row.status == "suggested"
     assert row.generated_at is not None
+
+
+def test_assessment_constants_present():
+    assert constants.SCORE_VERSION == "v1.2.0"
+    assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
+    assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")
+    assert constants.DIMENSION_EVIDENCE_LABEL == "Based on public evidence · Reviewed by SeenBy"
