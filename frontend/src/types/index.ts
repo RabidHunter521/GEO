@@ -599,3 +599,19 @@ export interface GapMatrixResponse {
   categories: string[]
   rows: GapMatrixRow[]
 }
+
+// ── Dimension Assessment (assisted manual scoring) ────────────────────────────
+
+export type AssessmentDimension = "brand_authority" | "content_quality"
+
+export interface DimensionAssessment {
+  id: string
+  dimension: AssessmentDimension
+  suggested_score: number
+  final_score: number | null
+  status: "suggested" | "accepted" | "adjusted"
+  evidence_bullets: string[]
+  raw_narrative: string | null
+  generated_at: string
+  reviewed_at: string | null
+}
