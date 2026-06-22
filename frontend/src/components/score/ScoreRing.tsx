@@ -10,6 +10,13 @@ const BAND_TOKEN: Record<string, string> = {
   red: "var(--score-low)",
 }
 
+// Halo glow colors — raw HSL values to build rgba
+const HALO_COLOR: Record<string, string> = {
+  green:  "hsl(152 62% 50% / 0.14)",
+  yellow: "hsl(35 92% 55% / 0.14)",
+  red:    "hsl(0 75% 60% / 0.14)",
+}
+
 interface Props {
   score: number | null
   /** Diameter in px */
@@ -33,9 +40,11 @@ export function ScoreRing({
 
   const hasScore = score !== null
   const clamped = hasScore ? Math.max(0, Math.min(100, score!)) : 0
+  const band = hasScore ? getScoreColor(clamped) : "green"
   const color = hasScore
-    ? `hsl(${BAND_TOKEN[getScoreColor(clamped)]})`
+    ? `hsl(${BAND_TOKEN[band]})`
     : "hsl(var(--muted-foreground))"
+  const halo = hasScore ? HALO_COLOR[band] : "transparent"
 
   // Animate the stroke drawing in on mount
   const [progress, setProgress] = useState(0)
@@ -51,7 +60,19 @@ export function ScoreRing({
       className={cn("relative inline-flex items-center justify-center", className)}
       style={{ width: size, height: size }}
     >
+      {/* Soft glow halo behind the ring */}
+      {hasScore && (
+        <span
+          className="pointer-events-none absolute rounded-full"
+          style={{
+            inset: stroke,
+            background: `radial-gradient(circle, ${halo} 0%, transparent 72%)`,
+            transition: "background 600ms ease",
+          }}
+        />
+      )}
       <svg width={size} height={size} className="-rotate-90">
+        {/* Track */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -60,6 +81,7 @@ export function ScoreRing({
           stroke="hsl(var(--muted))"
           strokeWidth={stroke}
         />
+        {/* Progress arc */}
         {hasScore && (
           <circle
             cx={size / 2}
@@ -82,7 +104,7 @@ export function ScoreRing({
               {clamped.toFixed(0)}
             </span>
             {showLabel && (
-              <span className="mt-1 text-xs font-medium text-muted-foreground">
+              <span className="mt-1 text-xs font-medium text-muted-foreground/70">
                 / 100
               </span>
             )}

@@ -61,6 +61,10 @@ const config: Config = {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      boxShadow: {
+        brand: "var(--shadow-brand)",
+        "brand-lg": "var(--shadow-brand-lg)",
+      },
     },
   },
   plugins: [],

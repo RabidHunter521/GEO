@@ -54,6 +54,7 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
   const expectedCountRef = useRef(initialReports.length)
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
     }, 5000)
     const timeout = setTimeout(() => {
       setIsGenerating(false)
+      setGenerateError("Report generation timed out — check the Activity Log and try again.")
     }, 90000)
     return () => {
       clearInterval(interval)
@@ -77,6 +79,7 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
   function handleGenerate() {
     expectedCountRef.current = reports.length
     setIsGenerating(true)
+    setGenerateError(null)
     startTransition(async () => {
       await triggerGenerateReport(clientId)
     })
@@ -126,6 +129,12 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
       {isGenerating && (
         <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
           Report is being generated — this usually takes 30–60 seconds. This page will update automatically.
+        </div>
+      )}
+
+      {generateError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {generateError}
         </div>
       )}
 

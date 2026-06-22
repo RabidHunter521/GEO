@@ -21,7 +21,9 @@ interface Props {
 }
 
 export function ActionCenterCard({ clientId, initialActions }: Props) {
-  const [actions, setActions] = useState(initialActions)
+  const [actions, setActions] = useState(
+    [...initialActions].sort((a, b) => b.estimated_impact - a.estimated_impact),
+  )
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 

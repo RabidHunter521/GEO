@@ -57,6 +57,7 @@ export interface ClientFilters {
   industry: string // "all" or exact industry value
   country: string // "all", "none" (not set) or exact country value
   recency: RecencyFilter
+  scanDue: boolean
 }
 
 export const DEFAULT_FILTERS: ClientFilters = {
@@ -64,10 +65,11 @@ export const DEFAULT_FILTERS: ClientFilters = {
   industry: "all",
   country: "all",
   recency: "all",
+  scanDue: false,
 }
 
 export function hasActiveFilters(f: ClientFilters): boolean {
-  return f.band !== "all" || f.industry !== "all" || f.country !== "all" || f.recency !== "all"
+  return f.band !== "all" || f.industry !== "all" || f.country !== "all" || f.recency !== "all" || f.scanDue
 }
 
 export function applyFilters(
@@ -103,6 +105,7 @@ export function applyFilters(
         if (c.last_scan_at === null || daysSince(c.last_scan_at, now) > windowDays) return false
       }
     }
+    if (f.scanDue && !c.is_scan_overdue) return false
     return true
   })
 }

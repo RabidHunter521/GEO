@@ -121,8 +121,8 @@ function AssessmentReview({
             <Button type="button" size="sm" onClick={() => accept(false)}>
               Accept
             </Button>
-            <input
-              className="w-16 rounded border px-2 py-1"
+            <Input
+              className="w-16"
               value={adjust}
               onChange={(e) => setAdjust(e.target.value)}
             />
@@ -473,7 +473,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       <Separator />
 
       {/* Manual scores */}
-      <section className="space-y-4">
+      <section id="brand-authority" className="space-y-4">
         <div>
           <h2 className="font-display text-lg font-semibold tracking-tight">Manual Score Inputs</h2>
           <p className="text-xs text-muted-foreground mt-0.5 italic">
@@ -583,7 +583,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               Shown to the client under &ldquo;Based on public evidence · Reviewed by SeenBy&rdquo; — never leave it blank with a score set.
             </p>
           </div>
-          <div className="space-y-1">
+          <div id="content-quality" className="space-y-1">
             <Label htmlFor="s-content-evidence">
               Content Quality — why this score?{" "}
               <span className="text-muted-foreground">(required when score &gt; 0)</span>

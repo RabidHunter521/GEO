@@ -45,6 +45,11 @@
 
     /* Soft brand shadow for elevated surfaces */
     --shadow-brand: 0 8px 30px -12px hsl(250 90% 60% / 0.18);
+    --shadow-brand-lg: 0 20px 60px -16px hsl(250 90% 60% / 0.22), 0 4px 16px -4px hsl(250 90% 60% / 0.10);
+
+    /* Sidebar — slightly tinted off-white, distinct from main bg */
+    --sidebar-bg: 252 50% 98%;
+    --sidebar-border: 252 30% 89%;
   }
 }
 
@@ -56,6 +61,18 @@
     @apply bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";
   }
+  /* Smooth transitions on interactive elements by default */
+  a, button {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+  /* Refined focus ring — brand-colored, not browser default */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 @layer utilities {
@@ -63,21 +80,42 @@
   .bg-app-wash {
     background-image: radial-gradient(
         60rem 40rem at 0% 0%,
-        hsl(250 90% 60% / 0.05),
+        hsl(250 90% 60% / 0.055),
         transparent 60%
       ),
       radial-gradient(
         50rem 40rem at 100% 0%,
-        hsl(270 90% 60% / 0.035),
+        hsl(270 90% 60% / 0.04),
         transparent 55%
       );
+  }
+
+  /* Sidebar tinted background */
+  .bg-sidebar {
+    background-color: hsl(var(--sidebar-bg));
   }
 
   .shadow-brand {
     box-shadow: var(--shadow-brand);
   }
 
+  /* Stronger shadow for hero/feature surfaces */
+  .shadow-brand-lg {
+    box-shadow: var(--shadow-brand-lg);
+  }
+
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Prevent awkward text wraps on headings */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Score-aware progress bar colors */
+  .bar-strong { background-color: hsl(var(--score-strong)); }
+  .bar-watch  { background-color: hsl(var(--score-watch)); }
+  .bar-low    { background-color: hsl(var(--score-low)); }
+  .bar-primary { background-color: hsl(var(--primary)); }
 }

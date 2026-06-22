@@ -31,37 +31,37 @@ export default async function ClientLayout({
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-4 border-b pb-5">
+      <div className="mb-7 flex items-center gap-4 border-b border-border/60 pb-5">
         {client.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={client.logo_url}
             alt={`${client.name} logo`}
-            className="h-12 w-12 shrink-0 rounded-xl border bg-card object-contain p-1"
+            className="h-12 w-12 shrink-0 rounded-xl border bg-card object-contain p-1 shadow-sm"
           />
         ) : (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-display text-lg font-semibold text-primary">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/80 to-violet-700 font-display text-lg font-bold text-white shadow-brand">
             {initials(client.name)}
           </span>
         )}
         <div className="min-w-0">
-          <h1 className="truncate font-display text-2xl font-semibold tracking-tight">
+          <h1 className="truncate font-display text-2xl font-semibold tracking-tight text-balance">
             {client.name}
           </h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
             {client.website && (
               <a
                 href={client.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-secondary-foreground transition-colors hover:bg-secondary/70"
+                className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
               >
                 {host}
                 <ExternalLink className="h-3 w-3" />
               </a>
             )}
             {client.industry && (
-              <span className="rounded-full bg-muted px-2.5 py-0.5">
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs">
                 {client.industry}
               </span>
             )}
@@ -70,7 +70,7 @@ export default async function ClientLayout({
                 href={`/view/${client.share_token}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 font-medium text-primary transition-colors hover:bg-primary/20"
+                className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
                 title="Preview what this client sees"
               >
                 Client view

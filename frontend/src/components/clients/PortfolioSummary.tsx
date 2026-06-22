@@ -6,6 +6,7 @@
 import { TrendingDown, TrendingUp, Users, AlertTriangle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { attentionReasons, scoreDelta } from "@/lib/client-list-utils"
+import { cn } from "@/lib/utils"
 import type { ClientListItem } from "@/types"
 
 interface Props {
@@ -29,11 +30,15 @@ export function PortfolioSummary({ clients, now }: Props) {
     {
       label: "Clients",
       icon: Users,
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
       value: <span className="font-display text-2xl font-bold">{clients.length}</span>,
     },
     {
       label: "Average score",
       icon: null,
+      iconBg: null,
+      iconColor: null,
       value:
         average !== null ? (
           <span className="font-display text-2xl font-bold tabular-nums">
@@ -46,25 +51,30 @@ export function PortfolioSummary({ clients, now }: Props) {
     {
       label: "Improved",
       icon: TrendingUp,
+      iconBg: "bg-score-strong-bg",
+      iconColor: "text-score-strong",
       value: (
-        <span className="font-display text-2xl font-bold text-emerald-600">{improved}</span>
+        <span className="font-display text-2xl font-bold text-score-strong">{improved}</span>
       ),
     },
     {
       label: "Declined",
       icon: TrendingDown,
-      value: <span className="font-display text-2xl font-bold text-red-600">{declined}</span>,
+      iconBg: "bg-score-low-bg",
+      iconColor: "text-score-low",
+      value: <span className="font-display text-2xl font-bold text-score-low">{declined}</span>,
     },
     {
       label: "Needs attention",
       icon: AlertTriangle,
+      iconBg: needsAttention > 0 ? "bg-score-watch-bg" : "bg-muted",
+      iconColor: needsAttention > 0 ? "text-score-watch" : "text-muted-foreground",
       value: (
         <span
-          className={
-            needsAttention > 0
-              ? "font-display text-2xl font-bold text-amber-600"
-              : "font-display text-2xl font-bold"
-          }
+          className={cn(
+            "font-display text-2xl font-bold",
+            needsAttention > 0 ? "text-score-watch" : "",
+          )}
         >
           {needsAttention}
         </span>
@@ -75,13 +85,17 @@ export function PortfolioSummary({ clients, now }: Props) {
   return (
     <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
       {stats.map((stat) => (
-        <Card key={stat.label}>
+        <Card key={stat.label} className="transition-shadow hover:shadow-brand">
           <CardContent className="p-4">
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              {stat.icon && <stat.icon className="h-3.5 w-3.5" />}
-              {stat.label}
-            </p>
-            <div className="mt-1">{stat.value}</div>
+            <div className="flex items-center gap-2">
+              {stat.icon && stat.iconBg && stat.iconColor && (
+                <span className={cn("flex h-7 w-7 items-center justify-center rounded-lg", stat.iconBg)}>
+                  <stat.icon className={cn("h-3.5 w-3.5", stat.iconColor)} />
+                </span>
+              )}
+              <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+            </div>
+            <div className="mt-2">{stat.value}</div>
           </CardContent>
         </Card>
       ))}

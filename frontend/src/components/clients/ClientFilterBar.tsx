@@ -3,8 +3,9 @@
 // and last-scan recency. Options are derived from the loaded client list.
 "use client"
 
-import { X } from "lucide-react"
+import { AlertCircle, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   Select,
   SelectContent,
@@ -118,6 +119,16 @@ export function ClientFilterBar({ clients, filters, onChange, visibleCount }: Pr
           ))}
         </SelectContent>
       </Select>
+
+      <Button
+        variant={filters.scanDue ? "secondary" : "outline"}
+        size="sm"
+        className="h-9 gap-1.5 text-sm"
+        onClick={() => set("scanDue", !filters.scanDue)}
+      >
+        <AlertCircle className={cn("h-3.5 w-3.5", filters.scanDue ? "text-score-watch" : "text-muted-foreground")} />
+        Scan due
+      </Button>
 
       {hasActiveFilters(filters) && (
         <>
