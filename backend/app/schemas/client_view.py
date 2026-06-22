@@ -4,9 +4,11 @@ Every model here is a strict whitelist — never reuse admin schemas. Wire
 field names carry the client-facing vocabulary (seen_by_ai, ai_search_ranking,
 visibility_frequency) so forbidden terms can't leak into the client UI.
 Structurally excluded: response_text, hallucination_flagged, contact_email,
-evidence text, score_drop_threshold, estimated_impact, internal ids.
+raw_narrative and admin free-text, score_drop_threshold, estimated_impact,
+internal ids. Sanitized, accepted evidence bullets are deliberately surfaced
+via brand_authority_evidence and content_quality_evidence on ClientViewScore.
 """
-# response_text is structurally excluded from all schemas in this module.
+# response_text and raw_narrative are structurally excluded from all schemas in this module.
 import uuid
 from datetime import date, datetime
 from pydantic import BaseModel
@@ -29,6 +31,10 @@ class ClientViewScore(BaseModel):
     technical_foundations: float
     structured_data: float
     computed_at: datetime
+    # Sanitized evidence bullets from accepted/adjusted DimensionAssessment rows.
+    # raw_narrative is NEVER included — these are the admin-reviewed bullet points only.
+    brand_authority_evidence: list[str] = []
+    content_quality_evidence: list[str] = []
 
 
 class ClientViewProofCard(BaseModel):

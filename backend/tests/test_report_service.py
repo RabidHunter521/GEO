@@ -156,7 +156,7 @@ def test_build_report_html_contains_manual_assessment_label():
     client = MagicMock()
     client.name = "Acme Corp"
     html = _build_report_html(client, _make_report_data())
-    assert "Assessed by SeenBy team" in html
+    assert "Based on public evidence · Reviewed by SeenBy" in html
 
 
 # ── generate_report_pdf ───────────────────────────────────────────────────────
@@ -467,7 +467,7 @@ def test_build_report_html_manual_evidence_never_naked():
     data = _make_report_data()  # no evidence text set
     html = _build_report_html(client, data)
     # Label present, and a substantive methodology line backs it (not bare).
-    assert "Assessed by SeenBy team" in html
+    assert "Based on public evidence · Reviewed by SeenBy" in html
     assert "Based on brand presence" in html
     assert "Based on content depth" in html
 
@@ -546,3 +546,53 @@ def test_send_report_email_marks_report_sent_and_logs_activity():
     event_types = [o.event_type for o in added_objects if hasattr(o, "event_type")]
     assert "report_sent" in event_types
     db.commit.assert_called()
+
+
+# ── §2 vocabulary sanitization in manual evidence (Fix 1) ─────────────────────
+
+def test_build_report_html_sanitizes_forbidden_terms_in_ba_evidence():
+    """Manual brand_authority_evidence containing forbidden §2 terms must be
+    scrubbed before appearing in the PDF HTML."""
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.brand_authority_evidence = "We were mentioned in The Edge"
+    rendered = _build_report_html(client, data)
+    # Forbidden word must be gone
+    assert "mentioned" not in rendered
+    # Approved replacement must be present
+    assert "seen by AI" in rendered
+
+
+def test_build_report_html_sanitizes_forbidden_terms_in_cq_evidence():
+    """Manual content_quality_evidence containing forbidden §2 terms must be
+    scrubbed before appearing in the PDF HTML."""
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.content_quality_evidence = "citation rate is high; ranking position is good"
+    rendered = _build_report_html(client, data)
+    assert "citation rate" not in rendered
+    assert "ranking position" not in rendered
+    assert "visibility frequency" in rendered
+    assert "AI Search Ranking" in rendered
+
+
+def test_build_report_html_html_escape_still_applied_after_sanitize():
+    """HTML-escaping must still happen after §2 sanitization so stray
+    '<' / '&' in an evidence note cannot break the PDF template."""
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.brand_authority_evidence = "Score > 80 & mentioned in press"
+    rendered = _build_report_html(client, data)
+    # Raw angle bracket and ampersand must not appear unescaped
+    assert "Score > 80" not in rendered
+    assert "& mentioned" not in rendered
+    # But their HTML-escaped forms should be there, and forbidden word scrubbed
+    assert "&gt;" in rendered
+    assert "&amp;" in rendered
+    assert "mentioned" not in rendered

@@ -94,12 +94,12 @@ const DEFAULT_PHASES: ChecklistPhase[] = [
       {
         id: "review-brand-authority",
         label: "Enter the manual Brand Authority score",
-        hint: "Assessed by SeenBy team.",
+        hint: "Based on public evidence · Reviewed by SeenBy.",
       },
       {
         id: "review-content-quality",
         label: "Enter the manual Content Quality score",
-        hint: "Assessed by SeenBy team.",
+        hint: "Based on public evidence · Reviewed by SeenBy.",
       },
       {
         id: "review-baseline",

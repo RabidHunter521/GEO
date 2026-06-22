@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -335,4 +335,31 @@ export function updateRemediationStatus(
     `/api/v1/clients/${clientId}/remediation/${itemId}`,
     { method: "PATCH", body: JSON.stringify({ status }) },
   )
+}
+
+// ── Dimension Assessment ───────────────────────────────────────────────────────
+
+export function generateAssessment(
+  clientId: string,
+  dimension: AssessmentDimension,
+): Promise<DimensionAssessment> {
+  return apiFetch<DimensionAssessment>(
+    `/api/v1/clients/${clientId}/assessments/${dimension}/generate`,
+    { method: "POST" },
+  )
+}
+
+export function acceptAssessment(
+  clientId: string,
+  dimension: AssessmentDimension,
+  finalScore: number | null,
+): Promise<DimensionAssessment> {
+  return apiFetch<DimensionAssessment>(
+    `/api/v1/clients/${clientId}/assessments/${dimension}/accept`,
+    { method: "POST", body: JSON.stringify({ final_score: finalScore }) },
+  )
+}
+
+export function listAssessments(clientId: string): Promise<DimensionAssessment[]> {
+  return apiFetch<DimensionAssessment[]>(`/api/v1/clients/${clientId}/assessments`)
 }

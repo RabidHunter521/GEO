@@ -10,17 +10,19 @@ from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.constants import ASSESSABLE_DIMENSIONS
 from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem, ShareTokenResponse
 from app.schemas.geo_score import GeoScoreResponse
 from app.schemas.benchmark import IndustryBenchmarkResponse
+from app.schemas.assessment import AcceptRequest, AssessmentResponse
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.client_list_service import build_client_list
 from app.services.gap_matrix_service import compute_gap_matrix
 from app.services.share_link_service import generate_share_token, revoke_share_token
-from app.services import r2_service
+from app.services import r2_service, assessment_service
 from app.schemas.gap_matrix import GapMatrixResponse
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -234,3 +236,57 @@ def get_latest_geo_score(client_id: uuid.UUID, db: Session = Depends(get_db)):
         .order_by(desc(GeoScore.computed_at))
         .first()
     )
+
+
+def _require_dimension(dimension: str) -> None:
+    if dimension not in ASSESSABLE_DIMENSIONS:
+        raise HTTPException(status_code=422, detail="Unknown dimension.")
+
+
+@router.post(
+    "/{client_id}/assessments/{dimension}/generate",
+    response_model=AssessmentResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def generate_assessment(client_id: uuid.UUID, dimension: str, db: Session = Depends(get_db)):
+    _require_dimension(dimension)
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    row = assessment_service.generate_assessment(c, dimension, db)
+    if row is None:
+        raise HTTPException(status_code=502, detail="Assessment failed — please try again.")
+    return row
+
+
+@router.post(
+    "/{client_id}/assessments/{dimension}/accept",
+    response_model=AssessmentResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def accept_assessment(
+    client_id: uuid.UUID, dimension: str, body: AcceptRequest, db: Session = Depends(get_db)
+):
+    _require_dimension(dimension)
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    row = assessment_service.accept_assessment(c, dimension, body.final_score, db)
+    if row is None:
+        raise HTTPException(status_code=404, detail="No assessment to accept — generate one first.")
+    return row
+
+
+@router.get(
+    "/{client_id}/assessments",
+    response_model=list[AssessmentResponse],
+    dependencies=[Depends(require_api_key)],
+)
+def list_assessments(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return [
+        row for dimension in ASSESSABLE_DIMENSIONS
+        if (row := assessment_service.latest_assessment(client_id, dimension, db)) is not None
+    ]

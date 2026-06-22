@@ -1,7 +1,7 @@
 # backend/app/core/constants.py
 from typing import Final
 
-SCORE_VERSION: Final = "v1.1.0"  # v1.1.0: AI Citability averages across enabled platforms
+SCORE_VERSION: Final = "v1.2.0"  # v1.2.0: Brand Authority & Content Quality are Claude-suggested, admin-reviewed (assisted scoring); weights unchanged
 
 SCORE_WEIGHTS: Final = {
     "ai_citability":         0.40,
@@ -10,6 +10,14 @@ SCORE_WEIGHTS: Final = {
     "technical_foundations": 0.10,
     "structured_data":       0.10,
 }
+
+# Manual GEO dimensions that support Claude-assisted, admin-reviewed scoring.
+DIMENSION_BRAND_AUTHORITY: Final = "brand_authority"
+DIMENSION_CONTENT_QUALITY: Final = "content_quality"
+ASSESSABLE_DIMENSIONS: Final = (DIMENSION_BRAND_AUTHORITY, DIMENSION_CONTENT_QUALITY)
+ASSESSMENT_STATUSES: Final = ("suggested", "accepted", "adjusted")
+# Client-facing label replacing "Assessed by SeenBy team" — leads with verifiability.
+DIMENSION_EVIDENCE_LABEL: Final = "Based on public evidence · Reviewed by SeenBy"
 
 SCORE_BANDS: Final = {
     "excellent":  (80, 100),
