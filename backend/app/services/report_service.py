@@ -741,13 +741,13 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         <td>Brand Authority</td>
         <td class="{_score_css(ba_color)}">{data.brand_authority:.0f}</td>
         <td>20%</td><td>{data.brand_authority * 0.20:.1f}</td>
-        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {safe_ba_evidence}" if safe_ba_evidence else ""}</div></td>
+        <td>Based on public evidence · Reviewed by SeenBy<div class="manual-note">Manual assessment{f": {safe_ba_evidence}" if safe_ba_evidence else ""}</div></td>
       </tr>
       <tr>
         <td>Content Quality</td>
         <td class="{_score_css(cq_color)}">{data.content_quality:.0f}</td>
         <td>20%</td><td>{data.content_quality * 0.20:.1f}</td>
-        <td>Assessed by SeenBy team<div class="manual-note">Manual assessment{f": {safe_cq_evidence}" if safe_cq_evidence else ""}</div></td>
+        <td>Based on public evidence · Reviewed by SeenBy<div class="manual-note">Manual assessment{f": {safe_cq_evidence}" if safe_cq_evidence else ""}</div></td>
       </tr>
       <tr>
         <td>Technical Foundations</td>

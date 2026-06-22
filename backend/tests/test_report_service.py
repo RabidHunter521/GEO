@@ -156,7 +156,7 @@ def test_build_report_html_contains_manual_assessment_label():
     client = MagicMock()
     client.name = "Acme Corp"
     html = _build_report_html(client, _make_report_data())
-    assert "Assessed by SeenBy team" in html
+    assert "Based on public evidence · Reviewed by SeenBy" in html
 
 
 # ── generate_report_pdf ───────────────────────────────────────────────────────
@@ -467,7 +467,7 @@ def test_build_report_html_manual_evidence_never_naked():
     data = _make_report_data()  # no evidence text set
     html = _build_report_html(client, data)
     # Label present, and a substantive methodology line backs it (not bare).
-    assert "Assessed by SeenBy team" in html
+    assert "Based on public evidence · Reviewed by SeenBy" in html
     assert "Based on brand presence" in html
     assert "Based on content depth" in html
 
