@@ -362,6 +362,8 @@ export interface ClientViewScore {
   technical_foundations: number
   structured_data: number
   computed_at: string
+  brand_authority_evidence: string[]
+  content_quality_evidence: string[]
 }
 
 export interface ClientViewScorePoint {

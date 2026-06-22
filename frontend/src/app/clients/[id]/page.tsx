@@ -170,7 +170,7 @@ export default async function ClientOverviewPage({
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {dim.weight} weight
                       {dim.manual && (
-                        <span className="ml-1.5 italic">· Assessed by SeenBy team</span>
+                        <span className="ml-1.5 italic">· Based on public evidence · Reviewed by SeenBy</span>
                       )}
                     </p>
                   </div>

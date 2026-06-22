@@ -255,7 +255,7 @@ export default async function ViewOverviewPage({
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {dim.weight} weight
                       {dim.manual && (
-                        <span className="ml-1.5 italic">· Assessed by SeenBy team</span>
+                        <span className="ml-1.5 italic">· Based on public evidence · Reviewed by SeenBy</span>
                       )}
                     </p>
                   </div>
@@ -267,6 +267,20 @@ export default async function ViewOverviewPage({
                     style={{ width: `${pct}%` }}
                   />
                 </div>
+                {dim.key === "brand_authority" && score && (score.brand_authority_evidence ?? []).length > 0 && (
+                  <ul className="ml-4 mt-1 list-disc text-sm text-muted-foreground">
+                    {(score.brand_authority_evidence ?? []).map((b, i) => (
+                      <li key={i}>{b}</li>
+                    ))}
+                  </ul>
+                )}
+                {dim.key === "content_quality" && score && (score.content_quality_evidence ?? []).length > 0 && (
+                  <ul className="ml-4 mt-1 list-disc text-sm text-muted-foreground">
+                    {(score.content_quality_evidence ?? []).map((b, i) => (
+                      <li key={i}>{b}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )
           })}
