@@ -60,15 +60,18 @@ without updating this file and bumping SCORE_VERSION.
 | Dimension | Weight | Source |
 |---|---|---|
 | AI Citability | 40% | Automatic — scan engine |
-| Brand Authority | 20% | Manual — admin input |
-| Content Quality | 20% | Manual — admin input |
+| Brand Authority | 20% | Assisted — Claude-suggested, admin-reviewed |
+| Content Quality | 20% | Assisted — Claude-suggested, admin-reviewed |
 | Technical Foundations | 10% | Auto — AI Readiness Toolkit verified |
 | Structured Data | 10% | Auto — AI Readiness Toolkit verified |
 
-Manual dimensions must always show label: "Assessed by SeenBy team"
-SCORE_VERSION = "v1.1.0" — bump when weights or formula change.
+Manual dimensions must always show label: "Based on public evidence · Reviewed by SeenBy"
+SCORE_VERSION = "v1.2.0" — bump when weights or formula change.
 (v1.1.0: AI Citability = equal-weighted average of per-platform visibility
 across the client's enabled platforms; unavailable platforms are excluded.)
+(v1.2.0: Brand Authority + Content Quality sourcing changed from bare admin
+input to assisted, human-reviewed scoring — Claude suggests, admin gates every
+number; weights unchanged.)
 
 ## 5. Scan Engine Rules
 
@@ -187,7 +190,8 @@ If asked to implement any of the following, stop and confirm with Faris first:
 - Scheduled / automated scans
 - Webhook integrations
 - Twice-daily scan frequency
-- Automated Brand Authority or Content Quality scoring
+
+Note: Brand Authority / Content Quality shipped as assisted, human-reviewed scoring (admin gates every number) — fully automated scoring is still out of scope.
 
 ## 12. Base CLAUDE.md Principles Still Apply
 
