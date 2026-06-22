@@ -14,6 +14,7 @@ from app.prompts import (
     content_analysis,
     report,
     digest,
+    assessment,
 )
 
 # service name → {version, model}
@@ -28,6 +29,8 @@ REGISTRY: dict[str, dict[str, str]] = {
     "content_analysis_suggested":  {"version": content_analysis.SUGGESTED_CONTENT_VERSION,  "model": MODEL},
     "report_narrative":            {"version": report.VERSION,                     "model": MODEL_NARRATIVE},
     "digest_action":               {"version": digest.VERSION,                     "model": MODEL},
+    "assessment_brand_authority":  {"version": assessment.BRAND_AUTHORITY_VERSION,  "model": MODEL},
+    "assessment_content_quality":  {"version": assessment.CONTENT_QUALITY_VERSION,  "model": MODEL},
 }
 
 

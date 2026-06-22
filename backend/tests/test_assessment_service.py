@@ -36,3 +36,24 @@ def test_assessment_constants_present():
     assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
     assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")
     assert constants.DIMENSION_EVIDENCE_LABEL == "Based on public evidence · Reviewed by SeenBy"
+
+
+from app.prompts import assessment as assessment_prompts
+
+
+def test_prompt_includes_business_and_json_contract(db):
+    c = _client(db)
+    p = assessment_prompts.build_assessment_prompt(c, "brand_authority")
+    assert "Acme" in p and "dentist" in p
+    assert '"score"' in p and '"bullets"' in p and '"narrative"' in p
+    # language rules surfaced to the model
+    assert "seen by ai" in p.lower()
+
+
+def test_prompt_rejects_unknown_dimension(db):
+    c = _client(db)
+    try:
+        assessment_prompts.build_assessment_prompt(c, "made_up")
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
