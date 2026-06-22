@@ -2,6 +2,7 @@ import uuid
 from app.models.client import Client
 from app.models.dimension_assessment import DimensionAssessment
 from app.core import constants
+from app.prompts import assessment as assessment_prompts
 
 
 def _client(db):
@@ -36,9 +37,6 @@ def test_assessment_constants_present():
     assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
     assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")
     assert constants.DIMENSION_EVIDENCE_LABEL == "Based on public evidence · Reviewed by SeenBy"
-
-
-from app.prompts import assessment as assessment_prompts
 
 
 def test_prompt_includes_business_and_json_contract(db):

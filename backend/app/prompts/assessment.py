@@ -19,9 +19,9 @@ _LANGUAGE_RULES = (
 
 _JSON_CONTRACT = (
     'Output ONLY valid JSON, no code fences, exactly:\n'
-    '{{"score": <integer 0-100>, "bullets": ["3-5 short plain-English evidence '
+    '{"score": <integer 0-100>, "bullets": ["3-5 short plain-English evidence '
     'points a non-technical client would understand"], "narrative": "2-3 '
-    'sentence internal rationale"}}'
+    'sentence internal rationale"}'
 )
 
 
@@ -52,7 +52,7 @@ Website: {client.website}. Business context: {client.description or "n/a"}.
 
 Content Quality measures whether the website's content demonstrates Experience, Expertise, Authoritativeness, and Trustworthiness, and is structured so AI can extract and reuse it:
 - Visible author credentials / bios; first-hand experience and original data.
-- Depth, accurate use of industry terminology, cited sources.
+- Depth, accurate use of industry terminology, references to external sources.
 - Clear structure (headings, FAQs), freshness, and trust signals (contact, policies).
 
 Score 0-100 where 80-100 = strong, well-structured expert content, 50-64 = adequate but shallow, 0-34 = thin or generic.
