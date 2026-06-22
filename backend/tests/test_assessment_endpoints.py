@@ -97,3 +97,42 @@ def test_accept_endpoint_writes_score():
     assert r.status_code == 200
     assert r.json()["final_score"] == 65
     app.dependency_overrides.clear()
+
+
+def test_client_view_exposes_bullets_not_narrative(db):
+    """Accepted evidence bullets appear in the client view; raw_narrative never does."""
+    from app.models.dimension_assessment import DimensionAssessment
+    from tests.test_api_client_view import (
+        _make_client,
+        _make_scan,
+        _make_geo_score,
+        _build_test_client,
+    )
+
+    client = _make_client(db, is_prospect=False, name="BulletTestCo")
+    client.share_token = "tok_" + uuid.uuid4().hex
+    db.flush()
+
+    scan = _make_scan(db, client.id)
+    _make_geo_score(db, client.id, scan.id)
+
+    db.add(DimensionAssessment(
+        client_id=client.id,
+        dimension="brand_authority",
+        suggested_score=65,
+        final_score=65,
+        evidence_bullets=["Listed on Google with 40 reviews"],
+        raw_narrative="SECRET_NARRATIVE_DO_NOT_EXPOSE",
+        status="accepted",
+    ))
+    db.commit()
+
+    tc = _build_test_client(db)
+    try:
+        r = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert r.status_code == 200, r.text
+        assert "SECRET_NARRATIVE_DO_NOT_EXPOSE" not in r.text
+        score = r.json()["latest_score"]
+        assert "Listed on Google with 40 reviews" in score["brand_authority_evidence"]
+    finally:
+        app.dependency_overrides.clear()

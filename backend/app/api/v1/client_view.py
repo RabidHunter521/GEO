@@ -61,6 +61,7 @@ from app.schemas.client_view import (
     ClientViewTrafficValue,
     ClientViewProgressItem,
 )
+from app.services.assessment_service import latest_assessment
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.revenue_service import estimate_pipeline
 from app.services.remediation_service import get_remediation_items
@@ -99,6 +100,17 @@ _REMEDIATION_TYPE_LABELS: dict[str, str] = {
     "hallucination": "Inaccurate AI answer",
     "content_gap": "Competitor winning",
 }
+
+
+def _accepted_bullets(db: Session, client_id, dimension: str) -> list[str]:
+    """Return evidence_bullets from the latest assessment only when it has been
+    accepted or adjusted by an admin. Returns [] otherwise.
+    raw_narrative is never returned — only the structured bullet list.
+    """
+    row = latest_assessment(client_id, dimension, db)
+    if row is not None and row.status in ("accepted", "adjusted"):
+        return list(row.evidence_bullets)
+    return []
 
 
 def require_share_client(
@@ -280,6 +292,8 @@ def get_overview(
             technical_foundations=latest.technical_foundations,
             structured_data=latest.structured_data,
             computed_at=latest.computed_at,
+            brand_authority_evidence=_accepted_bullets(db, client.id, "brand_authority"),
+            content_quality_evidence=_accepted_bullets(db, client.id, "content_quality"),
         ) if latest else None,
         platforms=_view_platforms(latest.platform_breakdown) if latest else [],
         benchmark=ClientViewBenchmark(
