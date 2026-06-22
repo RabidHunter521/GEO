@@ -37,9 +37,10 @@ import {
   deleteCompetitorAction,
   archiveClientAction,
 } from "@/app/clients/actions"
-import type { Client, Competitor, AiTrafficSnapshot, Platform } from "@/types"
+import type { Client, Competitor, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
+import { generateAssessment, acceptAssessment } from "@/lib/api"
 
 interface Props {
   client: Client
@@ -55,6 +56,72 @@ function currentMonthPeriod(): string {
 
 function formatPeriod(period: string): string {
   return new Date(period).toLocaleDateString("en-MY", { month: "long", year: "numeric" })
+}
+
+function AssessmentReview({
+  clientId,
+  dimension,
+  onAccepted,
+}: {
+  clientId: string;
+  dimension: AssessmentDimension;
+  onAccepted: (score: number) => void;
+}) {
+  const [draft, setDraft] = useState<DimensionAssessment | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [adjust, setAdjust] = useState<string>("")
+
+  async function generate() {
+    setLoading(true)
+    try {
+      const a = await generateAssessment(clientId, dimension)
+      setDraft(a)
+      setAdjust(String(a.suggested_score))
+    } catch {
+      alert("Assessment failed — please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function accept(useAdjusted: boolean) {
+    if (!draft) return
+    const finalScore = useAdjusted ? Number(adjust) : null
+    const saved = await acceptAssessment(clientId, dimension, finalScore)
+    onAccepted(saved.final_score ?? saved.suggested_score)
+    setDraft(null)
+  }
+
+  return (
+    <div className="mt-2">
+      <Button type="button" variant="outline" size="sm" onClick={generate} disabled={loading}>
+        {loading ? "Assessing…" : "Generate assessment"}
+      </Button>
+      {draft && (
+        <div className="mt-2 rounded-md border p-3 text-sm">
+          <div className="font-medium">Suggested: {draft.suggested_score}</div>
+          <ul className="ml-4 list-disc">
+            {draft.evidence_bullets.map((b, i) => (
+              <li key={i}>{b}</li>
+            ))}
+          </ul>
+          <div className="mt-2 flex items-center gap-2">
+            <Button type="button" size="sm" onClick={() => accept(false)}>
+              Accept
+            </Button>
+            <input
+              className="w-16 rounded border px-2 py-1"
+              value={adjust}
+              onChange={(e) => setAdjust(e.target.value)}
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={() => accept(true)}>
+              Adjust &amp; accept
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory }: Props) {
@@ -98,6 +165,13 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
     })
     setIsDirty(true)
   }
+
+  const [brandAuthorityScore, setBrandAuthorityScore] = useState<string>(
+    client.brand_authority_score != null ? String(client.brand_authority_score) : ""
+  )
+  const [contentQualityScore, setContentQualityScore] = useState<string>(
+    client.content_quality_score != null ? String(client.content_quality_score) : ""
+  )
 
   const [logoUrl, setLogoUrl] = useState<string | null>(client.logo_url)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -391,7 +465,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
         <div>
           <h2 className="font-display text-lg font-semibold tracking-tight">Manual Score Inputs</h2>
           <p className="text-xs text-muted-foreground mt-0.5 italic">
-            Assessed by SeenBy team
+            Based on public evidence · Reviewed by SeenBy
           </p>
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -403,7 +477,13 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               type="number"
               min="0"
               max="100"
-              defaultValue={client.brand_authority_score}
+              value={brandAuthorityScore}
+              onChange={(e) => { setBrandAuthorityScore(e.target.value); setIsDirty(true) }}
+            />
+            <AssessmentReview
+              clientId={client.id}
+              dimension="brand_authority"
+              onAccepted={(score) => { setBrandAuthorityScore(String(score)); setIsDirty(true) }}
             />
           </div>
           <div className="space-y-1">
@@ -414,7 +494,13 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               type="number"
               min="0"
               max="100"
-              defaultValue={client.content_quality_score}
+              value={contentQualityScore}
+              onChange={(e) => { setContentQualityScore(e.target.value); setIsDirty(true) }}
+            />
+            <AssessmentReview
+              clientId={client.id}
+              dimension="content_quality"
+              onAccepted={(score) => { setContentQualityScore(String(score)); setIsDirty(true) }}
             />
           </div>
           <div className="space-y-1">
@@ -482,7 +568,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               defaultValue={client.brand_authority_evidence ?? ""}
             />
             <p className="text-xs text-muted-foreground">
-              Shown to the client under &ldquo;Assessed by SeenBy team&rdquo; — never leave it blank with a score set.
+              Shown to the client under &ldquo;Based on public evidence · Reviewed by SeenBy&rdquo; — never leave it blank with a score set.
             </p>
           </div>
           <div className="space-y-1">
@@ -498,7 +584,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               defaultValue={client.content_quality_evidence ?? ""}
             />
             <p className="text-xs text-muted-foreground">
-              Shown to the client under &ldquo;Assessed by SeenBy team&rdquo; — never leave it blank with a score set.
+              Shown to the client under &ldquo;Based on public evidence · Reviewed by SeenBy&rdquo; — never leave it blank with a score set.
             </p>
           </div>
         </div>
