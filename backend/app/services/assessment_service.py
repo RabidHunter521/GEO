@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 
 import structlog
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.models.activity_log import ActivityLog
@@ -55,8 +56,8 @@ def generate_assessment(client: Client, dimension: str, db: Session) -> Dimensio
     Returns None when Claude fails or returns unparseable output — caller
     surfaces a retryable error; nothing is persisted in that case.
     """
-    service = _SERVICE_BY_DIMENSION[dimension]
     try:
+        service = _SERVICE_BY_DIMENSION[dimension]
         response = anthropic_client().messages.create(
             model=MODEL,
             max_tokens=_MAX_TOKENS,
@@ -91,6 +92,59 @@ def generate_assessment(client: Client, dimension: str, db: Session) -> Dimensio
         client_id=client.id,
         event_type="assessment_generated",
         note=f"{dimension} assessment generated (suggested {score})",
+    ))
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+_SCORE_FIELD = {
+    "brand_authority": "brand_authority_score",
+    "content_quality": "content_quality_score",
+}
+_EVIDENCE_FIELD = {
+    "brand_authority": "brand_authority_evidence",
+    "content_quality": "content_quality_evidence",
+}
+
+
+def latest_assessment(client_id, dimension: str, db: Session) -> DimensionAssessment | None:
+    return (
+        db.query(DimensionAssessment)
+        .filter(DimensionAssessment.client_id == client_id,
+                DimensionAssessment.dimension == dimension)
+        .order_by(desc(DimensionAssessment.generated_at))
+        .first()
+    )
+
+
+def accept_assessment(
+    client: Client, dimension: str, final_score: int | None, db: Session
+) -> DimensionAssessment | None:
+    """Accept (or adjust) the latest suggestion for a dimension.
+
+    Writes the accepted score + denormalized evidence text to the Client row so
+    the existing evidence-required invariant and the PDF report keep working.
+    Does NOT create a GeoScore row — the value flows into the overall score at
+    the next scan, identical to a manual dimension edit today. Returns None when
+    there is no suggestion to accept.
+    """
+    row = latest_assessment(client.id, dimension, db)
+    if row is None:
+        return None
+
+    accepted = row.suggested_score if final_score is None else max(0, min(100, int(final_score)))
+    row.final_score = accepted
+    row.status = "accepted" if accepted == row.suggested_score else "adjusted"
+    row.reviewed_at = datetime.utcnow()
+
+    setattr(client, _SCORE_FIELD[dimension], accepted)
+    setattr(client, _EVIDENCE_FIELD[dimension], "\n".join(row.evidence_bullets))
+
+    db.add(ActivityLog(
+        client_id=client.id,
+        event_type="assessment_accepted",
+        note=f"{dimension} score set to {accepted} ({row.status})",
     ))
     db.commit()
     db.refresh(row)

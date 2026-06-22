@@ -1,8 +1,11 @@
 import uuid
+from unittest.mock import patch, MagicMock
+
+from app.core import constants
 from app.models.client import Client
 from app.models.dimension_assessment import DimensionAssessment
-from app.core import constants
 from app.prompts import assessment as assessment_prompts
+from app.services import assessment_service
 
 
 def _client(db):
@@ -57,10 +60,6 @@ def test_prompt_rejects_unknown_dimension(db):
         pass
 
 
-from unittest.mock import patch, MagicMock
-from app.services import assessment_service
-
-
 def test_sanitize_bullets_replaces_forbidden_terms():
     out = assessment_service.sanitize_bullets([
         "Brand was mentioned in 3 articles",
@@ -100,3 +99,47 @@ def test_generate_assessment_returns_none_on_bad_json(db):
         row = assessment_service.generate_assessment(c, "brand_authority", db)
     assert row is None
     assert db.query(DimensionAssessment).count() == 0
+
+
+def test_generate_assessment_returns_none_on_unknown_dimension(db):
+    """KeyError from unknown dimension should be caught and return None."""
+    c = _client(db)
+    row = assessment_service.generate_assessment(c, "made_up_dimension", db)
+    assert row is None
+
+
+def _suggested_row(db, client, dimension="brand_authority", score=58):
+    row = DimensionAssessment(
+        client_id=client.id, dimension=dimension, suggested_score=score,
+        evidence_bullets=["Listed on Google with 40 reviews", "Active subreddit presence"],
+        raw_narrative="n", status="suggested",
+    )
+    db.add(row); db.commit(); db.refresh(row)
+    return row
+
+
+def test_accept_writes_through_to_client(db):
+    c = _client(db)
+    _suggested_row(db, c, score=58)
+    row = assessment_service.accept_assessment(c, "brand_authority", None, db)
+    db.refresh(c)
+    assert row.status == "accepted"
+    assert row.final_score == 58
+    assert row.reviewed_at is not None
+    assert c.brand_authority_score == 58
+    assert "Listed on Google with 40 reviews" in (c.brand_authority_evidence or "")
+
+
+def test_accept_with_adjusted_score_marks_adjusted(db):
+    c = _client(db)
+    _suggested_row(db, c, score=58)
+    row = assessment_service.accept_assessment(c, "brand_authority", 65, db)
+    db.refresh(c)
+    assert row.status == "adjusted"
+    assert row.final_score == 65
+    assert c.brand_authority_score == 65
+
+
+def test_accept_without_suggestion_returns_none(db):
+    c = _client(db)
+    assert assessment_service.accept_assessment(c, "content_quality", None, db) is None
