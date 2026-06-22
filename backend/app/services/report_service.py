@@ -36,6 +36,7 @@ from app.services.remediation_service import sync_remediation_items, get_remedia
 from app.services.revenue_service import estimate_pipeline, PipelineEstimate
 from app.core.constants import REMEDIATION_STATUS_LABELS
 from app.prompts.report import build_change_narrative
+from app.services.language_sanitizer import sanitize_text as _sanitize_text
 
 # Max competitor-won topics surfaced in the Content Gaps section.
 _CONTENT_GAP_LIMIT = 3
@@ -502,13 +503,15 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     safe_narrative = html.escape(data.change_narrative or "")
     # A manual dimension's evidence note must never be empty under the "Assessed
     # by SeenBy team" label — fall back to a neutral methodology line (CLAUDE.md §4).
+    # Sanitize §2 vocabulary BEFORE html.escape so forbidden terms are replaced on
+    # the raw text first; html.escape then makes the result safe for the PDF HTML.
     safe_ba_evidence = (
-        html.escape(data.brand_authority_evidence)
+        html.escape(_sanitize_text(data.brand_authority_evidence))
         if data.brand_authority_evidence and data.brand_authority_evidence.strip()
         else _BRAND_AUTHORITY_FALLBACK
     )
     safe_cq_evidence = (
-        html.escape(data.content_quality_evidence)
+        html.escape(_sanitize_text(data.content_quality_evidence))
         if data.content_quality_evidence and data.content_quality_evidence.strip()
         else _CONTENT_QUALITY_FALLBACK
     )

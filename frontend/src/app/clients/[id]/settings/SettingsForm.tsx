@@ -86,10 +86,22 @@ function AssessmentReview({
 
   async function accept(useAdjusted: boolean) {
     if (!draft) return
-    const finalScore = useAdjusted ? Number(adjust) : null
-    const saved = await acceptAssessment(clientId, dimension, finalScore)
-    onAccepted(saved.final_score ?? saved.suggested_score)
-    setDraft(null)
+    let finalScore: number | null = null
+    if (useAdjusted) {
+      const n = Number(adjust)
+      if (adjust === "" || Number.isNaN(n) || n < 0 || n > 100) {
+        alert("Enter a score between 0 and 100.")
+        return
+      }
+      finalScore = n
+    }
+    try {
+      const saved = await acceptAssessment(clientId, dimension, finalScore)
+      onAccepted(saved.final_score ?? saved.suggested_score)
+      setDraft(null)
+    } catch {
+      alert("Could not save the assessment — please try again.")
+    }
   }
 
   return (
