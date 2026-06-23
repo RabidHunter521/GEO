@@ -33,15 +33,23 @@ export default async function ViewContentPlanPage({
 
   if (!hasGaps && !hasRoadmap) {
     return (
-      <div className="rounded-xl border bg-card p-8 text-center">
-        <Lightbulb className="mx-auto h-8 w-8 text-muted-foreground/50" />
-        <p className="mt-3 font-display text-lg font-semibold">
-          Your content plan is being built
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your SeenBy team is analysing your content and competitors to map out
-          the topics that will grow your AI visibility. It&apos;ll appear here.
-        </p>
+      <div className="reveal relative overflow-hidden rounded-2xl border bg-card bg-hero-wash p-8 text-center shadow-brand-lg">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"
+        />
+        <div className="relative">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Lightbulb className="h-6 w-6" />
+          </span>
+          <p className="mt-4 font-display text-lg font-semibold">
+            Your content plan is being built
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            Your SeenBy team is analysing your content and competitors to map out
+            the topics that will grow your AI visibility. It&apos;ll appear here.
+          </p>
+        </div>
       </div>
     )
   }
@@ -50,7 +58,7 @@ export default async function ViewContentPlanPage({
     <div className="space-y-8">
       {/* Content Gaps — the "why" */}
       {hasGaps && gaps && (
-        <section className="space-y-4">
+        <section className="reveal space-y-4" style={{ animationDelay: "0ms" }}>
           <div>
             <h2 className="font-display text-lg font-semibold">Where Your Content Stands</h2>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -60,7 +68,7 @@ export default async function ViewContentPlanPage({
           </div>
 
           {gaps.topics.length > 0 && (
-            <div className="rounded-xl border bg-card p-5">
+            <div className="card-lift rounded-xl border bg-card p-5">
               <p className="text-sm font-medium">Topic coverage</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {gaps.topics.map((t) => {
@@ -80,7 +88,7 @@ export default async function ViewContentPlanPage({
           )}
 
           {gaps.entities.length > 0 && (
-            <div className="rounded-xl border bg-card p-5">
+            <div className="card-lift rounded-xl border bg-card p-5">
               <p className="text-sm font-medium">Key details AI looks for</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {gaps.entities.map((e) => (
@@ -116,7 +124,7 @@ export default async function ViewContentPlanPage({
 
       {/* 90-day Roadmap — the "what's next" */}
       {hasRoadmap && roadmap && (
-        <section className="space-y-4">
+        <section className="reveal space-y-4" style={{ animationDelay: "60ms" }}>
           <div>
             <h2 className="font-display text-lg font-semibold">Your 90-Day Content Plan</h2>
             <p className="mt-1 text-sm text-muted-foreground">

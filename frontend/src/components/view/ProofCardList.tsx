@@ -5,6 +5,7 @@
 // raw responses never reach this surface.
 import { Quote } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SectionHeading } from "@/components/view/SectionHeading"
 import type { ClientViewProofCard } from "@/types"
 
 function cardHeader(card: ClientViewProofCard): string {
@@ -17,9 +18,7 @@ export function ProofCardList({ cards }: { cards: ClientViewProofCard[] }) {
   if (!cards || cards.length === 0) return null
   return (
     <div>
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Straight From AI Search
-      </h2>
+      <SectionHeading>Straight From AI Search</SectionHeading>
       <div className="grid gap-3 sm:grid-cols-2">
         {cards.map((card, i) => {
           const isWin = card.kind === "win"
@@ -27,7 +26,7 @@ export function ProofCardList({ cards }: { cards: ClientViewProofCard[] }) {
             <div
               key={`${card.platform_label}-${card.category}-${i}`}
               className={cn(
-                "rounded-lg border bg-card p-4",
+                "card-lift rounded-xl border bg-card p-4",
                 isWin ? "border-score-strong/30" : "border-score-watch/30",
               )}
             >

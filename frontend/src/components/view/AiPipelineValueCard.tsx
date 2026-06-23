@@ -14,8 +14,13 @@ export function AiPipelineValueCard({ value }: { value: ClientViewTrafficValue }
   const hasRevenue = value.est_pipeline_rm !== null
 
   return (
-    <div className="rounded-xl border bg-card p-6 shadow-brand">
-      <div className="flex items-center gap-2">
+    <div className="relative overflow-hidden rounded-2xl border bg-card p-6 shadow-brand">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-primary/[0.07] blur-3xl"
+      />
+      <div className="relative flex items-center gap-2">
+        <span aria-hidden className="h-3.5 w-1 shrink-0 rounded-full bg-primary/70" />
         <TrendingUp className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           What AI Visibility Is Worth

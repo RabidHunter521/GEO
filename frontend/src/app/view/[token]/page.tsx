@@ -3,7 +3,7 @@
 // changed → the breakdown → what we're working on → trends. Zero mutations.
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { AlertCircle, ArrowRight, Sparkles } from "lucide-react"
+import { AlertCircle, ArrowRight, Radar, Sparkles } from "lucide-react"
 import {
   getViewOverview,
   getViewActions,
@@ -19,8 +19,10 @@ import { AiPipelineValueCard } from "@/components/view/AiPipelineValueCard"
 import { ClientProgressList } from "@/components/view/ClientProgressList"
 import { ProofCardList } from "@/components/view/ProofCardList"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
+import { PlatformIcon } from "@/components/view/PlatformIcon"
+import { SectionHeading } from "@/components/view/SectionHeading"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
-import { getScoreBand } from "@/lib/score-utils"
+import { getScoreBand, getScoreColor, type ScoreColor } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
 
@@ -62,6 +64,22 @@ const BAND_LABEL: Record<string, string> = {
   low: "Needs attention",
 }
 
+// Band chip on the hero — colored to match the 3-band traffic light so the
+// label reinforces the ring color instead of floating as neutral text.
+const BAND_CHIP: Record<ScoreColor, string> = {
+  green: "bg-score-strong-bg text-score-strong",
+  yellow: "bg-score-watch-bg text-score-watch",
+  red: "bg-score-low-bg text-score-low",
+}
+
+// Score-aware breakdown bar fill — a row of identical violet bars hides which
+// dimensions are weak; coloring by score lets a client read strength at a glance.
+const BAR_CLASS: Record<ScoreColor, string> = {
+  green: "bar-strong",
+  yellow: "bar-watch",
+  red: "bar-low",
+}
+
 const PRIORITY_CLASS: Record<string, string> = {
   high: "bg-score-low-bg text-score-low border-score-low/25",
   medium: "bg-score-watch-bg text-score-watch border-score-watch/30",
@@ -90,6 +108,7 @@ export default async function ViewOverviewPage({
 
   const score = overview.latest_score
   const band = score ? getScoreBand(score.overall_score) : null
+  const scoreColor = score ? getScoreColor(score.overall_score) : null
 
   // Plain-English headline derived from existing data.
   const seenCount = scan ? scan.results.filter((r) => r.seen_by_ai).length : 0
@@ -111,110 +130,157 @@ export default async function ViewOverviewPage({
 
   return (
     <div className="space-y-6">
-      {/* 1. Hero — score + plain-English headline + freshness */}
-      <div className="flex flex-col gap-6 rounded-xl border bg-card p-6 shadow-brand sm:flex-row sm:items-center">
-        <ScoreRing score={score ? score.overall_score : null} />
-        <div className="flex-1">
-          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Your AI Visibility Score
-          </p>
-          {score ? (
-            <>
-              <p className="mt-1 font-display text-2xl font-semibold leading-snug text-foreground">
-                {headline}
+      {/* 1. Hero — score + plain-English headline + freshness. Elevated above
+          the rest with atmosphere and a soft glow so it reads as THE headline. */}
+      <section
+        className="reveal relative overflow-hidden rounded-2xl border bg-card bg-hero-wash p-6 shadow-brand-lg sm:p-8"
+        style={{ animationDelay: "0ms" }}
+      >
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"
+        />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
+          <ScoreRing score={score ? score.overall_score : null} size={148} />
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Your AI Visibility Score
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {band ? `${BAND_LABEL[band.name]} · ` : ""}How visible you are
-                across AI search — ChatGPT, Perplexity, Gemini and Claude.
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Last updated{" "}
-                {new Date(score.computed_at).toLocaleDateString("en-MY", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-                {/* Older than the freshness window: reassure with the next
-                    scheduled check-in instead of leaving a bare stale date. */}
-                {overview.is_stale && overview.next_check_due && (
-                  <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/5 px-2 py-0.5 font-medium text-primary">
-                    Next visibility check due{" "}
-                    {new Date(overview.next_check_due).toLocaleDateString("en-MY", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </span>
-                )}
-              </p>
-              {!isProspect && overview.fixed_this_month > 0 && (
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-score-strong-bg px-3 py-1 text-xs font-semibold text-score-strong">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {overview.fixed_this_month} item
-                  {overview.fixed_this_month === 1 ? "" : "s"} we fixed this month
-                </p>
+              {band && scoreColor && (
+                <span
+                  className={cn(
+                    "rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                    BAND_CHIP[scoreColor],
+                  )}
+                >
+                  {BAND_LABEL[band.name]}
+                </span>
               )}
-            </>
-          ) : (
-            <>
-              <p className="mt-1 font-display text-2xl font-semibold text-muted-foreground">
-                Your first scan is being prepared
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your SeenBy team is setting up your first AI visibility scan.
-                Results will appear here soon.
-              </p>
-            </>
-          )}
+            </div>
+            {score ? (
+              <>
+                <p className="mt-2 text-balance font-display text-2xl font-semibold leading-snug text-foreground sm:text-[1.7rem]">
+                  {headline}
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  How visible you are across AI search — ChatGPT, Perplexity,
+                  Gemini and Claude.
+                </p>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Last updated{" "}
+                  {new Date(score.computed_at).toLocaleDateString("en-MY", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                  {/* Older than the freshness window: reassure with the next
+                      scheduled check-in instead of leaving a bare stale date. */}
+                  {overview.is_stale && overview.next_check_due && (
+                    <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/5 px-2 py-0.5 font-medium text-primary">
+                      Next visibility check due{" "}
+                      {new Date(overview.next_check_due).toLocaleDateString("en-MY", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </span>
+                  )}
+                </p>
+                {!isProspect && overview.fixed_this_month > 0 && (
+                  <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-score-strong-bg px-3 py-1 text-xs font-semibold text-score-strong">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    {overview.fixed_this_month} item
+                    {overview.fixed_this_month === 1 ? "" : "s"} we fixed this month
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="mt-2 flex items-center gap-2 font-display text-2xl font-semibold leading-snug text-foreground">
+                  <Radar className="h-6 w-6 shrink-0 text-primary" />
+                  Your first scan is being prepared
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  Your SeenBy team is setting up your first AI visibility scan.
+                  Results will appear here soon.
+                </p>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* 2. What Changed — promoted: the most human, most flattering piece */}
       {!isProspect && overview.change_narrative && (
-        <div className="rounded-lg border bg-primary/5 p-5">
+        <section
+          className="reveal rounded-xl border border-primary/15 bg-primary/5 p-5"
+          style={{ animationDelay: "60ms" }}
+        >
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <Sparkles className="h-4 w-4 text-primary" />
             What Changed
             {overview.change_narrative_period ? ` — ${overview.change_narrative_period}` : ""}
           </h2>
           <p className="text-sm leading-relaxed text-foreground">{overview.change_narrative}</p>
-        </div>
+        </section>
       )}
 
       {/* 2.25 Straight from AI — verbatim proof (clients only) */}
       {!isProspect && overview.proof_cards && overview.proof_cards.length > 0 && (
-        <ProofCardList cards={overview.proof_cards} />
+        <section className="reveal" style={{ animationDelay: "120ms" }}>
+          <ProofCardList cards={overview.proof_cards} />
+        </section>
       )}
 
       {/* 2.5 What it's worth — the one money number (clients only) */}
       {!isProspect && overview.traffic_value && (
-        <AiPipelineValueCard value={overview.traffic_value} />
+        <section className="reveal" style={{ animationDelay: "150ms" }}>
+          <AiPipelineValueCard value={overview.traffic_value} />
+        </section>
       )}
 
       {/* 3. Where you stand — benchmark + per-platform visibility */}
       {!isProspect && overview.benchmark && (
-        <IndustryBenchmarkCard
-          industry={overview.benchmark.industry}
-          topPercent={overview.benchmark.top_percent}
-          peerCount={overview.benchmark.peer_count}
-          industryAverage={overview.benchmark.industry_average}
-        />
+        <section className="reveal" style={{ animationDelay: "180ms" }}>
+          <IndustryBenchmarkCard
+            industry={overview.benchmark.industry}
+            topPercent={overview.benchmark.top_percent}
+            peerCount={overview.benchmark.peer_count}
+            industryAverage={overview.benchmark.industry_average}
+          />
+        </section>
       )}
 
       {overview.platforms.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Seen by AI — by Platform
-          </h2>
+        <section className="reveal" style={{ animationDelay: "210ms" }}>
+          <SectionHeading>Seen by AI — by Platform</SectionHeading>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {overview.platforms.map((p) => {
               const unavailable = p.visibility_frequency === null
               return (
                 <div
                   key={p.platform_label}
-                  className={`rounded-lg border p-4 ${unavailable ? "bg-muted/30" : "bg-card"}`}
+                  className={cn(
+                    "card-lift relative overflow-hidden rounded-xl border p-4",
+                    unavailable ? "bg-muted/30" : "bg-card",
+                  )}
                 >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute inset-x-0 top-0 h-0.5",
+                      unavailable
+                        ? "bg-transparent"
+                        : p.seen_by_ai
+                          ? "bg-score-strong"
+                          : "bg-muted-foreground/25",
+                    )}
+                  />
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">{p.platform_label}</p>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <PlatformIcon label={p.platform_label} />
+                      <p className="truncate text-sm font-medium">{p.platform_label}</p>
+                    </div>
                     {unavailable ? (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                         Checking soon
@@ -229,7 +295,7 @@ export default async function ViewOverviewPage({
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 font-display text-xl font-bold tabular-nums">
+                  <p className="mt-2 font-display text-2xl font-bold tabular-nums">
                     {unavailable ? "—" : `${Math.round(p.visibility_frequency!)}%`}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -241,77 +307,80 @@ export default async function ViewOverviewPage({
               )
             })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* 4. Score breakdown — the 5 dimensions (clients only) */}
       {!isProspect && (
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Score Breakdown
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {DIMENSIONS.map((dim) => {
-            const raw = score ? (score[dim.key as DimKey & keyof ClientViewScore] as number) : null
-            const pct = raw !== null ? Math.max(0, Math.min(100, raw)) : 0
-            return (
-              <div key={dim.key} className="rounded-lg border bg-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <DimensionInfo label={dim.label} description={dim.description} />
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {dim.weight} weight
-                      {dim.manual && (
-                        <span className="ml-1.5 italic">· Based on public evidence · Reviewed by SeenBy</span>
-                      )}
-                    </p>
+        <section className="reveal" style={{ animationDelay: "240ms" }}>
+          <SectionHeading>Score Breakdown</SectionHeading>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {DIMENSIONS.map((dim) => {
+              const raw = score ? (score[dim.key as DimKey & keyof ClientViewScore] as number) : null
+              const pct = raw !== null ? Math.max(0, Math.min(100, raw)) : 0
+              const barClass = raw !== null ? BAR_CLASS[getScoreColor(raw)] : "bar-primary"
+              return (
+                <div key={dim.key} className="card-lift rounded-xl border bg-card p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <DimensionInfo label={dim.label} description={dim.description} />
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {dim.weight} weight
+                        {dim.manual && (
+                          <span className="ml-1.5 italic">· Based on public evidence · Reviewed by SeenBy</span>
+                        )}
+                      </p>
+                    </div>
+                    <ScoreBadge score={raw} />
                   </div>
-                  <ScoreBadge score={raw} />
+                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn("h-full rounded-full transition-all", barClass)}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {dim.key === "brand_authority" && score && (score.brand_authority_evidence ?? []).length > 0 && (
+                    <ul className="ml-4 mt-1 list-disc text-sm text-muted-foreground">
+                      {(score.brand_authority_evidence ?? []).map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {dim.key === "content_quality" && score && (score.content_quality_evidence ?? []).length > 0 && (
+                    <ul className="ml-4 mt-1 list-disc text-sm text-muted-foreground">
+                      {(score.content_quality_evidence ?? []).map((b, i) => (
+                        <li key={i}>{b}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                {dim.key === "brand_authority" && score && (score.brand_authority_evidence ?? []).length > 0 && (
-                  <ul className="ml-4 mt-1 list-disc text-sm text-muted-foreground">
-                    {(score.brand_authority_evidence ?? []).map((b, i) => (
-                      <li key={i}>{b}</li>
-                    ))}
-                  </ul>
-                )}
-                {dim.key === "content_quality" && score && (score.content_quality_evidence ?? []).length > 0 && (
-                  <ul className="ml-4 mt-1 list-disc text-sm text-muted-foreground">
-                    {(score.content_quality_evidence ?? []).map((b, i) => (
-                      <li key={i}>{b}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+              )
+            })}
+          </div>
+        </section>
       )}
 
       {/* 5. What we're working on — condensed issues + top next steps (clients only) */}
       {!isProspect && ((issues && issues.length > 0) || (actions && actions.length > 0)) && (
-        <div className="rounded-lg border bg-card p-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              What We&apos;re Working On
-            </h2>
-            {overview.has_content_plan && (
-              <Link
-                href={`/view/${token}/content-plan`}
-                className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                See the full plan
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            )}
-          </div>
+        <section
+          className="reveal rounded-xl border bg-card p-5"
+          style={{ animationDelay: "270ms" }}
+        >
+          <SectionHeading
+            action={
+              overview.has_content_plan ? (
+                <Link
+                  href={`/view/${token}/content-plan`}
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  See the full plan
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              ) : undefined
+            }
+          >
+            What We&apos;re Working On
+          </SectionHeading>
 
           {issues && issues.length > 0 && (
             <ul className="mt-3 space-y-1.5">
@@ -349,20 +418,22 @@ export default async function ViewOverviewPage({
               ))}
             </ul>
           )}
-        </div>
+        </section>
       )}
 
       {/* 5.5 What we're fixing — remediation loop with status (clients only) */}
       {!isProspect && progress && progress.length > 0 && (
-        <ClientProgressList items={progress} />
+        <section className="reveal" style={{ animationDelay: "300ms" }}>
+          <ClientProgressList items={progress} />
+        </section>
       )}
 
       {/* 6. Trends — score history + AI traffic (clients only) */}
       {!isProspect && (
-        <>
+        <section className="reveal space-y-6" style={{ animationDelay: "330ms" }}>
           <ScoreHistoryChart points={overview.score_history} />
           <AiTrafficChart points={overview.traffic} />
-        </>
+        </section>
       )}
     </div>
   )

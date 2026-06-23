@@ -95,6 +95,33 @@
     background-color: hsl(var(--sidebar-bg));
   }
 
+  /* Hero surface — layered violet atmosphere, deliberately richer than a
+     plain card so the score headline reads as *the* headline, not a tile. */
+  .bg-hero-wash {
+    background-image:
+      radial-gradient(42rem 30rem at 8% -20%, hsl(250 90% 60% / 0.10), transparent 60%),
+      radial-gradient(36rem 28rem at 112% 130%, hsl(272 85% 62% / 0.08), transparent 55%);
+  }
+
+  /* Subtle hover lift for interactive cards — adds perceived quality without
+     shouting. Pairs with shadow-brand on hover. */
+  .card-lift {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 220ms ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-brand);
+  }
+
+  /* Staggered page-load entrance. Cap delays via inline animation-delay.
+     Falls back to fully visible when motion is reduced (see below). */
+  .reveal {
+    opacity: 0;
+    animation: reveal-up 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
   .shadow-brand {
     box-shadow: var(--shadow-brand);
   }
@@ -118,4 +145,30 @@
   .bar-watch  { background-color: hsl(var(--score-watch)); }
   .bar-low    { background-color: hsl(var(--score-low)); }
   .bar-primary { background-color: hsl(var(--primary)); }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Accessibility + safety: never leave content hidden behind an animation.
+   Users who prefer reduced motion get the full page instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+    opacity: 1;
+  }
+  .card-lift {
+    transition: none;
+  }
+  .card-lift:hover {
+    transform: none;
+  }
 }
