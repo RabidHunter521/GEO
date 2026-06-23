@@ -4,6 +4,7 @@ import httpx
 from app.services.platform_clients.base import (
     PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
+    PlatformResult,
     query_with_retry,
 )
 
@@ -20,8 +21,8 @@ class PerplexityClient:
             raise PlatformNotConfiguredError(self.platform, "PERPLEXITY_API_KEY")
         self._api_key = api_key
 
-    def query(self, prompt: str) -> str:
-        def _call() -> str:
+    def query(self, prompt: str) -> PlatformResult:
+        def _call() -> PlatformResult:
             response = httpx.post(
                 API_URL,
                 headers={
@@ -35,6 +36,13 @@ class PerplexityClient:
                 timeout=_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+            payload = response.json()
+            usage = payload.get("usage") or {}
+            return PlatformResult(
+                text=payload["choices"][0]["message"]["content"],
+                model=MODEL_NAME,
+                input_tokens=usage.get("prompt_tokens", 0),
+                output_tokens=usage.get("completion_tokens", 0),
+            )
 
         return query_with_retry(self.platform, _call)

@@ -49,7 +49,16 @@ def test_trigger_scan_returns_202():
     def fake_get_db():
         yield mock_db
 
-    with patch("workers.tasks.scan_tasks.execute_scan") as mock_task:
+    from app.services.budget_service import BudgetStatus
+    from decimal import Decimal
+    ok_budget = BudgetStatus(
+        ok=True, reason=None, client_spend=Decimal("0"), global_spend=Decimal("0"),
+        client_cap=20.0, global_cap=50.0,
+    )
+
+    with patch("workers.tasks.scan_tasks.execute_scan") as mock_task, patch(
+        "app.services.budget_service.check_budget", return_value=ok_budget
+    ):
         mock_task.delay = MagicMock()
         app.dependency_overrides[get_db] = fake_get_db
         app.dependency_overrides[require_api_key] = lambda: None
@@ -83,6 +92,50 @@ def test_trigger_scan_conflict_when_scan_active():
 
     assert response.status_code == 409
     assert "already in progress" in response.json()["detail"]
+
+
+def test_trigger_scan_blocked_when_over_budget():
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+    from app.services.budget_service import BudgetStatus
+    from decimal import Decimal
+
+    mock_client = MagicMock()
+    mock_client.archived_at = None
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = mock_client
+
+    blocked = BudgetStatus(
+        ok=False,
+        reason="Global daily spend cap reached ($60.00 of $50.00).",
+        client_spend=Decimal("1"),
+        global_spend=Decimal("60"),
+        client_cap=20.0,
+        global_cap=50.0,
+    )
+
+    def fake_get_db():
+        yield mock_db
+
+    with patch("app.services.scan_service.has_active_scan", return_value=False), patch(
+        "app.services.budget_service.check_budget", return_value=blocked
+    ), patch("app.services.alert_service.notify_budget_exceeded") as mock_alert, patch(
+        "workers.tasks.scan_tasks.execute_scan"
+    ) as mock_task:
+        mock_task.delay = MagicMock()
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        client = TestClient(app)
+        response = client.post("/api/v1/scans/", json={"client_id": str(uuid.uuid4())})
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 402
+    assert "cap" in response.json()["detail"].lower()
+    mock_alert.assert_called_once()
+    # Blocked: the scan task must never be dispatched.
+    mock_task.delay.assert_not_called()
 
 
 def test_trigger_scan_unknown_client_returns_404():

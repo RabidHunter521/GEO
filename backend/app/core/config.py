@@ -34,6 +34,21 @@ class Settings(BaseSettings):
     # (Nginx, Caddy, etc.). Causes the rate limiter to key on the rightmost
     # X-Forwarded-For entry (proxy-appended) rather than the TCP connection IP.
     RATE_LIMIT_TRUSTED_PROXY: str = ""
+    # ── Cost guardrails ──────────────────────────────────────────────────────
+    # USD spend caps enforced before a scan is triggered (scans are the dominant
+    # cost driver). A scan over either cap is hard-blocked and the admin alerted.
+    # Set a cap to 0 to disable it. BUDGET_CLIENT_MONTHLY_USD is a rolling 30-day
+    # window per client; BUDGET_GLOBAL_DAILY_USD is the current UTC day across all
+    # clients. Both read the llm_call_logs ledger.
+    BUDGET_CLIENT_MONTHLY_USD: float = 20.0
+    BUDGET_GLOBAL_DAILY_USD: float = 50.0
+    # Provider circuit breaker: after this many consecutive 429/402 responses
+    # from one scan platform (within a short window), stop calling it for the
+    # cooldown so a rate-limited/over-quota provider isn't hammered. Redis-backed
+    # so it is shared across the API and Celery workers; if Redis is unavailable
+    # the breaker degrades to a no-op and never blocks a scan.
+    CIRCUIT_BREAKER_THRESHOLD: int = 5
+    CIRCUIT_BREAKER_COOLDOWN_SECONDS: int = 300
 
     @property
     def allowed_origins_list(self) -> list[str]:

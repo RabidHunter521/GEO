@@ -14,6 +14,8 @@ from app.models.scan_query_result import ScanQueryResult
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.services.platform_clients import get_platform_client
+from app.services.platform_clients.base import PlatformResult
+from app.services.cost_tracker import record_llm_usage
 from app.services.brand_detection import detect_brand_mention
 from app.services.position_extraction import extract_position
 from app.services.query_builder import build_client_queries, build_competitor_queries
@@ -109,15 +111,21 @@ def _run_platform_queries(
     scan: Scan,
     client: Client,
     competitors: list[Competitor],
-) -> list[ScanQueryResult]:
+) -> tuple[list[ScanQueryResult], list[PlatformResult]]:
     """Run all queries for one platform using a pre-built client. Raises on
     platform failure — results are returned (not persisted) so a failed platform
     leaves no partial rows. Touches no shared state (no DB session), so it is
-    safe to run concurrently per platform."""
+    safe to run concurrently per platform.
+
+    Returns the scan rows and the per-query token usage (recorded by run_scan on
+    the scan's own session in the main thread — sessions aren't thread-safe)."""
     results: list[ScanQueryResult] = []
+    usages: list[PlatformResult] = []
 
     for q in build_client_queries(client, competitors):
-        response_text = platform_client.query(q["query_text"])
+        result = platform_client.query(q["query_text"])
+        usages.append(result)
+        response_text = result.text
         detected = detect_brand_mention(response_text, client.name)
 
         # Recommendation Position — only for ranked-list categories where the brand appears.
@@ -149,7 +157,9 @@ def _run_platform_queries(
 
     for competitor in competitors:
         for q in build_competitor_queries(client, competitor):
-            response_text = platform_client.query(q["query_text"])
+            result = platform_client.query(q["query_text"])
+            usages.append(result)
+            response_text = result.text
             detected = detect_brand_mention(response_text, competitor.name)
             results.append(ScanQueryResult(
                 scan_id=scan.id,
@@ -162,7 +172,7 @@ def _run_platform_queries(
             ))
             time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
-    return results
+    return results, usages
 
 
 def run_scan(scan_id: uuid.UUID, db: Session) -> None:
@@ -203,6 +213,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                 _log_platform_unavailable(db, client, scan_id, platform, exc)
 
         results_by_platform: dict[str, list[ScanQueryResult]] = {}
+        usages_by_platform: dict[str, list[PlatformResult]] = {}
         if clients_by_platform:
             with ThreadPoolExecutor(max_workers=len(clients_by_platform)) as pool:
                 future_to_platform = {
@@ -214,15 +225,28 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                 for future in future_to_platform:
                     platform = future_to_platform[future]
                     try:
-                        results_by_platform[platform] = future.result()
+                        results_by_platform[platform], usages_by_platform[platform] = (
+                            future.result()
+                        )
                     except Exception as exc:
                         failed_platforms.append(platform)
                         _log_platform_unavailable(db, client, scan_id, platform, exc)
 
-        # Persist in canonical order for deterministic row ordering.
+        # Persist in canonical order for deterministic row ordering. Cost-log each
+        # query's token usage on this session so it commits atomically with the
+        # results (record_llm_usage never raises — a logging slip can't sink a scan).
         for platform in platforms:
             if platform in results_by_platform:
                 db.add_all(results_by_platform[platform])
+                for usage in usages_by_platform.get(platform, []):
+                    record_llm_usage(
+                        service=f"scan_{platform}",
+                        model=usage.model,
+                        input_tokens=usage.input_tokens,
+                        output_tokens=usage.output_tokens,
+                        client_id=client.id,
+                        db=db,
+                    )
 
         db.commit()
 

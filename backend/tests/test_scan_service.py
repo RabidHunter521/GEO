@@ -2,6 +2,13 @@
 import uuid
 from unittest.mock import MagicMock, patch
 from app.services.scan_service import run_scan
+from app.services.platform_clients.base import PlatformResult
+
+
+def _as_result(text):
+    """Wrap answer text as a PlatformResult so query() mocks match the real
+    contract (text + token usage)."""
+    return PlatformResult(text=text, model="test-model", input_tokens=1, output_tokens=1)
 
 
 def make_scan(scan_id=None, client_id=None):
@@ -47,7 +54,7 @@ def setup_db(scan, client, stored_results):
 
 def patch_platform_client(query_fn):
     mock_client = MagicMock()
-    mock_client.query.side_effect = query_fn
+    mock_client.query.side_effect = lambda q: _as_result(query_fn(q))
     return patch(
         "app.services.scan_service.get_platform_client", return_value=mock_client
     ), mock_client
@@ -107,7 +114,7 @@ def test_run_scan_queries_every_enabled_platform():
     def fake_get_client(platform):
         requested_platforms.append(platform)
         mock_client = MagicMock()
-        mock_client.query.return_value = "ACME Corp is great."
+        mock_client.query.return_value = _as_result("ACME Corp is great.")
         return mock_client
 
     with patch(
@@ -181,7 +188,7 @@ def test_run_scan_single_platform_failure_does_not_fail_scan():
         if platform == "claude":
             mock_client.query.side_effect = Exception("Claude unavailable")
         else:
-            mock_client.query.return_value = "ACME Corp is great."
+            mock_client.query.return_value = _as_result("ACME Corp is great.")
         return mock_client
 
     with patch(
@@ -207,6 +214,30 @@ def test_run_scan_single_platform_failure_does_not_fail_scan():
     ]
     assert len(unavailable_logs) == 1
     assert "Claude" in unavailable_logs[0].note
+
+
+def test_run_scan_records_llm_cost_for_each_query():
+    """Every scan query's token usage is cost-logged against the client, on the
+    scan's own session (main thread) — closing the P1-4 visibility gap."""
+    scan = make_scan()
+    client = make_client(enabled_platforms=["gemini"])
+    mock_db = setup_db(scan, client, [make_result()])
+
+    patcher, _ = patch_platform_client(lambda q: "ACME Corp is great.")
+    with patcher, patch("app.services.scan_service.time.sleep"), patch(
+        "app.services.scan_service.extract_position", return_value=None
+    ), patch("app.services.scan_service.record_llm_usage") as mock_record:
+        run_scan(scan.id, mock_db)
+
+    # 15 client queries on gemini (no competitors), one cost row each.
+    assert mock_record.call_count == 15
+    kwargs = mock_record.call_args_list[0].kwargs
+    assert kwargs["service"] == "scan_gemini"
+    assert kwargs["model"] == "test-model"
+    assert kwargs["input_tokens"] == 1
+    assert kwargs["output_tokens"] == 1
+    assert kwargs["client_id"] == client.id
+    assert kwargs["db"] is mock_db
 
 
 def test_run_scan_skips_already_finalized_scan():

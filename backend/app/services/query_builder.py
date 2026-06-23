@@ -1,6 +1,12 @@
 # backend/app/services/query_builder.py
 from app.core.constants import QUERY_TEMPLATES, COMPETITOR_QUERY_TEMPLATES
 
+# Version of the scan visibility-query templates. Bump when the templates in
+# QUERY_TEMPLATES / COMPETITOR_QUERY_TEMPLATES change, so cost rows for scan
+# platforms (service "scan_<platform>") are tied to the query set that produced
+# them — the same provenance the Claude prompts get via the prompt registry.
+SCAN_QUERY_VERSION = "v1"
+
 
 def _location(client) -> str | None:
     """Human "City, State" string from whatever location fields are set.

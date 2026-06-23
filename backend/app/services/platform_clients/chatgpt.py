@@ -4,6 +4,7 @@ from openai import OpenAI
 from app.services.platform_clients.base import (
     PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
+    PlatformResult,
     query_with_retry,
 )
 
@@ -24,13 +25,18 @@ class ChatGPTClient:
             max_retries=0,
         )
 
-    def query(self, prompt: str) -> str:
-        def _call() -> str:
+    def query(self, prompt: str) -> PlatformResult:
+        def _call() -> PlatformResult:
             response = self._client.responses.create(
                 model=MODEL_NAME,
                 input=prompt,
                 tools=[{"type": "web_search"}],
             )
-            return response.output_text
+            return PlatformResult(
+                text=response.output_text,
+                model=MODEL_NAME,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+            )
 
         return query_with_retry(self.platform, _call)

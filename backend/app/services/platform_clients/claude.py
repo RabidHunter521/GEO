@@ -4,6 +4,7 @@ import anthropic
 from app.services.platform_clients.base import (
     PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
+    PlatformResult,
     query_with_retry,
 )
 
@@ -26,16 +27,22 @@ class ClaudeClient:
             max_retries=0,
         )
 
-    def query(self, prompt: str) -> str:
-        def _call() -> str:
+    def query(self, prompt: str) -> PlatformResult:
+        def _call() -> PlatformResult:
             response = self._client.messages.create(
                 model=MODEL_NAME,
                 max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
                 tools=[{"type": "web_search_20250305", "name": "web_search"}],
             )
-            return "\n".join(
+            text = "\n".join(
                 block.text for block in response.content if block.type == "text"
+            )
+            return PlatformResult(
+                text=text,
+                model=MODEL_NAME,
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
             )
 
         return query_with_retry(self.platform, _call)

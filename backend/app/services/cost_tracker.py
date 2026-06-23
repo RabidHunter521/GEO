@@ -21,10 +21,22 @@ from app.prompts.registry import get_version
 
 logger = structlog.get_logger()
 
-# USD per token. Update when Anthropic changes published pricing.
+# USD per token. Update when a provider changes published pricing.
+#
+# NOTE: the scan-platform rates below (gpt-5-mini, sonar, gemini-2.5-flash-lite)
+# are best-effort placeholders pending confirmation against each provider's
+# current price sheet — set them to your actual rates. They are intentionally
+# nonzero so scan spend is no longer logged as $0 (see P1-4). Token *counts* are
+# always exact; only this USD multiplier needs confirming. These rates also do
+# NOT include per-request web-search / grounding surcharges, which several of
+# these models bill separately on top of tokens.
 _TOKEN_COST: dict[str, dict[str, float]] = {
     "claude-haiku-4-5-20251001": {"input": 0.80 / 1_000_000, "output": 2.50 / 1_000_000},
     "claude-sonnet-4-6":         {"input": 3.00 / 1_000_000, "output": 15.00 / 1_000_000},
+    # ── Scan platforms (CONFIRM RATES) ───────────────────────────────────────
+    "gpt-5-mini":                {"input": 0.25 / 1_000_000, "output": 2.00 / 1_000_000},
+    "sonar":                     {"input": 1.00 / 1_000_000, "output": 1.00 / 1_000_000},
+    "gemini-2.5-flash-lite":     {"input": 0.10 / 1_000_000, "output": 0.40 / 1_000_000},
 }
 
 
@@ -34,25 +46,30 @@ def _compute_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
     return Decimal(str(round(total, 6)))
 
 
-def record_llm_call(
+def record_llm_usage(
     *,
     service: str,
     model: str,
-    response,
+    input_tokens: int,
+    output_tokens: int,
     client_id: uuid.UUID | None = None,
     db: Session | None = None,
 ) -> None:
-    """Log one LLM API call. Never raises."""
+    """Log one LLM API call from raw token counts. Never raises.
+
+    Use this for providers whose response shape differs from Anthropic's (the
+    scan platforms: OpenAI, Perplexity, Gemini), where the caller has already
+    extracted token usage. record_llm_call() delegates here for Anthropic.
+    """
     try:
-        usage = response.usage
-        cost = _compute_cost(model, usage.input_tokens, usage.output_tokens)
+        cost = _compute_cost(model, input_tokens, output_tokens)
         entry = LlmCallLog(
             client_id=client_id,
             service=service,
             prompt_version=get_version(service),
             model=model,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             cost_usd=cost,
         )
         if db is not None:
@@ -69,3 +86,33 @@ def record_llm_call(
             client_id=str(client_id),
             error=str(exc),
         )
+
+
+def record_llm_call(
+    *,
+    service: str,
+    model: str,
+    response,
+    client_id: uuid.UUID | None = None,
+    db: Session | None = None,
+) -> None:
+    """Log one Anthropic API call, reading usage off the response. Never raises."""
+    try:
+        usage = response.usage
+        input_tokens, output_tokens = usage.input_tokens, usage.output_tokens
+    except Exception as exc:
+        logger.warning(
+            "cost_tracking_failed",
+            service=service,
+            client_id=str(client_id),
+            error=str(exc),
+        )
+        return
+    record_llm_usage(
+        service=service,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        client_id=client_id,
+        db=db,
+    )

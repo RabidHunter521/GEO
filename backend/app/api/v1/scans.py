@@ -37,6 +37,14 @@ def trigger_scan(payload: TriggerScanRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Client not found")
     if has_active_scan(payload.client_id, db):
         raise HTTPException(status_code=409, detail="Scan already in progress")
+    # Cost guardrail: stop a scan that would breach a spend cap. Alerting is
+    # best-effort and must not change the 402 the client receives.
+    from app.services.budget_service import check_budget
+    from app.services import alert_service
+    budget = check_budget(payload.client_id, db)
+    if not budget.ok:
+        alert_service.notify_budget_exceeded(client, budget, db)
+        raise HTTPException(status_code=402, detail=budget.reason)
     from app.core.constants import SCAN_PLATFORM_MULTI
     scan = Scan(client_id=payload.client_id, platform=SCAN_PLATFORM_MULTI)
     db.add(scan)

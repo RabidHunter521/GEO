@@ -24,6 +24,12 @@ def _dispatch_admin_alert(subject: str, html_body: str, telegram_text: str) -> N
     send_telegram(telegram_text)
 
 
+def dispatch_admin_alert(subject: str, html_body: str, telegram_text: str) -> None:
+    """Public entrypoint for ad-hoc admin alerts with no DB/activity log (e.g.
+    the provider circuit breaker, which fires from worker threads)."""
+    _dispatch_admin_alert(subject=subject, html_body=html_body, telegram_text=telegram_text)
+
+
 def check_score_drop_alert(
     client: Client,
     current_geo_score: GeoScore,
@@ -167,6 +173,33 @@ def flag_hallucination(result_id: uuid.UUID, db: Session, expected_scan_id: uuid
         logger.warning("hallucination_flag_email_failed", client_id=str(client.id), result_id=str(result_id))
 
 
+def notify_budget_exceeded(client: Client, status, db: Session) -> None:
+    """Admin alert when a scan trigger is hard-blocked by a spend cap.
+
+    Best-effort: a notification failure must never change the 402 the caller
+    returns, so this swallows and rolls back on error (status is a
+    budget_service.BudgetStatus)."""
+    try:
+        _dispatch_admin_alert(
+            subject=f"Scan blocked — spend cap reached: {client.name}",
+            html_body=_build_budget_email(client, status),
+            telegram_text=(
+                f"🛑 <b>{html.escape(client.name)}</b>: scan blocked — "
+                f"{html.escape(status.reason or 'spend cap reached')}"
+            ),
+        )
+        db.add(ActivityLog(
+            client_id=client.id,
+            event_type="scan_blocked_budget",
+            note=f"Scan trigger blocked by spend cap. {status.reason}",
+        ))
+        db.commit()
+        logger.info("budget_block_alert_sent", client_id=str(client.id))
+    except Exception:
+        db.rollback()
+        logger.warning("budget_block_alert_failed", client_id=str(client.id))
+
+
 def _compute_citability(results: list[ScanQueryResult]) -> float:
     if not results:
         return 0.0
@@ -279,6 +312,50 @@ def _build_overtake_email(
               <td style="padding:8px 0;font-weight:600;color:#dc2626;text-align:right;">+{delta:.0f}% ahead</td>
             </tr>
           </table>{platform_section}
+          <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
+                    border-top:1px solid #f3f4f6;padding-top:16px;">
+            SeenBy &middot;
+            <a href="mailto:{ALERTS_EMAIL}" style="color:#9ca3af;">{ALERTS_EMAIL}</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def _build_budget_email(client: Client, status) -> str:
+    name = html.escape(client.name)
+    reason = html.escape(status.reason or "A spend cap was reached.")
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f9fafb;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:8px;border:1px solid #e5e7eb;">
+        <tr><td style="background:#dc2626;padding:24px 32px;border-radius:8px 8px 0 0;">
+          <p style="margin:0;color:#fff;font-size:18px;font-weight:700;">Scan Blocked — Spend Cap Reached</p>
+          <p style="margin:4px 0 0;color:#fecaca;font-size:13px;">SeenBy Admin Notification</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <h2 style="margin:0 0 16px;color:#0f172a;">{name}</h2>
+          <p style="color:#374151;">A scan was not started because it would exceed a configured spend cap.</p>
+          <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;
+                    padding:12px;font-size:14px;color:#991b1b;margin:0 0 16px;">{reason}</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+            <tr>
+              <td style="padding:8px 0;color:#6b7280;font-size:14px;">Client 30-day spend</td>
+              <td style="padding:8px 0;font-weight:600;text-align:right;">${status.client_spend:.2f} / ${status.client_cap:.2f}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 0;color:#6b7280;font-size:14px;">Global spend today</td>
+              <td style="padding:8px 0;font-weight:600;text-align:right;">${status.global_spend:.2f} / ${status.global_cap:.2f}</td>
+            </tr>
+          </table>
           <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             SeenBy &middot;

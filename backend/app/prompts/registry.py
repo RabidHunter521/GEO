@@ -7,6 +7,7 @@ prompt version — making it easy to see whether a prompt change affected output
 quality or token usage.
 """
 from app.services.claude_client import MODEL, MODEL_NARRATIVE
+from app.services.query_builder import SCAN_QUERY_VERSION
 from app.prompts import (
     action_center,
     toolkit,
@@ -31,6 +32,12 @@ REGISTRY: dict[str, dict[str, str]] = {
     "digest_action":               {"version": digest.VERSION,                     "model": MODEL},
     "assessment_brand_authority":  {"version": assessment.BRAND_AUTHORITY_VERSION,  "model": MODEL},
     "assessment_content_quality":  {"version": assessment.CONTENT_QUALITY_VERSION,  "model": MODEL},
+    # Scan platforms — templated visibility queries, not a Claude prompt. "model"
+    # is documentation-only; cost rows store the real per-call model from usage.
+    "scan_chatgpt":                {"version": SCAN_QUERY_VERSION,                 "model": "gpt-5-mini"},
+    "scan_perplexity":             {"version": SCAN_QUERY_VERSION,                 "model": "sonar"},
+    "scan_gemini":                 {"version": SCAN_QUERY_VERSION,                 "model": "gemini-2.5-flash-lite"},
+    "scan_claude":                 {"version": SCAN_QUERY_VERSION,                 "model": "claude-haiku-4-5-20251001"},
 }
 
 
