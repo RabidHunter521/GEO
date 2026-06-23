@@ -441,6 +441,7 @@ export interface ClientViewOverview {
   has_our_work: boolean
   has_content_plan: boolean
   has_progress: boolean
+  fixed_this_month: number
   last_checked_at: string | null
   next_check_due: string | null
   is_stale: boolean
@@ -476,6 +477,7 @@ export interface ClientViewCompetitor {
   is_winning: boolean
   platform_visibility: Record<string, number>
   winning_platform_labels: string[]
+  takeaway: string | null
   queries: ClientViewCompetitorQuery[]
 }
 

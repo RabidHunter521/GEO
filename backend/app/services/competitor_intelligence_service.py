@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy import case, desc, func
 from sqlalchemy.orm import Session
 
+from app.core.constants import PLATFORM_LABELS
 from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
@@ -16,6 +17,63 @@ from app.schemas.competitor import (
 )
 
 TREND_SCAN_LIMIT = 12
+
+# Friendly, client-safe phrasing for each query category in a takeaway sentence.
+# High-intent categories (recommendation, local) come first when we pick the
+# category to name — that's the "so what" a client cares about most.
+_CATEGORY_PHRASES: dict[str, str] = {
+    "recommendation": '"best in industry" recommendation questions',
+    "local": "local recommendation questions",
+    "comparison": "head-to-head comparison questions",
+    "brand": "brand-name questions",
+}
+_CATEGORY_ORDER = ["recommendation", "local", "comparison", "brand"]
+
+
+def competitor_takeaway(comp: CompetitorScore) -> str | None:
+    """A one-line, client-safe 'so what' for a competitor — derived purely from the
+    structured scan breakdown (never raw AI responses). Turns the frequency bar
+    into a sentence a client can act on. Returns None when there's nothing useful
+    to say (no scan data for this competitor).
+
+    Language rules (CLAUDE.md §2): only 'seen by AI' / 'visibility frequency';
+    never 'cited', 'mentioned', 'ranking', or 'citation rate'.
+    """
+    if not comp.queries:
+        return None
+
+    seen = [q for q in comp.queries if q.brand_detected]
+    total = len(comp.queries)
+
+    if not seen:
+        return "Not seen by AI in any question we tracked — you're ahead here."
+
+    # The category where this competitor shows up most (high-intent first on ties).
+    counts: dict[str, int] = {}
+    for q in seen:
+        counts[q.category] = counts.get(q.category, 0) + 1
+    top_category = max(
+        counts,
+        key=lambda c: (counts[c], -_CATEGORY_ORDER.index(c) if c in _CATEGORY_ORDER else -99),
+    )
+    category_phrase = _CATEGORY_PHRASES.get(top_category, "questions buyers ask AI")
+
+    win_labels = [PLATFORM_LABELS.get(p, p.title()) for p in (comp.winning_platforms or [])]
+
+    if comp.is_winning and win_labels:
+        return (
+            f"Seen by AI on {len(seen)} of {total} questions and ahead of you on "
+            f"{', '.join(win_labels)} — strongest on {category_phrase}."
+        )
+    if comp.is_winning:
+        return (
+            f"Seen by AI on {len(seen)} of {total} questions — strongest on "
+            f"{category_phrase}, where they're winning buyer attention."
+        )
+    return (
+        f"Seen by AI on {len(seen)} of {total} questions, mostly {category_phrase} — "
+        f"but you're ahead overall."
+    )
 
 
 def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> CompetitorIntelligenceResponse:

@@ -68,6 +68,7 @@ from app.services.remediation_service import get_remediation_items
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
     compute_competitor_trends,
+    competitor_takeaway,
 )
 from app.services.issue_detection_service import detect_client_issues
 from app.services.proof_card_service import select_proof_cards, result_excerpt
@@ -240,6 +241,20 @@ def get_overview(
         is not None
     )
 
+    # Proof of work: how many tracked issues we've corrected this calendar month.
+    month_start = datetime.utcnow().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+    fixed_this_month = (
+        db.query(RemediationItem)
+        .filter(
+            RemediationItem.client_id == client.id,
+            RemediationItem.status == "corrected",
+            RemediationItem.resolved_at >= month_start,
+        )
+        .count()
+    )
+
     # Verbatim proof cards (non-prospects only) — built from the latest completed
     # scan's client-owned results. Compute-on-read; response_text stays server-side.
     proof_cards: list[ClientViewProofCard] = []
@@ -321,6 +336,7 @@ def get_overview(
         has_content_plan=has_roadmap or has_gaps,
         traffic_value=traffic_value,
         has_progress=has_progress,
+        fixed_this_month=fixed_this_month,
         proof_cards=proof_cards,
         last_checked_at=last_checked_at,
         next_check_due=next_check_due,
@@ -423,6 +439,7 @@ def get_competitors(
                     _platform_label(p): v for p, v in c.platform_visibility.items()
                 },
                 winning_platform_labels=[_platform_label(p) for p in c.winning_platforms],
+                takeaway=competitor_takeaway(c),
                 queries=[
                     ClientViewCompetitorQuery(
                         platform_label=_platform_label(q.platform),

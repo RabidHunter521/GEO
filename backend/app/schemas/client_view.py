@@ -112,6 +112,9 @@ class ClientViewOverview(BaseModel):
     has_content_plan: bool = False
     # Whether the remediation loop has any tracked items (drives the progress card).
     has_progress: bool = False
+    # Count of remediation items corrected within the current calendar month —
+    # the "items we fixed this month" proof-of-work stat on the overview hero.
+    fixed_this_month: int = 0
     # Verbatim AI-answer proof cards — best wins + best loss from the latest
     # completed scan. Populated for non-prospects only; always [] for prospects.
     # response_text is structurally excluded: only the finished excerpt travels.
@@ -154,6 +157,9 @@ class ClientViewCompetitor(BaseModel):
     # Keyed by platform label; winning_platform_labels = where this competitor beats the client
     platform_visibility: dict[str, float] = {}
     winning_platform_labels: list[str] = []
+    # One-line "so what" — where this competitor is seen by AI relative to you.
+    # Derived deterministically from the scan breakdown (no raw AI responses).
+    takeaway: str | None = None
     queries: list[ClientViewCompetitorQuery]
 
 

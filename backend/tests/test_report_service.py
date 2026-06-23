@@ -117,6 +117,69 @@ def test_build_report_html_contains_all_required_sections():
     assert "Recommended Action" in html
 
 
+def test_report_cover_leads_with_change_narrative():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    client.brand_authority_evidence = None
+    client.content_quality_evidence = None
+    data = _make_report_data()
+    data.change_narrative = "Your score climbed as AI started recommending you for buyer questions."
+    html = _build_report_html(client, data)
+    # The narrative appears before the first section heading — i.e. on the cover.
+    assert data.change_narrative in html
+    assert html.index(data.change_narrative) < html.index("AI Visibility Score")
+
+
+# ── one-page Scorecard ──────────────────────────────────────────────────────
+
+class _Benchmark:
+    industry = "Legal Services"
+    top_percent = 12
+
+
+def test_build_scorecard_html_contains_headline_and_score():
+    from app.services.report_service import _build_scorecard_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    html = _build_scorecard_html(client, _make_report_data(), _Benchmark())
+    assert "Acme Corp" in html
+    assert "Scorecard" in html
+    assert "72" in html  # overall score
+    assert "Seen by AI in 6 of 8 buyer questions" in html
+    assert "Top 12% of Legal Services" in html
+
+
+def test_build_scorecard_html_uses_client_safe_language():
+    from app.services.report_service import _build_scorecard_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    html = _build_scorecard_html(client, _make_report_data(), None).lower()
+    for forbidden in ("citation rate", "cited", "ranking position", "confidence score"):
+        assert forbidden not in html
+
+
+def test_generate_scorecard_pdf_returns_none_for_prospect():
+    from app.services.report_service import generate_scorecard_pdf
+    db = MagicMock()
+    client = MagicMock()
+    client.archived_at = None
+    client.is_prospect = True
+    db.get.return_value = client
+    assert generate_scorecard_pdf(uuid.uuid4(), db) is None
+
+
+def test_generate_scorecard_pdf_returns_none_when_no_scan_data():
+    from app.services import report_service
+    db = MagicMock()
+    client = MagicMock()
+    client.archived_at = None
+    client.is_prospect = False
+    db.get.return_value = client
+    with patch.object(report_service, "_gather_report_data", return_value=None):
+        assert report_service.generate_scorecard_pdf(uuid.uuid4(), db) is None
+
+
 def test_build_report_html_shows_seen_count():
     from app.services.report_service import _build_report_html
     client = MagicMock()

@@ -1,5 +1,8 @@
+import re
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
@@ -11,6 +14,32 @@ from app.schemas.report import ReportResponse
 from app.services.r2_service import presigned_pdf_url
 
 router = APIRouter(prefix="/clients/{client_id}/reports", tags=["reports"])
+
+
+@router.get(
+    "/scorecard",
+    dependencies=[Depends(require_api_key)],
+)
+def download_scorecard(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    """On-demand one-page AI Visibility Scorecard PDF — the shareable snapshot.
+    Generated fresh from the latest scan; never persisted."""
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    from app.services.report_service import generate_scorecard_pdf
+    pdf_bytes = generate_scorecard_pdf(client_id, db)
+    if pdf_bytes is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No scan data available to build a scorecard for this client.",
+        )
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", c.name).strip("-") or "client"
+    filename = f"SeenBy-Scorecard-{slug}-{datetime.utcnow():%Y%m%d}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post(

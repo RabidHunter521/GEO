@@ -146,6 +146,13 @@ export default async function ViewOverviewPage({
                   </span>
                 )}
               </p>
+              {!isProspect && overview.fixed_this_month > 0 && (
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-score-strong-bg px-3 py-1 text-xs font-semibold text-score-strong">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {overview.fixed_this_month} item
+                  {overview.fixed_this_month === 1 ? "" : "s"} we fixed this month
+                </p>
+              )}
             </>
           ) : (
             <>

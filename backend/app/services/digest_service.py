@@ -6,13 +6,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import structlog
 
+from app.core.constants import PLATFORM_LABELS
 from app.models.client import Client
+from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.services.email_service import send_email
 from app.services.claude_action import get_digest_action
+from app.services.proof_card_service import select_proof_cards
 from app.services.share_link_service import get_share_link_url
 
 logger = structlog.get_logger()
@@ -28,6 +31,10 @@ class DigestData:
     trend: str  # "up" | "down" | "flat" | "first"
     is_first_seen: bool
     action_text: str
+    # One verbatim, redacted AI-answer quote — the most forwardable piece of the
+    # email. None when no client-owned win qualifies. Never raw response_text.
+    proof_quote: str | None = None
+    proof_platform: str | None = None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -63,10 +70,19 @@ def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
     if data is None:
         return False
 
-    subject = (
-        f"Your AI Visibility Update — {data.current_overall_score:.0f} GEO Score"
-        f" | {client.name}"
-    )
+    # Lead with the human result (seen by AI in X of Y), keep the GEO Score in the
+    # subject (CLAUDE.md §7 requires the score). The "what changed" beats the bare
+    # number for opens — but the number stays so the rule holds.
+    if data.total_count:
+        subject = (
+            f"{client.name}: seen by AI in {data.seen_count}/{data.total_count} "
+            f"questions this week · GEO Score {data.current_overall_score:.0f}"
+        )
+    else:
+        subject = (
+            f"{client.name}: your AI visibility update · "
+            f"GEO Score {data.current_overall_score:.0f}"
+        )
     html = _build_email_html(client, data)
     send_email(to=client.contact_email, subject=subject, html_body=html)
 
@@ -140,6 +156,24 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
     is_first_seen = _detect_first_seen(seen_count, prev_scan, db)
     action_text = get_digest_action(client, current_citability, prev_citability)
 
+    # Best verbatim win quote for the body — the single most forwardable line.
+    # Excludes hallucination-flagged answers (known-bad) and competitor rows.
+    competitor_names = [
+        c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
+    ]
+    proof_quote = None
+    proof_platform = None
+    cards = select_proof_cards(
+        [r for r in client_results if not r.hallucination_flagged],
+        client.name,
+        competitor_names,
+        win_cap=1,
+        loss_cap=0,
+    )
+    if cards:
+        proof_quote = cards[0].excerpt
+        proof_platform = PLATFORM_LABELS.get(cards[0].platform, cards[0].platform.title())
+
     return DigestData(
         seen_count=seen_count,
         total_count=total_count,
@@ -149,6 +183,8 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         trend=trend,
         is_first_seen=is_first_seen,
         action_text=action_text,
+        proof_quote=proof_quote,
+        proof_platform=proof_platform,
     )
 
 
@@ -199,6 +235,24 @@ def _build_email_html(client: Client, data: DigestData) -> str:
     # land in the email HTML — an "&" or "<" must not break the markup.
     safe_name = html.escape(client.name)
     safe_action = html.escape(data.action_text)
+
+    # Verbatim "straight from AI" quote — the most forwardable block. The excerpt
+    # is already redacted (no raw response_text); escape it for HTML safety.
+    proof_block = ""
+    if data.proof_quote:
+        safe_quote = html.escape(data.proof_quote)
+        safe_platform = html.escape(data.proof_platform or "AI")
+        proof_block = f"""
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
+                    padding:16px 20px;margin-bottom:20px;">
+          <p style="margin:0 0 6px;font-size:12px;color:#15803d;font-weight:600;
+                    text-transform:uppercase;letter-spacing:0.05em;">
+            Straight from {safe_platform}
+          </p>
+          <p style="margin:0;font-size:15px;color:#14532d;line-height:1.6;font-style:italic;">
+            &ldquo;{safe_quote}&rdquo;
+          </p>
+        </div>"""
 
     view_url = get_share_link_url(client)
     dashboard_button = ""
@@ -251,6 +305,8 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           </p>
 
           {milestone_block}
+
+          {proof_block}
 
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
                       padding:20px;margin-bottom:20px;">

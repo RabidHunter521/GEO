@@ -134,6 +134,55 @@ def test_send_client_digest_writes_digest_sent_activity_log_entry():
     assert "client@example.com" in added_obj.note
 
 
+def test_subject_leads_with_seen_count_and_keeps_score():
+    db = MagicMock()
+    client = _make_client()
+    db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None
+    data = _make_digest_data()  # seen 5/8, score 60
+    captured = {}
+    from app.services.digest_service import send_client_digest
+    with patch("app.services.digest_service._compute_digest_data", return_value=data), \
+         patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
+        send_client_digest(client.id, db)
+    subject = captured["subject"]
+    assert "5/8" in subject          # leads with the human result
+    assert "60" in subject           # CLAUDE.md §7 — score stays in the subject
+    assert "Test Brand" in subject
+
+
+def test_email_html_includes_verbatim_proof_quote():
+    db = MagicMock()
+    client = _make_client()
+    db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None
+    data = _make_digest_data()
+    data.proof_quote = "Acme is a top choice for enterprise teams."
+    data.proof_platform = "ChatGPT"
+    captured = {}
+    from app.services.digest_service import send_client_digest
+    with patch("app.services.digest_service._compute_digest_data", return_value=data), \
+         patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
+        send_client_digest(client.id, db)
+    html = captured["html_body"]
+    assert "Acme is a top choice for enterprise teams." in html
+    assert "Straight from ChatGPT" in html
+
+
+def test_email_html_omits_proof_block_when_no_quote():
+    db = MagicMock()
+    client = _make_client()
+    db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None
+    data = _make_digest_data()  # proof_quote defaults to None
+    captured = {}
+    from app.services.digest_service import send_client_digest
+    with patch("app.services.digest_service._compute_digest_data", return_value=data), \
+         patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
+        send_client_digest(client.id, db)
+    assert "Straight from" not in captured["html_body"]
+
+
 def test_email_html_contains_seen_count_and_trend_message():
     db = MagicMock()
     client = _make_client()

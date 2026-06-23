@@ -112,18 +112,30 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
             Review before sending.
           </p>
         </div>
-        <Button
-          size="sm"
-          onClick={handleGenerate}
-          disabled={isPending || isGenerating}
-        >
-          {isPending || isGenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <FileText className="h-4 w-4 mr-2" />
-          )}
-          Generate Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`/api/clients/${clientId}/scorecard`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Scorecard PDF
+            </a>
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleGenerate}
+            disabled={isPending || isGenerating}
+          >
+            {isPending || isGenerating ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <FileText className="h-4 w-4 mr-2" />
+            )}
+            Generate Report
+          </Button>
+        </div>
       </div>
 
       {isGenerating && (

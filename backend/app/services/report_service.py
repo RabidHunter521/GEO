@@ -34,6 +34,7 @@ from app.services.share_link_service import get_share_link_url
 from app.services.cost_tracker import record_llm_call
 from app.services.remediation_service import sync_remediation_items, get_remediation_items
 from app.services.revenue_service import estimate_pipeline, PipelineEstimate
+from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
 from app.prompts.report import build_change_narrative
 from app.services.language_sanitizer import sanitize_text as _sanitize_text
@@ -714,6 +715,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         <div class="score-box-label">GEO Score &middot; {data.score_band.title()}</div>
       </div>
     </div>
+    {f'''<p style="max-width:440px;margin:40px auto 0;font-size:12pt;line-height:1.6;
+         color:#334155;text-align:center;">{safe_narrative}</p>''' if safe_narrative else ""}
     <div class="cover-footer">
       Report generated {generated_date}<br>
       Tracked by SeenBy &middot; contact@seenby.my
@@ -816,6 +819,165 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
 </body>
 </html>"""
+
+
+# ── One-page Scorecard ──────────────────────────────────────────────────────
+# A single-page, screenshot-friendly snapshot — the piece a client pastes into a
+# deck or Slack. Reuses the full report's gathered data; shows only the headline
+# numbers (score, seen-by-AI, per-platform, benchmark, what changed).
+
+_SCORECARD_CSS = """
+@page { size: A4; margin: 1.4cm; }
+* { box-sizing: border-box; }
+body {
+  font-family: Arial, Helvetica, sans-serif; color: #1e293b;
+  font-size: 11pt; line-height: 1.5; margin: 0;
+}
+.sc-top { border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 22px; }
+.sc-logo { font-size: 18pt; font-weight: 700; color: #0f172a; }
+.sc-kicker { font-size: 10pt; color: #64748b; }
+.sc-client { font-size: 20pt; font-weight: 700; color: #0f172a; margin: 0 0 2px; }
+.sc-score-box {
+  background: #0f172a; color: #ffffff; border-radius: 12px;
+  padding: 18px 30px; text-align: center;
+}
+.sc-score-value { font-size: 46pt; font-weight: 700; line-height: 1; }
+.sc-score-label { font-size: 10pt; color: #94a3b8; margin-top: 4px; }
+.sc-headline { font-size: 17pt; font-weight: 700; color: #0f172a; line-height: 1.3; }
+.sc-benchmark {
+  display: inline-block; margin-top: 10px; background: #f0f9ff; color: #0369a1;
+  border: 1px solid #bae6fd; border-radius: 999px; padding: 4px 14px;
+  font-size: 10pt; font-weight: 600;
+}
+.sc-section-label {
+  font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;
+  font-weight: 600; margin: 24px 0 10px;
+}
+.sc-tile {
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; text-align: center;
+}
+.sc-tile-name { font-size: 10pt; color: #475569; font-weight: 600; }
+.sc-tile-value { font-size: 20pt; font-weight: 700; color: #0f172a; }
+.sc-tile-sub { font-size: 8pt; color: #94a3b8; }
+.sc-changed { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px; }
+.sc-foot { margin-top: 28px; font-size: 9pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+"""
+
+
+def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
+    safe_name = html.escape(client.name)
+    safe_narrative = html.escape(data.change_narrative or "")
+    generated_date = datetime.utcnow().strftime("%d %B %Y")
+
+    headline = (
+        f"Seen by AI in {data.seen_count} of {data.total_count} buyer questions"
+        if data.total_count
+        else "Your AI visibility snapshot"
+    )
+    benchmark_chip = (
+        f'<div class="sc-benchmark">Top {benchmark.top_percent}% of '
+        f"{html.escape(benchmark.industry)}</div>"
+        if benchmark
+        else ""
+    )
+
+    # Per-platform tiles — laid out with a table for WeasyPrint reliability.
+    tiles = ""
+    if data.platform_breakdown:
+        cells = []
+        for platform, entry in data.platform_breakdown.items():
+            name = PLATFORM_LABELS.get(platform, platform.title())
+            if entry.get("status") == "ok":
+                value = f"{entry.get('visibility', 0.0):.0f}%"
+                sub = "Seen by AI" if entry.get("detected", 0) > 0 else "Not seen by AI"
+            else:
+                value = "&mdash;"
+                sub = "Unavailable this scan"
+            cells.append(
+                f'<td style="padding:4px;"><div class="sc-tile">'
+                f'<div class="sc-tile-name">{name}</div>'
+                f'<div class="sc-tile-value">{value}</div>'
+                f'<div class="sc-tile-sub">{sub}</div></div></td>'
+            )
+        tiles = (
+            '<div class="sc-section-label">Seen by AI &mdash; by Platform</div>'
+            f'<table style="width:100%;border-collapse:collapse;"><tr>{"".join(cells)}</tr></table>'
+        )
+
+    changed_block = (
+        '<div class="sc-section-label">What Changed</div>'
+        f'<div class="sc-changed">{safe_narrative}</div>'
+        if safe_narrative
+        else ""
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><style>{_SCORECARD_CSS}</style></head>
+<body>
+  <div class="sc-top">
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td><span class="sc-logo">SeenBy</span></td>
+        <td style="text-align:right;" class="sc-kicker">
+          AI Visibility Scorecard &middot; {generated_date}
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <p class="sc-client">{safe_name}</p>
+
+  <table style="width:100%;border-collapse:collapse;margin-top:18px;">
+    <tr>
+      <td style="width:200px;vertical-align:middle;">
+        <div class="sc-score-box">
+          <div class="sc-score-value">{data.overall_score:.0f}</div>
+          <div class="sc-score-label">GEO Score &middot; {data.score_band.title()}</div>
+        </div>
+      </td>
+      <td style="padding-left:28px;vertical-align:middle;">
+        <div class="sc-headline">{headline}</div>
+        {benchmark_chip}
+      </td>
+    </tr>
+  </table>
+
+  {tiles}
+  {changed_block}
+
+  <div class="sc-foot">
+    AI visibility across ChatGPT, Perplexity, Gemini and Claude.
+    Tracked by SeenBy &middot; contact@seenby.my
+  </div>
+</body>
+</html>"""
+
+
+def generate_scorecard_pdf(client_id: uuid.UUID, db: Session) -> bytes | None:
+    """Render the one-page scorecard to PDF bytes. Not persisted — it's an on-demand
+    snapshot. Returns None when the client is archived/prospect or has no scan data."""
+    client = db.get(Client, client_id)
+    if not client or client.archived_at is not None:
+        return None
+    if client.is_prospect:
+        logger.info("scorecard_skipped_prospect", client_id=str(client_id))
+        return None
+
+    data = _gather_report_data(client, db)
+    if data is None:
+        logger.warning("no_scan_data_for_scorecard", client_id=str(client_id))
+        return None
+
+    if weasyprint is None:
+        raise RuntimeError(
+            "WeasyPrint native libraries are not available — cannot render the scorecard "
+            "on this host. Install the GTK/Pango runtime or render on a worker that has it."
+        )
+
+    benchmark = compute_industry_benchmark(client, db)
+    scorecard_html = _build_scorecard_html(client, data, benchmark)
+    return weasyprint.HTML(string=scorecard_html).write_pdf()
 
 
 def generate_report_pdf(client_id: uuid.UUID, db: Session) -> Report | None:

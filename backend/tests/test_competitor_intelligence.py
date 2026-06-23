@@ -4,6 +4,64 @@ from datetime import datetime
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
+from app.schemas.competitor import CompetitorScore, CompetitorQueryBreakdown
+from app.services.competitor_intelligence_service import competitor_takeaway
+
+
+# ── competitor_takeaway ─────────────────────────────────────────────────────
+
+def _score(queries, is_winning=False, winning_platforms=None):
+    return CompetitorScore(
+        id=uuid.uuid4(),
+        name="Rival Co",
+        ai_citability=50.0,
+        queries=queries,
+        is_winning=is_winning,
+        winning_platforms=winning_platforms or [],
+    )
+
+
+def _q(category, detected, platform="gemini"):
+    return CompetitorQueryBreakdown(
+        platform=platform, category=category, query_text="q?", brand_detected=detected
+    )
+
+
+def test_takeaway_none_when_no_queries():
+    assert competitor_takeaway(_score([])) is None
+
+
+def test_takeaway_ahead_message_when_competitor_never_seen():
+    out = competitor_takeaway(_score([_q("recommendation", False), _q("brand", False)]))
+    assert "Not seen by AI" in out
+    assert "ahead" in out
+
+
+def test_takeaway_names_winning_platforms_and_top_category():
+    out = competitor_takeaway(
+        _score(
+            [_q("recommendation", True), _q("recommendation", True), _q("brand", True)],
+            is_winning=True,
+            winning_platforms=["chatgpt", "perplexity"],
+        )
+    )
+    assert "Seen by AI on 3 of 3" in out
+    assert "ChatGPT" in out and "Perplexity" in out
+    assert "recommendation" in out.lower()
+
+
+def test_takeaway_says_you_are_ahead_when_not_winning():
+    out = competitor_takeaway(_score([_q("comparison", True), _q("brand", False)]))
+    assert "you're ahead overall" in out
+
+
+def test_takeaway_uses_client_safe_language():
+    out = competitor_takeaway(
+        _score([_q("recommendation", True)], is_winning=True, winning_platforms=["gemini"])
+    ).lower()
+    for forbidden in ("citation rate", "cited", "ranking", "confidence"):
+        assert forbidden not in out
+
 
 def _make_app():
     from app.main import app
