@@ -1,4 +1,4 @@
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.core.constants import WIN_LOSS_CATEGORIES
@@ -22,31 +22,66 @@ def compute_gap_matrix(db: Session) -> GapMatrixResponse:
         .order_by(Client.name)
         .all()
     )
+    if not clients:
+        return GapMatrixResponse(categories=list(WIN_LOSS_CATEGORIES), rows=[])
+
+    client_ids = [c.id for c in clients]
+
+    # Latest completed scan per client via ROW_NUMBER — one query instead of one
+    # per client (id breaks completed_at ties deterministically, matching the
+    # previous order_by(completed_at desc, id desc).first()).
+    scan_rn = (
+        func.row_number()
+        .over(
+            partition_by=Scan.client_id,
+            order_by=(desc(Scan.completed_at), desc(Scan.id)),
+        )
+        .label("rn")
+    )
+    ranked_scans = (
+        db.query(
+            Scan.id.label("id"),
+            Scan.client_id.label("client_id"),
+            scan_rn,
+        )
+        .filter(Scan.client_id.in_(client_ids), Scan.status == "completed")
+        .subquery()
+    )
+    latest_scan_id_by_client = {
+        r.client_id: r.id
+        for r in db.query(ranked_scans).filter(ranked_scans.c.rn == 1).all()
+    }
+    latest_scan_ids = list(latest_scan_id_by_client.values())
+
+    # All competitors for these clients, grouped in memory (one query).
+    competitors_by_client: dict = {cid: {} for cid in client_ids}
+    for comp in db.query(Competitor).filter(Competitor.client_id.in_(client_ids)).all():
+        competitors_by_client[comp.client_id][comp.id] = comp.name
+
+    # All win/loss results for the selected scans, grouped by scan (one query).
+    # Exclude hallucination-flagged rows (consistent with win_loss_service — their
+    # brand_detected is unreliable).
+    results_by_scan: dict = {sid: [] for sid in latest_scan_ids}
+    if latest_scan_ids:
+        scan_results = (
+            db.query(ScanQueryResult)
+            .filter(
+                ScanQueryResult.scan_id.in_(latest_scan_ids),
+                ScanQueryResult.category.in_(WIN_LOSS_CATEGORIES),
+                ScanQueryResult.hallucination_flagged.is_(False),
+            )
+            .all()
+        )
+        for r in scan_results:
+            results_by_scan[r.scan_id].append(r)
+
     rows: list[GapMatrixRow] = []
     for c in clients:
-        latest = (
-            db.query(Scan)
-            .filter(Scan.client_id == c.id, Scan.status == "completed")
-            .order_by(desc(Scan.completed_at), desc(Scan.id))
-            .first()
-        )
         cells: list[GapCell] = []
-        if latest:
-            competitors = {
-                comp.id: comp.name
-                for comp in db.query(Competitor).filter(Competitor.client_id == c.id).all()
-            }
-            # Only the win/loss categories are surfaced; exclude hallucination-flagged
-            # rows (consistent with win_loss_service — their brand_detected is unreliable).
-            results = (
-                db.query(ScanQueryResult)
-                .filter(
-                    ScanQueryResult.scan_id == latest.id,
-                    ScanQueryResult.category.in_(WIN_LOSS_CATEGORIES),
-                    ScanQueryResult.hallucination_flagged.is_(False),
-                )
-                .all()
-            )
+        latest_scan_id = latest_scan_id_by_client.get(c.id)
+        if latest_scan_id is not None:
+            competitors = competitors_by_client.get(c.id, {})
+            results = results_by_scan.get(latest_scan_id, [])
             for category in WIN_LOSS_CATEGORIES:
                 cat = [r for r in results if r.category == category]
                 client_vis = _visibility([r for r in cat if r.competitor_id is None])

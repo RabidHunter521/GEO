@@ -201,6 +201,43 @@ def test_equal_visibility_is_not_winning(db):
     assert local_cell.top_competitor_visibility == 100.0
 
 
+# ── test 8b: uses the latest completed scan when a client has several ─────────
+
+def test_uses_latest_completed_scan(db):
+    """With multiple completed scans, the matrix reflects the most recent one."""
+    client = _make_client(db, "Multi Scan Co")
+
+    old_scan = _make_scan(db, client, completed_at=datetime(2026, 5, 1, 9, 0, 0))
+    _make_result(db, old_scan, "recommendation", brand_detected=True, competitor_id=None)
+
+    new_scan = _make_scan(db, client, completed_at=datetime(2026, 6, 1, 9, 0, 0))
+    _make_result(db, new_scan, "recommendation", brand_detected=False, competitor_id=None)
+
+    matrix = compute_gap_matrix(db)
+
+    rec_cell = next(c for c in matrix.rows[0].cells if c.category == "recommendation")
+    # Latest scan had brand_detected=False → 0%, not the old scan's 100%.
+    assert rec_cell.client_visibility == 0.0
+
+
+def test_results_are_not_cross_contaminated_between_clients(db):
+    """Each client's cells reflect only its own latest scan's results."""
+    a = _make_client(db, "Alpha")
+    b = _make_client(db, "Bravo")
+    scan_a = _make_scan(db, a)
+    scan_b = _make_scan(db, b)
+    _make_result(db, scan_a, "recommendation", brand_detected=True, competitor_id=None)
+    _make_result(db, scan_b, "recommendation", brand_detected=False, competitor_id=None)
+
+    matrix = compute_gap_matrix(db)
+    by_name = {r.client_name: r for r in matrix.rows}
+
+    a_cell = next(c for c in by_name["Alpha"].cells if c.category == "recommendation")
+    b_cell = next(c for c in by_name["Bravo"].cells if c.category == "recommendation")
+    assert a_cell.client_visibility == 100.0
+    assert b_cell.client_visibility == 0.0
+
+
 # ── test 9: hallucination-flagged rows are excluded ──────────────────────────
 
 def test_hallucination_flagged_results_excluded(db):
