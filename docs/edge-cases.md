@@ -325,11 +325,13 @@ fetch. Admin-only, low risk, but trivially hardened with `Query(ge=0, le=…)`.
 Dispatches the Celery task for any UUID with no 404. The task then no-ops for a bad ID, or — for a
 prospect with an email — sends a full client digest (reinforces #7).
 
-### 🟢 45. Misconfigured R2 produces broken report URLs silently
-`backend/app/core/config.py:24`, `backend/app/services/r2_service.py:54`
-`CLOUDFLARE_R2_PUBLIC_URL` defaults to `""`, so `upload_pdf` returns `"/reports/<key>"` (no host).
-Upload succeeds; the stored `r2_url` is a dead link surfaced as a "Download" button with no error.
-R2 settings aren't validated as all-or-nothing.
+### 🟢 45. Misconfigured R2 public bucket produces broken logo URLs silently
+`backend/app/core/config.py`, `backend/app/services/r2_service.py`
+Reports live in the private bucket and are served only via `presigned_pdf_url`, so a missing
+`CLOUDFLARE_R2_PUBLIC_URL` no longer affects report downloads. Logos use the separate public
+bucket: `upload_image` now raises if `CLOUDFLARE_R2_PUBLIC_BUCKET_NAME` or `CLOUDFLARE_R2_PUBLIC_URL`
+is unset (no silent host-less link), but the public-bucket settings still aren't validated as
+all-or-nothing at boot.
 
 ### 🟢 46. Gemini/Claude keys are hard-required at boot; ChatGPT/Perplexity are optional
 `backend/app/core/config.py:8,10-11,15`

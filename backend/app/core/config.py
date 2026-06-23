@@ -23,7 +23,12 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_ENDPOINT_URL: str = ""
     CLOUDFLARE_R2_ACCESS_KEY_ID: str = ""
     CLOUDFLARE_R2_SECRET_ACCESS_KEY: str = ""
+    # Private bucket — report PDFs. No public read; served only via presigned URLs.
     CLOUDFLARE_R2_BUCKET_NAME: str = "seenby-reports"
+    # Public bucket — client logos. Must allow public read: logos are embedded in
+    # emails and the public client view and must outlive any presign window.
+    CLOUDFLARE_R2_PUBLIC_BUCKET_NAME: str = ""
+    # Public base URL (custom domain or r2.dev) mapped to the PUBLIC bucket above.
     CLOUDFLARE_R2_PUBLIC_URL: str = ""
     # Set to any non-empty value when the app sits behind a reverse proxy
     # (Nginx, Caddy, etc.). Causes the rate limiter to key on the rightmost

@@ -174,10 +174,20 @@ raw AI responses or internal fields):
 - Score bands and colors from constants — never hardcoded
 
 ### Workers (Celery)
-- One task file per domain: scan_tasks, report_tasks, alert_tasks, digest_tasks
-- Always use `return_exceptions=True` in asyncio.gather
-- Log task start + end with structlog
-- Never import frontend or backend app directly — shared logic goes in workers/engine/
+- Tasks live in `backend/workers/tasks/`, one file per domain: scan_tasks,
+  report_tasks, digest_tasks, content_tasks, maintenance_tasks. There is no
+  alert_tasks — alerting is synchronous, best-effort, and runs inline from the
+  scan flow (`app/services/alert_service.py`, called by `run_scan`).
+- Shared business logic lives in `app/services/`; worker tasks are thin
+  entrypoints that open a DB session and delegate to a service. There is no
+  `workers/engine/`. Tasks may import `app.services.*` (the backend app), but
+  never the frontend.
+- When fanning out concurrent work that can partially fail, isolate each unit so
+  one failure can't sink the batch (the scan engine uses a ThreadPoolExecutor
+  with per-future try/except; for asyncio.gather use `return_exceptions=True`).
+- Log task start + end with structlog.
+- Best-effort post-commit steps (alerts, action-center refresh) must catch,
+  `db.rollback()`, and swallow — a failed notification never undoes a good scan.
 
 ## 11. What NOT to build in MVP
 

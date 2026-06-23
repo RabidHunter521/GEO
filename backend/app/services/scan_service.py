@@ -48,6 +48,43 @@ def has_active_scan(client_id: uuid.UUID, db: Session) -> bool:
     )
 
 
+def reap_stale_scans(db: Session) -> int:
+    """Flip pending/running scans older than the stale window to 'failed'.
+
+    A crashed or SIGKILL'd worker leaves a scan stuck in 'running' forever:
+    has_active_scan stops blocking after the window, but the row itself never
+    self-corrects, so the dashboard and analytics keep showing a phantom
+    in-progress scan. This reconciles those rows and records the failure in the
+    activity log. Returns the number of scans reaped. triggered_at is stored as
+    naive UTC; the `<` boundary mirrors has_active_scan's `>=` so a scan is
+    never both 'active' and 'reapable'."""
+    threshold = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(
+        minutes=ACTIVE_SCAN_STALE_MINUTES
+    )
+    stale = (
+        db.query(Scan)
+        .filter(
+            Scan.status.in_(["pending", "running"]),
+            Scan.triggered_at < threshold,
+        )
+        .all()
+    )
+    for scan in stale:
+        scan.status = "failed"
+        db.add(ActivityLog(
+            client_id=scan.client_id,
+            event_type="scan_failed",
+            note=(
+                f"Scan marked failed: no completion within "
+                f"{ACTIVE_SCAN_STALE_MINUTES} min (worker crash or timeout)."
+            ),
+        ))
+    if stale:
+        db.commit()
+        logger.info("stale_scans_reaped", count=len(stale))
+    return len(stale)
+
+
 def _enabled_platforms(client: Client) -> list[str]:
     """Client's enabled platforms in canonical order; legacy/empty values mean all."""
     enabled = client.enabled_platforms or []
@@ -132,6 +169,12 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
     scan: Scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if not scan:
         logger.error("scan_not_found", scan_id=str(scan_id))
+        return
+
+    # Idempotency guard: a finalized scan that gets redelivered (broker retry,
+    # manual requeue, or a reaped row) must not re-run and double-insert results.
+    if scan.status in ("completed", "failed"):
+        logger.info("scan_already_finalized", scan_id=str(scan_id), status=scan.status)
         return
 
     scan.status = "running"
@@ -227,24 +270,29 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         db.commit()
         logger.info("scan_completed", scan_id=str(scan_id), overall_score=overall)
 
-        # Alert checks — failures must not corrupt scan state
+        # Alert checks and Action Center refresh run after the scan is already
+        # committed. Each is best-effort: on failure we roll back so a partial,
+        # uncommitted ActivityLog add can't be flushed by a later step, then
+        # swallow the error — a failed notification must never undo a good scan.
         try:
             from app.services.alert_service import check_score_drop_alert
             check_score_drop_alert(client, geo_score, prev_geo_score, db)
         except Exception as exc:
+            db.rollback()
             logger.error("score_drop_alert_failed", scan_id=str(scan_id), error=str(exc))
 
         try:
             from app.services.alert_service import check_competitor_overtake_alert
             check_competitor_overtake_alert(client, scan.id, db)
         except Exception as exc:
+            db.rollback()
             logger.error("competitor_overtake_alert_failed", scan_id=str(scan_id), error=str(exc))
 
-        # Action Center refresh — failure must not corrupt scan state
         try:
             from app.services.action_center_service import refresh_actions_for_client
             refresh_actions_for_client(client, geo_score, db)
         except Exception as exc:
+            db.rollback()
             logger.error("action_center_refresh_failed", scan_id=str(scan_id), error=str(exc))
 
         # Remediation loop sync — newly flagged hallucinations / lost queries are

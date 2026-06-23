@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services import r2_service
-from app.services.r2_service import upload_pdf, download_pdf, presigned_pdf_url
+from app.services.r2_service import upload_pdf, upload_image, download_pdf, presigned_pdf_url
 
 
 @pytest.fixture(autouse=True)
@@ -21,6 +21,7 @@ def _mock_settings(**overrides):
     m.CLOUDFLARE_R2_ACCESS_KEY_ID = "key123"
     m.CLOUDFLARE_R2_SECRET_ACCESS_KEY = "secret456"
     m.CLOUDFLARE_R2_BUCKET_NAME = "seenby-reports"
+    m.CLOUDFLARE_R2_PUBLIC_BUCKET_NAME = "seenby-public"
     m.CLOUDFLARE_R2_PUBLIC_URL = "https://pub.seenby.my"
     for k, v in overrides.items():
         setattr(m, k, v)
@@ -40,20 +41,56 @@ def test_upload_pdf_calls_put_object_with_correct_args():
     )
 
 
-def test_upload_pdf_returns_public_url():
+def test_upload_pdf_returns_storage_key():
+    """Report PDFs live in the private bucket and are only ever served via a
+    presigned URL, so upload_pdf returns the storage key (the stored r2_url is
+    a reference, not a live public link)."""
     mock_s3 = MagicMock()
     with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
          patch("app.services.r2_service.settings", _mock_settings()):
-        url = upload_pdf("reports/abc/20260601.pdf", b"pdfdata")
-    assert url == "https://pub.seenby.my/reports/abc/20260601.pdf"
+        key = upload_pdf("reports/abc/20260601.pdf", b"pdfdata")
+    assert key == "reports/abc/20260601.pdf"
 
 
-def test_upload_pdf_strips_trailing_slash_from_public_url():
+def test_upload_pdf_does_not_require_public_url():
+    """The private report bucket has no public base, so upload_pdf must not
+    depend on CLOUDFLARE_R2_PUBLIC_URL."""
+    mock_s3 = MagicMock()
+    with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
+         patch("app.services.r2_service.settings", _mock_settings(CLOUDFLARE_R2_PUBLIC_URL="")):
+        key = upload_pdf("reports/abc/20260601.pdf", b"pdfdata")
+    assert key == "reports/abc/20260601.pdf"
+
+
+def test_upload_image_uploads_to_public_bucket_and_returns_public_url():
+    mock_s3 = MagicMock()
+    with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
+         patch("app.services.r2_service.settings", _mock_settings()):
+        url = upload_image("logos/abc.png", b"imgdata", "image/png")
+    assert url == "https://pub.seenby.my/logos/abc.png"
+    mock_s3.put_object.assert_called_once_with(
+        Bucket="seenby-public",
+        Key="logos/abc.png",
+        Body=b"imgdata",
+        ContentType="image/png",
+        CacheControl="public, max-age=31536000",
+    )
+
+
+def test_upload_image_strips_trailing_slash_from_public_url():
     mock_s3 = MagicMock()
     with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
          patch("app.services.r2_service.settings", _mock_settings(CLOUDFLARE_R2_PUBLIC_URL="https://pub.seenby.my/")):
-        url = upload_pdf("reports/abc/20260601.pdf", b"pdfdata")
-    assert url == "https://pub.seenby.my/reports/abc/20260601.pdf"
+        url = upload_image("logos/abc.png", b"imgdata", "image/png")
+    assert url == "https://pub.seenby.my/logos/abc.png"
+
+
+def test_upload_image_requires_public_bucket_configured():
+    mock_s3 = MagicMock()
+    with patch("app.services.r2_service.boto3.client", return_value=mock_s3), \
+         patch("app.services.r2_service.settings", _mock_settings(CLOUDFLARE_R2_PUBLIC_BUCKET_NAME="")):
+        with pytest.raises(RuntimeError):
+            upload_image("logos/abc.png", b"imgdata", "image/png")
 
 
 def test_download_pdf_returns_bytes_from_s3():

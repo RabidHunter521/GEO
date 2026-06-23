@@ -209,6 +209,48 @@ def test_run_scan_single_platform_failure_does_not_fail_scan():
     assert "Claude" in unavailable_logs[0].note
 
 
+def test_run_scan_skips_already_finalized_scan():
+    """A redelivered task for a completed/failed scan must be a no-op — no
+    platform calls, no duplicate result rows."""
+    scan = make_scan()
+    scan.status = "completed"
+    client = make_client()
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = scan
+
+    patcher, platform_client = patch_platform_client(lambda q: "ACME Corp great.")
+    with patcher, patch("app.services.scan_service.time.sleep"), patch(
+        "app.services.scan_service.extract_position", return_value=None
+    ):
+        run_scan(scan.id, mock_db)
+
+    assert scan.status == "completed"
+    platform_client.query.assert_not_called()
+    mock_db.add_all.assert_not_called()
+
+
+def test_run_scan_rolls_back_when_post_commit_alert_raises():
+    """A swallowed alert exception must not leave uncommitted ActivityLog adds
+    on the session — run_scan rolls back after catching it."""
+    scan = make_scan()
+    client = make_client()
+    mock_db = setup_db(scan, client, [make_result()])
+
+    patcher, _ = patch_platform_client(lambda q: "ACME Corp great.")
+    with patcher, patch("app.services.scan_service.time.sleep"), patch(
+        "app.services.scan_service.extract_position", return_value=None
+    ), patch(
+        "app.services.alert_service.check_score_drop_alert",
+        side_effect=Exception("alert boom"),
+    ):
+        run_scan(scan.id, mock_db)
+
+    # Scan still completes (status committed before the alert step) and the
+    # swallowed alert error triggered a rollback.
+    assert scan.status == "completed"
+    assert mock_db.rollback.called
+
+
 def test_run_scan_sets_failed_when_all_platforms_fail():
     scan = make_scan()
     client = make_client(enabled_platforms=["gemini", "claude"])
@@ -283,3 +325,64 @@ def test_has_active_scan_scoped_to_client(db):
     b = _guard_client(db)
     _guard_scan(db, a, "running", minutes_ago=1)
     assert has_active_scan(b.id, db) is False
+
+
+# ── reap_stale_scans (crashed-worker reconciliation) ─────────────────────────
+
+def test_reap_stale_scans_fails_stale_running(db):
+    from app.models.scan import Scan
+    from app.services.scan_service import reap_stale_scans
+    c = _guard_client(db)
+    s = _guard_scan(db, c, "running", minutes_ago=20)
+
+    reaped = reap_stale_scans(db)
+
+    assert reaped == 1
+    db.refresh(s)
+    assert s.status == "failed"
+
+
+def test_reap_stale_scans_fails_stale_pending(db):
+    from app.services.scan_service import reap_stale_scans
+    c = _guard_client(db)
+    s = _guard_scan(db, c, "pending", minutes_ago=30)
+
+    assert reap_stale_scans(db) == 1
+    db.refresh(s)
+    assert s.status == "failed"
+
+
+def test_reap_stale_scans_ignores_recent_running(db):
+    from app.services.scan_service import reap_stale_scans
+    c = _guard_client(db)
+    s = _guard_scan(db, c, "running", minutes_ago=5)
+
+    assert reap_stale_scans(db) == 0
+    db.refresh(s)
+    assert s.status == "running"
+
+
+def test_reap_stale_scans_ignores_completed(db):
+    from app.services.scan_service import reap_stale_scans
+    c = _guard_client(db)
+    s = _guard_scan(db, c, "completed", minutes_ago=60)
+
+    assert reap_stale_scans(db) == 0
+    db.refresh(s)
+    assert s.status == "completed"
+
+
+def test_reap_stale_scans_logs_activity(db):
+    from app.models.activity_log import ActivityLog
+    from app.services.scan_service import reap_stale_scans
+    c = _guard_client(db)
+    _guard_scan(db, c, "running", minutes_ago=20)
+
+    reap_stale_scans(db)
+
+    logs = (
+        db.query(ActivityLog)
+        .filter(ActivityLog.client_id == c.id, ActivityLog.event_type == "scan_failed")
+        .all()
+    )
+    assert len(logs) == 1

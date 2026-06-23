@@ -43,5 +43,9 @@ celery_app.conf.update(
             "task": "workers.tasks.maintenance_tasks.run_data_retention",
             "schedule": crontab(hour=4, minute=0),
         },
+        "reap-stale-scans-every-15min": {
+            "task": "workers.tasks.maintenance_tasks.run_stale_scan_reaper",
+            "schedule": crontab(minute="*/15"),
+        },
     },
 )

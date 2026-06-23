@@ -44,34 +44,52 @@ def reset_s3_client() -> None:
 
 
 def _public_base() -> str:
-    """Public R2 base URL, validated. Without it we'd build a host-less link like
-    "/reports/<key>" that silently renders as a dead download button."""
+    """Public R2 base URL (mapped to the PUBLIC bucket), validated. Without it we'd
+    build a host-less link like "/logos/<key>" that silently renders broken."""
     base = settings.CLOUDFLARE_R2_PUBLIC_URL
     if not base:
         raise RuntimeError(
             "CLOUDFLARE_R2_PUBLIC_URL is not configured — cannot build a public "
-            "download URL for uploaded files."
+            "URL for uploaded images."
         )
     return base.rstrip("/")
 
 
+def _public_bucket() -> str:
+    """Name of the public R2 bucket for logos, validated."""
+    bucket = settings.CLOUDFLARE_R2_PUBLIC_BUCKET_NAME
+    if not bucket:
+        raise RuntimeError(
+            "CLOUDFLARE_R2_PUBLIC_BUCKET_NAME is not configured — cannot upload "
+            "publicly-readable images (client logos)."
+        )
+    return bucket
+
+
 def upload_pdf(key: str, pdf_bytes: bytes) -> str:
-    """Upload PDF bytes to R2; return public URL."""
-    public_base = _public_base()
+    """Upload a report PDF to the PRIVATE bucket; return its storage key.
+
+    Report PDFs are never publicly readable — they are served only through
+    presigned_pdf_url(). The returned key is what callers persist as the report's
+    r2_url/r2_key reference; it is not a live download link."""
     _s3().put_object(
         Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME,
         Key=key,
         Body=pdf_bytes,
         ContentType="application/pdf",
     )
-    return f"{public_base}/{key}"
+    return key
 
 
 def upload_image(key: str, image_bytes: bytes, content_type: str) -> str:
-    """Upload image bytes to R2; return public URL. Used for client logos."""
+    """Upload an image to the PUBLIC bucket; return its public URL.
+
+    Used for client logos, which are embedded in emails and the public client
+    view and so must be publicly readable and stable (a presigned URL would
+    expire). Reports never go here — they use the private bucket via upload_pdf."""
     public_base = _public_base()
     _s3().put_object(
-        Bucket=settings.CLOUDFLARE_R2_BUCKET_NAME,
+        Bucket=_public_bucket(),
         Key=key,
         Body=image_bytes,
         ContentType=content_type,
@@ -93,11 +111,11 @@ PRESIGNED_URL_TTL_SECONDS = 3600
 
 
 def presigned_pdf_url(key: str, expires_in: int = PRESIGNED_URL_TTL_SECONDS) -> str:
-    """Return a short-lived signed GET URL for an object in the (private) R2
-    bucket. This is the access path for report PDFs: the stored r2_url is a
-    permanent public link and is only safe while the bucket is private — serving
-    a freshly signed URL per request means access expires and can be revoked by
-    rotating R2 keys. Requires the bucket to be private to add any protection."""
+    """Return a short-lived signed GET URL for an object in the private report
+    bucket. This is the ONLY access path for report PDFs: a freshly signed URL is
+    served per request, so access expires on its own and can be revoked by
+    rotating R2 keys. The report bucket must have no public read for this to
+    protect anything (client logos use a separate public bucket — see upload_image)."""
     return _s3().generate_presigned_url(
         "get_object",
         Params={"Bucket": settings.CLOUDFLARE_R2_BUCKET_NAME, "Key": key},

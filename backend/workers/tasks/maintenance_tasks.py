@@ -3,9 +3,26 @@ import structlog
 
 from app.core.database import SessionLocal
 from app.services.retention_service import delete_churned_clients, purge_raw_responses
+from app.services.scan_service import reap_stale_scans
 from workers.celery_app import celery_app
 
 logger = structlog.get_logger()
+
+
+@celery_app.task(name="workers.tasks.maintenance_tasks.run_stale_scan_reaper")
+def run_stale_scan_reaper() -> dict:
+    """Celery Beat task — reconcile scans stuck in pending/running past the
+    stale window (crashed or timed-out worker) to 'failed'. Runs every 15 min
+    so a phantom in-progress scan never lingers on the dashboard for long.
+    """
+    logger.info("run_stale_scan_reaper_started")
+    db = SessionLocal()
+    try:
+        reaped = reap_stale_scans(db)
+        logger.info("run_stale_scan_reaper_done", reaped=reaped)
+        return {"stale_scans_reaped": reaped}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="workers.tasks.maintenance_tasks.run_data_retention")
