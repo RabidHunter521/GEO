@@ -20,13 +20,16 @@ import {
 import {
   createClientAction,
   addCompetitorAction,
-  deleteCompetitorAction,
 } from "@/app/clients/actions"
 import { updateClientAction } from "@/app/clients/[id]/settings/actions"
 import { INDUSTRIES } from "@/lib/industries"
-import type { Client, Competitor } from "@/types"
+import type { Client } from "@/types"
 
 type Step = 1 | 2 | 3
+
+// Competitors are collected locally and only persisted once the client is
+// created at the final step, so they carry a temporary client-side id.
+type DraftCompetitor = { id: string; name: string; website: string }
 
 interface Props {
   onClose: () => void
@@ -42,13 +45,11 @@ export function OnboardingWizard({ onClose }: Props) {
   const [name, setName] = useState("")
   const [website, setWebsite] = useState("")
   const [industry, setIndustry] = useState("")
-  const [createdClient, setCreatedClient] = useState<Client | null>(null)
 
   // Step 2
-  const [competitors, setCompetitors] = useState<Competitor[]>([])
+  const [competitors, setCompetitors] = useState<DraftCompetitor[]>([])
   const [compName, setCompName] = useState("")
   const [compWebsite, setCompWebsite] = useState("")
-  const [addingComp, setAddingComp] = useState(false)
 
   // Step 3
   const [description, setDescription] = useState("")
@@ -71,8 +72,48 @@ export function OnboardingWizard({ onClose }: Props) {
     router.refresh()
   }
 
+  // Persist everything collected across all steps in one shot. The client is
+  // created here — not before — so abandoning the wizard leaves nothing behind.
+  // Used by both "Finish" and the "Skip" shortcuts.
+  async function createAndNavigate() {
+    setLoading(true)
+    setError(null)
+    try {
+      const client = await createClientAction({ name, website, industry })
+
+      const profile = {
+        description: description || undefined,
+        target_audience: targetAudience || undefined,
+        country: country || undefined,
+        city: city || undefined,
+        state: state || undefined,
+        contact_email: contactEmail || undefined,
+      }
+      if (Object.values(profile).some((v) => v !== undefined)) {
+        await updateClientAction(client.id, profile)
+      }
+
+      for (const c of competitors) {
+        try {
+          await addCompetitorAction(client.id, {
+            name: c.name,
+            website: c.website || undefined,
+          })
+        } catch {
+          // Best-effort — a single failed competitor shouldn't block the client
+          // (they can be re-added in Settings).
+        }
+      }
+
+      navigateToClient(client) // unmounts; no need to clear loading
+    } catch {
+      setError("Failed to create client. Please try again.")
+      setLoading(false)
+    }
+  }
+
   // ── Step 1 ──────────────────────────────────────────────────────────────────
-  async function handleStep1(e: React.FormEvent) {
+  function handleStep1(e: React.FormEvent) {
     e.preventDefault()
     if (!industry) {
       setError("Please select an industry.")
@@ -86,91 +127,40 @@ export function OnboardingWizard({ onClose }: Props) {
         return
       }
     }
-    setLoading(true)
     setError(null)
-    try {
-      if (createdClient) {
-        // Came back via Previous — the client already exists, so update it
-        // instead of creating a duplicate.
-        await updateClientAction(createdClient.id, { name, website, industry })
-        setCreatedClient({ ...createdClient, name, website, industry })
-      } else {
-        const client = await createClientAction({ name, website, industry })
-        setCreatedClient(client)
-      }
-      setStep(2)
-    } catch {
-      setError("Failed to create client. Please try again.")
-    } finally {
-      setLoading(false)
-    }
+    setStep(2)
   }
 
   // ── Step 2 ──────────────────────────────────────────────────────────────────
-  async function handleAddCompetitor(): Promise<boolean> {
-    if (!createdClient || !compName.trim()) return false
-    setAddingComp(true)
-    setError(null)
-    try {
-      const comp = await addCompetitorAction(createdClient.id, {
-        name: compName.trim(),
-        website: compWebsite.trim() || undefined,
-      })
-      setCompetitors((prev) => [...prev, comp])
-      setCompName("")
-      setCompWebsite("")
-      return true
-    } catch {
-      setError("Failed to add competitor.")
-      return false
-    } finally {
-      setAddingComp(false)
-    }
+  // Competitors are buffered locally and only written when the client is created.
+  function handleAddCompetitor(): boolean {
+    const trimmed = compName.trim()
+    if (!trimmed) return false
+    if (competitors.length >= 5) return false
+    setCompetitors((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), name: trimmed, website: compWebsite.trim() },
+    ])
+    setCompName("")
+    setCompWebsite("")
+    return true
   }
 
-  async function handleStep2Next() {
+  function handleStep2Next() {
     // A competitor typed into the fields but never added with "+" would be
     // silently lost — add it before moving on.
-    if (compName.trim()) {
-      const added = await handleAddCompetitor()
-      if (!added) return
-    }
+    if (compName.trim()) handleAddCompetitor()
     setStep(3)
   }
 
-  async function handleRemoveCompetitor(id: string) {
-    if (!createdClient) return
-    try {
-      await deleteCompetitorAction(createdClient.id, id)
-      setCompetitors((prev) => prev.filter((c) => c.id !== id))
-    } catch {
-      setError("Failed to remove competitor.")
-    }
+  function handleRemoveCompetitor(id: string) {
+    setCompetitors((prev) => prev.filter((c) => c.id !== id))
   }
 
   // ── Step 3 ──────────────────────────────────────────────────────────────────
-  async function handleStep3(e: React.FormEvent) {
+  function handleStep3(e: React.FormEvent) {
     e.preventDefault()
-    if (!createdClient) return
-    setLoading(true)
-    setError(null)
-    try {
-      await updateClientAction(createdClient.id, {
-        description: description || undefined,
-        target_audience: targetAudience || undefined,
-        country: country || undefined,
-        city: city || undefined,
-        state: state || undefined,
-        contact_email: contactEmail || undefined,
-      })
-      navigateToClient(createdClient)
-    } catch {
-      setError("Failed to save. You can finish this in Settings.")
-      // Still navigate — client was already created
-      navigateToClient(createdClient)
-    } finally {
-      setLoading(false)
-    }
+    createAndNavigate()
   }
 
   return (
@@ -321,13 +311,9 @@ export function OnboardingWizard({ onClose }: Props) {
                 variant="outline"
                 size="icon"
                 onClick={handleAddCompetitor}
-                disabled={addingComp || !compName.trim()}
+                disabled={!compName.trim()}
               >
-                {addingComp ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
           )}
@@ -337,16 +323,17 @@ export function OnboardingWizard({ onClose }: Props) {
             <Button
               variant="ghost"
               type="button"
-              onClick={() => createdClient && navigateToClient(createdClient)}
+              onClick={createAndNavigate}
+              disabled={loading}
             >
-              Skip (go to client)
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Skip (create client)
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setStep(1)}>
                 Previous
               </Button>
-              <Button type="button" onClick={handleStep2Next} disabled={addingComp}>
-                {addingComp && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Button type="button" onClick={handleStep2Next}>
                 Next
               </Button>
             </div>
@@ -439,9 +426,10 @@ export function OnboardingWizard({ onClose }: Props) {
             <Button
               variant="ghost"
               type="button"
-              onClick={() => createdClient && navigateToClient(createdClient)}
+              onClick={createAndNavigate}
+              disabled={loading}
             >
-              Skip (go to client)
+              Skip extras
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => setStep(2)}>
