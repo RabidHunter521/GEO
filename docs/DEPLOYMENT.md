@@ -209,3 +209,34 @@ and frontend.
    clients require paid tiers (~$5–20/mo each to start).
 3. **Budget caps** — `$20/client/month`, `$50/day global` are the shipped
    defaults. Confirm they match your unit economics.
+
+Is the app fully ready after the deployment guide?
+Yes, functionally. The one thing the guide doesn't cover is production hardening over time — but for a solo operator with real clients it's complete:
+
+Code runs, emails send, scans execute, PDFs generate, client view works.
+Cost guardrails, circuit breakers, and alerts are already built in.
+Backups, uptime monitoring, and cron health are your only ongoing ops tasks.
+Will a GitHub push auto-deploy everywhere?
+Vercel — yes, automatically. When you import the repo, Vercel installs a GitHub webhook. Every push to master triggers a redeploy of the frontend. Zero config needed.
+
+Railway — yes, but you have to enable it once per service during setup. When you create each service (api, worker, beat), Railway asks which branch to watch — pick master and tick "Deploy on push." After that, every push redeploys all three.
+
+So the full chain on every git push origin master:
+
+
+git push → GitHub → webhook → Vercel rebuilds frontend
+                            → Railway redeploys api (runs alembic upgrade head first)
+                            → Railway redeploys worker
+                            → Railway redeploys beat
+Two things to be careful about
+Migrations run on every api restart (alembic upgrade head in start-web.sh). That's safe if migrations are additive. If you ever push a destructive migration, it runs the moment the new api service boots — no review gate. For now that's fine; just be aware.
+
+All three Railway services redeploy on every push, even if you only changed a frontend file. That means a brief worker restart on every deploy. Not a problem for on-demand scans, but worth knowing.
+
+The practical flow once live
+
+# make changes locally
+git add .
+git commit -m "feat: ..."
+git push origin master   # ← this alone deploys everything
+One push, everything updates. That's the full CI/CD pipeline — no extra tooling needed for MVP.

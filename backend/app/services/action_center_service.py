@@ -2,9 +2,11 @@
 """Claude-powered GEO Action Center: 3-5 prioritized actions with an estimated
 score impact, regenerated after every completed scan.
 
-Impact numbers are always computed deterministically server-side from a
-Claude-suggested "closable gap fraction" — never trusted directly from Claude —
-so the displayed "Estimated Impact" stays internally consistent and auditable.
+Impact numbers are always computed deterministically server-side — Claude
+categorises each action's effort level ("quick-win", "medium-term", "long-term"),
+which maps to a canonical gap fraction. That fraction drives estimated_impact so
+the numbers stay internally consistent and auditable without requiring Claude to
+estimate a precise float.
 """
 import json
 from datetime import datetime
@@ -108,6 +110,10 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
         logger.warning("action_center_generation_failed", client_id=str(client.id))
         return []
 
+    # Canonical fractions per effort band — Claude judges the category,
+    # the server owns the number. quick-win closes more of the gap sooner.
+    _effort_fractions = {"quick-win": 0.40, "medium-term": 0.20, "long-term": 0.08}
+
     actions = []
     for item in raw_actions:
         dimension = item.get("dimension")
@@ -115,7 +121,8 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
         if dimension not in DIMENSIONS or not action_text:
             continue
 
-        fraction = max(0.0, min(1.0, float(item.get("closable_gap_fraction", 0.0))))
+        effort = str(item.get("effort", "medium-term")).strip().lower()
+        fraction = _effort_fractions.get(effort, 0.20)
         remaining_gap = 100.0 - scores[dimension]
         estimated_impact = round(
             min(fraction * remaining_gap * SCORE_WEIGHTS[dimension], ACTION_IMPACT_MAX_PER_ACTION), 1

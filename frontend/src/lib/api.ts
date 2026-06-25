@@ -37,7 +37,7 @@ export function getClient(id: string): Promise<Client> {
 
 export function createClient(
   body: Pick<Client, "name" | "website" | "industry"> &
-    Partial<Pick<Client, "is_prospect">>,
+    Partial<Pick<Client, "is_prospect" | "enabled_platforms">>,
 ): Promise<Client> {
   return apiFetch<Client>("/api/v1/clients", {
     method: "POST",

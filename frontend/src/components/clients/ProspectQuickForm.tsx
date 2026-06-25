@@ -31,6 +31,7 @@ export function ProspectQuickForm({ onClose }: Props) {
   const [name, setName] = useState("")
   const [website, setWebsite] = useState("")
   const [industry, setIndustry] = useState("")
+  const [competitor, setCompetitor] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,6 +57,7 @@ export function ProspectQuickForm({ onClose }: Props) {
         name,
         website,
         industry,
+        competitor,
       })
       setCreatedClient(client)
       setToken(share_token)
@@ -89,9 +91,8 @@ export function ProspectQuickForm({ onClose }: Props) {
           <p className="text-xs text-muted-foreground">{createdClient.website}</p>
         </div>
         <p className="text-sm text-muted-foreground">
-          The scan is running now — it&apos;ll take a few minutes. Send this
-          read-only link to the prospect; their results appear as soon as the
-          scan finishes.
+          The scan is running now — it&apos;ll take a few minutes. Open this
+          read-only view to screen-share on your call once the scan finishes.
         </p>
         <div className="flex gap-2">
           <Input readOnly value={url ?? ""} className="font-mono text-xs" />
@@ -159,6 +160,19 @@ export function ProspectQuickForm({ onClose }: Props) {
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="prospect-competitor">Main competitor</Label>
+        <Input
+          id="prospect-competitor"
+          value={competitor}
+          onChange={(e) => setCompetitor(e.target.value)}
+          placeholder="Competitor name (optional)"
+        />
+        <p className="text-xs text-muted-foreground">
+          Add one to include the head-to-head comparison in the scan — the gap
+          to show on the call.
+        </p>
       </div>
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>

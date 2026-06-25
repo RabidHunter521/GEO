@@ -3,7 +3,7 @@
 from app.models.client import Client
 from app.core.constants import SCORE_BANDS, SCORE_WEIGHTS
 
-VERSION = "v1"
+VERSION = "v2"
 
 DIMENSIONS = (
     "ai_citability",
@@ -58,8 +58,10 @@ score, prioritizing dimensions that are weakest and have the highest weight. For
   "Your competitors are winning here" instead of "visibility gap", and never use the words
   "citation", "ranking position", "confidence", or "token".
 - dimension: which one of {", ".join(DIMENSIONS)} this action primarily improves.
-- closable_gap_fraction: your estimate (0.0 to 1.0) of how much of that dimension's remaining
-  gap to 100 this single action could realistically close.
+- effort: how long this action typically takes to show results. Use exactly one of:
+  "quick-win" (visible change within 2-4 weeks),
+  "medium-term" (typically 1-3 months),
+  "long-term" (3+ months of consistent effort).
 
 Output ONLY valid JSON, no code fences, in exactly this shape:
-{{"actions": [{{"action_text": "string", "dimension": "string", "closable_gap_fraction": 0.0}}]}}"""
+{{"actions": [{{"action_text": "string", "dimension": "string", "effort": "quick-win"}}]}}"""

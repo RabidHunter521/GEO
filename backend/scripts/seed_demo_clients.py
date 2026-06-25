@@ -797,7 +797,207 @@ AYAM_GEPUK_TOKMAT = {
 }
 
 
-CLIENT_PROFILES = [GLAD2GLOW, AVISENA, NEWNORMZ, AYAM_GEPUK_TOKMAT]
+# ---------------------------------------------------------------------------
+# CLIENT 5: Medilink Healthcare
+# ---------------------------------------------------------------------------
+MEDILINK = {
+    "client": dict(
+        name="Medilink Healthcare",
+        website="https://medilinkhealthcare.my/",
+        industry="Healthcare",
+        description=(
+            "Malaysian healthcare group operating a network of medical clinics and "
+            "health screening centres across the Klang Valley, offering GP consultations, "
+            "health screening packages, occupational health services, and specialist "
+            "referrals for individuals and corporate clients."
+        ),
+        target_audience=(
+            "Individuals, families, and corporate HR teams in the Klang Valley seeking "
+            "accessible primary care, health screening, and occupational health services"
+        ),
+        city="Kuala Lumpur",
+        state="Wilayah Persekutuan Kuala Lumpur",
+        country="Malaysia",
+        contact_email="enquiry@medilinkhealthcare.my",
+        brand_authority_score=58,
+        brand_authority_evidence=(
+            "Recognised primary-care and health-screening provider with corporate "
+            "panel relationships and local directory listings, but fewer authoritative "
+            "health-content backlinks and press mentions than larger specialist groups "
+            "like Sentosa Healthcare."
+        ),
+        content_quality_score=55,
+        content_quality_evidence=(
+            "Service and clinic-location pages are clear and useful, but health-screening "
+            "explainers, condition guides, and corporate/occupational-health content are "
+            "thin compared to competitors that publish dedicated patient-education hubs."
+        ),
+        avg_deal_value_rm=480,
+    ),
+    "competitors": [
+        {"name": "Sentosa Healthcare", "website": "https://www.sshmedicare.com/"},
+        {"name": "Care Clinic Group", "website": "https://careclinics.com.my/"},
+        {"name": "Medipulse Healthcare", "website": "https://www.medipulse.com.my/"},
+    ],
+    "scan_profile": {
+        "industry_phrase": "primary care and health screening provider",
+        "location": "Kuala Lumpur, Klang Valley, Malaysia",
+        "city": "Kuala Lumpur",
+        "client_visibility": {"chatgpt": 0.5, "perplexity": 0.375, "gemini": 0.5, "claude": 0.375},
+        "client_trait": (
+            "accessible GP consultations, comprehensive health screening packages, and "
+            "occupational health services delivered through a network of clinics across "
+            "the Klang Valley"
+        ),
+        "client_extra": "It is increasingly used by corporate clients for staff health screening and panel clinic services.",
+        "client_comparison_trait": (
+            "focuses on accessible primary care, health screening, and corporate "
+            "occupational health across multiple Klang Valley clinics"
+        ),
+        "competitor_traits": {
+            "Sentosa Healthcare": {
+                "trait": "a private specialist healthcare group offering specialist consultations, diagnostics, and inpatient services with a long-standing local reputation",
+                "extra": "It is well known in the Klang Valley for its specialist and hospital-grade services.",
+                "comparison_trait": "is a private specialist healthcare group with broader hospital-grade specialist and diagnostic services",
+            },
+            "Care Clinic Group": {
+                "trait": "a network of family and GP clinics across Malaysia offering primary care, vaccinations, and health screening",
+                "extra": "It has a wide clinic footprint and strong recognition for everyday family healthcare.",
+                "comparison_trait": "is a widely-distributed family-clinic network strong in everyday primary care",
+            },
+            "Medipulse Healthcare": {
+                "trait": "a healthcare provider offering GP services, health screening, and corporate wellness programmes",
+                "extra": "It competes closely on corporate health screening and panel clinic services.",
+                "comparison_trait": "is a close competitor on GP services, health screening, and corporate wellness",
+            },
+        },
+        "competitor_visibility": {
+            "Sentosa Healthcare": {"chatgpt": 0.75, "perplexity": 0.75, "gemini": 0.75, "claude": 0.5},
+            "Care Clinic Group": {"chatgpt": 0.75, "perplexity": 0.5, "gemini": 0.5, "claude": 0.5},
+            "Medipulse Healthcare": {"chatgpt": 0.5, "perplexity": 0.5, "gemini": 0.25, "claude": 0.25},
+        },
+        "filler_names": ["BookDoc", "Qualitas Health"],
+    },
+    "toolkit": {
+        "tagline": (
+            "Accessible primary care, health screening, and occupational health across "
+            "the Klang Valley — GP consultations, screening packages, and corporate "
+            "health services under one network."
+        ),
+        "about": (
+            "Medilink Healthcare is a Malaysian healthcare group operating a network of "
+            "medical clinics and health screening centres across the Klang Valley. It "
+            "provides GP consultations, comprehensive health screening packages, "
+            "occupational health services, and specialist referrals for both individual "
+            "patients and corporate clients."
+        ),
+        "sections": [
+            (
+                "Our Services",
+                "- GP Consultations & Primary Care\n- Health Screening Packages\n"
+                "- Occupational & Corporate Health\n- Vaccinations & Travel Health\n"
+                "- Specialist Referrals",
+            ),
+            (
+                "Clinics & Corporate Health",
+                "Medilink Healthcare operates multiple clinics across the Klang Valley "
+                "and provides panel and occupational health services for corporate clients.",
+            ),
+        ],
+        "business_type": "MedicalClinic",
+        "faqs": [
+            ("What services does Medilink Healthcare offer?", "Medilink Healthcare offers GP consultations, health screening packages, occupational and corporate health services, vaccinations, and specialist referrals through its network of Klang Valley clinics."),
+            ("Where are Medilink Healthcare clinics located?", "Medilink Healthcare operates a network of clinics across the Klang Valley. Exact clinic locations and opening hours are listed on its website."),
+            ("Does Medilink Healthcare provide corporate health screening?", "Yes, Medilink Healthcare provides corporate and occupational health services, including staff health screening and panel clinic arrangements for companies."),
+            ("How do I book a health screening with Medilink Healthcare?", "Health screening appointments can be booked by contacting a Medilink Healthcare clinic directly or through the booking form on its website."),
+        ],
+    },
+    "content_analysis": {
+        "topics_json": [
+            {"topic": "Health screening package explainers (what's included, who needs it)", "status": "weak"},
+            {"topic": "Clinic locations & opening hours", "status": "strong"},
+            {"topic": "Occupational & corporate health services", "status": "weak"},
+            {"topic": "Condition & symptom guides (e.g. diabetes, hypertension screening)", "status": "missing"},
+            {"topic": "Patient guides (panel/insurance, walk-in vs appointment)", "status": "missing"},
+            {"topic": "Comparisons with other Klang Valley clinic groups", "status": "missing"},
+        ],
+        "entities_json": [
+            {"entity": "Health Screening Packages", "covered": True},
+            {"entity": "GP / Primary Care Consultation", "covered": True},
+            {"entity": "Occupational Health Services", "covered": False},
+            {"entity": "Corporate Panel / Cashless Clinic", "covered": False},
+            {"entity": "Clinic Locator", "covered": True},
+            {"entity": "Vaccination & Travel Health", "covered": False},
+        ],
+        "suggested_content_json": [
+            {
+                "topic": "Health screening explainers",
+                "title": "Medilink Healthcare Health Screening Packages: What's Included and Who Should Get Screened",
+                "rationale": "Health-screening questions are a high-volume AI query type — a clear package explainer gives AI assistants a citable Medilink source where competitors currently appear.",
+            },
+            {
+                "topic": "Corporate / occupational health",
+                "title": "Corporate Health Screening & Occupational Health with Medilink Healthcare: A Guide for HR Teams",
+                "rationale": "Corporate health screening is a key revenue line and a recommendation-category gap where Medipulse and Care Clinic Group currently surface instead of Medilink.",
+            },
+            {
+                "topic": "Condition guides",
+                "title": "Diabetes and Hypertension Screening: When to Get Checked at Medilink Healthcare",
+                "rationale": "Condition/symptom explainers are how AI assistants surface clinics for health questions — Sentosa Healthcare dominates this space today.",
+            },
+        ],
+        "content_metrics_json": {"word_count": 6800, "h1_count": 21, "faq_count": 4, "blog_count": 1, "schema_present": False},
+        "content_quality_recommendation": (
+            "Build out health-screening and condition explainer pages, and a dedicated "
+            "corporate/occupational-health hub — these are the query types where Sentosa "
+            "Healthcare and Medipulse Healthcare currently outrank Medilink in AI answers."
+        ),
+        "entity_coverage_score": 56.0,
+        "pages_crawled": 27,
+    },
+    "roadmap_themes": [
+        {
+            "month": 1, "theme": "Health Screening Explainer Hub", "priority": "high",
+            "content_type": "Service explainer pages",
+            "suggested_title": "Medilink Healthcare Health Screening Guide: Packages, Pricing & Who Should Get Screened",
+            "rationale": (
+                "AI assistants currently surface Sentosa Healthcare and Care Clinic Group "
+                "for health-screening questions — dedicated explainer pages per package "
+                "give Medilink a citable answer for these high-intent queries."
+            ),
+        },
+        {
+            "month": 2, "theme": "Corporate & Occupational Health", "priority": "high",
+            "content_type": "Service landing pages",
+            "suggested_title": "Corporate Health Screening & Occupational Health Services from Medilink Healthcare",
+            "rationale": (
+                "Corporate and occupational-health queries currently favor Medipulse "
+                "Healthcare — a clear corporate-services hub helps Medilink appear in "
+                "these HR-driven recommendation shortlists."
+            ),
+        },
+        {
+            "month": 3, "theme": "Condition Guides & Local Trust Content", "priority": "medium",
+            "content_type": "Condition explainer articles",
+            "suggested_title": "Choosing a Clinic in the Klang Valley: A Patient's Guide to Medilink Healthcare",
+            "rationale": (
+                "Local 'best clinic near me' and condition-screening queries are where "
+                "Medilink should have a natural advantage — condition guides and "
+                "patient-guide content reinforce this local relevance for AI assistants."
+            ),
+        },
+    ],
+    "actions": [
+        {"dimension": "ai_citability", "closable_fraction": 0.35, "action_text": "Publish health-screening explainer pages (what's included, recommended ages, how to prepare) so AI assistants have a Medilink source to cite for screening questions where competitors currently appear."},
+        {"dimension": "content_quality", "closable_fraction": 0.30, "action_text": "Build a corporate/occupational-health hub and add condition-screening guides (diabetes, hypertension) — both are missing entity signals competitors already cover."},
+        {"dimension": "brand_authority", "closable_fraction": 0.25, "action_text": "Pursue local press and health-directory coverage across Klang Valley publications to build third-party mentions and backlinks beyond Medilink's own site."},
+        {"dimension": "ai_citability", "closable_fraction": 0.30, "action_text": "Publish a 'best clinic / health screening in the Klang Valley' style local guide to strengthen Medilink's presence in local recommendation queries where Sentosa Healthcare and Care Clinic Group currently appear."},
+    ],
+    "ai_traffic": {"current": 1680, "prev": 1320},
+}
+
+
+CLIENT_PROFILES = [GLAD2GLOW, AVISENA, NEWNORMZ, AYAM_GEPUK_TOKMAT, MEDILINK]
 
 
 def seed_client(db, profile: dict) -> None:
@@ -960,16 +1160,37 @@ def seed_client(db, profile: dict) -> None:
 
 
 def main():
+    # Optional CLI args filter which demo clients to seed by name (case-insensitive,
+    # substring match). No args = seed all profiles.
+    import sys
+
+    requested = [a.lower() for a in sys.argv[1:]]
+    if requested:
+        profiles = [
+            p for p in CLIENT_PROFILES
+            if any(r in p["client"]["name"].lower() for r in requested)
+        ]
+        if not profiles:
+            print(f"No demo profiles matched: {sys.argv[1:]}")
+            print(f"Available: {[p['client']['name'] for p in CLIENT_PROFILES]}")
+            return
+    else:
+        profiles = CLIENT_PROFILES
+
     db = SessionLocal()
     try:
-        for profile in CLIENT_PROFILES:
+        for profile in profiles:
             seed_client(db, profile)
 
         print("\nGenerating PDF reports...")
-        for profile in CLIENT_PROFILES:
+        for profile in profiles:
             name = profile["client"]["name"]
             client = db.query(Client).filter(Client.name == name).order_by(Client.created_at.desc()).first()
-            report = generate_report_pdf(client.id, db)
+            try:
+                report = generate_report_pdf(client.id, db)
+            except Exception as exc:  # report storage (R2) may be unconfigured locally
+                print(f"  -> {name}: report generation failed ({exc}); client data still seeded")
+                continue
             if report:
                 print(f"  -> {name}: {report.r2_url}")
             else:

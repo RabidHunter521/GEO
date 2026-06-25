@@ -43,6 +43,9 @@ SCORE_COLORS: Final = {
 # Static query templates per category. {brand}, {competitor}, {industry}, {location}, {city} are filled at runtime.
 # 5 per category × 4 categories = up to 20 client queries per platform per scan
 # (comparison is capped by the number of competitors, max 5).
+# recommendation + local intentionally mix discovery queries ("best X") with
+# buyer-journey queries ("how do I choose X", "how much does X cost") to capture
+# AI answers across the full consideration funnel, not just top-of-funnel discovery.
 QUERY_TEMPLATES: Final = {
     "brand": [
         "Tell me about {brand}",
@@ -60,17 +63,17 @@ QUERY_TEMPLATES: Final = {
     ],
     "recommendation": [
         "Best {industry} in {location}",
-        "Top {industry} in {location}",
-        "Who are the leading {industry} providers in {location}?",
-        "Recommend a good {industry} in {location}",
         "Most trusted {industry} in {location}",
+        "How do I choose a {industry} in {location}?",
+        "What should I look for in a {industry} in {location}?",
+        "How much does a {industry} cost in {location}?",
     ],
     "local": [
         "Best {industry} near me in {city}",
-        "{industry} services in {city}",
-        "Where can I find {industry} in {city}?",
         "Top-rated {industry} in {city}",
         "Affordable {industry} in {city}",
+        "How do I find a reliable {industry} in {city}?",
+        "Signs I need a {industry} in {city}",
     ],
 }
 

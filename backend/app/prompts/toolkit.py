@@ -2,8 +2,8 @@
 """Prompt templates for the AI Readiness Toolkit file generators."""
 from app.models.client import Client
 
-LLMS_TXT_VERSION = "v2"
-SCHEMA_JSON_VERSION = "v2"
+LLMS_TXT_VERSION = "v3"
+SCHEMA_JSON_VERSION = "v3"
 
 # Maps common industry keywords → the most specific schema.org type.
 # Checked in order; first match wins. Falls back to LocalBusiness.
@@ -88,6 +88,12 @@ Required format — use exactly these section headings in this order:
 ## Key Facts
 [3-5 bullet points an AI should know when deciding whether to recommend this business to a customer]
 
+## Questions & Answers
+[4-6 Q&A pairs. Write the questions exactly as a potential customer would ask an AI assistant — \
+natural, conversational language, not keyword-stuffed. Each answer must be 1-2 sentences, \
+specific to this business, and naturally include the business name. \
+Cover: what the business does, who it's for, what makes it different, how to get started.]
+
 ---
 
 Business details:
@@ -104,6 +110,7 @@ Rules:
 - Keep the > tagline under 20 words
 - Be specific to THIS business — no generic filler
 - Omit the Location section entirely if no location was provided
+- The Questions & Answers section is required — do not omit it
 - Output ONLY the raw llms.txt content. No explanations. No code block wrappers."""
 
 
@@ -127,14 +134,29 @@ Schema 1 — Primary business type:
     (omit addressLocality/addressRegion/addressCountry if their value is empty)
   email: "{client.contact_email or ""}"  (omit the email field entirely if empty)
   speakable: {{"@type": "SpeakableSpecification", "cssSelector": ["h1", "h2", "[itemprop=description]"]}}
-  sameAs: []
+  sameAs: [see sameAs rules below]
 
 Schema 2 — Organization:
   @type: "Organization"
   @id: "{client.website}/#organization"
   name, url, description
   email (omit if empty, same rule as above)
-  sameAs: []
+  sameAs: [same array as Schema 1]
+
+sameAs rules — apply the SAME array to both Schema 1 and Schema 2:
+  Generate 3-5 likely social and directory profile URLs for "{client.name}" ({client.industry}).
+  Slug: lowercase the business name, replace spaces with hyphens, remove special characters.
+  Always include:
+    "https://www.linkedin.com/company/[slug]"
+    "https://www.facebook.com/[slug-no-hyphens]"
+  Add 1-2 industry-relevant directories chosen from:
+    Healthcare/clinic/dental → Healthgrades, RateMDs
+    Legal/law → Avvo, FindLaw
+    Restaurant/food/cafe → Yelp, TripAdvisor
+    Hotel/resort → TripAdvisor, Booking.com
+    Fitness/beauty/spa → Yelp, Treatwell
+    All others → "https://maps.google.com/?q=[business+name+url-encoded]", Yelp
+  These are best-guess URLs for the admin to verify before publishing.
 
 Schema 3 — WebSite:
   @type: "WebSite"

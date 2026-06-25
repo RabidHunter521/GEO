@@ -187,6 +187,10 @@ class ReportData:
     gaps_won_back: int = 0
     # AI-referral pipeline estimate for the latest month, or None when unconfigured.
     pipeline: PipelineEstimate | None = None
+    # Query-level changes vs previous scan — used by the narrative prompt so Claude
+    # can name specific questions that moved rather than just quoting aggregate numbers.
+    newly_seen_queries: list[str] = field(default_factory=list)
+    newly_lost_queries: list[str] = field(default_factory=list)
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -354,6 +358,33 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     seen_count = sum(1 for r in client_results if r.brand_detected)
     total_count = len(client_results)
 
+    # Identify which specific queries changed detection status vs the previous scan.
+    # Only consider queries that ran in both scans to avoid new/removed query noise.
+    newly_seen_queries: list[str] = []
+    newly_lost_queries: list[str] = []
+    if prev_scan:
+        prev_client_results = (
+            db.query(ScanQueryResult)
+            .filter(
+                ScanQueryResult.scan_id == prev_scan.id,
+                ScanQueryResult.competitor_id.is_(None),
+            )
+            .all()
+        )
+        prev_by_query = {r.query_text: r.brand_detected for r in prev_client_results}
+        newly_seen_queries = [
+            r.query_text for r in client_results
+            if r.query_text in prev_by_query
+            and r.brand_detected
+            and not prev_by_query[r.query_text]
+        ][:3]
+        newly_lost_queries = [
+            r.query_text for r in client_results
+            if r.query_text in prev_by_query
+            and not r.brand_detected
+            and prev_by_query[r.query_text]
+        ][:3]
+
     competitors_orm = db.query(Competitor).filter(Competitor.client_id == client.id).all()
     competitor_summaries: list[CompetitorSummary] = []
     for comp in competitors_orm:
@@ -484,6 +515,8 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         content_gaps=content_gaps,
         gaps_won_back=gaps_won_back,
         pipeline=pipeline,
+        newly_seen_queries=newly_seen_queries,
+        newly_lost_queries=newly_lost_queries,
     )
     data.change_narrative = _generate_change_narrative(data, client_id=client.id, db=db)
     return data

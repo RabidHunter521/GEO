@@ -42,7 +42,7 @@ def _generate_claude_action(
     prompt = build_action(client, current, prev)
     response = anthropic_client().messages.create(
         model=MODEL,
-        max_tokens=60,
+        max_tokens=100,
         messages=[{"role": "user", "content": prompt}],
     )
     record_llm_call(

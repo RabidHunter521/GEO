@@ -23,14 +23,28 @@ export async function createClientAction(data: {
   return client
 }
 
-// Lightweight cold-outreach flow: create the prospect, mint a share link, and
-// kick off a scan in one shot so the partner walks away with a sendable link.
+// Lightweight cold-outreach flow: create the prospect, optionally seed one
+// competitor, mint a share link, and kick off a scan in one shot — so the
+// prospect view is ready to screen-share in a sales call.
 export async function createProspectAction(data: {
   name: string
   website: string
   industry: string
+  competitor?: string
 }) {
-  const client = await apiCreateClient({ ...data, is_prospect: true })
+  const client = await apiCreateClient({
+    name: data.name,
+    website: data.website,
+    industry: data.industry,
+    is_prospect: true,
+    enabled_platforms: ["chatgpt", "perplexity"],
+  })
+  // Seed the competitor (if given) BEFORE the scan fires so the scan runs its
+  // comparison queries — the competitor gap is the centrepiece of the call.
+  const competitor = data.competitor?.trim()
+  if (competitor) {
+    await apiAddCompetitor(client.id, { name: competitor })
+  }
   const { share_token } = await apiGenerateShareToken(client.id)
   await apiTriggerScan(client.id)
   revalidatePath("/clients")
@@ -43,7 +57,10 @@ export async function triggerScanAction(id: string) {
 }
 
 export async function convertProspectToClientAction(id: string) {
-  await apiUpdateClient(id, { is_prospect: false })
+  await apiUpdateClient(id, {
+    is_prospect: false,
+    enabled_platforms: ["chatgpt", "perplexity", "gemini", "claude"],
+  })
   revalidatePath("/clients")
 }
 

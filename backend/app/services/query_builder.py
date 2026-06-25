@@ -5,7 +5,7 @@ from app.core.constants import QUERY_TEMPLATES, COMPETITOR_QUERY_TEMPLATES
 # QUERY_TEMPLATES / COMPETITOR_QUERY_TEMPLATES change, so cost rows for scan
 # platforms (service "scan_<platform>") are tied to the query set that produced
 # them — the same provenance the Claude prompts get via the prompt registry.
-SCAN_QUERY_VERSION = "v1"
+SCAN_QUERY_VERSION = "v2"
 
 
 def _location(client) -> str | None:

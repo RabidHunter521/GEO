@@ -192,7 +192,17 @@ def _client_brand_queries(profile: dict, rng: random.Random, platform: str, clie
     location = profile["location"]
     city = profile["city"]
     industry_phrase = profile["industry_phrase"]
-    flags = visibility_to_flags(rng, 8, profile["client_visibility"][platform])
+    # One flag per client-perspective query this platform will emit. Comparison
+    # queries are capped by the number of tracked competitors (one per competitor),
+    # mirroring the real scan engine; the others run every template in the category.
+    n_comparison = min(len(QUERY_TEMPLATES["comparison"]), len(competitors))
+    total_flags = (
+        len(QUERY_TEMPLATES["brand"])
+        + n_comparison
+        + len(QUERY_TEMPLATES["recommendation"])
+        + len(QUERY_TEMPLATES["local"])
+    )
+    flags = visibility_to_flags(rng, total_flags, profile["client_visibility"][platform])
     results: list[ScanQueryResult] = []
     lost_entries: list[dict] = []
 

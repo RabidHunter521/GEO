@@ -20,7 +20,7 @@ from app.services.win_loss_service import compute_win_loss
 logger = structlog.get_logger()
 
 _MAX_TOKENS = 4096
-_ARTICLE_MAX_TOKENS = 3000
+_ARTICLE_MAX_TOKENS = 3500
 _MAX_QUERIES = 24  # cap prompt size; most-recent lost/open queries are enough
 
 

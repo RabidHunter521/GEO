@@ -3,7 +3,7 @@
 from app.models.client import Client
 
 ROADMAP_VERSION = "v1"
-ARTICLE_VERSION = "v1"
+ARTICLE_VERSION = "v2"
 
 PLAN_WEEKS = 12  # 90-day plan == 12 weekly content pieces
 
@@ -57,4 +57,13 @@ Requirements:
 - Naturally include the business name and the kind of language a buyer would use when asking AI assistants the questions above.
 - Be accurate and concrete; do not invent fake statistics, awards, or quotes.
 - Never use the words "citation", "cited", "mentioned", "ranking position", or "visibility gap".
-Output ONLY the Markdown article — no preamble, no code fences, no JSON."""
+
+After the article body, append exactly this metadata block with no extra blank lines between them:
+
+---
+SEO_TITLE: [browser tab/search snippet title — under 60 characters, may differ from the H1]
+META_DESC: [meta description — 140–155 characters, ends with a natural call to action]
+SLUG: [url-friendly slug — lowercase, hyphens only, under 60 characters, omit stop words]
+INTERNAL_LINKS: [2-3 related topics already on this site that this article could link to]
+
+No preamble. No code fences. Article body first, metadata block last."""
