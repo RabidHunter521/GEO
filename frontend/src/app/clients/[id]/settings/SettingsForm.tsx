@@ -377,7 +377,12 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
 
       {/* Profile */}
       <section className="space-y-4">
-        <h2 className="font-display text-lg font-semibold tracking-tight">Profile</h2>
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Profile</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            These fields power the AI Readiness Toolkit generator — the more complete, the better the output.
+          </p>
+        </div>
         <div className="space-y-1">
           <Label htmlFor="s-desc">Description</Label>
           <textarea
@@ -385,6 +390,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             name="description"
             defaultValue={client.description ?? ""}
             rows={3}
+            placeholder="What does this business do? What makes them different? How do they help their customers?"
             className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
           />
         </div>
@@ -394,6 +400,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             id="s-audience"
             name="target_audience"
             defaultValue={client.target_audience ?? ""}
+            placeholder="e.g. SME owners in Kuala Lumpur, Malaysian F&B operators"
           />
         </div>
         <div className="space-y-1">
@@ -417,6 +424,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             name="contact_email"
             type="email"
             defaultValue={client.contact_email ?? ""}
+            placeholder="e.g. hello@clientdomain.com"
           />
         </div>
         <div className="space-y-1.5">
