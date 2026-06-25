@@ -3,7 +3,9 @@
 from app.models.client import Client
 
 LLMS_TXT_VERSION = "v3"
-SCHEMA_JSON_VERSION = "v3"
+# v4: feed logo_url as logo/image; drop the WordPress-only SearchAction; stop
+# emitting hallucinated sameAs URLs into the published file.
+SCHEMA_JSON_VERSION = "v4"
 
 # Maps common industry keywords → the most specific schema.org type.
 # Checked in order; first match wins. Falls back to LocalBusiness.
@@ -117,6 +119,7 @@ Rules:
 def build_schema_json(client: Client) -> str:
     schema_type = _schema_type_for(client.industry)
     location = ", ".join(p for p in [client.city, client.state, client.country] if p)
+    has_logo = bool(client.logo_url)
 
     return f"""Generate a JSON-LD structured data file for this business.
 
@@ -130,43 +133,35 @@ Schema 1 — Primary business type:
   address as PostalAddress:
     addressLocality: "{client.city or ""}"
     addressRegion: "{client.state or ""}"
-    addressCountry: "{client.country or ""}"
+    addressCountry: use the 2-letter ISO 3166 country code for "{client.country or ""}" (e.g. Malaysia → "MY")
     (omit addressLocality/addressRegion/addressCountry if their value is empty)
   email: "{client.contact_email or ""}"  (omit the email field entirely if empty)
-  speakable: {{"@type": "SpeakableSpecification", "cssSelector": ["h1", "h2", "[itemprop=description]"]}}
-  sameAs: [see sameAs rules below]
+  {'image: "' + client.logo_url + '"' if has_logo else 'image: (omit — no logo provided)'}
+  parentOrganization: {{"@id": "{client.website}/#organization"}}
+  speakable: {{"@type": "SpeakableSpecification", "cssSelector": ["h1", "h2"]}}
 
 Schema 2 — Organization:
   @type: "Organization"
   @id: "{client.website}/#organization"
   name, url, description
   email (omit if empty, same rule as above)
-  sameAs: [same array as Schema 1]
+  {'logo: "' + client.logo_url + '"' if has_logo else 'logo: (omit — no logo provided)'}
 
-sameAs rules — apply the SAME array to both Schema 1 and Schema 2:
-  Generate 3-5 likely social and directory profile URLs for "{client.name}" ({client.industry}).
-  Slug: lowercase the business name, replace spaces with hyphens, remove special characters.
-  Always include:
-    "https://www.linkedin.com/company/[slug]"
-    "https://www.facebook.com/[slug-no-hyphens]"
-  Add 1-2 industry-relevant directories chosen from:
-    Healthcare/clinic/dental → Healthgrades, RateMDs
-    Legal/law → Avvo, FindLaw
-    Restaurant/food/cafe → Yelp, TripAdvisor
-    Hotel/resort → TripAdvisor, Booking.com
-    Fitness/beauty/spa → Yelp, Treatwell
-    All others → "https://maps.google.com/?q=[business+name+url-encoded]", Yelp
-  These are best-guess URLs for the admin to verify before publishing.
+Do NOT add a "sameAs" field to either schema. Social/directory profile URLs are
+added by the admin after verification — never invent them.
 
 Schema 3 — WebSite:
   @type: "WebSite"
   @id: "{client.website}/#website"
   url: "{client.website}"
   name: "{client.name}"
-  potentialAction: SearchAction with target "{client.website}/?s={{search_term_string}}" and query-input "required name=search_term_string"
+  publisher: {{"@id": "{client.website}/#organization"}}
+  Do NOT add a "potentialAction"/SearchAction — the site's search URL is unknown.
 
 Schema 4 — FAQPage:
   @type: "FAQPage"
+  @id: "{client.website}/#faq"
+  about: {{"@id": "{client.website}/#business"}}
   mainEntity: 3-5 Question + acceptedAnswer pairs that a real potential customer of this business would ask
   Make the questions specific to this industry and business, not generic
 
@@ -180,5 +175,6 @@ Schema type: {schema_type}
 Description: {client.description or "Not provided"}
 Location: {location or "Not provided"}
 Contact email: {client.contact_email or "Not provided"}
+Logo URL: {client.logo_url or "Not provided"}
 
 Output ONLY valid JSON. No explanations. No code block wrapper. Start directly with {{"""

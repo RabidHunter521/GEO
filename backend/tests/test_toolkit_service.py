@@ -22,6 +22,9 @@ def _fake_client():
     m.target_audience = "developers"
     m.city = "Kuala Lumpur"
     m.state = "Selangor"
+    m.country = "Malaysia"
+    m.contact_email = "hello@acme.com"
+    m.logo_url = "https://acme.com/logo.png"
     return m
 
 
