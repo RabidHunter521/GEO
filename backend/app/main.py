@@ -15,7 +15,17 @@ from app.core.logging import configure_logging
 configure_logging()
 logger = structlog.get_logger()
 
-app = FastAPI(title="SeenBy API", version="0.1.0")
+# In production the interactive docs are disabled so the full route surface,
+# parameters, and schemas aren't publicly enumerable (endpoints still require
+# the admin API key). Locally they stay on for development.
+_docs_enabled = settings.ENVIRONMENT != "production"
+app = FastAPI(
+    title="SeenBy API",
+    version="0.1.0",
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 
 
 @app.middleware("http")

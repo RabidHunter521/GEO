@@ -1,13 +1,20 @@
 """SSRF guard for outbound crawls.
 
-Blocks the realistic threats from an admin pasting an internal address as a
-client website: localhost-style hostnames and private/loopback/link-local IP
-literals (incl. the cloud metadata range). It does not resolve DNS, so it won't
-catch a public hostname that points at an internal IP (DNS rebinding) — out of
-scope for trusted, admin-entered input.
+Blocks a client website (admin-entered, but the trust boundary is "whoever can
+set a client's website") from pointing the crawler at internal infrastructure:
+localhost-style hostnames, private/loopback/link-local IP literals (incl. the
+cloud metadata range), AND public hostnames that *resolve* to those ranges. The
+host is resolved with getaddrinfo and every returned address is checked, so a
+DNS name pointing at 169.254.169.254 or 10.x is rejected.
+
+This narrows but does not fully eliminate TOCTOU DNS rebinding: the connection's
+own resolution can differ from this pre-check. Full closure would require pinning
+the validated IP into the socket; for this threat model resolve-and-check is the
+deliberate cost/benefit point.
 """
 import ipaddress
 import json
+import socket
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
@@ -36,6 +43,19 @@ class SafeResponse:
         return json.loads(self.text)
 
 
+def _ip_is_blocked(ip: ipaddress._BaseAddress) -> bool:
+    """Reject any non-publicly-routable address (private, loopback, link-local
+    incl. the 169.254 cloud-metadata range, reserved, multicast, unspecified)."""
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
 def is_safe_crawl_url(url: str) -> bool:
     parsed = urlparse(url if "://" in url else f"https://{url}")
     if parsed.scheme not in ("http", "https"):
@@ -45,19 +65,25 @@ def is_safe_crawl_url(url: str) -> bool:
         return False
     if host == "localhost" or host.endswith(_BLOCKED_HOST_SUFFIXES):
         return False
-    # If the host is an IP literal, reject non-public ranges.
+    # IP literal: check it directly, no DNS needed.
     try:
-        ip = ipaddress.ip_address(host)
+        return not _ip_is_blocked(ipaddress.ip_address(host))
     except ValueError:
-        return True  # a hostname (trusted admin input) — allow
-    return not (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
+        pass  # not a literal — it's a hostname; resolve and check below.
+    # Hostname: resolve to every A/AAAA address and reject if ANY lands in a
+    # non-public range (a public name can still point at an internal IP).
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80), proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        return False  # unresolvable — treat as unsafe rather than connect blind
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if _ip_is_blocked(ip):
+            return False
+    return True
 
 
 def safe_get(

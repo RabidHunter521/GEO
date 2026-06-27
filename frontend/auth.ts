@@ -20,7 +20,22 @@ const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_MS = 15 * 60 * 1000
 const loginAttempts = new Map<string, { count: number; firstAt: number }>()
 
+// Global backstop: the per-username map alone lets an attacker rotate usernames
+// to get a fresh 5-attempt budget each. There is exactly one valid username, so
+// a flood of distinct usernames is always an attack — cap total failures across
+// all usernames per window too. Higher than the per-username cap to leave room
+// for an admin fat-fingering their own login a few times.
+const MAX_GLOBAL_FAILED_ATTEMPTS = 20
+let globalFailures: { count: number; firstAt: number } | null = null
+
 function isLockedOut(key: string): boolean {
+  if (
+    globalFailures &&
+    Date.now() - globalFailures.firstAt <= LOCKOUT_MS &&
+    globalFailures.count >= MAX_GLOBAL_FAILED_ATTEMPTS
+  ) {
+    return true
+  }
   const entry = loginAttempts.get(key)
   if (!entry) return false
   if (Date.now() - entry.firstAt > LOCKOUT_MS) {
@@ -36,6 +51,11 @@ function recordFailure(key: string): void {
     loginAttempts.set(key, { count: 1, firstAt: Date.now() })
   } else {
     entry.count += 1
+  }
+  if (!globalFailures || Date.now() - globalFailures.firstAt > LOCKOUT_MS) {
+    globalFailures = { count: 1, firstAt: Date.now() }
+  } else {
+    globalFailures.count += 1
   }
 }
 
@@ -66,7 +86,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
         if (safeEqual(username, adminUser) && safeEqual(password, adminPass)) {
-          loginAttempts.delete(username) // success resets the counter
+          loginAttempts.delete(username) // success resets the per-user counter
+          globalFailures = null // …and the global backstop
           return { id: "admin", name: "Admin", email: "admin@seenby.my" }
         }
         recordFailure(username)

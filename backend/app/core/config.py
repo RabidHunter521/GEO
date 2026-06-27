@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     FRONTEND_BASE_URL: str = "http://localhost:3000"
+    # Deployment environment. Set to "production" on Railway to disable the
+    # interactive API docs (/docs, /redoc, /openapi.json) so the route surface
+    # isn't publicly enumerable. Anything else keeps them on for local dev.
+    ENVIRONMENT: str = "development"
     ANTHROPIC_API_KEY: str
     RESEND_API_KEY: str
     # Optional Telegram admin alerts — both empty = disabled (alerts still email)
