@@ -659,3 +659,30 @@ def test_build_report_html_html_escape_still_applied_after_sanitize():
     assert "&gt;" in rendered
     assert "&amp;" in rendered
     assert "mentioned" not in rendered
+
+
+# ── Task 3: PDF proof section ─────────────────────────────────────────────────
+
+from app.services.report_service import _build_proof_html, ReportData
+from app.services.proof_card_service import ProofCard
+
+
+def _proof_data(cards):
+    d = ReportData.__new__(ReportData)
+    d.proof_cards = cards
+    return d
+
+
+def test_proof_html_names_competitor_on_loss_card():
+    cards = [
+        ProofCard("win", "chatgpt", "recommendation", "Acme Dental is a top KL clinic."),
+        ProofCard("loss", "perplexity", "local", "In KL, Dr. Lim Dental is recommended first."),
+    ]
+    out = _build_proof_html(_proof_data(cards))
+    assert "Dr. Lim Dental" in out                  # named on private PDF
+    assert "Acme Dental is a top KL clinic." in out
+    assert "Seen by AI" in out                       # approved language
+
+
+def test_proof_html_empty_when_no_cards():
+    assert _build_proof_html(_proof_data([])) == ""

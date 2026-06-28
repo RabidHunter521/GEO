@@ -115,6 +115,13 @@ td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
 .stat-sub { font-size: 10pt; color: #64748b; margin-top: 4px; }
 .rec-box { background: #f0f9ff; border-left: 4px solid #0284c7; padding: 14px 16px; border-radius: 4px; }
 .manual-note { font-size: 8pt; color: #94a3b8; font-style: italic; margin-top: 2px; }
+.proof-card { border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+.proof-win { background: #f0fdf4; border: 1px solid #bbf7d0; }
+.proof-loss { background: #fffbeb; border: 1px solid #fde68a; }
+.proof-tag { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.proof-tag-win { color: #15803d; }
+.proof-tag-loss { color: #b45309; }
+.proof-quote { font-style: italic; margin: 0; font-size: 11pt; }
 """
 
 
@@ -191,6 +198,8 @@ class ReportData:
     # can name specific questions that moved rather than just quoting aggregate numbers.
     newly_seen_queries: list[str] = field(default_factory=list)
     newly_lost_queries: list[str] = field(default_factory=list)
+    # Verbatim AI proof cards for the latest scan (rival named — private PDF).
+    proof_cards: list = field(default_factory=list)
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -518,8 +527,46 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         newly_seen_queries=newly_seen_queries,
         newly_lost_queries=newly_lost_queries,
     )
+    from app.services.proof_card_service import select_proof_cards
+    proof_cards = select_proof_cards(
+        [r for r in client_results if not r.hallucination_flagged],
+        client.name,
+        [c.name for c in competitors_orm],
+        win_cap=2,
+        loss_cap=1,
+        redact_competitors=False,  # private reviewed PDF — name the rival
+    )
+    data.proof_cards = proof_cards
     data.change_narrative = _generate_change_narrative(data, client_id=client.id, db=db)
     return data
+
+
+def _build_proof_html(data: ReportData) -> str:
+    """The verbatim 'Seen by AI' proof section for the PDF, or '' when empty.
+
+    Loss cards name the rival — this is the private, admin-reviewed deliverable."""
+    if not data.proof_cards:
+        return ""
+    rows = []
+    for c in data.proof_cards:
+        platform = html.escape(PLATFORM_LABELS.get(c.platform, c.platform.title()))
+        quote = html.escape(c.excerpt)
+        if c.kind == "win":
+            rows.append(
+                f'<div class="proof-card proof-win">'
+                f'<div class="proof-tag proof-tag-win">Seen by AI · {platform}</div>'
+                f'<p class="proof-quote">&ldquo;{quote}&rdquo;</p></div>'
+            )
+        else:
+            rows.append(
+                f'<div class="proof-card proof-loss">'
+                f'<div class="proof-tag proof-tag-loss">Who {platform} recommended instead</div>'
+                f'<p class="proof-quote">&ldquo;{quote}&rdquo;</p></div>'
+            )
+    return (
+        '<h2 class="section-title">What AI said about you this month</h2>'
+        + "".join(rows)
+    )
 
 
 def _build_report_html(client: Client, data: ReportData) -> str:
@@ -560,6 +607,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         trend_msg = f"&#8594; Score held steady at {data.overall_score:.0f}"
     else:
         trend_msg = "First AI Visibility Report"
+
+    proof_section = _build_proof_html(data)
 
     if data.competitors:
         comp_rows = "".join(
@@ -839,6 +888,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
   <div class="rec-box">
     <p style="margin:0;font-size:11pt;color:#0c4a6e;">{safe_narrative}</p>
   </div>''' if safe_narrative else ""}
+  {proof_section}
 
   <h2>Recommended Action</h2>
   <div class="rec-box">
