@@ -150,6 +150,12 @@ CLIENT_VIEW_STALE_AFTER_DAYS: Final = 10
 DEFAULT_VISITOR_TO_LEAD_PCT: Final = 2
 DEFAULT_LEAD_TO_CUSTOMER_PCT: Final = 20
 
+# Value-at-risk model (rung 2). Floor visibility at 25% so a tiny score can't
+# explode the gap multiplier; cap the multiplier at 3x so at-risk is never more
+# than 3x captured. Both keep the estimate conservative. See revenue_service.
+VALUE_AT_RISK_MIN_VISIBILITY: Final = 0.25
+VALUE_AT_RISK_MAX_MULTIPLIER: Final = 3.0
+
 # GEO Action Center — impact estimation and display caps
 ACTION_IMPACT_MAX_PER_ACTION: Final = 10.0
 ACTION_PRIORITY_BANDS: Final = {
