@@ -63,7 +63,7 @@ from app.schemas.client_view import (
 )
 from app.services.assessment_service import latest_assessment
 from app.services.benchmark_service import compute_industry_benchmark
-from app.services.revenue_service import estimate_pipeline
+from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.remediation_service import get_remediation_items
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
@@ -219,12 +219,19 @@ def get_overview(
     if traffic:
         latest_traffic = traffic[-1]
         est = estimate_pipeline(latest_traffic.ai_visitors, client)
+        # f from the latest score's AI visibility (fraction). latest may be None
+        # when no score exists yet — then at-risk is None too.
+        vis_f = (latest.ai_citability / 100.0) if latest else None
+        at_risk = estimate_value_at_risk(latest_traffic.ai_visitors, vis_f, client)
         traffic_value = ClientViewTrafficValue(
             period=latest_traffic.period,
             ai_visitors=latest_traffic.ai_visitors,
             est_leads=est.est_leads if est else None,
             est_pipeline_rm=est.est_pipeline_rm if est else None,
             est_won_rm=est.est_won_rm if est else None,
+            at_risk_leads=at_risk.missed_leads if at_risk else None,
+            at_risk_pipeline_rm=at_risk.missed_pipeline_rm if at_risk else None,
+            at_risk_won_rm=at_risk.missed_won_rm if at_risk else None,
         )
 
     # Freshness — driven by the client's review cadence (a reminder; nothing

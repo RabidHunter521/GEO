@@ -80,6 +80,9 @@ class ClientViewTrafficValue(BaseModel):
     est_leads: int | None = None
     est_pipeline_rm: int | None = None
     est_won_rm: int | None = None
+    at_risk_leads: int | None = None
+    at_risk_pipeline_rm: int | None = None
+    at_risk_won_rm: int | None = None
 
 
 class ClientViewProgressItem(BaseModel):

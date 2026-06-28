@@ -271,6 +271,61 @@ def test_scan_excerpt_gated_for_prospect(db):
         app.dependency_overrides.update(_saved)
 
 
+def test_overview_traffic_value_includes_at_risk(db):
+    """Overview traffic_value must include at-risk fields when avg_deal_value_rm is set,
+    a GeoScore exists (to derive visibility_frequency), and a traffic snapshot exists."""
+    from app.models.ai_traffic_snapshot import AiTrafficSnapshot
+    from datetime import date
+
+    client = _make_client(db, is_prospect=False, name="AtRiskClient")
+    client.share_token = uuid.uuid4().hex
+    client.avg_deal_value_rm = 1000
+    db.flush()
+
+    scan = _make_scan(db, client.id)
+    # GeoScore with ai_citability=40 → vis_f = 0.40
+    from app.models.geo_score import GeoScore
+    g = GeoScore(
+        id=uuid.uuid4(),
+        client_id=client.id,
+        scan_id=scan.id,
+        overall_score=50.0,
+        ai_citability=40.0,
+        brand_authority=50.0,
+        content_quality=50.0,
+        technical_foundations=50.0,
+        structured_data=50.0,
+        computed_at=datetime(2026, 6, 1, 2),
+    )
+    db.add(g)
+
+    snap = AiTrafficSnapshot(
+        id=uuid.uuid4(),
+        client_id=client.id,
+        period=date(2026, 6, 1),
+        ai_visitors=100,
+    )
+    db.add(snap)
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        tv = res.json()["traffic_value"]
+        assert tv is not None, "traffic_value should be present"
+        assert tv["est_pipeline_rm"] is not None, "captured pipeline should be present"
+        assert tv["at_risk_pipeline_rm"] is not None, "at_risk_pipeline_rm should be present"
+        assert tv["at_risk_leads"] is not None, "at_risk_leads should be present"
+        assert tv["at_risk_won_rm"] is not None, "at_risk_won_rm should be present"
+        # at-risk values must be positive (there is a visibility gap at 40%)
+        assert tv["at_risk_pipeline_rm"] > 0, "at_risk_pipeline_rm should be > 0 given a visibility gap"
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
 def test_scan_unseen_result_has_null_excerpt(db):
     """ScanQueryResult with brand_detected=False should serialize with null excerpt."""
     client = _make_client(db, is_prospect=False, name="NullExcerptClient")
