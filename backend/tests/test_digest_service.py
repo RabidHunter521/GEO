@@ -152,7 +152,7 @@ def test_subject_leads_with_seen_count_and_keeps_score():
     assert "Test Brand" in subject
 
 
-def test_email_html_includes_verbatim_proof_quote():
+def test_email_html_includes_verbatim_proof_win():
     db = MagicMock()
     client = _make_client()
     db.get.return_value = client
