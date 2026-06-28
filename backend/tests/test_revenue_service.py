@@ -99,6 +99,7 @@ def test_value_at_risk_respects_custom_conversion_pcts():
     r = estimate_value_at_risk(100, 0.4, _client(avg_deal_value_rm=2000,
                                                  visitor_to_lead_pct=5,
                                                  lead_to_customer_pct=10))
-    # 150 missed visitors x 5% = 7.5 -> round 8 leads; x RM2000 = RM15000; x 10% = RM1500.
+    # 150 missed visitors x 5% = 7.5 leads (carried unrounded into pipeline);
+    # 7.5 x RM2000 = RM15000 pipeline; x 10% = RM1500 won. (missed_leads alone rounds to 8.)
     assert r.visitor_to_lead_pct == 5
     assert r.missed_pipeline_rm == 15000
