@@ -66,4 +66,4 @@ def test_move_none_when_no_brief():
 def test_platform_label_mapped():
     entries = [_entry("recommendation", "q", ["RivalCo"], "lost", platform="chatgpt")]
     b = _call(entries)
-    assert b.platform_label  # mapped via PLATFORM_LABELS, non-empty
+    assert b.platform_label == "ChatGPT"  # mapped via PLATFORM_LABELS, not the raw code
