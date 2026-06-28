@@ -326,6 +326,58 @@ def test_overview_traffic_value_includes_at_risk(db):
         app.dependency_overrides.update(_saved)
 
 
+def test_competitors_includes_headline_battle(db):
+    """Non-prospect client with a lost recommendation query naming a competitor
+    must include headline_battle in the /competitors response."""
+    from app.models.scan_query_result import ScanQueryResult
+    from app.models.competitor import Competitor
+
+    client = _make_client(db, is_prospect=False, name="BattleClient")
+    client.share_token = uuid.uuid4().hex
+    db.flush()
+
+    scan = _make_scan(db, client.id)
+    _make_geo_score(db, client.id, scan.id)
+
+    # Seed a competitor named RivalCo
+    rival = Competitor(
+        id=uuid.uuid4(),
+        client_id=client.id,
+        name="RivalCo",
+        website="https://rivalco.com",
+    )
+    db.add(rival)
+    db.flush()
+
+    # Seed a lost recommendation result — client NOT seen, competitor IS in response_text
+    lost_result = ScanQueryResult(
+        id=uuid.uuid4(),
+        scan_id=scan.id,
+        platform="chatgpt",
+        competitor_id=None,
+        category="recommendation",
+        query_text="best dental clinic in KL",
+        response_text="RivalCo is the top recommended dental clinic in KL.",
+        brand_detected=False,
+        hallucination_flagged=False,
+    )
+    db.add(lost_result)
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/competitors")
+        assert res.status_code == 200, res.text
+        hb = res.json()["headline_battle"]
+        assert hb is not None
+        assert hb["rival_name"] == "RivalCo"
+        assert hb["query_text"]
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
 def test_scan_unseen_result_has_null_excerpt(db):
     """ScanQueryResult with brand_detected=False should serialize with null excerpt."""
     client = _make_client(db, is_prospect=False, name="NullExcerptClient")

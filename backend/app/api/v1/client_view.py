@@ -47,6 +47,7 @@ from app.schemas.client_view import (
     ClientViewCompetitorQuery,
     ClientViewCompetitor,
     ClientViewCompetitors,
+    ClientViewHeadlineBattle,
     ClientViewReport,
     ClientViewAction,
     ClientViewIssueGroup,
@@ -72,6 +73,7 @@ from app.services.competitor_intelligence_service import (
 )
 from app.services.issue_detection_service import detect_client_issues
 from app.services.proof_card_service import select_proof_cards, result_excerpt
+from app.services.headline_battle_service import select_headline_battle
 from app.services.r2_service import presigned_pdf_url
 
 SCORE_HISTORY_LIMIT = 12
@@ -431,6 +433,17 @@ def get_competitors(
     db: Session = Depends(get_db),
 ):
     intel = compute_competitor_intelligence(client.id, db)
+    battle = select_headline_battle(client.id, db)
+    headline_battle = (
+        ClientViewHeadlineBattle(
+            rival_name=battle.rival_name,
+            query_text=battle.query_text,
+            platform_label=battle.platform_label,
+            move_title=battle.move_title,
+            move_angle=battle.move_angle,
+        )
+        if battle else None
+    )
     return ClientViewCompetitors(
         your_visibility_frequency=intel.client_ai_citability,
         your_platform_visibility={
@@ -460,6 +473,7 @@ def get_competitors(
             for c in intel.competitors
         ],
         last_scan_at=intel.last_scan_at,
+        headline_battle=headline_battle,
     )
 
 

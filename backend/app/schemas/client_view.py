@@ -166,11 +166,20 @@ class ClientViewCompetitor(BaseModel):
     queries: list[ClientViewCompetitorQuery]
 
 
+class ClientViewHeadlineBattle(BaseModel):
+    rival_name: str
+    query_text: str
+    platform_label: str
+    move_title: str | None = None
+    move_angle: str | None = None
+
+
 class ClientViewCompetitors(BaseModel):
     your_visibility_frequency: float | None
     your_platform_visibility: dict[str, float] = {}
     competitors: list[ClientViewCompetitor]
     last_scan_at: str | None
+    headline_battle: ClientViewHeadlineBattle | None = None
 
 
 class ClientViewReport(BaseModel):
