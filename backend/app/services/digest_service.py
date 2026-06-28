@@ -13,10 +13,12 @@ from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
+from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.services.email_service import send_email
 from app.services.claude_action import get_digest_action
 from app.services.proof_card_service import select_proof_cards
 from app.services.share_link_service import get_share_link_url
+from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 
 logger = structlog.get_logger()
 
@@ -34,6 +36,9 @@ class DigestData:
     # (excerpt, platform_label) for the verbatim win / loss cards, or None.
     proof_win: tuple[str, str] | None = None
     proof_loss: tuple[str, str] | None = None
+    captured_pipeline_rm: int | None = None
+    at_risk_pipeline_rm: int | None = None
+    at_risk_leads: int | None = None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -180,6 +185,16 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         ((c.excerpt, _label(c.platform)) for c in cards if c.kind == "loss"), None
     )
 
+    latest_traffic = (
+        db.query(AiTrafficSnapshot)
+        .filter(AiTrafficSnapshot.client_id == client.id)
+        .order_by(AiTrafficSnapshot.period.desc())
+        .first()
+    )
+    ai_visitors = latest_traffic.ai_visitors if latest_traffic else None
+    captured = estimate_pipeline(ai_visitors, client)
+    at_risk = estimate_value_at_risk(ai_visitors, current_citability / 100.0, client)
+
     return DigestData(
         seen_count=seen_count,
         total_count=total_count,
@@ -191,6 +206,9 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         action_text=action_text,
         proof_win=proof_win,
         proof_loss=proof_loss,
+        captured_pipeline_rm=captured.est_pipeline_rm if captured else None,
+        at_risk_pipeline_rm=at_risk.missed_pipeline_rm if at_risk else None,
+        at_risk_leads=at_risk.missed_leads if at_risk else None,
     )
 
 
@@ -272,6 +290,23 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           </p>
         </div>"""
 
+    money_block = ""
+    if data.captured_pipeline_rm is not None and data.at_risk_pipeline_rm is not None:
+        leads = data.at_risk_leads or 0
+        money_block = f"""
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;
+                    padding:16px 20px;margin-bottom:20px;">
+          <p style="margin:0 0 6px;font-size:12px;color:#1d4ed8;font-weight:600;
+                    text-transform:uppercase;letter-spacing:0.05em;">
+            What AI visibility is worth
+          </p>
+          <p style="margin:0;font-size:15px;color:#1e3a8a;line-height:1.6;">
+            AI visibility got you an estimated <strong>RM {data.captured_pipeline_rm:,}</strong>
+            in pipeline this month. About <strong>RM {data.at_risk_pipeline_rm:,}</strong>
+            (~{leads:,} potential customers) is still on the table.
+          </p>
+        </div>"""
+
     view_url = get_share_link_url(client)
     dashboard_button = ""
     if view_url:
@@ -325,6 +360,8 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           {milestone_block}
 
           {proof_block}
+
+          {money_block}
 
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
                       padding:20px;margin-bottom:20px;">

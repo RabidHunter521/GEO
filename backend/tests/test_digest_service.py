@@ -219,6 +219,9 @@ def _digest_data(**over):
         action_text="Keep publishing.",
         proof_win=("Acme Dental is widely recommended in KL.", "ChatGPT"),
         proof_loss=("In KL, Dr. Lim Dental is the top pick.", "ChatGPT"),
+        captured_pipeline_rm=None,
+        at_risk_pipeline_rm=None,
+        at_risk_leads=None,
     )
     base.update(over)
     return DigestData(**base)
@@ -239,3 +242,21 @@ def test_digest_html_win_only_when_no_loss():
 def test_digest_html_no_proof_block_when_empty():
     htmlout = _build_email_html(_digest_client(), _digest_data(proof_win=None, proof_loss=None))
     assert "Straight from" not in htmlout
+
+
+# ── money headline ─────────────────────────────────────────────────────────────
+
+def test_digest_html_shows_money_pair():
+    htmlout = _build_email_html(_digest_client(), _digest_data(
+        captured_pipeline_rm=2000, at_risk_pipeline_rm=3000, at_risk_leads=3,
+    ))
+    assert "RM 2,000" in htmlout                 # captured
+    assert "RM 3,000" in htmlout                 # at-risk
+    assert "on the table" in htmlout.lower()
+
+
+def test_digest_html_no_money_block_when_unconfigured():
+    htmlout = _build_email_html(_digest_client(), _digest_data(
+        captured_pipeline_rm=None, at_risk_pipeline_rm=None, at_risk_leads=None,
+    ))
+    assert "on the table" not in htmlout.lower()
