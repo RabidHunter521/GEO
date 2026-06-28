@@ -686,3 +686,29 @@ def test_proof_html_names_competitor_on_loss_card():
 
 def test_proof_html_empty_when_no_cards():
     assert _build_proof_html(_proof_data([])) == ""
+
+
+# ── Task 3: value-at-risk pair in monthly PDF ─────────────────────────────────
+
+def test_report_html_shows_value_at_risk_when_configured():
+    from app.services.report_service import _build_report_html, ReportData
+    from app.services.revenue_service import PipelineEstimate, ValueAtRisk
+    client = MagicMock()
+    client.name = "Acme Dental"
+    data = _make_report_data()
+    data.ai_visitors_current = 100
+    data.pipeline = PipelineEstimate(100, 2, 2000, 400, 1000, 2, 20)
+    data.value_at_risk = ValueAtRisk(100, 150, 3, 3000, 600, 1000, 2, 20, 1.5)
+    out = _build_report_html(client, data)
+    assert "RM 3,000" in out                     # at-risk pipeline rendered
+    assert "still on the table" in out.lower()    # at-risk framing
+
+
+def test_report_html_no_at_risk_block_when_none():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Dental"
+    data = _make_report_data()
+    data.value_at_risk = None
+    out = _build_report_html(client, data)
+    assert "still on the table" not in out.lower()

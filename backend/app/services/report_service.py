@@ -39,7 +39,7 @@ from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
 from app.services.share_link_service import get_share_link_url
 from app.services.cost_tracker import record_llm_call
 from app.services.remediation_service import sync_remediation_items, get_remediation_items
-from app.services.revenue_service import estimate_pipeline, PipelineEstimate
+from app.services.revenue_service import estimate_pipeline, PipelineEstimate, estimate_value_at_risk, ValueAtRisk
 from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
 from app.prompts.report import build_change_narrative
@@ -200,6 +200,8 @@ class ReportData:
     gaps_won_back: int = 0
     # AI-referral pipeline estimate for the latest month, or None when unconfigured.
     pipeline: PipelineEstimate | None = None
+    # Pipeline estimated lost to AI invisibility this month, or None when unconfigured.
+    value_at_risk: ValueAtRisk | None = None
     # Query-level changes vs previous scan — used by the narrative prompt so Claude
     # can name specific questions that moved rather than just quoting aggregate numbers.
     newly_seen_queries: list[str] = field(default_factory=list)
@@ -498,6 +500,11 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     pipeline = estimate_pipeline(
         current_traffic.ai_visitors if current_traffic else None, client
     )
+    value_at_risk = estimate_value_at_risk(
+        current_traffic.ai_visitors if current_traffic else None,
+        (current_gs.ai_citability / 100.0) if current_gs else None,
+        client,
+    )
 
     data = ReportData(
         period_start=now - timedelta(days=30),
@@ -530,6 +537,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         content_gaps=content_gaps,
         gaps_won_back=gaps_won_back,
         pipeline=pipeline,
+        value_at_risk=value_at_risk,
         newly_seen_queries=newly_seen_queries,
         newly_lost_queries=newly_lost_queries,
     )
@@ -676,8 +684,25 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         pipeline_stat = ""
 
+    if data.value_at_risk is not None:
+        r = data.value_at_risk
+        at_risk_stat = f"""
+  <div class="stat-box" style="background:#fffbeb;border-color:#fde68a;">
+    <div class="stat-label">Estimated Pipeline Still On The Table</div>
+    <div class="stat-value">RM {r.missed_pipeline_rm:,}</div>
+    <div class="stat-sub">
+      &asymp; RM {r.missed_pipeline_rm:,} in pipeline (~{r.missed_leads:,} potential customers)
+      is estimated to be <strong>still on the table</strong> because AI does not yet
+      recommend you as often as it could.
+      <br><span style="color:#94a3b8;">Estimate based on your current AI visibility and
+      the same deal value and conversion rates as above.</span>
+    </div>
+  </div>"""
+    else:
+        at_risk_stat = ""
+
     traffic_section = f"""
-  <h2>AI Referral Traffic</h2>{visitor_stat}{pipeline_stat}
+  <h2>AI Referral Traffic</h2>{visitor_stat}{pipeline_stat}{at_risk_stat}
 """
 
     if data.platform_breakdown:
