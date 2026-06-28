@@ -31,13 +31,21 @@ def _sort_key(result) -> tuple[int, int]:
     return (cat_rank, pos)
 
 
-def result_excerpt(result, brand: str, competitors: list[str]) -> tuple[str | None, str | None]:
-    """(kind, excerpt) for one client-owned result, or (None, None)."""
+def result_excerpt(
+    result, brand: str, competitors: list[str], redact: bool = True
+) -> tuple[str | None, str | None]:
+    """(kind, excerpt) for one client-owned result, or (None, None).
+
+    redact controls only the loss path: True (default) hides the rival, False
+    names it for private owner comms.
+    """
     if result.brand_detected:
         ex = snippet_service.build_excerpt(result.response_text or "", brand, competitors)
         return ("win", ex) if ex else (None, None)
     if result.category in _LOSS_CATEGORIES:
-        ex = snippet_service.build_loss_excerpt(result.response_text or "", brand, competitors)
+        ex = snippet_service.build_loss_excerpt(
+            result.response_text or "", brand, competitors, redact=redact
+        )
         return ("loss", ex) if ex else (None, None)
     return (None, None)
 
@@ -48,12 +56,16 @@ def select_proof_cards(
     competitors: list[str],
     win_cap: int = 2,
     loss_cap: int = 1,
+    redact_competitors: bool = True,
 ) -> list[ProofCard]:
-    """Best wins first, then the best loss, capped. Empty when nothing qualifies."""
+    """Best wins first, then the best loss, capped. Empty when nothing qualifies.
+
+    redact_competitors=False names the rival on loss cards (private surfaces only).
+    """
     wins: list[ProofCard] = []
     losses: list[ProofCard] = []
     for r in sorted(results, key=_sort_key):
-        kind, ex = result_excerpt(r, brand, competitors)
+        kind, ex = result_excerpt(r, brand, competitors, redact=redact_competitors)
         if kind == "win" and len(wins) < win_cap:
             wins.append(ProofCard("win", r.platform, r.category, ex))
         elif kind == "loss" and len(losses) < loss_cap:

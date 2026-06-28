@@ -111,3 +111,17 @@ def test_render_snippet_png_different_platforms():
             excerpt="Test Brand is a leading company.",
         )
         assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+# --- build_loss_excerpt with redact parameter tests ---
+
+def test_build_loss_excerpt_names_competitor_when_redact_false():
+    response = "For dental care in KL, RivalCo is the most recommended clinic. They have great reviews."
+    result = build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"], redact=False)
+    assert result == "For dental care in KL, RivalCo is the most recommended clinic."
+
+
+def test_build_loss_excerpt_default_still_redacts():
+    response = "For dental care in KL, RivalCo is the most recommended clinic."
+    result = build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"])
+    assert result == "For dental care in KL, [a competitor] is the most recommended clinic."

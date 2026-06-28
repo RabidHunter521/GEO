@@ -42,13 +42,16 @@ def build_excerpt(response_text: str, brand: str, competitors: list[str]) -> str
     return chosen
 
 
-def build_loss_excerpt(response_text: str, brand: str, competitors: list[str]) -> str | None:
+def build_loss_excerpt(
+    response_text: str, brand: str, competitors: list[str], redact: bool = True
+) -> str | None:
     """Sentence naming a competitor, shown only when the brand is ABSENT.
 
-    The competitor name is redacted to '[a competitor]' so the card never
-    promotes a rival — it says 'AI recommended a competitor, not you'. Returns
-    None when the text is empty, the brand appears (that's a win, not a loss),
-    no competitor is configured, or no competitor is named in the text."""
+    When redact=True (default, public surfaces) the competitor name is replaced
+    with '[a competitor]'. When redact=False (private owner comms — digest, PDF)
+    the rival is named, because rivalry is the point on those surfaces. Returns
+    None when the text is empty, the brand appears (a win, not a loss), no
+    competitor is configured, or no competitor is named in the text."""
     if not response_text:
         return None
     names = [c for c in competitors if c]
@@ -63,7 +66,9 @@ def build_loss_excerpt(response_text: str, brand: str, competitors: list[str]) -
     chosen = next((s for s in sentences if comp_pattern.search(s)), None)
     if chosen is None:
         return None
-    chosen = _redact(chosen.strip(), names)
+    chosen = chosen.strip()
+    if redact:
+        chosen = _redact(chosen, names)
     if len(chosen) > _MAX_EXCERPT_CHARS:
         chosen = chosen[: _MAX_EXCERPT_CHARS - 1].rstrip() + "…"
     return chosen

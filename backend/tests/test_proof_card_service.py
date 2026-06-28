@@ -68,3 +68,39 @@ def test_proof_card_never_contains_response_text():
     cards = select_proof_cards([_win()], "Acme Dental", ["RivalCo"])
     assert all(not hasattr(c, "response_text") for c in cards)
     assert all(isinstance(c.excerpt, str) for c in cards)
+
+
+# --- tests for redact_competitors parameter ---
+
+def test_select_proof_cards_names_competitor_when_redact_false():
+    results = [
+        FakeResult(
+            platform="chatgpt",
+            category="recommendation",
+            brand_detected=False,
+            recommendation_position=None,
+            response_text="In KL, RivalCo is the top recommended clinic.",
+        ),
+    ]
+    cards = select_proof_cards(
+        results, brand="Acme Dental", competitors=["RivalCo"], redact_competitors=False
+    )
+    assert len(cards) == 1
+    assert cards[0].kind == "loss"
+    assert "RivalCo" in cards[0].excerpt
+    assert "[a competitor]" not in cards[0].excerpt
+
+
+def test_select_proof_cards_default_redacts_competitor():
+    results = [
+        FakeResult(
+            platform="chatgpt",
+            category="recommendation",
+            brand_detected=False,
+            recommendation_position=None,
+            response_text="In KL, RivalCo is the top recommended clinic.",
+        ),
+    ]
+    cards = select_proof_cards(results, brand="Acme Dental", competitors=["RivalCo"])
+    assert cards[0].excerpt and "RivalCo" not in cards[0].excerpt
+    assert "[a competitor]" in cards[0].excerpt
