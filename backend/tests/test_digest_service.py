@@ -4,6 +4,7 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from app.services.digest_service import DigestData, _build_email_html, _compute_trend, _detect_first_seen
+from app.services.headline_battle_service import HeadlineBattle
 
 
 # ── _compute_trend ────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ def _make_client(contact_email="client@example.com", archived=False):
     return c
 
 
-def _make_digest_data():
+def _make_digest_data(headline_battle=None):
     return DigestData(
         seen_count=5,
         total_count=8,
@@ -75,6 +76,7 @@ def _make_digest_data():
         trend="up",
         is_first_seen=False,
         action_text="Publish a blog post featuring your brand name.",
+        headline_battle=headline_battle,
     )
 
 
@@ -260,3 +262,54 @@ def test_digest_html_no_money_block_when_unconfigured():
         captured_pipeline_rm=None, at_risk_pipeline_rm=None, at_risk_leads=None,
     ))
     assert "on the table" not in htmlout.lower()
+
+
+# ── headline battle block ──────────────────────────────────────────────────────
+
+def _battle(move_title="Win Invisalign in KL", move_angle="Cover pricing + clinics."):
+    return HeadlineBattle(
+        rival_name="Dr. Lim Dental", query_text="best invisalign KL",
+        platform_label="ChatGPT", category="recommendation",
+        move_title=move_title, move_angle=move_angle,
+    )
+
+
+def test_digest_html_shows_headline_battle_with_move():
+    db = MagicMock(); client = _make_client(); db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None
+    data = _make_digest_data(); data.headline_battle = _battle()
+    captured = {}
+    from app.services.digest_service import send_client_digest
+    with patch("app.services.digest_service._compute_digest_data", return_value=data), \
+         patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
+        send_client_digest(client.id, db)
+    html = captured["html_body"]
+    assert "Dr. Lim Dental" in html
+    assert "best invisalign KL" in html
+    assert "Win Invisalign in KL" in html
+
+
+def test_digest_html_battle_without_brief_shows_prepared_text():
+    db = MagicMock(); client = _make_client(); db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None
+    data = _make_digest_data(); data.headline_battle = _battle(move_title=None, move_angle=None)
+    captured = {}
+    from app.services.digest_service import send_client_digest
+    with patch("app.services.digest_service._compute_digest_data", return_value=data), \
+         patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
+        send_client_digest(client.id, db)
+    html = captured["html_body"]
+    assert "Dr. Lim Dental" in html
+    assert "being prepared" in html.lower()
+
+
+def test_digest_html_no_battle_block_when_none():
+    db = MagicMock(); client = _make_client(); db.get.return_value = client
+    db.query.return_value.filter.return_value.first.return_value = None
+    data = _make_digest_data()  # headline_battle defaults None
+    captured = {}
+    from app.services.digest_service import send_client_digest
+    with patch("app.services.digest_service._compute_digest_data", return_value=data), \
+         patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
+        send_client_digest(client.id, db)
+    assert "the one move to flip it" not in captured["html_body"].lower()

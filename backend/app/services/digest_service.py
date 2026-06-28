@@ -19,6 +19,7 @@ from app.services.claude_action import get_digest_action
 from app.services.proof_card_service import select_proof_cards
 from app.services.share_link_service import get_share_link_url
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
+from app.services.headline_battle_service import select_headline_battle
 
 logger = structlog.get_logger()
 
@@ -39,6 +40,7 @@ class DigestData:
     captured_pipeline_rm: int | None = None
     at_risk_pipeline_rm: int | None = None
     at_risk_leads: int | None = None
+    headline_battle: object | None = None  # HeadlineBattle | None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -195,6 +197,8 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
     captured = estimate_pipeline(ai_visitors, client)
     at_risk = estimate_value_at_risk(ai_visitors, current_citability / 100.0, client)
 
+    headline_battle = select_headline_battle(client.id, db)
+
     return DigestData(
         seen_count=seen_count,
         total_count=total_count,
@@ -209,6 +213,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         captured_pipeline_rm=captured.est_pipeline_rm if captured else None,
         at_risk_pipeline_rm=at_risk.missed_pipeline_rm if at_risk else None,
         at_risk_leads=at_risk.missed_leads if at_risk else None,
+        headline_battle=headline_battle,
     )
 
 
@@ -307,6 +312,30 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           </p>
         </div>"""
 
+    battle_block = ""
+    if data.headline_battle is not None:
+        b = data.headline_battle
+        if b.move_title:
+            move_html = (
+                f"The one move to flip it: <strong>{html.escape(b.move_title)}</strong>"
+                + (f" — {html.escape(b.move_angle)}" if b.move_angle else "")
+            )
+        else:
+            move_html = "The play to flip it is being prepared."
+        battle_block = f"""
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;
+                    padding:16px 20px;margin-bottom:20px;">
+          <p style="margin:0 0 6px;font-size:12px;color:#b91c1c;font-weight:600;
+                    text-transform:uppercase;letter-spacing:0.05em;">
+            The battle to win next
+          </p>
+          <p style="margin:0;font-size:15px;color:#7f1d1d;line-height:1.6;">
+            Your competitor <strong>{html.escape(b.rival_name)}</strong> is winning
+            &ldquo;{html.escape(b.query_text)}&rdquo; on {html.escape(b.platform_label)}.
+            {move_html}
+          </p>
+        </div>"""
+
     view_url = get_share_link_url(client)
     dashboard_button = ""
     if view_url:
@@ -362,6 +391,8 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           {proof_block}
 
           {money_block}
+
+          {battle_block}
 
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
                       padding:20px;margin-bottom:20px;">
