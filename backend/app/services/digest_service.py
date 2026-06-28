@@ -31,10 +31,9 @@ class DigestData:
     trend: str  # "up" | "down" | "flat" | "first"
     is_first_seen: bool
     action_text: str
-    # One verbatim, redacted AI-answer quote — the most forwardable piece of the
-    # email. None when no client-owned win qualifies. Never raw response_text.
-    proof_quote: str | None = None
-    proof_platform: str | None = None
+    # (excerpt, platform_label) for the verbatim win / loss cards, or None.
+    proof_win: tuple[str, str] | None = None
+    proof_loss: tuple[str, str] | None = None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -156,23 +155,30 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
     is_first_seen = _detect_first_seen(seen_count, prev_scan, db)
     action_text = get_digest_action(client, current_citability, prev_citability)
 
-    # Best verbatim win quote for the body — the single most forwardable line.
+    # Best verbatim win + named loss for the body — the most forwardable lines.
     # Excludes hallucination-flagged answers (known-bad) and competitor rows.
+    # redact_competitors=False names the rival: digest is a private inbox surface.
     competitor_names = [
         c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
     ]
-    proof_quote = None
-    proof_platform = None
     cards = select_proof_cards(
         [r for r in client_results if not r.hallucination_flagged],
         client.name,
         competitor_names,
         win_cap=1,
-        loss_cap=0,
+        loss_cap=1,
+        redact_competitors=False,  # private inbox surface — name the rival
     )
-    if cards:
-        proof_quote = cards[0].excerpt
-        proof_platform = PLATFORM_LABELS.get(cards[0].platform, cards[0].platform.title())
+
+    def _label(p: str) -> str:
+        return PLATFORM_LABELS.get(p, p.title())
+
+    proof_win = next(
+        ((c.excerpt, _label(c.platform)) for c in cards if c.kind == "win"), None
+    )
+    proof_loss = next(
+        ((c.excerpt, _label(c.platform)) for c in cards if c.kind == "loss"), None
+    )
 
     return DigestData(
         seen_count=seen_count,
@@ -183,8 +189,8 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         trend=trend,
         is_first_seen=is_first_seen,
         action_text=action_text,
-        proof_quote=proof_quote,
-        proof_platform=proof_platform,
+        proof_win=proof_win,
+        proof_loss=proof_loss,
     )
 
 
@@ -236,21 +242,33 @@ def _build_email_html(client: Client, data: DigestData) -> str:
     safe_name = html.escape(client.name)
     safe_action = html.escape(data.action_text)
 
-    # Verbatim "straight from AI" quote — the most forwardable block. The excerpt
-    # is already redacted (no raw response_text); escape it for HTML safety.
+    # Verbatim "straight from AI" proof pair — win (green) + named loss (amber).
+    # Excerpts are already extracted (no raw response_text); escape all values for HTML safety.
     proof_block = ""
-    if data.proof_quote:
-        safe_quote = html.escape(data.proof_quote)
-        safe_platform = html.escape(data.proof_platform or "AI")
-        proof_block = f"""
+    if data.proof_win:
+        win_quote, win_platform = data.proof_win
+        proof_block += f"""
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;
-                    padding:16px 20px;margin-bottom:20px;">
+                    padding:16px 20px;margin-bottom:12px;">
           <p style="margin:0 0 6px;font-size:12px;color:#15803d;font-weight:600;
                     text-transform:uppercase;letter-spacing:0.05em;">
-            Straight from {safe_platform}
+            Straight from {html.escape(win_platform)}
           </p>
           <p style="margin:0;font-size:15px;color:#14532d;line-height:1.6;font-style:italic;">
-            &ldquo;{safe_quote}&rdquo;
+            &ldquo;{html.escape(win_quote)}&rdquo;
+          </p>
+        </div>"""
+    if data.proof_loss:
+        loss_quote, loss_platform = data.proof_loss
+        proof_block += f"""
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                    padding:16px 20px;margin-bottom:20px;">
+          <p style="margin:0 0 6px;font-size:12px;color:#b45309;font-weight:600;
+                    text-transform:uppercase;letter-spacing:0.05em;">
+            Who {html.escape(loss_platform)} recommended instead
+          </p>
+          <p style="margin:0;font-size:15px;color:#78350f;line-height:1.6;font-style:italic;">
+            &ldquo;{html.escape(loss_quote)}&rdquo;
           </p>
         </div>"""
 

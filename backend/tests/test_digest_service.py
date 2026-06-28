@@ -1,8 +1,9 @@
+import html as _html
 import uuid
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from app.services.digest_service import DigestData, _compute_trend, _detect_first_seen
+from app.services.digest_service import DigestData, _build_email_html, _compute_trend, _detect_first_seen
 
 
 # ── _compute_trend ────────────────────────────────────────────────────────────
@@ -157,8 +158,8 @@ def test_email_html_includes_verbatim_proof_quote():
     db.get.return_value = client
     db.query.return_value.filter.return_value.first.return_value = None
     data = _make_digest_data()
-    data.proof_quote = "Acme is a top choice for enterprise teams."
-    data.proof_platform = "ChatGPT"
+    data.proof_win = ("Acme is a top choice for enterprise teams.", "ChatGPT")
+    data.proof_loss = None
     captured = {}
     from app.services.digest_service import send_client_digest
     with patch("app.services.digest_service._compute_digest_data", return_value=data), \
@@ -174,7 +175,7 @@ def test_email_html_omits_proof_block_when_no_quote():
     client = _make_client()
     db.get.return_value = client
     db.query.return_value.filter.return_value.first.return_value = None
-    data = _make_digest_data()  # proof_quote defaults to None
+    data = _make_digest_data()  # proof_win / proof_loss default to None
     captured = {}
     from app.services.digest_service import send_client_digest
     with patch("app.services.digest_service._compute_digest_data", return_value=data), \
@@ -199,3 +200,42 @@ def test_email_html_contains_seen_count_and_trend_message():
     html = captured["html_body"]
     assert "5/8" in html
     assert "improved" in html  # trend "up" → "Your AI visibility improved"
+
+
+# ── _build_email_html proof pair (win + named loss) ───────────────────────────
+
+def _digest_client():
+    c = MagicMock()
+    c.name = "Acme Dental"
+    c.share_token = None
+    return c
+
+
+def _digest_data(**over):
+    base = dict(
+        seen_count=5, total_count=10,
+        current_ai_citability=50.0, current_overall_score=60.0,
+        prev_ai_citability=45.0, trend="up", is_first_seen=False,
+        action_text="Keep publishing.",
+        proof_win=("Acme Dental is widely recommended in KL.", "ChatGPT"),
+        proof_loss=("In KL, Dr. Lim Dental is the top pick.", "ChatGPT"),
+    )
+    base.update(over)
+    return DigestData(**base)
+
+
+def test_digest_html_shows_named_loss_card():
+    htmlout = _build_email_html(_digest_client(), _digest_data())
+    assert "Dr. Lim Dental" in htmlout            # rival named (private surface)
+    assert "Acme Dental is widely recommended" in htmlout  # win shown too
+
+
+def test_digest_html_win_only_when_no_loss():
+    htmlout = _build_email_html(_digest_client(), _digest_data(proof_loss=None))
+    assert "Acme Dental is widely recommended" in htmlout
+    assert "recommended instead" not in htmlout.lower()
+
+
+def test_digest_html_no_proof_block_when_empty():
+    htmlout = _build_email_html(_digest_client(), _digest_data(proof_win=None, proof_loss=None))
+    assert "Straight from" not in htmlout
