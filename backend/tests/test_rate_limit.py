@@ -67,12 +67,29 @@ def test_separate_budgets_per_ip(monkeypatch):
     dep(_request(ip="10.0.0.2"))  # different IP, own budget — no raise
 
 
-def test_uses_forwarded_for_when_present(monkeypatch):
+def test_trusted_proxy_keys_on_rightmost_forwarded_for(monkeypatch):
+    # Behind a configured trusted proxy, the rightmost XFF entry is the one the
+    # proxy appended from its own $remote_addr — the only entry a client cannot
+    # forge — so that is what the limiter must key on.
     fake = _FakeRedis()
     monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "1")
     dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
-    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 10.0.0.9"))
-    assert "rl:view:203.0.113.7" in fake.counts
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 192.168.1.5"))
+    assert "rl:view:192.168.1.5" in fake.counts
+    assert "rl:view:203.0.113.7" not in fake.counts  # leftmost is client-forgeable
+
+
+def test_untrusted_proxy_ignores_client_forwarded_for(monkeypatch):
+    # With no trusted proxy configured, a client-supplied XFF must NOT influence
+    # the key — otherwise an attacker rotates the header to dodge the limit.
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 192.168.1.5"))
+    assert "rl:view:10.0.0.9" in fake.counts  # falls back to TCP connection IP
+    assert "rl:view:203.0.113.7" not in fake.counts
 
 
 def test_fails_open_when_redis_unavailable(monkeypatch):

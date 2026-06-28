@@ -277,7 +277,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
     if view_url:
         dashboard_button = f"""
           <div style="text-align:center;margin:24px 0 0;">
-            <a href="{view_url}"
+            <a href="{html.escape(view_url)}"
                style="display:inline-block;background:#0f172a;color:#ffffff;
                       font-size:14px;font-weight:600;text-decoration:none;
                       padding:12px 28px;border-radius:6px;">

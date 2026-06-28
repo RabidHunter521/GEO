@@ -2,6 +2,12 @@ import html
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Type-only import — the runtime import stays lazy inside _gather_report_data
+    # to avoid pulling the proof-card chain in at module load.
+    from app.services.proof_card_service import ProofCard
 import structlog
 import resend as resend_module
 
@@ -199,7 +205,7 @@ class ReportData:
     newly_seen_queries: list[str] = field(default_factory=list)
     newly_lost_queries: list[str] = field(default_factory=list)
     # Verbatim AI proof cards for the latest scan (rival named — private PDF).
-    proof_cards: list = field(default_factory=list)
+    proof_cards: list["ProofCard"] = field(default_factory=list)
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
