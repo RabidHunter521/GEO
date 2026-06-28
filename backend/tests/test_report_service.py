@@ -712,3 +712,30 @@ def test_report_html_no_at_risk_block_when_none():
     data.value_at_risk = None
     out = _build_report_html(client, data)
     assert "still on the table" not in out.lower()
+
+
+# ── Task 3: battle to win next in monthly PDF ─────────────────────────────────
+
+def test_report_html_shows_headline_battle():
+    from app.services.report_service import _build_report_html, ReportData
+    from app.services.headline_battle_service import HeadlineBattle
+    client = MagicMock(); client.name = "Acme Dental"
+    data = _make_report_data()
+    data.headline_battle = HeadlineBattle(
+        rival_name="Dr. Lim Dental", query_text="best invisalign KL",
+        platform_label="ChatGPT", category="recommendation",
+        move_title="Win Invisalign in KL", move_angle="Cover pricing + clinics.",
+    )
+    out = _build_report_html(client, data)
+    assert "Dr. Lim Dental" in out
+    assert "best invisalign KL" in out
+    assert "Win Invisalign in KL" in out
+
+
+def test_report_html_no_battle_section_when_none():
+    from app.services.report_service import _build_report_html
+    client = MagicMock(); client.name = "Acme Dental"
+    data = _make_report_data()
+    data.headline_battle = None
+    out = _build_report_html(client, data)
+    assert "battle to win next" not in out.lower()

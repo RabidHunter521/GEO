@@ -40,6 +40,7 @@ from app.services.share_link_service import get_share_link_url
 from app.services.cost_tracker import record_llm_call
 from app.services.remediation_service import sync_remediation_items, get_remediation_items
 from app.services.revenue_service import estimate_pipeline, PipelineEstimate, estimate_value_at_risk, ValueAtRisk
+from app.services.headline_battle_service import select_headline_battle
 from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
 from app.prompts.report import build_change_narrative
@@ -202,6 +203,8 @@ class ReportData:
     pipeline: PipelineEstimate | None = None
     # Pipeline estimated lost to AI invisibility this month, or None when unconfigured.
     value_at_risk: ValueAtRisk | None = None
+    # The single 'battle to win next' (rival + lost query + one move), or None.
+    headline_battle: object | None = None
     # Query-level changes vs previous scan — used by the narrative prompt so Claude
     # can name specific questions that moved rather than just quoting aggregate numbers.
     newly_seen_queries: list[str] = field(default_factory=list)
@@ -505,6 +508,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         (current_gs.ai_citability / 100.0) if current_gs else None,
         client,
     )
+    headline_battle = select_headline_battle(client.id, db)
 
     data = ReportData(
         period_start=now - timedelta(days=30),
@@ -538,6 +542,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         gaps_won_back=gaps_won_back,
         pipeline=pipeline,
         value_at_risk=value_at_risk,
+        headline_battle=headline_battle,
         newly_seen_queries=newly_seen_queries,
         newly_lost_queries=newly_lost_queries,
     )
@@ -581,6 +586,29 @@ def _build_proof_html(data: ReportData) -> str:
         '<h2 class="section-title">What AI said about you this month</h2>'
         + "".join(rows)
     )
+
+
+def _build_battle_html(data: ReportData) -> str:
+    """The single 'battle to win next' section, or '' when there is no battle."""
+    if data.headline_battle is None:
+        return ""
+    b = data.headline_battle
+    if b.move_title:
+        move = (
+            f"<strong>The one move to flip it:</strong> {html.escape(b.move_title)}"
+            + (f" — {html.escape(b.move_angle)}" if b.move_angle else "")
+        )
+    else:
+        move = "The play to flip it is being prepared."
+    return f"""
+  <h2>The Battle To Win Next</h2>
+  <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;">
+    <div class="stat-sub">
+      Your competitor <strong>{html.escape(b.rival_name)}</strong> is winning
+      &ldquo;{html.escape(b.query_text)}&rdquo; on {html.escape(b.platform_label)} —
+      you are not seen by AI there yet. {move}
+    </div>
+  </div>"""
 
 
 def _build_report_html(client: Client, data: ReportData) -> str:
@@ -807,6 +835,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         hallucination_section = ""
 
+    battle_section = _build_battle_html(data)
     generated_date = datetime.utcnow().strftime("%d %B %Y")
 
     return f"""<!DOCTYPE html>
@@ -891,7 +920,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
       {safe_name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.
     </div>
   </div>
-{platform_section}{traffic_section}
+{platform_section}{traffic_section}{battle_section}
   <h2>Competitor Comparison</h2>
   <table>
     <thead><tr><th>Name</th><th>AI Citability</th><th>Status</th></tr></thead>
