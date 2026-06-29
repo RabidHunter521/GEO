@@ -347,7 +347,7 @@ def test_build_report_html_renders_narrative_when_present():
     data = _make_report_data()
     data.change_narrative = "Your score rose because more platforms saw your brand."
     html = _build_report_html(client, data)
-    assert "What Changed This Month" in html
+    assert "cover-narrative" in html  # narrative on cover, not a body section in new design
     assert "Your score rose because more platforms saw your brand." in html
 
 

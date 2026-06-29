@@ -1,4 +1,5 @@
 import html
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -69,66 +70,277 @@ _REMEDIATION_BADGE = {
 
 logger = structlog.get_logger()
 
+# ── CSS ─────────────────────────────────────────────────────────────────────
+
 _CSS = """
-@page {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+/* Named page for cover — no running header or footer */
+@page cover-page {
   size: A4;
   margin: 2cm;
 }
+
+/* Default page — running header and footer in margin boxes */
+@page {
+  size: A4;
+  margin-top: 3cm;
+  margin-bottom: 2.2cm;
+  margin-left: 2cm;
+  margin-right: 2cm;
+
+  @top-left {
+    background-color: #070d1a;
+    color: #ffffff;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 8.5pt;
+    font-weight: 600;
+    content: "SeenBy";
+    padding: 0 2cm;
+    vertical-align: middle;
+    width: 40%;
+  }
+  @top-right {
+    background-color: #070d1a;
+    color: #94a3b8;
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 8.5pt;
+    content: string(report-page-header);
+    padding: 0 2cm;
+    vertical-align: middle;
+    text-align: right;
+    width: 60%;
+  }
+  @bottom-left {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 8pt;
+    color: #94a3b8;
+    content: "Confidential";
+    padding: 0 2cm;
+    vertical-align: middle;
+    border-top: 1px solid #e2e8f0;
+  }
+  @bottom-right {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 8pt;
+    color: #94a3b8;
+    content: "Page " counter(page) " of " counter(pages);
+    padding: 0 2cm;
+    vertical-align: middle;
+    text-align: right;
+    border-top: 1px solid #e2e8f0;
+  }
+}
+
 * { box-sizing: border-box; }
+
+/* Hidden element whose text content is captured for the @top-right margin box */
+.report-page-header-string {
+  string-set: report-page-header content();
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 body {
-  font-family: Arial, Helvetica, sans-serif;
-  color: #1e293b;
-  font-size: 11pt;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #0f172a;
+  font-size: 10pt;
   line-height: 1.6;
   margin: 0;
+  background: #ffffff;
 }
+
+/* ── Cover ─────────────────────────────────────────────────────────── */
 .page-break { page-break-after: always; }
-.cover { text-align: center; padding-top: 80px; }
-.logo { font-size: 28pt; font-weight: 700; color: #0f172a; }
-.cover-client { font-size: 22pt; font-weight: 700; color: #0f172a; margin-top: 60px; }
-.cover-period { font-size: 13pt; color: #64748b; margin-top: 6px; }
-.score-box {
-  display: inline-block; background: #0f172a; color: #ffffff;
-  border-radius: 12px; padding: 24px 56px; margin-top: 56px;
+
+.cover {
+  page: cover-page;
+  background: #070d1a;
+  color: #ffffff;
+  padding: 48px 0 44px;
 }
-.score-box-value { font-size: 52pt; font-weight: 700; line-height: 1; }
-.score-box-label { font-size: 11pt; color: #94a3b8; margin-top: 4px; }
-.cover-footer { margin-top: 60px; font-size: 10pt; color: #94a3b8; }
+.cover-logo {
+  font-size: 20pt;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+.cover-rule {
+  border: none;
+  border-top: 3px solid #2563eb;
+  margin: 0 0 8px;
+}
+.cover-tagline {
+  font-size: 8pt;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 44px;
+}
+.cover-report-type {
+  font-size: 8.5pt;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.cover-client {
+  font-size: 26pt;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.cover-period {
+  font-size: 11pt;
+  color: #94a3b8;
+}
+.cover-gauge-wrap { text-align: center; margin: 44px 0 0; }
+.cover-score-number {
+  font-size: 52pt;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1;
+  text-align: center;
+  margin: 10px 0 4px;
+  letter-spacing: -0.03em;
+}
+.cover-score-label {
+  font-size: 9pt;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  font-weight: 600;
+}
+.cover-narrative {
+  max-width: 440px;
+  margin: 36px auto 0;
+  font-size: 10.5pt;
+  line-height: 1.7;
+  color: #cbd5e1;
+  text-align: center;
+  font-style: italic;
+}
+.cover-footer {
+  border-top: 1px solid #1e2d4a;
+  padding-top: 14px;
+  font-size: 8pt;
+  color: #475569;
+  margin-top: 56px;
+}
+
+/* ── Section headers ────────────────────────────────────────────────── */
 h2 {
-  font-size: 13pt; font-weight: 700; color: #0f172a;
-  border-bottom: 2px solid #e2e8f0;
-  padding-bottom: 6px; margin-top: 28px; margin-bottom: 14px;
+  font-size: 9.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #0f172a;
+  border-left: 3px solid #2563eb;
+  border-bottom: none;
+  padding: 0 0 0 10px;
+  margin-top: 28px;
+  margin-bottom: 14px;
 }
+
+/* ── Tables ─────────────────────────────────────────────────────────── */
 table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+thead tr { background: #070d1a; }
 th {
-  background: #f8fafc; padding: 8px 12px; text-align: left;
-  font-weight: 600; color: #64748b; font-size: 9pt;
-  text-transform: uppercase; letter-spacing: 0.05em;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: none;
 }
-td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; }
-.score-green { color: #16a34a; font-weight: 600; }
-.score-yellow { color: #ca8a04; font-weight: 600; }
-.score-red { color: #dc2626; font-weight: 600; }
-.badge-green { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
-.badge-yellow { background: #fef9c3; color: #854d0e; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
-.badge-red { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
-.stat-box {
-  background: #f8fafc; border: 1px solid #e2e8f0;
-  border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
+tbody tr:nth-child(even) { background: #f8fafc; }
+tbody tr:nth-child(odd)  { background: #ffffff; }
+td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; font-size: 10pt; }
+td:first-child { font-weight: 600; }
+
+.score-green  { color: #059669; font-weight: 700; }
+.score-yellow { color: #d97706; font-weight: 700; }
+.score-red    { color: #dc2626; font-weight: 700; }
+
+.badge-green  { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 9pt; font-weight: 600; }
+.badge-yellow { background: #fef9c3; color: #854d0e; padding: 2px 8px; border-radius: 4px; font-size: 9pt; font-weight: 600; }
+.badge-red    { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 9pt; font-weight: 600; }
+
+/* ── Standard stat block (typography-only, no grey box) ─────────────── */
+.stat-block { padding: 14px 0 10px; margin-bottom: 14px; border-top: 1px solid #e2e8f0; }
+.stat-label { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 4px; }
+.stat-value { font-size: 26pt; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 4px; }
+.stat-sub   { font-size: 9.5pt; color: #64748b; }
+
+/* ── Special stat variants ──────────────────────────────────────────── */
+.stat-pipeline {
+  border-left: 4px solid #0891b2;
+  background: #f0f9ff;
+  padding: 14px 16px;
+  border-radius: 0 6px 6px 0;
+  margin-bottom: 14px;
 }
-.stat-label { font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-.stat-value { font-size: 24pt; font-weight: 700; color: #0f172a; line-height: 1.2; }
-.stat-sub { font-size: 10pt; color: #64748b; margin-top: 4px; }
-.rec-box { background: #f0f9ff; border-left: 4px solid #0284c7; padding: 14px 16px; border-radius: 4px; }
-.manual-note { font-size: 8pt; color: #94a3b8; font-style: italic; margin-top: 2px; }
-.proof-card { border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
-.proof-win { background: #f0fdf4; border: 1px solid #bbf7d0; }
-.proof-loss { background: #fffbeb; border: 1px solid #fde68a; }
-.proof-tag { font-size: 9pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-.proof-tag-win { color: #15803d; }
-.proof-tag-loss { color: #b45309; }
-.proof-quote { font-style: italic; margin: 0; font-size: 11pt; }
+.stat-atrisk {
+  border-left: 4px solid #d97706;
+  background: #fffbeb;
+  padding: 14px 16px;
+  border-radius: 0 6px 6px 0;
+  margin-bottom: 14px;
+}
+.stat-battle {
+  background: #070d1a;
+  color: #ffffff;
+  padding: 18px 20px;
+  border-radius: 6px;
+  margin-bottom: 14px;
+}
+.stat-battle .stat-label { color: #94a3b8; }
+.stat-battle .stat-sub   { color: #cbd5e1; font-size: 10.5pt; line-height: 1.6; }
+.battle-move { color: #93c5fd; font-weight: 600; }
+
+/* ── Score breakdown dimension bars ─────────────────────────────────── */
+.dim-row { margin-bottom: 18px; }
+.dim-top { display: table; width: 100%; margin-bottom: 5px; }
+.dim-name { display: table-cell; font-size: 10pt; font-weight: 600; color: #0f172a; }
+.dim-right { display: table-cell; text-align: right; white-space: nowrap; padding-left: 12px; }
+.dim-score-green  { color: #059669; font-weight: 700; font-size: 10pt; margin-right: 8px; }
+.dim-score-yellow { color: #d97706; font-weight: 700; font-size: 10pt; margin-right: 8px; }
+.dim-score-red    { color: #dc2626; font-weight: 700; font-size: 10pt; margin-right: 8px; }
+.dim-weight { font-size: 9pt; color: #94a3b8; }
+.dim-source { font-size: 8.5pt; color: #94a3b8; margin-top: 4px; }
+.manual-note { font-size: 8pt; color: #94a3b8; font-style: italic; }
+
+/* ── Proof cards ─────────────────────────────────────────────────────── */
+.proof-card { padding: 12px 16px; margin-bottom: 10px; background: #ffffff; border-radius: 0 4px 4px 0; }
+.proof-win  { border-left: 4px solid #059669; }
+.proof-loss { border-left: 4px solid #d97706; }
+.proof-tag      { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.proof-tag-win  { color: #059669; }
+.proof-tag-loss { color: #d97706; }
+.proof-quote    { font-style: italic; margin: 0; font-size: 10.5pt; color: #1e293b; }
+
+/* ── Recommended action ──────────────────────────────────────────────── */
+.rec-box   { border-left: 4px solid #2563eb; background: #eff6ff; padding: 14px 16px; border-radius: 0 4px 4px 0; }
+.rec-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #2563eb; display: block; margin-bottom: 6px; }
+.rec-body  { margin: 0; font-size: 11pt; color: #1e3a8a; }
+
+/* ── Trend chart container ───────────────────────────────────────────── */
+.trend-container { border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; background: #ffffff; margin-bottom: 16px; }
+
+/* ── Misc ────────────────────────────────────────────────────────────── */
+.score-trend-line { font-size: 12pt; font-weight: 700; margin-bottom: 14px; }
+.won-back-note { font-size: 10pt; color: #166534; font-weight: 600; margin-bottom: 10px; }
+.report-footer { margin-top: 40px; font-size: 8pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
 """
 
 
@@ -142,7 +354,7 @@ class CompetitorSummary:
 @dataclass
 class ContentGap:
     """A neutral-intent query where a competitor was seen by AI but the client was not.
-    status tracks the remediation loop (flagged/in_progress/corrected)."""
+    status tracks the remediation loop (flagged/in_progress/corrected)"""
     query_text: str
     platform: str
     competitors_seen: list[str]
@@ -290,16 +502,11 @@ def _verified_badge(verified: bool) -> str:
     return '<span class="badge-green">Verified</span>' if verified else '<span class="badge-red">Not Verified</span>'
 
 
-_TREND_HEX = {"green": "#16a34a", "yellow": "#ca8a04", "red": "#dc2626"}
+_TREND_HEX = {"green": "#059669", "yellow": "#d97706", "red": "#dc2626"}
 
 
 def _build_trend_svg(history: list["TrendPoint"]) -> str:
-    """Inline SVG bar chart of overall score over the last few scans.
-
-    WeasyPrint renders inline SVG, so this needs no JS or external image. Bars
-    are coloured by each score's traffic-light band; value sits above, the scan
-    date below.
-    """
+    """Inline SVG bar chart of overall score over the last few scans."""
     width, height = 500, 200
     pad_top, pad_bottom = 28, 28
     plot_h = height - pad_top - pad_bottom
@@ -315,11 +522,11 @@ def _build_trend_svg(history: list["TrendPoint"]) -> str:
         hex_color = _TREND_HEX.get(pt.color, "#dc2626")
         bars.append(
             f'<rect x="{cx - bar_w / 2:.1f}" y="{y:.1f}" width="{bar_w:.1f}" '
-            f'height="{bar_h:.1f}" rx="4" fill="{hex_color}" />'
+            f'height="{bar_h:.1f}" rx="6" fill="{hex_color}" />'
             f'<text x="{cx:.1f}" y="{y - 6:.1f}" text-anchor="middle" '
             f'font-size="13" font-weight="700" fill="#0f172a">{pt.score:.0f}</text>'
             f'<text x="{cx:.1f}" y="{height - 8:.1f}" text-anchor="middle" '
-            f'font-size="10" fill="#64748b">{html.escape(pt.label)}</text>'
+            f'font-size="10" fill="#94a3b8">{html.escape(pt.label)}</text>'
         )
     return (
         f'<svg viewBox="0 0 {width} {height}" width="100%" '
@@ -327,6 +534,98 @@ def _build_trend_svg(history: list["TrendPoint"]) -> str:
         f'<line x1="0" y1="{height - pad_bottom}" x2="{width}" '
         f'y2="{height - pad_bottom}" stroke="#e2e8f0" stroke-width="1" />'
         f'{"".join(bars)}</svg>'
+    )
+
+
+def _build_gauge_svg(score: float) -> str:
+    """Semicircle gauge for the cover page.
+
+    Score 0-100 maps to left (0) → right (100) arc over the top.
+    The arc uses stroke on a path so no fill geometry is needed.
+    """
+    display_score = max(1.0, min(100.0, score))
+    if score >= 70:
+        color = "#059669"
+    elif score >= 30:
+        color = "#d97706"
+    else:
+        color = "#dc2626"
+    # Center (120, 120), radius 100. Left endpoint (20, 120), right (220, 120).
+    # Angle: π at score=0 (left), 0 at score=100 (right).
+    angle = math.pi - (display_score / 100.0) * math.pi
+    ex = 120.0 + 100.0 * math.cos(angle)
+    ey = 120.0 - 100.0 * math.sin(angle)
+    # large_arc = 0 always: the filled portion never exceeds 180°.
+    return (
+        f'<svg viewBox="0 0 240 130" width="240" height="130" '
+        f'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GEO Score gauge">'
+        f'<path d="M 20,120 A 100,100 0 0,1 220,120" '
+        f'stroke="#1e2d4a" stroke-width="20" fill="none" stroke-linecap="round"/>'
+        f'<path d="M 20,120 A 100,100 0 0,1 {ex:.2f},{ey:.2f}" '
+        f'stroke="{color}" stroke-width="20" fill="none" stroke-linecap="round"/>'
+        f'</svg>'
+    )
+
+
+def _build_dim_bar_svg(score: float, color: str) -> str:
+    """Horizontal progress bar for a single score dimension row."""
+    hex_color = _TREND_HEX.get(color, "#dc2626")
+    fill_w = max(0.0, min(400.0, (score / 100.0) * 400.0))
+    return (
+        f'<svg viewBox="0 0 400 10" width="100%" height="10" '
+        f'xmlns="http://www.w3.org/2000/svg">'
+        f'<rect x="0" y="0" width="400" height="10" rx="5" fill="#e2e8f0"/>'
+        f'<rect x="0" y="0" width="{fill_w:.1f}" height="10" rx="5" fill="{hex_color}"/>'
+        f'</svg>'
+    )
+
+
+def _build_dim_bars_html(data: "ReportData") -> str:
+    """Score breakdown — one visual bar row per dimension, replaces the old 5-col table."""
+    _, ai_color = get_score_band(data.ai_citability)
+    _, ba_color = get_score_band(data.brand_authority)
+    _, cq_color = get_score_band(data.content_quality)
+    _, tf_color = get_score_band(data.technical_foundations)
+    _, sd_color = get_score_band(data.structured_data)
+
+    ba_note = (
+        _sanitize_text(data.brand_authority_evidence)
+        if data.brand_authority_evidence and data.brand_authority_evidence.strip()
+        else _BRAND_AUTHORITY_FALLBACK
+    )
+    cq_note = (
+        _sanitize_text(data.content_quality_evidence)
+        if data.content_quality_evidence and data.content_quality_evidence.strip()
+        else _CONTENT_QUALITY_FALLBACK
+    )
+
+    def _dim(name: str, score: float, color: str, weight: str, source: str, note: str = "") -> str:
+        bar = _build_dim_bar_svg(score, color)
+        note_html = f'<br><span class="manual-note">{html.escape(note)}</span>' if note else ""
+        return (
+            f'<div class="dim-row">'
+            f'<div class="dim-top">'
+            f'<div class="dim-name">{html.escape(name)}</div>'
+            f'<div class="dim-right">'
+            f'<span class="dim-score-{color}">{score:.0f}</span>'
+            f'<span class="dim-weight">{html.escape(weight)}</span>'
+            f'</div></div>'
+            f'{bar}'
+            f'<div class="dim-source">{html.escape(source)}{note_html}</div>'
+            f'</div>'
+        )
+
+    return (
+        _dim("AI Citability", data.ai_citability, ai_color, "40%",
+             "Automatic — Scan engine")
+        + _dim("Brand Authority", data.brand_authority, ba_color, "20%",
+               "Based on public evidence · Reviewed by SeenBy", ba_note)
+        + _dim("Content Quality", data.content_quality, cq_color, "20%",
+               "Based on public evidence · Reviewed by SeenBy", cq_note)
+        + _dim("Technical Foundations", data.technical_foundations, tf_color, "10%",
+               "Automatic — Toolkit verified")
+        + _dim("Structured Data", data.structured_data, sd_color, "10%",
+               "Automatic — Toolkit verified")
     )
 
 
@@ -561,9 +860,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
 
 
 def _build_proof_html(data: ReportData) -> str:
-    """The verbatim 'Seen by AI' proof section for the PDF, or '' when empty.
-
-    Loss cards name the rival — this is the private, admin-reviewed deliverable."""
+    """Verbatim 'Seen by AI' proof cards — border-left only, no background colour."""
     if not data.proof_cards:
         return ""
     rows = []
@@ -573,7 +870,7 @@ def _build_proof_html(data: ReportData) -> str:
         if c.kind == "win":
             rows.append(
                 f'<div class="proof-card proof-win">'
-                f'<div class="proof-tag proof-tag-win">Seen by AI · {platform}</div>'
+                f'<div class="proof-tag proof-tag-win">Seen by AI &middot; {platform}</div>'
                 f'<p class="proof-quote">&ldquo;{quote}&rdquo;</p></div>'
             )
         else:
@@ -582,64 +879,42 @@ def _build_proof_html(data: ReportData) -> str:
                 f'<div class="proof-tag proof-tag-loss">Who {platform} recommended instead</div>'
                 f'<p class="proof-quote">&ldquo;{quote}&rdquo;</p></div>'
             )
-    return (
-        '<h2 class="section-title">What AI said about you this month</h2>'
-        + "".join(rows)
-    )
+    return '<h2>What AI Said About You</h2>' + "".join(rows)
 
 
 def _build_battle_html(data: ReportData) -> str:
-    """The single 'battle to win next' section, or '' when there is no battle."""
+    """The single 'battle to win next' section — inverted dark card."""
     if data.headline_battle is None:
         return ""
     b = data.headline_battle
     if b.move_title:
-        move = (
-            f"<strong>The one move to flip it:</strong> {html.escape(b.move_title)}"
-            + (f" — {html.escape(b.move_angle)}" if b.move_angle else "")
+        move_html = (
+            f'<span class="battle-move">{html.escape(b.move_title)}</span>'
+            + (f' &mdash; {html.escape(b.move_angle)}' if b.move_angle else "")
         )
     else:
-        move = "The play to flip it is being prepared."
-    return f"""
-  <h2>The Battle To Win Next</h2>
-  <div class="stat-box" style="background:#fef2f2;border-color:#fecaca;">
-    <div class="stat-sub">
-      Your competitor <strong>{html.escape(b.rival_name)}</strong> is winning
-      &ldquo;{html.escape(b.query_text)}&rdquo; on {html.escape(b.platform_label)} —
-      you are not seen by AI there yet. {move}
-    </div>
-  </div>"""
+        move_html = "The play to flip it is being prepared."
+    return (
+        f'<h2>The Battle To Win Next</h2>'
+        f'<div class="stat-battle">'
+        f'<div class="stat-label">Competitive Focus</div>'
+        f'<div class="stat-sub">'
+        f'Your competitor <strong>{html.escape(b.rival_name)}</strong> is winning'
+        f' &ldquo;{html.escape(b.query_text)}&rdquo; on {html.escape(b.platform_label)}'
+        f' &mdash; you are not seen by AI there yet.<br>'
+        f'<strong>The one move to flip it:</strong> {move_html}'
+        f'</div></div>'
+    )
 
 
 def _build_report_html(client: Client, data: ReportData) -> str:
     _, ai_color = get_score_band(data.ai_citability)
-    _, ba_color = get_score_band(data.brand_authority)
-    _, cq_color = get_score_band(data.content_quality)
-    _, tf_color = get_score_band(data.technical_foundations)
-    _, sd_color = get_score_band(data.structured_data)
 
-    # Escape every free-text field (client name, admin evidence notes, Claude
-    # narrative/recommendation, competitor names) before it enters the report
-    # HTML — a stray '<' or '&' in an evidence note must not break the PDF.
     safe_name = html.escape(client.name)
     safe_recommendation = html.escape(data.recommendation or "")
     safe_narrative = html.escape(data.change_narrative or "")
-    # A manual dimension's evidence note must never be empty under the "Assessed
-    # by SeenBy team" label — fall back to a neutral methodology line (CLAUDE.md §4).
-    # Sanitize §2 vocabulary BEFORE html.escape so forbidden terms are replaced on
-    # the raw text first; html.escape then makes the result safe for the PDF HTML.
-    safe_ba_evidence = (
-        html.escape(_sanitize_text(data.brand_authority_evidence))
-        if data.brand_authority_evidence and data.brand_authority_evidence.strip()
-        else _BRAND_AUTHORITY_FALLBACK
-    )
-    safe_cq_evidence = (
-        html.escape(_sanitize_text(data.content_quality_evidence))
-        if data.content_quality_evidence and data.content_quality_evidence.strip()
-        else _CONTENT_QUALITY_FALLBACK
-    )
 
-    trend_colors = {"up": "#16a34a", "down": "#dc2626", "flat": "#6b7280", "first": "#6b7280"}
+    trend_colors = {"up": "#059669", "down": "#dc2626", "flat": "#6b7280", "first": "#6b7280"}
     trend_color = trend_colors[data.trend]
     if data.trend == "up":
         trend_msg = f"&#8593; Score improved from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
@@ -650,24 +925,49 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         trend_msg = "First AI Visibility Report"
 
-    proof_section = _build_proof_html(data)
-
-    if data.competitors:
-        comp_rows = "".join(
-            f"""<tr>
-              <td>{html.escape(c.name)}</td>
-              <td class="{_score_css(get_score_band(c.ai_citability)[1])}">{c.ai_citability:.0f}%</td>
-              <td>{"<span class='badge-red'>Winning</span>" if c.is_winning else "<span class='badge-green'>You are ahead</span>"}</td>
-            </tr>"""
-            for c in data.competitors
+    # ── Section 1b: Score Trend chart ──────────────────────────────────────
+    if len(data.score_history) >= 2:
+        trend_section = (
+            f'<h2>Score Trend</h2>'
+            f'<p style="font-size:9.5pt;color:#64748b;margin:0 0 8px;">'
+            f'Your overall GEO Score across recent scans.</p>'
+            f'<div class="trend-container">{_build_trend_svg(data.score_history)}</div>'
         )
     else:
-        comp_rows = '<tr><td colspan="3" style="color:#9ca3af;">No competitors tracked yet.</td></tr>'
+        trend_section = ""
 
-    # AI Referral Traffic is always shown — it's the one section that ties AI
-    # visibility to business value. Degrades to an explicit "tracking begins"
-    # state rather than vanishing, and adds an RM pipeline estimate when the
-    # client's deal value is configured.
+    # ── Section 2: Proof cards ─────────────────────────────────────────────
+    proof_section = _build_proof_html(data)
+
+    # ── Section 3: Score breakdown bars ───────────────────────────────────
+    dim_bars = _build_dim_bars_html(data)
+
+    # ── Section 4b: Platform breakdown ────────────────────────────────────
+    if data.platform_breakdown:
+        platform_rows = "".join(
+            (
+                f'<tr><td>{PLATFORM_LABELS.get(platform, platform.title())}</td>'
+                f'<td class="{_score_css(get_score_band(entry.get("visibility", 0.0))[1])}">'
+                f'{entry.get("visibility", 0.0):.0f}%</td>'
+                f'<td>{"Seen by AI" if entry.get("detected", 0) > 0 else "Not seen by AI"}</td></tr>'
+            )
+            if entry.get("status") == "ok"
+            else (
+                f'<tr><td>{PLATFORM_LABELS.get(platform, platform.title())}</td>'
+                f'<td style="color:#9ca3af;">&mdash;</td>'
+                f'<td style="color:#9ca3af;">Platform unavailable this scan</td></tr>'
+            )
+            for platform, entry in data.platform_breakdown.items()
+        )
+        platform_section = (
+            f'<h2>Seen by AI &mdash; Platform Breakdown</h2>'
+            f'<table><thead><tr><th>Platform</th><th>Visibility Frequency</th><th>Status</th></tr></thead>'
+            f'<tbody>{platform_rows}</tbody></table>'
+        )
+    else:
+        platform_section = ""
+
+    # ── Section 5: AI Referral Traffic ────────────────────────────────────
     if data.ai_visitors_current is not None:
         if data.ai_visitors_prev:
             pct = (data.ai_visitors_current - data.ai_visitors_prev) / data.ai_visitors_prev * 100
@@ -676,166 +976,144 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             change_label = "New vs last month"
         else:
             change_label = "No change vs last month"
-        visitor_stat = f"""
-  <div class="stat-box">
-    <div class="stat-label">AI Visitors This Month</div>
-    <div class="stat-value">{data.ai_visitors_current:,}</div>
-    <div class="stat-sub">
-      Visitors arriving via ChatGPT, Perplexity, Gemini and Claude &mdash; {change_label}
-    </div>
-  </div>"""
+        visitor_stat = (
+            f'<div class="stat-block">'
+            f'<div class="stat-label">AI Visitors This Month</div>'
+            f'<div class="stat-value">{data.ai_visitors_current:,}</div>'
+            f'<div class="stat-sub">Visitors arriving via ChatGPT, Perplexity, Gemini and Claude'
+            f' &mdash; {change_label}</div></div>'
+        )
     else:
-        visitor_stat = """
-  <div class="stat-box">
-    <div class="stat-label">AI Visitors This Month</div>
-    <div class="stat-value" style="font-size:16pt;color:#64748b;">Tracking begins soon</div>
-    <div class="stat-sub">
-      We&rsquo;re connecting your analytics to measure visitors arriving via
-      ChatGPT, Perplexity, Gemini and Claude.
-    </div>
-  </div>"""
+        visitor_stat = (
+            f'<div class="stat-block">'
+            f'<div class="stat-label">AI Visitors This Month</div>'
+            f'<div class="stat-value" style="font-size:16pt;color:#64748b;">Tracking begins soon</div>'
+            f'<div class="stat-sub">We&rsquo;re connecting your analytics to measure visitors arriving'
+            f' via ChatGPT, Perplexity, Gemini and Claude.</div></div>'
+        )
 
     if data.pipeline is not None:
         p = data.pipeline
-        pipeline_stat = f"""
-  <div class="stat-box" style="background:#f0f9ff;border-color:#bae6fd;">
-    <div class="stat-label">Estimated Pipeline From AI This Month</div>
-    <div class="stat-value">RM {p.est_pipeline_rm:,}</div>
-    <div class="stat-sub">
-      &asymp; {p.ai_visitors:,} AI visitors &rarr; ~{p.est_leads:,} leads &rarr;
-      <strong>RM {p.est_pipeline_rm:,}</strong> in pipeline, with an estimated
-      <strong>RM {p.est_won_rm:,}</strong> won at your {p.lead_to_customer_pct}% close rate.
-      <br><span style="color:#94a3b8;">Estimate based on RM {p.avg_deal_value_rm:,} average deal value
-      and a {p.visitor_to_lead_pct}% visitor-to-lead rate.</span>
-    </div>
-  </div>"""
+        pipeline_stat = (
+            f'<div class="stat-pipeline">'
+            f'<div class="stat-label">Estimated Pipeline From AI This Month</div>'
+            f'<div class="stat-value">RM {p.est_pipeline_rm:,}</div>'
+            f'<div class="stat-sub">'
+            f'&asymp; {p.ai_visitors:,} AI visitors &rarr; ~{p.est_leads:,} leads &rarr;'
+            f' <strong>RM {p.est_pipeline_rm:,}</strong> in pipeline, with an estimated'
+            f' <strong>RM {p.est_won_rm:,}</strong> won at your {p.lead_to_customer_pct}% close rate.'
+            f'<br><span style="color:#94a3b8;">Estimate based on RM {p.avg_deal_value_rm:,}'
+            f' average deal value and a {p.visitor_to_lead_pct}% visitor-to-lead rate.</span>'
+            f'</div></div>'
+        )
     else:
         pipeline_stat = ""
 
+    traffic_section = f'<h2>AI Referral Traffic</h2>{visitor_stat}{pipeline_stat}'
+
+    # ── Section 6: Pipeline at risk (separate section for loss-aversion punch) ─
     if data.value_at_risk is not None:
         r = data.value_at_risk
-        at_risk_stat = f"""
-  <div class="stat-box" style="background:#fffbeb;border-color:#fde68a;">
-    <div class="stat-label">Estimated Pipeline Still On The Table</div>
-    <div class="stat-value">RM {r.missed_pipeline_rm:,}</div>
-    <div class="stat-sub">
-      &asymp; RM {r.missed_pipeline_rm:,} in pipeline (~{r.missed_leads:,} potential customers)
-      is estimated to be <strong>still on the table</strong> because AI does not yet
-      recommend you as often as it could.
-      <br><span style="color:#94a3b8;">Estimate based on your current AI visibility and
-      the same deal value and conversion rates as above.</span>
-    </div>
-  </div>"""
-    else:
-        at_risk_stat = ""
-
-    traffic_section = f"""
-  <h2>AI Referral Traffic</h2>{visitor_stat}{pipeline_stat}{at_risk_stat}
-"""
-
-    if data.platform_breakdown:
-        platform_rows = "".join(
-            f"""<tr>
-              <td>{PLATFORM_LABELS.get(platform, platform.title())}</td>
-              <td class="{_score_css(get_score_band(entry.get('visibility', 0.0))[1])}">{entry.get('visibility', 0.0):.0f}%</td>
-              <td>{"Seen by AI" if entry.get('detected', 0) > 0 else "Not seen by AI"}</td>
-            </tr>"""
-            if entry.get("status") == "ok"
-            else f"""<tr>
-              <td>{PLATFORM_LABELS.get(platform, platform.title())}</td>
-              <td style="color:#9ca3af;">&mdash;</td>
-              <td style="color:#9ca3af;">Platform unavailable this scan</td>
-            </tr>"""
-            for platform, entry in data.platform_breakdown.items()
+        at_risk_section = (
+            f'<h2>Estimated Pipeline Still On The Table</h2>'
+            f'<div class="stat-atrisk">'
+            f'<div class="stat-label">Pipeline Still On The Table</div>'
+            f'<div class="stat-value">RM {r.missed_pipeline_rm:,}</div>'
+            f'<div class="stat-sub">'
+            f'&asymp; RM {r.missed_pipeline_rm:,} in pipeline (~{r.missed_leads:,} potential customers)'
+            f' is estimated to be <strong>still on the table</strong> because AI does not yet'
+            f' recommend you as often as it could.'
+            f'<br><span style="color:#94a3b8;">Estimate based on your current AI visibility and'
+            f' the same deal value and conversion rates as above.</span>'
+            f'</div></div>'
         )
-        platform_section = f"""
-  <h2>Seen by AI &mdash; Platform Breakdown</h2>
-  <table>
-    <thead><tr><th>Platform</th><th>Visibility Frequency</th><th>Status</th></tr></thead>
-    <tbody>{platform_rows}</tbody>
-  </table>
-"""
     else:
-        platform_section = ""
+        at_risk_section = ""
 
-    # ── Score Trend chart — needs at least two scans to show movement ────────
-    if len(data.score_history) >= 2:
-        trend_section = f"""
-  <h2>Score Trend</h2>
-  <p style="font-size:10pt;color:#64748b;margin:0 0 8px;">
-    Your overall GEO Score across recent scans.
-  </p>
-  <div class="stat-box" style="padding:12px 16px;">{_build_trend_svg(data.score_history)}</div>
-"""
-    else:
-        trend_section = ""
+    # ── Section 7: Battle ──────────────────────────────────────────────────
+    battle_section = _build_battle_html(data)
 
-    # ── Content Gaps — competitor-won queries, with remediation status. Shows a
-    #    "won back" proof line when previously-lost questions are now corrected. ─
-    won_back_note = ""
-    if data.gaps_won_back:
-        won_back_note = (
-            f"""<p style="font-size:10pt;color:#166534;margin:0 0 10px;font-weight:600;">"""
-            f"""&#10003; {data.gaps_won_back} previously-lost question"""
-            f"""{"s" if data.gaps_won_back != 1 else ""} won back this period &mdash; """
-            f"""{safe_name} is now seen by AI where a competitor used to win.</p>"""
+    # ── Section 8: Competitor comparison ──────────────────────────────────
+    if data.competitors:
+        comp_rows = "".join(
+            f'<tr><td>{html.escape(c.name)}</td>'
+            f'<td class="{_score_css(get_score_band(c.ai_citability)[1])}">{c.ai_citability:.0f}%</td>'
+            f'<td>{"<span class=\'badge-red\'>Winning</span>" if c.is_winning else "<span class=\'badge-green\'>You are ahead</span>"}</td></tr>'
+            for c in data.competitors
         )
+    else:
+        comp_rows = '<tr><td colspan="3" style="color:#9ca3af;">No competitors tracked yet.</td></tr>'
+
+    competitor_section = (
+        f'<h2>Competitor Comparison</h2>'
+        f'<table><thead><tr><th>Name</th><th>AI Citability</th><th>Status</th></tr></thead>'
+        f'<tbody>'
+        f'<tr><td><strong>{safe_name} (You)</strong></td>'
+        f'<td class="{_score_css(ai_color)}">{data.ai_citability:.0f}%</td>'
+        f'<td>&mdash;</td></tr>'
+        f'{comp_rows}</tbody></table>'
+    )
+
+    # ── Section 9: Content gaps ────────────────────────────────────────────
     if data.content_gaps or data.gaps_won_back:
+        won_back_note = ""
+        if data.gaps_won_back:
+            won_back_note = (
+                f'<p class="won-back-note">&#10003; {data.gaps_won_back} previously-lost question'
+                f'{"s" if data.gaps_won_back != 1 else ""} won back this period &mdash; '
+                f'{safe_name} is now seen by AI where a competitor used to win.</p>'
+            )
         gap_rows = "".join(
-            f"""<tr>
-              <td>{html.escape(g.query_text)}</td>
-              <td>{html.escape(", ".join(g.competitors_seen)) or "&mdash;"}</td>
-              <td>{html.escape(g.platform)}</td>
-              <td><span class="{_REMEDIATION_BADGE.get(g.status, 'badge-red')}">{html.escape(g.status_label)}</span></td>
-            </tr>"""
+            f'<tr><td>{html.escape(g.query_text)}</td>'
+            f'<td>{html.escape(", ".join(g.competitors_seen)) or "&mdash;"}</td>'
+            f'<td>{html.escape(g.platform)}</td>'
+            f'<td><span class="{_REMEDIATION_BADGE.get(g.status, "badge-red")}">'
+            f'{html.escape(g.status_label)}</span></td></tr>'
             for g in data.content_gaps
         )
-        gap_table = f"""
-  <table>
-    <thead><tr><th>When people ask AI</th><th>AI recommends</th><th>Platform</th><th>Status</th></tr></thead>
-    <tbody>{gap_rows}</tbody>
-  </table>""" if data.content_gaps else ""
+        gap_table = (
+            f'<table><thead><tr>'
+            f'<th>When people ask AI</th><th>AI recommends</th><th>Platform</th><th>Status</th>'
+            f'</tr></thead><tbody>{gap_rows}</tbody></table>'
+        ) if data.content_gaps else ""
         open_count = len(data.content_gaps)
         intro = (
-            f"""{open_count} open question{"s" if open_count != 1 else ""} where AI recommends a competitor but not {safe_name}. """
-            f"""We&rsquo;re working each one back."""
+            f'{open_count} open question{"s" if open_count != 1 else ""} where AI recommends'
+            f' a competitor but not {safe_name}. We&rsquo;re working each one back.'
             if open_count else
-            f"""No open competitor-won questions this period &mdash; nice work."""
+            f'No open competitor-won questions this period &mdash; nice work.'
         )
-        content_gap_section = f"""
-  <h2>Your Competitors Are Winning Here</h2>
-  {won_back_note}
-  <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">{intro}</p>
-  {gap_table}
-"""
+        content_gap_section = (
+            f'<h2>Your Competitors Are Winning Here</h2>'
+            f'{won_back_note}'
+            f'<p style="font-size:10pt;color:#64748b;margin:0 0 10px;">{intro}</p>'
+            f'{gap_table}'
+        )
     else:
         content_gap_section = ""
 
-    # ── Hallucinations — inaccurate AI answers, with remediation status. ──────
+    # ── Section 10: Hallucinations ─────────────────────────────────────────
     if data.hallucinations:
         hallu_rows = "".join(
-            f"""<tr>
-              <td>{html.escape(h.platform)}</td>
-              <td>{html.escape(h.query_text)}</td>
-              <td><span class="{_REMEDIATION_BADGE.get(h.status, 'badge-red')}">{html.escape(h.status_label)}</span></td>
-            </tr>"""
+            f'<tr><td>{html.escape(h.platform)}</td>'
+            f'<td>{html.escape(h.query_text)}</td>'
+            f'<td><span class="{_REMEDIATION_BADGE.get(h.status, "badge-red")}">'
+            f'{html.escape(h.status_label)}</span></td></tr>'
             for h in data.hallucinations
         )
-        hallucination_section = f"""
-  <h2>Inaccurate AI Answers Flagged</h2>
-  <p style="font-size:10pt;color:#64748b;margin:0 0 10px;">
-    Where AI platforms gave inaccurate information about {safe_name}, our team flags it and works to
-    correct the record. Status shows where each fix stands.
-  </p>
-  <table>
-    <thead><tr><th>Platform</th><th>Question asked</th><th>Status</th></tr></thead>
-    <tbody>{hallu_rows}</tbody>
-  </table>
-"""
+        hallucination_section = (
+            f'<h2>Inaccurate AI Answers Flagged</h2>'
+            f'<p style="font-size:10pt;color:#64748b;margin:0 0 10px;">'
+            f'Where AI platforms gave inaccurate information about {safe_name}, our team flags it'
+            f' and works to correct the record. Status shows where each fix stands.</p>'
+            f'<table><thead><tr><th>Platform</th><th>Question asked</th><th>Status</th></tr></thead>'
+            f'<tbody>{hallu_rows}</tbody></table>'
+        )
     else:
         hallucination_section = ""
 
-    battle_section = _build_battle_html(data)
+    # ── Gauge SVG + generated date ─────────────────────────────────────────
+    gauge_svg = _build_gauge_svg(data.overall_score)
     generated_date = datetime.utcnow().strftime("%d %B %Y")
 
     return f"""<!DOCTYPE html>
@@ -846,163 +1124,142 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 </head>
 <body>
 
-  <div class="cover page-break">
-    <div class="logo">SeenBy</div>
-    <div style="font-size:11pt;color:#64748b;margin-top:4px;">AI Visibility Intelligence</div>
-    <div class="cover-client">{safe_name}</div>
-    <div class="cover-period">AI Visibility Report &middot; {data.period_label}</div>
-    <div style="margin-top:56px;">
-      <div class="score-box">
-        <div class="score-box-value">{data.overall_score:.0f}</div>
-        <div class="score-box-label">GEO Score &middot; {data.score_band.title()}</div>
-      </div>
-    </div>
-    {f'''<p style="max-width:440px;margin:40px auto 0;font-size:12pt;line-height:1.6;
-         color:#334155;text-align:center;">{safe_narrative}</p>''' if safe_narrative else ""}
-    <div class="cover-footer">
-      Report generated {generated_date}<br>
-      Tracked by SeenBy &middot; contact@seenby.my
-    </div>
-  </div>
+<!-- Captured by string-set for the @top-right running header -->
+<span class="report-page-header-string">{safe_name} &middot; {html.escape(data.period_label)}</span>
 
-  <h2>AI Visibility Score</h2>
-  <p style="font-size:12pt;font-weight:600;color:{trend_color};margin-bottom:16px;">{trend_msg}</p>
-  <div class="stat-box">
-    <div class="stat-label">Overall GEO Score</div>
-    <div class="stat-value">{data.overall_score:.0f} <span style="font-size:14pt;color:#64748b;">/ 100</span></div>
-    <div class="stat-sub">{data.score_band.title()} band</div>
+<!-- ── COVER ──────────────────────────────────────────────────────── -->
+<div class="cover page-break">
+  <div class="cover-logo">SeenBy</div>
+  <hr class="cover-rule">
+  <div class="cover-tagline">AI Visibility Intelligence</div>
+
+  <div class="cover-report-type">Monthly AI Visibility Report</div>
+  <div class="cover-client">{safe_name}</div>
+  <div class="cover-period">{html.escape(data.period_label)}</div>
+
+  <div class="cover-gauge-wrap">{gauge_svg}</div>
+  <div class="cover-score-number">{data.overall_score:.0f}</div>
+  <div class="cover-score-label">GEO Score &middot; {data.score_band.title()}</div>
+
+  {f'<p class="cover-narrative">{safe_narrative}</p>' if safe_narrative else ""}
+
+  <div class="cover-footer">
+    Report generated {generated_date} &middot; contact@seenby.my
   </div>
+</div>
+
+<!-- ── 1: AI VISIBILITY SCORE ────────────────────────────────────── -->
+<h2>AI Visibility Score</h2>
+<p class="score-trend-line" style="color:{trend_color};">{trend_msg}</p>
+<div class="stat-block">
+  <div class="stat-label">Overall GEO Score</div>
+  <div class="stat-value">{data.overall_score:.0f}<span style="font-size:14pt;color:#64748b;font-weight:400;"> / 100</span></div>
+  <div class="stat-sub">{data.score_band.title()} band</div>
+</div>
 {trend_section}
-  <h2>Score Breakdown</h2>
-  <table>
-    <thead>
-      <tr><th>Dimension</th><th>Score</th><th>Weight</th><th>Contribution</th><th>Source</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>AI Citability</td>
-        <td class="{_score_css(ai_color)}">{data.ai_citability:.0f}</td>
-        <td>40%</td><td>{data.ai_citability * 0.40:.1f}</td>
-        <td>Automatic &mdash; Scan engine</td>
-      </tr>
-      <tr>
-        <td>Brand Authority</td>
-        <td class="{_score_css(ba_color)}">{data.brand_authority:.0f}</td>
-        <td>20%</td><td>{data.brand_authority * 0.20:.1f}</td>
-        <td>Based on public evidence · Reviewed by SeenBy<div class="manual-note">Manual assessment{f": {safe_ba_evidence}" if safe_ba_evidence else ""}</div></td>
-      </tr>
-      <tr>
-        <td>Content Quality</td>
-        <td class="{_score_css(cq_color)}">{data.content_quality:.0f}</td>
-        <td>20%</td><td>{data.content_quality * 0.20:.1f}</td>
-        <td>Based on public evidence · Reviewed by SeenBy<div class="manual-note">Manual assessment{f": {safe_cq_evidence}" if safe_cq_evidence else ""}</div></td>
-      </tr>
-      <tr>
-        <td>Technical Foundations</td>
-        <td class="{_score_css(tf_color)}">{data.technical_foundations:.0f}</td>
-        <td>10%</td><td>{data.technical_foundations * 0.10:.1f}</td>
-        <td>Automatic &mdash; Toolkit verified</td>
-      </tr>
-      <tr>
-        <td>Structured Data</td>
-        <td class="{_score_css(sd_color)}">{data.structured_data:.0f}</td>
-        <td>10%</td><td>{data.structured_data * 0.10:.1f}</td>
-        <td>Automatic &mdash; Toolkit verified</td>
-      </tr>
-    </tbody>
-  </table>
 
-  <h2>AI Visibility Frequency</h2>
-  <div class="stat-box">
-    <div class="stat-label">Seen by AI</div>
-    <div class="stat-value">{data.seen_count}/{data.total_count}</div>
-    <div class="stat-sub">
-      {safe_name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.
-    </div>
-  </div>
-{platform_section}{traffic_section}{battle_section}
-  <h2>Competitor Comparison</h2>
-  <table>
-    <thead><tr><th>Name</th><th>AI Citability</th><th>Status</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><strong>{safe_name} (You)</strong></td>
-        <td class="{_score_css(ai_color)}">{data.ai_citability:.0f}%</td>
-        <td>&mdash;</td>
-      </tr>
-      {comp_rows}
-    </tbody>
-  </table>
-{content_gap_section}{hallucination_section}
-  <h2>AI Readiness Toolkit</h2>
-  <table>
-    <thead><tr><th>File</th><th>Status</th></tr></thead>
-    <tbody>
-      <tr><td>llms.txt</td><td>{_verified_badge(data.llms_verified)}</td></tr>
-      <tr><td>schema.json (JSON-LD)</td><td>{_verified_badge(data.schema_verified)}</td></tr>
-      <tr><td>robots.txt (AI Bots)</td><td>{_verified_badge(data.robots_verified)}</td></tr>
-    </tbody>
-  </table>
+<!-- ── 2: WHAT AI SAID ABOUT YOU ─────────────────────────────────── -->
+{proof_section}
 
-  {f'''<h2>What Changed This Month</h2>
-  <div class="rec-box">
-    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{safe_narrative}</p>
-  </div>''' if safe_narrative else ""}
-  {proof_section}
+<!-- ── 3: SCORE BREAKDOWN ─────────────────────────────────────────── -->
+<h2>Score Breakdown</h2>
+{dim_bars}
 
-  <h2>Recommended Action</h2>
-  <div class="rec-box">
-    <p style="margin:0;font-size:11pt;color:#0c4a6e;">{safe_recommendation}</p>
-  </div>
+<!-- ── 4: AI VISIBILITY FREQUENCY + PLATFORM ─────────────────────── -->
+<h2>AI Visibility Frequency</h2>
+<div class="stat-block">
+  <div class="stat-label">Seen by AI</div>
+  <div class="stat-value">{data.seen_count}/{data.total_count}</div>
+  <div class="stat-sub">{safe_name} was seen by AI in {data.seen_count} out of {data.total_count} queries this period.</div>
+</div>
+{platform_section}
 
-  <p style="margin-top:40px;font-size:9pt;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px;">
-    This report was generated automatically by SeenBy. Manual dimension scores (Brand Authority,
-    Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my
-  </p>
+<!-- ── 5: AI REFERRAL TRAFFIC ─────────────────────────────────────── -->
+{traffic_section}
+
+<!-- ── 6: AT RISK ────────────────────────────────────────────────── -->
+{at_risk_section}
+
+<!-- ── 7: BATTLE ──────────────────────────────────────────────────── -->
+{battle_section}
+
+<!-- ── 8: COMPETITOR COMPARISON ──────────────────────────────────── -->
+{competitor_section}
+
+<!-- ── 9: CONTENT GAPS ────────────────────────────────────────────── -->
+{content_gap_section}
+
+<!-- ── 10: HALLUCINATIONS ─────────────────────────────────────────── -->
+{hallucination_section}
+
+<!-- ── 11: AI READINESS TOOLKIT ──────────────────────────────────── -->
+<h2>AI Readiness Toolkit</h2>
+<table>
+  <thead><tr><th>File</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>llms.txt</td><td>{_verified_badge(data.llms_verified)}</td></tr>
+    <tr><td>schema.json (JSON-LD)</td><td>{_verified_badge(data.schema_verified)}</td></tr>
+    <tr><td>robots.txt (AI Bots)</td><td>{_verified_badge(data.robots_verified)}</td></tr>
+  </tbody>
+</table>
+
+<!-- ── 12: RECOMMENDED ACTION ────────────────────────────────────── -->
+<h2>Recommended Action</h2>
+<div class="rec-box">
+  <span class="rec-label">Recommended Action</span>
+  <p class="rec-body">{safe_recommendation}</p>
+</div>
+
+<p class="report-footer">
+  This report was generated automatically by SeenBy. Manual dimension scores (Brand Authority,
+  Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my
+</p>
 
 </body>
 </html>"""
 
 
 # ── One-page Scorecard ──────────────────────────────────────────────────────
-# A single-page, screenshot-friendly snapshot — the piece a client pastes into a
-# deck or Slack. Reuses the full report's gathered data; shows only the headline
-# numbers (score, seen-by-AI, per-platform, benchmark, what changed).
 
 _SCORECARD_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 @page { size: A4; margin: 1.4cm; }
 * { box-sizing: border-box; }
 body {
-  font-family: Arial, Helvetica, sans-serif; color: #1e293b;
-  font-size: 11pt; line-height: 1.5; margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: #0f172a;
+  font-size: 11pt;
+  line-height: 1.5;
+  margin: 0;
 }
-.sc-top { border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 22px; }
-.sc-logo { font-size: 18pt; font-weight: 700; color: #0f172a; }
+.sc-top { border-bottom: 3px solid #070d1a; padding-bottom: 10px; margin-bottom: 22px; }
+.sc-logo { font-size: 18pt; font-weight: 700; color: #070d1a; letter-spacing: -0.02em; }
 .sc-kicker { font-size: 10pt; color: #64748b; }
-.sc-client { font-size: 20pt; font-weight: 700; color: #0f172a; margin: 0 0 2px; }
+.sc-client { font-size: 20pt; font-weight: 700; color: #0f172a; margin: 0 0 2px; letter-spacing: -0.02em; }
 .sc-score-box {
-  background: #0f172a; color: #ffffff; border-radius: 12px;
+  background: #070d1a; color: #ffffff; border-radius: 10px;
   padding: 18px 30px; text-align: center;
 }
-.sc-score-value { font-size: 46pt; font-weight: 700; line-height: 1; }
-.sc-score-label { font-size: 10pt; color: #94a3b8; margin-top: 4px; }
-.sc-headline { font-size: 17pt; font-weight: 700; color: #0f172a; line-height: 1.3; }
+.sc-score-value { font-size: 46pt; font-weight: 700; line-height: 1; letter-spacing: -0.03em; }
+.sc-score-label { font-size: 10pt; color: #94a3b8; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+.sc-headline { font-size: 17pt; font-weight: 700; color: #0f172a; line-height: 1.3; letter-spacing: -0.01em; }
 .sc-benchmark {
   display: inline-block; margin-top: 10px; background: #f0f9ff; color: #0369a1;
   border: 1px solid #bae6fd; border-radius: 999px; padding: 4px 14px;
   font-size: 10pt; font-weight: 600;
 }
 .sc-section-label {
-  font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;
-  font-weight: 600; margin: 24px 0 10px;
+  font-size: 9pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 700; margin: 24px 0 10px;
+  border-left: 3px solid #2563eb; padding-left: 8px;
 }
 .sc-tile {
   border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; text-align: center;
 }
 .sc-tile-name { font-size: 10pt; color: #475569; font-weight: 600; }
-.sc-tile-value { font-size: 20pt; font-weight: 700; color: #0f172a; }
+.sc-tile-value { font-size: 20pt; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; }
 .sc-tile-sub { font-size: 8pt; color: #94a3b8; }
-.sc-changed { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px; }
+.sc-changed { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px; font-style: italic; color: #475569; }
 .sc-foot { margin-top: 28px; font-size: 9pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
 """
 
@@ -1024,7 +1281,6 @@ def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
         else ""
     )
 
-    # Per-platform tiles — laid out with a table for WeasyPrint reliability.
     tiles = ""
     if data.platform_breakdown:
         cells = []
@@ -1038,7 +1294,7 @@ def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
                 sub = "Unavailable this scan"
             cells.append(
                 f'<td style="padding:4px;"><div class="sc-tile">'
-                f'<div class="sc-tile-name">{name}</div>'
+                f'<div class="sc-tile-name">{html.escape(name)}</div>'
                 f'<div class="sc-tile-value">{value}</div>'
                 f'<div class="sc-tile-sub">{sub}</div></div></td>'
             )
@@ -1080,7 +1336,7 @@ def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
         </div>
       </td>
       <td style="padding-left:28px;vertical-align:middle;">
-        <div class="sc-headline">{headline}</div>
+        <div class="sc-headline">{html.escape(headline)}</div>
         {benchmark_chip}
       </td>
     </tr>
@@ -1141,9 +1397,6 @@ def generate_report_pdf(client_id: uuid.UUID, db: Session) -> Report | None:
         return None
 
     if weasyprint is None:
-        # The import guard sets weasyprint=None when GTK/Pango native libs are
-        # unavailable (e.g. a bare Windows box). Fail loudly instead of an opaque
-        # AttributeError so the cause — a missing system dependency — is clear.
         raise RuntimeError(
             "WeasyPrint native libraries are not available — cannot render PDF reports "
             "on this host. Install the GTK/Pango runtime or generate reports on a worker "
