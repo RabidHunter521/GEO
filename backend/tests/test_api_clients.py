@@ -167,6 +167,29 @@ def test_update_client():
     assert response.json()["city"] == "Kuala Lumpur"
 
 
+def test_update_client_allows_zero_score_drop_threshold():
+    # "Set to 0 to disable" — the settings help text promises this, so 0 must be
+    # accepted (the alert crossing test can never fire at 0).
+    app, get_db = _make_app()
+    existing = _fake_client("Threshold Co")
+
+    def fake_refresh(obj):
+        obj.score_drop_threshold = 0
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock(side_effect=fake_refresh)
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"score_drop_threshold": 0},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["score_drop_threshold"] == 0
+
+
 def _logo_ready_client(name="Logo Co"):
     existing = _fake_client(name)
     existing.enabled_platforms = ["chatgpt"]

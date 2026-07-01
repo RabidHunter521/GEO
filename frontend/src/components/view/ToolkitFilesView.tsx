@@ -6,6 +6,7 @@
 // and copy/download. No generate/verify actions — those are admin-only.
 import { useState } from "react"
 import { Copy, Download, Check, CheckCircle2, Circle } from "lucide-react"
+import { copyToClipboard } from "@/lib/utils"
 import type { ClientViewToolkit } from "@/types"
 
 const FILE_META = {
@@ -42,8 +43,10 @@ export function ToolkitFilesView({ toolkit }: { toolkit: ClientViewToolkit }) {
   const [activeTab, setActiveTab] = useState<FileKey>("llms_txt")
   const [copied, setCopied] = useState(false)
 
-  function handleCopy(value: string) {
-    navigator.clipboard.writeText(value)
+  async function handleCopy(value: string) {
+    // Only show the "copied" checkmark if it actually worked — no clipboard on
+    // insecure origins means no false confirmation.
+    if (!(await copyToClipboard(value))) return
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }

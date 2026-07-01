@@ -23,17 +23,28 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     const data = new FormData(e.currentTarget)
-    const result = await signIn("credentials", {
-      username: data.get("username") as string,
-      password: data.get("password") as string,
-      callbackUrl: "/clients",
-      redirect: false,
-    })
-    if (result?.error) {
-      setError("Invalid username or password")
+    try {
+      const result = await signIn("credentials", {
+        username: data.get("username") as string,
+        password: data.get("password") as string,
+        callbackUrl: "/clients",
+        redirect: false,
+      })
+      if (result?.error) {
+        setError("Invalid username or password")
+        setLoading(false)
+      } else if (result?.url) {
+        // Navigating away — leave the button in its loading state.
+        window.location.href = result.url
+      } else {
+        // No url and no error (e.g. the auth service was unreachable) — don't
+        // leave the button stuck spinning with no feedback.
+        setError("Something went wrong signing in. Please try again.")
+        setLoading(false)
+      }
+    } catch {
+      setError("Couldn't reach the server. Please try again.")
       setLoading(false)
-    } else if (result?.url) {
-      window.location.href = result.url
     }
   }
 

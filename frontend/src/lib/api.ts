@@ -12,6 +12,44 @@ function apiHeaders(): HeadersInit {
   }
 }
 
+// Carries the HTTP status (so callers can branch on it, e.g. 409 = scan running)
+// while its message is the backend's own `detail` when one is available — so a
+// 422 surfaces "contact_email: value is not a valid email", not a bare code.
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly detail?: string,
+  ) {
+    super(message)
+    this.name = "ApiError"
+  }
+}
+
+// Pulls a human message out of a FastAPI error body: `detail` is a string for
+// HTTPException and a list of {loc, msg} for 422 validation errors.
+async function extractDetail(res: Response): Promise<string | undefined> {
+  try {
+    const body = await res.json()
+    const detail = body?.detail
+    if (typeof detail === "string") return detail
+    if (Array.isArray(detail)) {
+      return detail
+        .map((e) => {
+          const loc = Array.isArray(e?.loc)
+            ? e.loc.filter((p: unknown) => p !== "body").join(".")
+            : ""
+          return loc && e?.msg ? `${loc}: ${e.msg}` : e?.msg
+        })
+        .filter(Boolean)
+        .join("; ")
+    }
+  } catch {
+    // non-JSON (or empty) error body — fall back to the status line
+  }
+  return undefined
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -20,7 +58,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (res.status === 204) return undefined as T
   if (!res.ok) {
-    throw new Error(`API ${init?.method ?? "GET"} ${path} → ${res.status}`)
+    const detail = await extractDetail(res)
+    const statusLine = `API ${init?.method ?? "GET"} ${path} → ${res.status}`
+    throw new ApiError(res.status, detail ?? statusLine, detail)
   }
   return res.json() as Promise<T>
 }

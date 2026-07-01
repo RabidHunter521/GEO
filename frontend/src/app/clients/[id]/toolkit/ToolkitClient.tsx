@@ -4,7 +4,19 @@ import { useState, useTransition } from "react"
 import { Loader2, Copy, Download, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { copyToClipboard } from "@/lib/utils"
 import { generateToolkitAction, verifyToolkitAction } from "./actions"
 import type { ToolkitFiles, VerificationResult } from "@/types"
 
@@ -88,9 +100,11 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
     })
   }
 
-  function handleCopy(key: FileKey) {
-    navigator.clipboard.writeText(files![key])
-    toast.success("Copied to clipboard")
+  async function handleCopy(key: FileKey) {
+    const ok = await copyToClipboard(files![key])
+    toast[ok ? "success" : "error"](
+      ok ? "Copied to clipboard" : "Couldn't copy — select the text and copy manually.",
+    )
   }
 
   function handleDownload(key: FileKey) {
@@ -134,10 +148,37 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
               Verify live
             </Button>
           )}
-          <Button onClick={handleGenerate} disabled={isPending}>
-            {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {files ? "Regenerate" : "Generate files"}
-          </Button>
+          {files ? (
+            // Regenerating overwrites the current files and clears their
+            // verified-live status — confirm before discarding them.
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button disabled={isPending}>
+                  {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Regenerate
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Regenerate the toolkit files?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This replaces the current llms.txt, schema.json and robots.txt with
+                    freshly generated versions and clears their verified-live status. Any
+                    edits you made to the current files will be lost.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleGenerate}>Regenerate</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button onClick={handleGenerate} disabled={isPending}>
+              {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Generate files
+            </Button>
+          )}
         </div>
       </div>
 

@@ -8,6 +8,7 @@ import { useEffect, useState, useTransition } from "react"
 import Link from "next/link"
 import { ArrowRight, Copy, Loader2, Trash2, UserCheck } from "lucide-react"
 import { toast } from "sonner"
+import { copyToClipboard } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import {
@@ -42,8 +43,10 @@ function ProspectRow({ prospect }: { prospect: ClientListItem }) {
 
   async function handleCopy() {
     if (!url) return
-    await navigator.clipboard.writeText(url)
-    toast.success("Link copied to clipboard")
+    const ok = await copyToClipboard(url)
+    toast[ok ? "success" : "error"](
+      ok ? "Link copied to clipboard" : "Couldn't copy — copy the link manually.",
+    )
   }
 
   function handleConvert() {

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select"
 import { createProspectAction } from "@/app/clients/actions"
 import { INDUSTRIES } from "@/lib/industries"
+import { copyToClipboard } from "@/lib/utils"
 import type { Client } from "@/types"
 
 interface Props {
@@ -71,8 +72,10 @@ export function ProspectQuickForm({ onClose }: Props) {
 
   async function handleCopy() {
     if (!url) return
-    await navigator.clipboard.writeText(url)
-    toast.success("Link copied to clipboard")
+    const ok = await copyToClipboard(url)
+    toast[ok ? "success" : "error"](
+      ok ? "Link copied to clipboard" : "Couldn't copy — copy the link manually.",
+    )
   }
 
   function goToClient() {

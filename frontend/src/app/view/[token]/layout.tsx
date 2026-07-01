@@ -2,10 +2,10 @@
 // Read-only client view shell. No admin session — the share token in the
 // URL is the credential. Tokenized pages must never be indexed or cached.
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { ExternalLink } from "lucide-react"
 import { getViewOverview } from "@/lib/view-api"
 import { ViewTabs } from "@/components/view/ViewTabs"
-import { LinkInactive } from "@/components/view/LinkInactive"
 
 export const dynamic = "force-dynamic"
 
@@ -24,8 +24,11 @@ export default async function ClientViewLayout({
   const { token } = await params
   const overview = await getViewOverview(token)
 
+  // Invalid / revoked / archived token → a real 404, rendered by not-found.tsx
+  // (which shows LinkInactive). Matches the page-level notFound() so the status
+  // code is uniform, per the spec's "uniform 404" requirement.
   if (!overview) {
-    return <LinkInactive />
+    notFound()
   }
 
   const { profile } = overview

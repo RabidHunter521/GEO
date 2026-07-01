@@ -4,9 +4,15 @@ import { useState, useEffect, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Play, CheckCircle, XCircle, AlertTriangle, ImageDown } from "lucide-react"
+import { toast } from "sonner"
 import type { Platform, Scan, ScanQueryResult, ScanDiffResponse } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
+import { joinWithAnd } from "@/lib/utils"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
+
+// A running scan is polled every 3s; stop after this many tries (~15 min) so a
+// backend-stuck scan can't poll forever in an abandoned tab.
+const MAX_POLLS = 300
 import { SinceLastScanCard } from "@/components/scan/SinceLastScanCard"
 
 interface Props {
@@ -14,6 +20,7 @@ interface Props {
   clientName: string
   initialScan: Scan | null
   initialDiff: ScanDiffResponse | null
+  enabledPlatforms: Platform[]
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -23,7 +30,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   local: "Local",
 }
 
-export function ScanClient({ clientId, clientName, initialScan, initialDiff }: Props) {
+export function ScanClient({ clientId, clientName, initialScan, initialDiff, enabledPlatforms }: Props) {
   const [scan, setScan] = useState<Scan | null>(initialScan)
   const diff = initialDiff
   const [isPending, startTransition] = useTransition()
@@ -43,7 +50,12 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff }: P
 
   useEffect(() => {
     if (!isActive) return
+    let polls = 0
     const interval = setInterval(async () => {
+      if (polls++ >= MAX_POLLS) {
+        clearInterval(interval)
+        return
+      }
       const updated = await refreshScanAction(clientId)
       if (updated) setScan(updated)
     }, 3000)
@@ -52,8 +64,14 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff }: P
 
   function handleTrigger() {
     startTransition(async () => {
-      const newScan = await triggerScanAction(clientId)
-      if (newScan) setScan(newScan)
+      try {
+        const newScan = await triggerScanAction(clientId)
+        if (newScan) setScan(newScan)
+      } catch (e) {
+        // Without this, a failed trigger throws out of the transition and blows
+        // the whole page into the route error boundary.
+        toast.error(e instanceof Error ? e.message : "Couldn't start the scan. Please try again.")
+      }
     })
   }
 
@@ -61,13 +79,19 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff }: P
     if (!scan) return
     setFlaggingId(resultId)
     startTransition(async () => {
-      await flagHallucinationAction(scan.id, resultId, clientId)
-      setFlaggingId(null)
-      setFlaggedIds((prev) => {
-        const updated = new Set(prev)
-        updated.add(resultId)
-        return updated
-      })
+      try {
+        await flagHallucinationAction(scan.id, resultId, clientId)
+        setFlaggedIds((prev) => {
+          const updated = new Set(prev)
+          updated.add(resultId)
+          return updated
+        })
+      } catch {
+        toast.error("Couldn't flag this answer. Please try again.")
+      } finally {
+        // Always clear the row spinner, even on failure.
+        setFlaggingId(null)
+      }
     })
   }
 
@@ -123,8 +147,8 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff }: P
           <Loader2 className="h-6 w-6 animate-spin mx-auto mb-3 text-muted-foreground" />
           <p className="text-sm font-medium">Scan in progress</p>
           <p className="text-sm text-muted-foreground mt-1">
-            Querying ChatGPT, Perplexity, Gemini and Claude across 8 topics each.
-            This can take a few minutes.
+            Querying {joinWithAnd(enabledPlatforms.map((p) => PLATFORM_LABELS[p]))} across
+            your buyer questions. This can take a few minutes.
           </p>
         </div>
       )}

@@ -1,7 +1,7 @@
 // frontend/src/components/clients/OnboardingWizard.tsx
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Plus, Trash2 } from "lucide-react"
 import { Country, State } from "country-state-city"
@@ -23,6 +23,7 @@ import {
 } from "@/app/clients/actions"
 import { updateClientAction } from "@/app/clients/[id]/settings/actions"
 import { INDUSTRIES } from "@/lib/industries"
+import { isValidWebsite } from "@/lib/utils"
 import type { Client } from "@/types"
 
 type Step = 1 | 2 | 3
@@ -30,6 +31,12 @@ type Step = 1 | 2 | 3
 // Competitors are collected locally and only persisted once the client is
 // created at the final step, so they carry a temporary client-side id.
 type DraftCompetitor = { id: string; name: string; website: string }
+
+// Mirrors the backend's contact_email rule (schemas/client.py). The browser's
+// type="email" is looser (it accepts "name@localhost"), so we re-check here to
+// catch a rejection before the client record is created — otherwise the client
+// is created, the profile PATCH 422s, and a retry would make a duplicate.
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 interface Props {
   onClose: () => void
@@ -40,6 +47,9 @@ export function OnboardingWizard({ onClose }: Props) {
   const [step, setStep] = useState<Step>(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Holds the client once it's been created so a follow-up failure (bad profile
+  // field, transient error) can be retried without creating a second client.
+  const createdRef = useRef<Client | null>(null)
 
   // Step 1
   const [name, setName] = useState("")
@@ -76,10 +86,22 @@ export function OnboardingWizard({ onClose }: Props) {
   // created here — not before — so abandoning the wizard leaves nothing behind.
   // Used by both "Finish" and the "Skip" shortcuts.
   async function createAndNavigate() {
+    // Catch a backend-invalid email here, before anything is created — the
+    // browser's type="email" lets "name@localhost" through but the API rejects
+    // it, which would otherwise strand a created client behind a failed PATCH.
+    if (contactEmail && !EMAIL_PATTERN.test(contactEmail)) {
+      setStep(3) // the email field lives on step 3 — surface it
+      setError("Please enter a valid contact email (e.g. name@company.com).")
+      return
+    }
     setLoading(true)
     setError(null)
     try {
-      const client = await createClientAction({ name, website, industry })
+      // Reuse the client if a previous attempt already created it, so retrying a
+      // failed profile/competitor step can't leave a duplicate behind.
+      const client =
+        createdRef.current ?? (await createClientAction({ name, website, industry }))
+      createdRef.current = client
 
       const profile = {
         description: description || undefined,
@@ -107,7 +129,13 @@ export function OnboardingWizard({ onClose }: Props) {
 
       navigateToClient(client) // unmounts; no need to clear loading
     } catch {
-      setError("Failed to create client. Please try again.")
+      // Distinguish the two failure modes: if the client already exists, only
+      // the profile/competitor save failed — retrying reuses it (no duplicate).
+      setError(
+        createdRef.current
+          ? "The client was created, but saving the extra details failed. Fix any invalid field and try again, or skip them."
+          : "Failed to create client. Please try again.",
+      )
       setLoading(false)
     }
   }
@@ -137,6 +165,11 @@ export function OnboardingWizard({ onClose }: Props) {
     const trimmed = compName.trim()
     if (!trimmed) return false
     if (competitors.length >= 5) return false
+    if (compWebsite.trim() && !isValidWebsite(compWebsite)) {
+      setError("Enter a valid competitor website (e.g. rival.com) or leave it blank.")
+      return false
+    }
+    setError(null)
     setCompetitors((prev) => [
       ...prev,
       { id: crypto.randomUUID(), name: trimmed, website: compWebsite.trim() },

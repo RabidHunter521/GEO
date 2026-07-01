@@ -40,6 +40,7 @@ import {
 import type { Client, Competitor, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
+import { isValidWebsite } from "@/lib/utils"
 import { generateAssessment, acceptAssessment } from "@/lib/api"
 
 interface Props {
@@ -227,6 +228,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const currentTrafficValue = traffic.find((t) => t.period.slice(0, 10) === currentPeriod)?.ai_visitors
   const [trafficInput, setTrafficInput] = useState(currentTrafficValue?.toString() ?? "")
   const [savingTraffic, setSavingTraffic] = useState(false)
+  const [trafficError, setTrafficError] = useState<string | null>(null)
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -299,6 +301,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
 
   async function handleAddComp() {
     if (!compName.trim()) return
+    if (compWebsite.trim() && !isValidWebsite(compWebsite)) {
+      setError("Enter a valid competitor website (e.g. rival.com) or leave it blank.")
+      return
+    }
+    setError(null)
     setAddingComp(true)
     try {
       const comp = await addCompetitorAction(client.id, {
@@ -317,7 +324,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
 
   async function handleSaveTraffic() {
     const visitors = Number(trafficInput)
-    if (!Number.isFinite(visitors) || visitors < 0) return
+    if (!Number.isFinite(visitors) || visitors < 0) {
+      setTrafficError("Enter a whole number of visitors (0 or more).")
+      return
+    }
+    setTrafficError(null)
     setSavingTraffic(true)
     try {
       const snapshot = await updateTrafficAction(client.id, currentPeriod, visitors)
@@ -790,9 +801,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               onChange={(e) => {
                 e.stopPropagation()
                 setTrafficInput(e.target.value)
+                setTrafficError(null)
               }}
               placeholder="e.g. 187"
             />
+            {trafficError && <p className="text-xs text-destructive">{trafficError}</p>}
           </div>
           <Button
             type="button"

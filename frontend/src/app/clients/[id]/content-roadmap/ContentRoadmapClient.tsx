@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from "react"
 import { Loader2, RefreshCw, FileText, Trophy, Sparkles, Copy } from "lucide-react"
 import { toast } from "sonner"
+import { copyToClipboard } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -64,8 +65,10 @@ function RoadmapItemCard({
 
   async function handleCopy() {
     if (!item.article_content) return
-    await navigator.clipboard.writeText(item.article_content)
-    toast.success("Article copied to clipboard")
+    const ok = await copyToClipboard(item.article_content)
+    toast[ok ? "success" : "error"](
+      ok ? "Article copied to clipboard" : "Couldn't copy — select the text and copy manually.",
+    )
   }
 
   return (

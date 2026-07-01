@@ -23,7 +23,7 @@ import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { getScoreBand, getScoreColor, type ScoreColor } from "@/lib/score-utils"
-import { cn } from "@/lib/utils"
+import { cn, joinWithAnd } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
 
 const DIMENSIONS = [
@@ -109,6 +109,9 @@ export default async function ViewOverviewPage({
   const score = overview.latest_score
   const band = score ? getScoreBand(score.overall_score) : null
   const scoreColor = score ? getScoreColor(score.overall_score) : null
+  // Name the platforms actually queried for this client rather than hardcoding
+  // all four — a prospect may only run on a couple.
+  const platformNames = joinWithAnd(overview.platforms.map((p) => p.platform_label))
 
   // Plain-English headline derived from existing data.
   const seenCount = scan ? scan.results.filter((r) => r.seen_by_ai).length : 0
@@ -164,8 +167,8 @@ export default async function ViewOverviewPage({
                   {headline}
                 </p>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                  How visible you are across AI search — ChatGPT, Perplexity,
-                  Gemini and Claude.
+                  How visible you are across AI search
+                  {platformNames ? ` — ${platformNames}` : ""}.
                 </p>
                 <p className="mt-3 text-xs text-muted-foreground">
                   Last updated{" "}

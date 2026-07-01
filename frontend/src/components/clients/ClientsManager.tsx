@@ -77,25 +77,38 @@ export function ClientsManager({ clients }: Props) {
 
   async function confirmRemove() {
     if (selected.size === 0) return
+    const count = selected.size
     setBusy(true)
-    await archiveClientsAction(Array.from(selected))
-    setBusy(false)
-    cancel()
+    try {
+      await archiveClientsAction(Array.from(selected))
+      toast.success(`Removed ${count} client${count !== 1 ? "s" : ""}`)
+      cancel()
+    } catch {
+      // Keep the selection so the admin can retry rather than losing their picks.
+      toast.error("Couldn't remove the selected clients. Please try again.")
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function confirmScan() {
     if (selected.size === 0) return
     setBusy(true)
-    const { triggered, skipped } = await bulkScanAction(Array.from(selected))
-    setBusy(false)
-    cancel()
-    if (triggered > 0) {
-      toast.success(
-        `Triggered ${triggered} scan${triggered !== 1 ? "s" : ""}` +
-          (skipped > 0 ? ` — ${skipped} skipped (scan already running)` : ""),
-      )
-    } else if (skipped > 0) {
-      toast.warning(`No scans triggered — ${skipped} skipped (scan already running)`)
+    try {
+      const { triggered, skipped } = await bulkScanAction(Array.from(selected))
+      cancel()
+      if (triggered > 0) {
+        toast.success(
+          `Triggered ${triggered} scan${triggered !== 1 ? "s" : ""}` +
+            (skipped > 0 ? ` — ${skipped} skipped (scan already running)` : ""),
+        )
+      } else if (skipped > 0) {
+        toast.warning(`No scans triggered — ${skipped} skipped (scan already running)`)
+      }
+    } catch {
+      toast.error("Couldn't start the scans. Please try again.")
+    } finally {
+      setBusy(false)
     }
   }
 

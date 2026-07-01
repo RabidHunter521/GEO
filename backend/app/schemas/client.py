@@ -34,7 +34,9 @@ class ClientUpdate(BaseModel):
     brand_authority_evidence: str | None = None
     content_quality_score: int | None = Field(default=None, ge=0, le=100)
     content_quality_evidence: str | None = None
-    score_drop_threshold: int | None = Field(default=None, ge=1, le=100)
+    # 0 disables the alert (the crossing test `score < 0` can never fire), which
+    # is what the settings help text ("Set to 0 to disable") promises.
+    score_drop_threshold: int | None = Field(default=None, ge=0, le=100)
     scan_cadence_days: int | None = Field(default=None, ge=1, le=365)
     # AI-referral pipeline inputs. avg_deal_value_rm has no default (deal size is
     # client-specific); the report's RM line only renders once it's set.

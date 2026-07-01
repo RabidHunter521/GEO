@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { generateShareLinkAction, revokeShareLinkAction } from "./actions"
+import { copyToClipboard } from "@/lib/utils"
 import type { Client } from "@/types"
 
 export function ShareLinkCard({ client }: { client: Client }) {
@@ -66,8 +67,10 @@ export function ShareLinkCard({ client }: { client: Client }) {
 
   async function handleCopy() {
     if (!url) return
-    await navigator.clipboard.writeText(url)
-    toast.success("Link copied to clipboard")
+    const ok = await copyToClipboard(url)
+    toast[ok ? "success" : "error"](
+      ok ? "Link copied to clipboard" : "Couldn't copy — copy the link manually.",
+    )
   }
 
   return (

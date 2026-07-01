@@ -1,6 +1,7 @@
 "use server"
 
 import {
+  ApiError,
   triggerScan,
   flagHallucination,
   getLatestScan,
@@ -16,7 +17,7 @@ export async function triggerScanAction(clientId: string): Promise<Scan | null> 
   } catch (error) {
     // 409 = a scan is already in progress — fall through and return it so the
     // page simply shows the running scan instead of erroring
-    if (!(error instanceof Error && error.message.includes("→ 409"))) throw error
+    if (!(error instanceof ApiError && error.status === 409)) throw error
   }
   revalidatePath(`/clients/${clientId}/scan`)
   revalidatePath(`/clients/${clientId}`)
