@@ -470,7 +470,9 @@ def normalize_domain(url: str) -> str:
         return ""
     parsed = urlparse(url if "://" in url else f"https://{url}")
     host = (parsed.hostname or "").lower()
-    if " " in url and not parsed.hostname:
+    # A cited source is always a real web host: reject anything with no dot or an
+    # embedded space (urlparse keeps "not a url" as the host otherwise).
+    if not host or " " in host or "." not in host:
         return ""
     return host[4:] if host.startswith("www.") else host
 
