@@ -13,6 +13,15 @@ _MAX_ATTEMPTS = 2  # retry once on failure, per scan engine rules
 
 
 @dataclass(frozen=True)
+class SourceCitation:
+    """A single source the platform reported using to answer a query."""
+
+    url: str
+    title: str | None
+    rank: int  # 1-based position in the platform's source list
+
+
+@dataclass(frozen=True)
 class PlatformResult:
     """A platform query's answer plus the token usage it billed.
 
@@ -24,6 +33,7 @@ class PlatformResult:
     model: str
     input_tokens: int
     output_tokens: int
+    citations: tuple[SourceCitation, ...] = ()
 
 # Per-call HTTP timeout for every platform query. Bounds a single hung provider
 # call so it can't pin a Celery worker (which also has a hard time limit). SDK
