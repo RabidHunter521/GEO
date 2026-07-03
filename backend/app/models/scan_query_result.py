@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import String, Boolean, Integer, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
 
 
@@ -26,3 +26,9 @@ class ScanQueryResult(Base):
     # Brand's rank in list-style AI answers (recommendation/local categories). Null when not ranked.
     recommendation_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+    sources: Mapped[list["ScanQuerySource"]] = relationship(
+        "ScanQuerySource",
+        back_populates="scan_query_result",
+        cascade="all, delete-orphan",
+    )
