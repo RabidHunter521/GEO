@@ -19,6 +19,12 @@ from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
+from app.schemas.provenance import (
+    AcquisitionSource,
+    BrandShare,
+    ShareOfSourceResponse,
+    SourcePresence,
+)
 from app.services.brand_detection import detect_brand_mention
 from app.services.url_safety import safe_get, UnsafeUrlError
 
@@ -161,4 +167,118 @@ def enrich_scan_sources(scan_id: uuid.UUID, db: Session) -> None:
         scan_id=str(scan_id),
         total=len(rows),
         third_party_fetched=len(third_party_urls),
+    )
+
+
+def _empty_share(last_scan_at: str | None) -> ShareOfSourceResponse:
+    return ShareOfSourceResponse(
+        last_scan_at=last_scan_at,
+        total_third_party_sources=0,
+        client_share=None,
+        competitor_shares=[],
+        acquisition_list=[],
+        flip_targets=[],
+    )
+
+
+def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceResponse:
+    """Admin read model: Share-of-Source + acquisition list from the latest scan.
+
+    Denominator is the count of unique third-party source URLs (fetch_status ok)
+    cited by the client's own queries. A URL cited N times counts once for share
+    but its N citations drive acquisition-list ranking.
+    """
+    latest = (
+        db.query(Scan)
+        .filter(Scan.client_id == client_id, Scan.status == "completed")
+        .order_by(Scan.completed_at.desc())
+        .first()
+    )
+    if not latest:
+        return _empty_share(None)
+    last_scan_at = latest.completed_at.isoformat() + "Z" if latest.completed_at else None
+
+    rows = (
+        db.query(ScanQuerySource)
+        .join(ScanQueryResult, ScanQueryResult.id == ScanQuerySource.scan_query_result_id)
+        .filter(
+            ScanQueryResult.scan_id == latest.id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQuerySource.source_type == "third_party",
+            ScanQuerySource.fetch_status == "ok",
+        )
+        .all()
+    )
+    if not rows:
+        return _empty_share(last_scan_at)
+
+    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+    comp_names = {str(c.id): c.name for c in competitors}
+    client = db.get(Client, client_id)
+
+    # Collapse occurrences to unique URLs; presence is identical across a URL's rows.
+    unique: dict[str, dict] = {}
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row.url] = counts.get(row.url, 0) + 1
+        if row.url not in unique:
+            unique[row.url] = {
+                "domain": row.domain,
+                "title": row.title,
+                "present": row.present_brands or {"client": False, "competitors": []},
+            }
+    denom = len(unique)
+
+    client_present = sum(1 for u in unique.values() if u["present"].get("client"))
+    comp_present_counts: dict[str, int] = {cid: 0 for cid in comp_names}
+    for u in unique.values():
+        for cid in u["present"].get("competitors", []):
+            if cid in comp_present_counts:
+                comp_present_counts[cid] += 1
+
+    def pct(n: int) -> float:
+        return round(n / denom * 100, 1) if denom else 0.0
+
+    client_share = BrandShare(
+        competitor_id=None,
+        name=client.name if client else "You",
+        sources_present=client_present,
+        share_pct=pct(client_present),
+    )
+    competitor_shares = [
+        BrandShare(
+            competitor_id=uuid.UUID(cid),
+            name=comp_names[cid],
+            sources_present=n,
+            share_pct=pct(n),
+        )
+        for cid, n in sorted(comp_present_counts.items(), key=lambda kv: -kv[1])
+    ]
+
+    acquisition = []
+    for url, meta in unique.items():
+        present = meta["present"]
+        comp_ids = [cid for cid in present.get("competitors", []) if cid in comp_names]
+        if not present.get("client") and comp_ids:
+            acquisition.append(
+                AcquisitionSource(
+                    url=url,
+                    domain=meta["domain"],
+                    title=meta["title"],
+                    citation_count=counts[url],
+                    competitors_present=[
+                        SourcePresence(competitor_id=uuid.UUID(cid), name=comp_names[cid])
+                        for cid in comp_ids
+                    ],
+                )
+            )
+    acquisition.sort(key=lambda a: -a.citation_count)
+
+    return ShareOfSourceResponse(
+        last_scan_at=last_scan_at,
+        total_third_party_sources=denom,
+        client_share=client_share,
+        competitor_shares=competitor_shares,
+        acquisition_list=acquisition,
+        flip_targets=acquisition[:3],
     )
