@@ -11,6 +11,7 @@ from app.models.scan import Scan
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan_query_result import ScanQueryResult
+from app.models.scan_query_source import ScanQuerySource
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.services.platform_clients import get_platform_client
@@ -18,6 +19,7 @@ from app.services.platform_clients.base import PlatformResult
 from app.services.cost_tracker import record_llm_usage
 from app.services.brand_detection import detect_brand_mention
 from app.services.position_extraction import extract_position
+from app.services.provenance_service import normalize_domain
 from app.services.query_builder import build_client_queries, build_competitor_queries
 from app.services.scoring_service import (
     compute_ai_citability,
@@ -143,7 +145,7 @@ def _run_platform_queries(
                     error=str(exc),
                 )
 
-        results.append(ScanQueryResult(
+        sqr = ScanQueryResult(
             scan_id=scan.id,
             platform=platform,
             competitor_id=None,
@@ -152,7 +154,18 @@ def _run_platform_queries(
             response_text=response_text,
             brand_detected=detected,
             recommendation_position=position,
-        ))
+        )
+        if platform == "perplexity":
+            for c in result.citations:
+                sqr.sources.append(
+                    ScanQuerySource(
+                        url=c.url,
+                        domain=normalize_domain(c.url),
+                        title=c.title,
+                        rank=c.rank,
+                    )
+                )
+        results.append(sqr)
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
     for competitor in competitors:
