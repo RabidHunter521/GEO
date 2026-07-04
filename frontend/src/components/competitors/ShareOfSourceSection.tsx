@@ -57,7 +57,7 @@ export function ShareOfSourceSection({ data }: { data: ShareOfSource }) {
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             Sources AI trusts where a competitor appears and you don&apos;t — ranked by how
-            often AI cites them. Earning a mention here is the fastest way to flip the answer.
+            often AI relies on them. Earning a mention here is the fastest way to flip the answer.
           </p>
           <div className="mt-4 divide-y">
             {data.acquisition_list.map((s) => (
@@ -77,7 +77,7 @@ export function ShareOfSourceSection({ data }: { data: ShareOfSource }) {
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                  cited {s.citation_count}×
+                  seen in {s.citation_count} answers
                 </span>
               </div>
             ))}
