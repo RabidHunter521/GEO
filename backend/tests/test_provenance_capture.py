@@ -61,6 +61,7 @@ def test_capture_writes_pending_sources_for_perplexity_client_queries(db):
          patch.object(scan_service, "record_llm_usage"), \
          patch.object(scan_service, "extract_position", return_value=None), \
          patch("app.services.remediation_service.sync_remediation_items"), \
+         patch("app.services.provenance_service.enrich_scan_sources"), \
          patch.object(scan_service, "_INTER_QUERY_DELAY_SECONDS", 0):
         scan_service.run_scan(scan.id, db)
 
