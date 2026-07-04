@@ -619,3 +619,34 @@ export interface DimensionAssessment {
   generated_at: string
   reviewed_at: string | null
 }
+
+// ── Citation Provenance / Share-of-Source ─────────────────────────────────────
+
+export interface SourcePresence {
+  competitor_id: string
+  name: string
+}
+
+export interface AcquisitionSource {
+  url: string
+  domain: string
+  title: string | null
+  citation_count: number
+  competitors_present: SourcePresence[]
+}
+
+export interface BrandShare {
+  competitor_id: string | null
+  name: string
+  sources_present: number
+  share_pct: number
+}
+
+export interface ShareOfSource {
+  last_scan_at: string | null
+  total_third_party_sources: number
+  client_share: BrandShare | null
+  competitor_shares: BrandShare[]
+  acquisition_list: AcquisitionSource[]
+  flip_targets: AcquisitionSource[]
+}

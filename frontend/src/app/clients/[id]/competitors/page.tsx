@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { getCompetitorIntelligence, getCompetitorTrends, getWinLoss } from "@/lib/api"
+import { getCompetitorIntelligence, getCompetitorTrends, getWinLoss, getProvenance } from "@/lib/api"
 import { VisibilityTrendChart } from "@/components/competitors/VisibilityTrendChart"
 import { WinLossSection } from "@/components/competitors/WinLossSection"
+import { ShareOfSourceSection } from "@/components/competitors/ShareOfSourceSection"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 
 interface Props {
@@ -20,10 +21,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 export default async function CompetitorsPage({ params }: Props) {
   const { id } = await params
 
-  const [data, winLoss, trends] = await Promise.all([
+  const [data, winLoss, trends, provenance] = await Promise.all([
     getCompetitorIntelligence(id).catch(() => null),
     getWinLoss(id).catch(() => null),
     getCompetitorTrends(id).catch(() => null),
+    getProvenance(id).catch(() => null),
   ])
 
   if (!data) {
@@ -169,6 +171,9 @@ export default async function CompetitorsPage({ params }: Props) {
 
       {/* Win/loss by query */}
       {winLoss && <WinLossSection clientId={id} data={winLoss} />}
+
+      {/* Share of Source */}
+      {provenance && <ShareOfSourceSection data={provenance} />}
 
       {/* Competitor cards */}
       <div className="space-y-4">
