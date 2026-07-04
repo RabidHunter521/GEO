@@ -338,6 +338,16 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         from app.services.remediation_service import sync_remediation_items
         sync_remediation_items(client.id, db)
 
+        # Citation provenance enrichment — fetch cited third-party pages and
+        # brand-match them. Best-effort: on failure roll back and swallow so a
+        # slow/blocked fetch never undoes a good scan (CLAUDE.md §10).
+        try:
+            from app.services.provenance_service import enrich_scan_sources
+            enrich_scan_sources(scan.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("scan_sources_enrichment_failed", scan_id=str(scan_id), error=str(exc))
+
     except Exception as exc:
         # The session may hold a failed transaction — reset it so the
         # status update below can actually commit.

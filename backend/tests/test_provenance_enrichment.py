@@ -7,7 +7,38 @@ from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
 from app.services import provenance_service as ps
+from app.services import scan_service
+from app.services.platform_clients.base import PlatformResult, SourceCitation
 from app.services.url_safety import SafeResponse, UnsafeUrlError
+
+
+class _FakePerplexity:
+    platform = "perplexity"
+
+    def query(self, prompt):
+        return PlatformResult(text="x", model="sonar", input_tokens=1, output_tokens=1,
+                              citations=(SourceCitation(url="https://g2.com/a", title=None, rank=1),))
+
+
+def test_enrichment_failure_leaves_scan_completed(db):
+    c = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com",
+               industry="dentist", enabled_platforms=["perplexity"])
+    db.add(c)
+    scan = Scan(id=uuid.uuid4(), client_id=c.id, status="pending")
+    db.add(scan)
+    db.commit()
+
+    with patch.object(scan_service, "get_platform_client", return_value=_FakePerplexity()), \
+         patch.object(scan_service, "record_llm_usage"), \
+         patch.object(scan_service, "extract_position", return_value=None), \
+         patch("app.services.remediation_service.sync_remediation_items"), \
+         patch.object(scan_service, "_INTER_QUERY_DELAY_SECONDS", 0), \
+         patch("app.services.provenance_service.enrich_scan_sources",
+               side_effect=RuntimeError("boom")):
+        scan_service.run_scan(scan.id, db)
+
+    db.refresh(scan)
+    assert scan.status == "completed"
 
 
 def _setup(db, urls):
