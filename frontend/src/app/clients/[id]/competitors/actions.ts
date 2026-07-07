@@ -2,8 +2,8 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { generateContentBrief } from "@/lib/api"
-import type { ContentBrief } from "@/types"
+import { generateContentBrief, getAIReadiness } from "@/lib/api"
+import type { CompetitorAIReadiness, ContentBrief } from "@/types"
 
 export async function generateBriefAction(
   clientId: string,
@@ -12,4 +12,10 @@ export async function generateBriefAction(
   const brief = await generateContentBrief(clientId, resultId)
   revalidatePath(`/clients/${clientId}/competitors`)
   return brief
+}
+
+export async function checkAIReadinessAction(
+  clientId: string,
+): Promise<CompetitorAIReadiness> {
+  return getAIReadiness(clientId)
 }

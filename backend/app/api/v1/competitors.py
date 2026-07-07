@@ -9,6 +9,7 @@ from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.schemas.ai_readiness import CompetitorAIReadinessResponse
 from app.schemas.competitor import (
     CompetitorCreate,
     CompetitorResponse,
@@ -18,6 +19,7 @@ from app.schemas.competitor import (
     WinLossResponse,
 )
 from app.schemas.provenance import ShareOfSourceResponse
+from app.services.ai_readiness_service import compute_competitor_ai_readiness
 from app.services.brand_detection import detect_brand_mention
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
@@ -68,6 +70,16 @@ def get_trends(client_id: uuid.UUID, db: Session = Depends(get_db)):
 def get_provenance(client_id: uuid.UUID, db: Session = Depends(get_db)):
     _get_client_or_404(client_id, db)
     return compute_share_of_source(client_id, db)
+
+
+@router.get(
+    "/ai-readiness",
+    response_model=CompetitorAIReadinessResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_ai_readiness(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    _get_client_or_404(client_id, db)
+    return compute_competitor_ai_readiness(client_id, db)
 
 
 @router.post(

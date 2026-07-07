@@ -650,3 +650,17 @@ export interface ShareOfSource {
   acquisition_list: AcquisitionSource[]
   flip_targets: AcquisitionSource[]
 }
+
+export interface SiteAIReadiness {
+  name: string
+  website: string | null
+  checked: boolean
+  has_llms_txt: boolean
+  blocked_ai_bots: string[]
+  schema_types: string[]
+}
+
+export interface CompetitorAIReadiness {
+  client: SiteAIReadiness
+  competitors: SiteAIReadiness[]
+}
