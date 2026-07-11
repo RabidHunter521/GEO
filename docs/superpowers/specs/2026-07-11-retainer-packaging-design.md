@@ -36,6 +36,12 @@ than deriving fresh. So: a new table whose rows are **born client-safe**.
 
 ### 3.2 Model
 
+**Decision (locked 2026-07-11):** the work log is manual-first. Faris drives what a
+client sees; system events create *suggestions* he reviews, edits, and explicitly
+publishes — they never go client-visible on their own. This mirrors the existing
+assessment_service pattern (Claude suggests, admin accepts/adjusts) rather than
+inventing a new trust model.
+
 `backend/app/models/work_log_entry.py`:
 
 ```python
@@ -44,21 +50,29 @@ class WorkLogEntry(Base):
     id          UUID pk
     client_id   UUID fk clients.id CASCADE, index
     category    String(32)   # technical | content | authority | visibility | correction
-    description Text         # client-safe, sanitized at write time
+    description Text         # client-safe, sanitized at write time; admin-editable pre-publish
     source      String(16)   # auto | manual
-    source_ref  String(128) nullable  # "<event_type>:<entity id>" for dedupe of auto entries
-    visible     Boolean default True  # admin can hide without deleting
-    entry_date  Date         # when the work happened (editable for manual entries)
+    source_ref  String(128) nullable  # "<event_type>:<entity id>" for dedupe of auto suggestions
+    status      String(16) default "suggested"  # suggested | published | dismissed
+    entry_date  Date         # when the work happened (editable pre-publish)
     created_at  datetime
+    published_at datetime nullable
 ```
 
 Migration with RLS. Unique partial index on `(client_id, source_ref)` where source_ref
-not null — auto-generation is idempotent.
+not null — auto-suggestion is idempotent (a re-fired trigger updates the existing
+`suggested` row's content rather than creating a duplicate; it never touches a row
+that's already `published` or `dismissed`, so editing a suggestion and publishing it
+is never silently overwritten by the same trigger firing again later).
 
-### 3.3 Auto entries
+Only `status = "published"` entries are ever client-visible (progress tab, report v2
+sections) — `suggested` and `dismissed` are both admin-only states.
 
-A small `work_log_service.record(...)` is called at the same commit points that already
-write ActivityLog, for this whitelist (mapping → client-safe template):
+### 3.3 Auto-suggested entries
+
+A small `work_log_service.suggest(...)` is called at the same commit points that
+already write ActivityLog, for this whitelist (mapping → client-safe template).
+It writes/updates a `status="suggested"` row — never `published`.
 
 | Trigger (exists today / phase) | Category | Template |
 |---|---|---|
@@ -71,32 +85,41 @@ write ActivityLog, for this whitelist (mapping → client-safe template):
 | scan: query flipped to Seen by AI (Phase 1 diff data / scan_diff_service) | visibility | "Now seen by AI for: “{query_text}”" |
 
 Every template passes through `language_sanitizer` at write time anyway (belt and
-braces). Failures to write a work-log entry are best-effort: catch, rollback,
-swallow — never undo the triggering operation (CLAUDE.md §10 workers rule applies
-to this exactly).
+braces — the admin will also see and can edit the text before publishing). Failures
+to write a suggestion are best-effort: catch, rollback, swallow — never undo the
+triggering operation (CLAUDE.md §10 workers rule applies to this exactly).
 
 **Manual entries:** Faris does plenty outside the app (a guest post, a directory
-submission phone call). `POST` a manual entry with category + description + date.
+submission phone call). `POST` a manual entry with category + description + date —
+manual entries are created directly as `published` (typing it in is the deliberate
+publish action; no separate review step for something he wrote himself).
 
 ### 3.4 API + admin UI
 
-- `GET/POST /api/v1/clients/{id}/work-log`, `PATCH .../work-log/{id}` (edit
-  description/visible/date — manual entries only editable; auto entries can only be
-  hidden). Admin-only routes.
+- `GET /api/v1/clients/{id}/work-log?status=` — list, filterable (admin UI defaults
+  to showing `suggested` + `published` together, grouped).
+- `POST /api/v1/clients/{id}/work-log` — create a manual entry (`published` immediately).
+- `PATCH /api/v1/clients/{id}/work-log/{id}` — edit description/category/entry_date
+  (allowed on `suggested` and `published`, so a mistake can still be fixed after
+  publish) and transition `status` (`suggested → published`, `suggested → dismissed`,
+  `published → dismissed` as an undo). Admin-only routes.
 - Admin surface: a "Work log" card on `/clients/[id]/activity` (existing page, new
-  section above the raw activity list) — add entry form + visibility toggles. No new
-  admin nav page.
+  section above the raw activity list): a "Suggested" queue (edit inline, Publish /
+  Dismiss buttons per row) above a "Published" timeline (edit / unpublish). Add-entry
+  form for manual entries. No new admin nav page.
 
 ### 3.5 Client view tab
 
 New public tab `/view/[token]/progress` (CLAUDE.md §9 public list updated):
 
-- Timeline of visible entries grouped by month, category chips, newest first.
+- Timeline of `published` entries grouped by month, category chips, newest first.
 - Header stat row: "This month: N improvements" + per-category counts.
 - Served by `client_view.py` via a whitelisted `WorkLogEntryPublic` schema
   (description, category, entry_date only — no ids beyond what rendering needs, no
-  source/notes). Same uniform-404 token rules; the tab appears in the share-view nav
-  only when ≥ 1 visible entry exists (no empty-state embarrassment for new clients).
+  source/status/notes). Same uniform-404 token rules; the tab appears in the
+  share-view nav only when ≥ 1 published entry exists (no empty-state embarrassment
+  for new clients, and no chance of a stray `suggested` row leaking client-side —
+  the query filters on status at the source, not just in the schema).
 
 ## 4. Monthly report v2 — new sections
 
@@ -106,7 +129,10 @@ data; an empty phase yields no empty header.** Order in the PDF, after the exist
 score/dimension pages:
 
 1. **Work delivered this month** — the work log summary: per-category counts + up to
-   10 visible entries. (Source: WorkLogEntry. Available immediately in this phase.)
+   10 `published` entries. (Source: WorkLogEntry. Available immediately in this phase.
+   A client with unreviewed `suggested` entries just shows less this month — that's
+   the intended cost of manual-first: nothing reaches a report without Faris publishing
+   it first.)
 2. **Technical health** — latest SiteAudit vs the last one before the period:
    passed/warned/failed counts, list of checks fixed this period. (Source: P2.)
 3. **Content delivered** — reviewed ContentDeliverables + page-audit score
@@ -143,19 +169,27 @@ Generated once at build, persisted on the report — behavior unchanged.
 
 - Section gather failures: caught per-section, section skipped, structlog warning,
   report still builds and still goes to admin review.
-- Work-log auto-writes: best-effort post-commit pattern (catch, rollback, swallow).
-- Progress tab with a valid token but zero entries: tab hidden from nav; direct URL
-  renders the overview-consistent empty state (not 404 — the token is valid).
+- Work-log auto-suggest writes: best-effort post-commit pattern (catch, rollback,
+  swallow) — a failed suggestion never blocks or undoes the triggering operation.
+- Progress tab with a valid token but zero *published* entries (including a client
+  with only `suggested` rows sitting in the admin queue): tab hidden from nav; direct
+  URL renders the overview-consistent empty state (not 404 — the token is valid).
 - All new public schemas whitelisted in client_view; never raw internal fields
   (CLAUDE.md §8-9).
 
 ## 7. Testing
 
 `test_work_log_service.py`:
-1. Auto entry idempotence (same source_ref twice → one row).
+1. Auto-suggestion idempotence (same source_ref twice → one row updated, not
+   duplicated); firing again after the row is `published` or `dismissed` leaves it
+   untouched (never regresses a reviewed entry back to `suggested`).
 2. Sanitizer applied (inject banned word into a template arg → cleaned).
-3. Failure in work-log write doesn't roll back the triggering commit.
-4. Manual entry CRUD; auto entries reject description edits, allow hide.
+3. Failure in a suggestion write doesn't roll back the triggering commit.
+4. Manual entry is created `published` immediately, no review step.
+5. Status transitions: suggested→published (sets published_at), suggested→dismissed,
+   published→dismissed (undo); dismissed entries never resurface client-side.
+6. Editing a `suggested` row's description before publish persists the edit, not the
+   original template text.
 
 `test_report_v2.py`:
 5. Client with all phases populated → all six sections present in HTML.
@@ -164,9 +198,10 @@ Generated once at build, persisted on the report — behavior unchanged.
 8. Period boundaries: entry dated outside the 30-day window excluded.
 
 `test_client_view.py` additions:
-9. Progress schema exposes exactly (description, category, entry_date); hidden
-   entries absent; invalid token → uniform 404.
-10. Overview improvement line present only when count > 0.
+9. Progress schema exposes exactly (description, category, entry_date); `suggested`
+   and `dismissed` entries absent (query-level filter, not just schema); invalid
+   token → uniform 404.
+10. Overview improvement line present only when published count > 0.
 
 Banned-language grep across all new templates; seenby-verify; then a full
 generate-review-send walkthrough with the demo client before calling it done.

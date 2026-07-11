@@ -55,14 +55,24 @@ One migration, RLS enabled. `(client_id, asset_key)` unique where asset_key not 
 **Client model change:** add `phone: String(64) nullable` (canonical NAP needs it;
 city/state/country already exist). Settings page gains the field.
 
-## 4. Default catalog
+## 4. Master catalog — admin picks per client
+
+**Decision (locked 2026-07-11):** the catalog is a *master reference list*, not an
+auto-seeded default. Faris's clients span different industries (e.g. healthcare vs.
+logistics vs. general SME) and a one-size-fits-all list would put irrelevant
+directories in front of every client. So: nothing is created for a client until the
+admin explicitly selects it.
 
 `AUTHORITY_ASSET_CATALOG` in `core/constants.py` — list of
-`{key, name, type, provenance_domain, url_hint}`. Initial set (Malaysia-first, per
-target market):
+`{key, name, type, provenance_domain, url_hint, suggested_industries}`, where
+`suggested_industries` is a list of free-text hints (e.g. `["healthcare", "clinic"]`)
+used only to sort the picker, never to auto-select. Initial master set (Malaysia-first,
+per target market — trim or extend freely per client, this list is a starting menu
+not a requirement):
 
 - **directory:** Crunchbase, Clutch, Yellow Pages Malaysia (`yellowpages.my`),
-  Malaysia SME directory (`smecorp.gov.my` listing hint), Foursquare/Apple Maps hint
+  Malaysia SME directory (`smecorp.gov.my` listing hint), Foursquare/Apple Maps hint,
+  MyHEALTH / MMC-listed clinic directories (`suggested_industries: ["healthcare"]`)
 - **review_platform:** Google Business Profile (`google.com` — ONE asset carrying the
   GBP listing status AND its review snapshots), Trustpilot, Facebook page reviews
 - **social:** LinkedIn company page, YouTube channel, Facebook page, Instagram
@@ -71,10 +81,16 @@ target market):
   check works standalone too)
 - **media:** industry blog/news mention target (free-slot template)
 
-Catalog rows are **seeded lazily**: first GET of the authority page creates missing
-catalog assets for that client as `missing`. Admin can add custom assets and archive
-irrelevant ones (soft: status stays, plus a `hidden` boolean — decided: add
-`hidden Boolean default False` to the model rather than deleting, so history survives).
+**Flow:** on `/clients/[id]/authority` first visit with zero assets, show a picker
+(catalog grouped by type, sorted by `suggested_industries` matching `client.industry`
+as a soft hint, but every item selectable regardless) with checkboxes + "Add selected".
+Only checked items become `AuthorityAsset` rows (`missing`). The picker stays reachable
+afterward ("Add from catalog" button) so the admin can add more later, plus a fully
+custom asset form for anything not in the catalog. Nothing is auto-created — the
+authority page can legitimately be empty until the admin acts on it.
+
+Admin can archive irrelevant assets already added (soft: status stays, plus a `hidden`
+boolean rather than deleting, so history survives).
 
 ## 5. Provenance-driven priorities
 
@@ -126,9 +142,13 @@ gets real evidence; the admin still reviews. No formula/weight change.
 ## 8. API
 
 `backend/app/api/v1/authority.py`:
-- `GET /api/v1/clients/{id}/authority` — assets (seeding on first call) + provenance
-  counts + suggested-next rail.
-- `POST /api/v1/clients/{id}/authority` — add custom asset.
+- `GET /api/v1/clients/{id}/authority` — assets already added for this client +
+  provenance counts + suggested-next rail. Never auto-creates rows.
+- `GET /api/v1/clients/{id}/authority/catalog` — full master catalog with an `added`
+  flag per item (already an AuthorityAsset for this client or not), sorted by
+  `suggested_industries` match against `client.industry`.
+- `POST /api/v1/clients/{id}/authority` — add one or more assets, either
+  `{asset_key}` (from catalog) or `{name, asset_type, ...}` (fully custom).
 - `PATCH /api/v1/clients/{id}/authority/{asset_id}` — status, url, notes, hidden.
 - `POST /api/v1/clients/{id}/authority/{asset_id}/verify` — crawler check.
 - `POST /api/v1/clients/{id}/authority/{asset_id}/review-snapshot` — `{rating, count}`.
@@ -140,7 +160,11 @@ Admin-only. Client view: nothing in this phase (Phase 5 decides what surfaces).
 New admin page `/clients/[id]/authority` — "Authority & Presence" (CLAUDE.md §9
 updated in the same PR):
 
-- **Suggested next** rail on top (provenance-driven, dismissible per item).
+- **Empty state:** "Add from catalog" picker (checkboxes, industry-sorted) + custom
+  asset form. Shown whenever the client has zero assets, and always reachable via a
+  persistent "Add more" button once assets exist.
+- **Suggested next** rail on top (provenance-driven, dismissible per item) — only
+  renders once at least one asset exists.
 - Assets table grouped by type: name, status select, URL field, provenance badge,
   NAP warning chip when flagged, verify button, last-checked.
 - Review platforms show the rating/count sparkline + "Add this month's numbers" inline
@@ -154,31 +178,36 @@ shadcn/ui, api.ts, types/index.ts as always.
 - Verify failures (timeout, SSRF-blocked, non-200) → asset untouched except
   `last_checked_at`; response carries a human "couldn't reach the page" note. Never
   auto-downgrade a status on a failed check.
-- Seeding is idempotent (upsert by (client_id, asset_key)); concurrent first-loads
-  can't duplicate (unique constraint + on-conflict skip).
+- Adding from catalog is idempotent (upsert by (client_id, asset_key)); re-adding an
+  already-added catalog item is a no-op (unique constraint + on-conflict skip), and
+  the catalog picker excludes items already added so this is mostly unreachable via UI.
 - Provenance aggregation failure degrades to the plain checklist (badge-less), never
   a 500 — same isolation philosophy as scan post-commit steps.
 
 ## 11. Testing
 
 `test_authority_service.py`:
-1. Lazy seeding creates full catalog once; second call adds nothing.
-2. Verify: fixture page with client name → verified; without → stays live + note.
-3. NAP: fixture with different phone digits → mismatch flag; same digits formatted
+1. New client has zero assets; catalog endpoint lists all items with `added=False`.
+2. Adding selected catalog keys creates exactly those rows; re-adding an already-added
+   key is a no-op (idempotent upsert).
+3. Custom asset creation (no asset_key) works and doesn't collide with catalog keys.
+4. Verify: fixture page with client name → verified; without → stays live + note.
+5. NAP: fixture with different phone digits → mismatch flag; same digits formatted
    differently ("+60 3-1234 5678" vs "0312345678" style, digits-suffix compare) → no flag.
-4. Provenance counts: seeded scan_query_source rows roll up per domain; suggested-next
-   excludes covered domains.
-5. Review snapshot append + ordering.
-6. Status transition writes activity log.
-API tests for all five routes; migration up/down (both tables' RLS);
+6. Provenance counts: seeded scan_query_source rows roll up per domain; suggested-next
+   excludes covered domains; suggested-next only computed when ≥1 asset exists.
+7. Review snapshot append + ordering.
+8. Status transition writes activity log.
+API tests for all six routes; migration up/down (both tables' RLS);
 banned-language grep; seenby-verify before merge.
 
 ## 12. Build order
 
 1. Migration (authority_assets + client.phone, RLS).
-2. Catalog constants + seeding + CRUD service/API + tests.
+2. Catalog constants + catalog/add/CRUD service/API + tests (no auto-seeding).
 3. Verify + NAP + review snapshots + tests.
 4. Provenance aggregation + suggested-next + tests.
 5. Assessment prompt context block.
-6. Frontend page + settings phone field + §9 update.
-7. seenby-verify + live walkthrough (verify a real GBP/LinkedIn URL).
+6. Frontend page (catalog picker + assets table) + settings phone field + §9 update.
+7. seenby-verify + live walkthrough: add a real client's assets from the picker,
+   verify a real GBP/LinkedIn URL.
