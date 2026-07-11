@@ -25,7 +25,6 @@ from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.content_analysis import ContentAnalysis
 from app.models.geo_score import GeoScore
-from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.prompts.action_center import DIMENSIONS, build as build_prompt
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences

@@ -22,7 +22,6 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.constants import REMEDIATION_STATUSES
-from app.models.client import Client
 from app.models.remediation_item import RemediationItem
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
