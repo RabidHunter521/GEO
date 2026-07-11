@@ -4,6 +4,7 @@ from sqlalchemy import Date, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class AiTrafficSnapshot(Base):
@@ -21,5 +22,5 @@ class AiTrafficSnapshot(Base):
     # First day of the month this snapshot covers, e.g. 2026-06-01
     period: Mapped[date] = mapped_column(Date, nullable=False)
     ai_visitors: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)

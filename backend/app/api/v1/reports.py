@@ -1,6 +1,5 @@
 import re
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
@@ -12,6 +11,7 @@ from app.models.client import Client
 from app.models.report import Report
 from app.schemas.report import ReportResponse
 from app.services.r2_service import presigned_pdf_url
+from app.core.time import utcnow
 
 router = APIRouter(prefix="/clients/{client_id}/reports", tags=["reports"])
 
@@ -34,7 +34,7 @@ def download_scorecard(client_id: uuid.UUID, db: Session = Depends(get_db)):
             detail="No scan data available to build a scorecard for this client.",
         )
     slug = re.sub(r"[^A-Za-z0-9]+", "-", c.name).strip("-") or "client"
-    filename = f"SeenBy-Scorecard-{slug}-{datetime.utcnow():%Y%m%d}.pdf"
+    filename = f"SeenBy-Scorecard-{slug}-{utcnow():%Y%m%d}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

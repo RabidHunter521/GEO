@@ -1,3 +1,4 @@
+from app.core.time import utcnow
 # backend/app/services/retention_service.py
 """Data-retention housekeeping (CLAUDE.md §8).
 
@@ -7,7 +8,7 @@
 - Clients are hard-deleted 6 months after they are archived (churned). Child
   rows cascade via the FK ondelete=CASCADE on every child table.
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import structlog
 from sqlalchemy import update
@@ -26,7 +27,7 @@ def purge_raw_responses(db: Session) -> int:
     Returns the number of rows updated. created_at is stored as naive UTC, so
     the threshold is naive UTC to match.
     """
-    threshold = datetime.utcnow() - timedelta(days=RAW_RESPONSE_RETENTION_DAYS)
+    threshold = utcnow() - timedelta(days=RAW_RESPONSE_RETENTION_DAYS)
     result = db.execute(
         update(ScanQueryResult)
         .where(
@@ -51,7 +52,7 @@ def delete_churned_clients(db: Session) -> int:
     Deleting the parent triggers ON DELETE CASCADE for scans, scan results,
     geo scores, competitors, reports, activity, etc. Returns the count deleted.
     """
-    threshold = datetime.utcnow() - timedelta(days=CHURN_DELETE_DAYS)
+    threshold = utcnow() - timedelta(days=CHURN_DELETE_DAYS)
     clients = (
         db.query(Client)
         .filter(Client.archived_at.isnot(None), Client.archived_at < threshold)

@@ -4,6 +4,7 @@ from sqlalchemy import Float, String, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ActionRecommendation(Base):
@@ -28,5 +29,5 @@ class ActionRecommendation(Base):
     priority: Mapped[str] = mapped_column(String(10), default="medium")
     # open | done | dismissed | superseded
     status: Mapped[str] = mapped_column(String(20), default="open")
-    generated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    generated_at: Mapped[datetime] = mapped_column(default=utcnow)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)

@@ -1,12 +1,13 @@
 import uuid
 import structlog
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from workers.celery_app import celery_app
 from app.core.database import SessionLocal
 from app.models.client import Client
 from app.models.report import Report
 from app.services.report_service import generate_report_pdf
+from app.core.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -88,5 +89,5 @@ def _is_report_due(client: Client, db: Session) -> bool:
         .first()
     )
     reference = last_report.generated_at if last_report else client.created_at
-    return datetime.utcnow() >= reference + timedelta(days=30)
+    return utcnow() >= reference + timedelta(days=30)
 

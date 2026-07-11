@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 import structlog
 from workers.celery_app import celery_app
 from app.core.database import SessionLocal
@@ -9,6 +8,7 @@ from app.models.content_roadmap import ContentRoadmap
 from app.models.activity_log import ActivityLog
 from app.services.content_analysis_service import analyze_content
 from app.services.content_roadmap_service import generate_roadmap
+from app.core.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -37,7 +37,7 @@ def run_content_analysis(client_id: str, analysis_id: str) -> dict:
             analysis.content_metrics_json = payload["content_metrics_json"]
             analysis.content_quality_recommendation = payload["content_quality_recommendation"]
             analysis.pages_crawled = payload["pages_crawled"]
-            analysis.analyzed_at = datetime.utcnow()
+            analysis.analyzed_at = utcnow()
             analysis.status = "completed"
 
             db.add(ActivityLog(
@@ -79,7 +79,7 @@ def run_content_roadmap(client_id: str, roadmap_id: str) -> dict:
 
             roadmap.roadmap_json = payload["roadmap_json"]
             roadmap.source_query_count = payload["source_query_count"]
-            roadmap.generated_at = datetime.utcnow()
+            roadmap.generated_at = utcnow()
             roadmap.status = "completed"
 
             db.add(ActivityLog(

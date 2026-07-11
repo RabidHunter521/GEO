@@ -1,10 +1,11 @@
 # backend/tests/test_budget_service.py
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from app.models.llm_call_log import LlmCallLog
 from app.services import budget_service
+from app.core.time import utcnow
 
 
 def _log(db, client_id, cost, days_ago=0):
@@ -16,7 +17,7 @@ def _log(db, client_id, cost, days_ago=0):
         input_tokens=1,
         output_tokens=1,
         cost_usd=Decimal(str(cost)),
-        called_at=datetime.utcnow() - timedelta(days=days_ago),
+        called_at=utcnow() - timedelta(days=days_ago),
     )
     db.add(row)
     db.commit()

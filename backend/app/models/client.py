@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS
+from app.core.time import utcnow
 
 
 class Client(Base):
@@ -56,7 +57,7 @@ class Client(Base):
     # to re-copy the link from settings at any time. NULL = no active link.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # Free-text admin notes (CRM-style). Admin-only — never exposed in client view.
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)

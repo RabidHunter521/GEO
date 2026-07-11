@@ -1,5 +1,4 @@
 # backend/tests/test_circuit_breaker.py
-from unittest.mock import patch
 
 import pytest
 

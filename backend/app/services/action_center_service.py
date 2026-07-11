@@ -1,3 +1,4 @@
+from app.core.time import utcnow
 # backend/app/services/action_center_service.py
 """Claude-powered GEO Action Center: 3-5 prioritized actions with an estimated
 score impact, regenerated after every completed scan.
@@ -9,7 +10,6 @@ the numbers stay internally consistent and auditable without requiring Claude to
 estimate a precise float.
 """
 import json
-from datetime import datetime
 
 import structlog
 from sqlalchemy.orm import Session
@@ -146,7 +146,7 @@ def refresh_actions_for_client(client: Client, geo_score: GeoScore, db: Session)
     )
     for action in open_actions:
         action.status = "superseded"
-        action.resolved_at = datetime.utcnow()
+        action.resolved_at = utcnow()
 
     new_actions = generate_actions(client, geo_score, db)
     for action in new_actions:
@@ -158,7 +158,7 @@ def refresh_actions_for_client(client: Client, geo_score: GeoScore, db: Session)
             estimated_impact=action["estimated_impact"],
             priority=action["priority"],
             status="open",
-            generated_at=datetime.utcnow(),
+            generated_at=utcnow(),
         ))
 
     db.commit()

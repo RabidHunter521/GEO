@@ -285,8 +285,8 @@ def test_get_result_snippet_returns_png():
     def fake_get_db():
         yield mock_db
 
-    with patch("app.api.v1.scans.snippet_service.build_excerpt", return_value="Acme Dental is the best clinic in KL.") as mock_excerpt, \
-         patch("app.api.v1.scans.snippet_service.render_snippet_png", return_value=PNG_MAGIC + b"\x00" * 2000) as mock_render:
+    with patch("app.api.v1.scans.snippet_service.build_excerpt", return_value="Acme Dental is the best clinic in KL."), \
+         patch("app.api.v1.scans.snippet_service.render_snippet_png", return_value=PNG_MAGIC + b"\x00" * 2000):
         app.dependency_overrides[get_db] = fake_get_db
         app.dependency_overrides[require_api_key] = lambda: None
         http_client = TestClient(app)

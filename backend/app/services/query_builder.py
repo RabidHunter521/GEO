@@ -30,12 +30,14 @@ def build_client_queries(client, competitors: list) -> list[dict]:
     location = _location(client)
     locality = _locality(client)
 
-    for template in QUERY_TEMPLATES["brand"]:
-        queries.append({
+    queries.extend(
+        {
             "category": "brand",
             "query_text": template.format(brand=client.name),
             "competitor_id": None,
-        })
+        }
+        for template in QUERY_TEMPLATES["brand"]
+    )
 
     for i, template in enumerate(QUERY_TEMPLATES["comparison"]):
         if i < len(competitors):
@@ -48,20 +50,24 @@ def build_client_queries(client, competitors: list) -> list[dict]:
     # Location/local queries are skipped entirely when no location is known, so
     # a client with no city never gets "Best <industry> in None" garbage queries.
     if location:
-        for template in QUERY_TEMPLATES["recommendation"]:
-            queries.append({
+        queries.extend(
+            {
                 "category": "recommendation",
                 "query_text": template.format(industry=client.industry, location=location),
                 "competitor_id": None,
-            })
+            }
+            for template in QUERY_TEMPLATES["recommendation"]
+        )
 
     if locality:
-        for template in QUERY_TEMPLATES["local"]:
-            queries.append({
+        queries.extend(
+            {
                 "category": "local",
                 "query_text": template.format(industry=client.industry, city=locality),
                 "competitor_id": None,
-            })
+            }
+            for template in QUERY_TEMPLATES["local"]
+        )
 
     return queries
 

@@ -4,6 +4,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
+from app.core.time import utcnow
 
 if TYPE_CHECKING:
     # Type-only import — the runtime import stays lazy inside _gather_report_data
@@ -630,7 +631,7 @@ def _build_dim_bars_html(data: "ReportData") -> str:
 
 
 def _gather_report_data(client: Client, db: Session) -> ReportData | None:
-    since = datetime.utcnow() - timedelta(days=30)
+    since = utcnow() - timedelta(days=30)
 
     latest_scan: Scan | None = (
         db.query(Scan)
@@ -735,7 +736,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         client, current_gs.ai_citability, prev_gs.ai_citability if prev_gs else None
     )
 
-    now = datetime.utcnow()
+    now = utcnow()
 
     current_period = now.date().replace(day=1)
     prev_period = (current_period - timedelta(days=1)).replace(day=1)
@@ -985,11 +986,11 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         )
     else:
         visitor_stat = (
-            f'<div class="stat-block">'
-            f'<div class="stat-label">AI Visitors This Month</div>'
-            f'<div class="stat-value" style="font-size:16pt;color:#64748b;">Tracking begins soon</div>'
-            f'<div class="stat-sub">We&rsquo;re connecting your analytics to measure visitors arriving'
-            f' via ChatGPT, Perplexity, Gemini and Claude.</div></div>'
+            '<div class="stat-block">'
+            '<div class="stat-label">AI Visitors This Month</div>'
+            '<div class="stat-value" style="font-size:16pt;color:#64748b;">Tracking begins soon</div>'
+            '<div class="stat-sub">We&rsquo;re connecting your analytics to measure visitors arriving'
+            ' via ChatGPT, Perplexity, Gemini and Claude.</div></div>'
         )
 
     if data.pipeline is not None:
@@ -1081,7 +1082,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             f'{open_count} open question{"s" if open_count != 1 else ""} where AI recommends'
             f' a competitor but not {safe_name}. We&rsquo;re working each one back.'
             if open_count else
-            f'No open competitor-won questions this period &mdash; nice work.'
+            'No open competitor-won questions this period &mdash; nice work.'
         )
         content_gap_section = (
             f'<h2>Your Competitors Are Winning Here</h2>'
@@ -1114,7 +1115,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
     # ── Gauge SVG + generated date ─────────────────────────────────────────
     gauge_svg = _build_gauge_svg(data.overall_score)
-    generated_date = datetime.utcnow().strftime("%d %B %Y")
+    generated_date = utcnow().strftime("%d %B %Y")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1267,7 +1268,7 @@ body {
 def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
     safe_name = html.escape(client.name)
     safe_narrative = html.escape(data.change_narrative or "")
-    generated_date = datetime.utcnow().strftime("%d %B %Y")
+    generated_date = utcnow().strftime("%d %B %Y")
 
     headline = (
         f"Seen by AI in {data.seen_count} of {data.total_count} buyer questions"
@@ -1406,7 +1407,7 @@ def generate_report_pdf(client_id: uuid.UUID, db: Session) -> Report | None:
     report_html = _build_report_html(client, data)
     pdf_bytes = weasyprint.HTML(string=report_html).write_pdf()
 
-    key = f"reports/{client_id}/{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
+    key = f"reports/{client_id}/{utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
     r2_url = upload_pdf(key, pdf_bytes)
 
     report = Report(
@@ -1453,7 +1454,7 @@ def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
         "attachments": [{"filename": filename, "content": pdf_bytes}],
     })
 
-    report.sent_at = datetime.utcnow()
+    report.sent_at = utcnow()
     db.add(ActivityLog(
         client_id=report.client_id,
         event_type="report_sent",

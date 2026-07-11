@@ -1,3 +1,4 @@
+from app.core.time import utcnow
 """Builds the enriched client list for the admin /clients overview.
 
 Each client is decorated with its latest + previous GeoScore (for portfolio
@@ -102,7 +103,7 @@ def build_client_list(db: Session) -> list[ClientListItem]:
                 latest_scan_status=latest_scan.status if latest_scan else None,
                 latest_scan_triggered_at=latest_scan.triggered_at if latest_scan else None,
                 next_scan_due=next_due,
-                is_scan_overdue=bool(next_due and next_due < datetime.utcnow()),
+                is_scan_overdue=bool(next_due and next_due < utcnow()),
             )
         )
     return items

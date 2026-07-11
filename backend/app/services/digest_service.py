@@ -1,7 +1,7 @@
 import html
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import structlog
@@ -20,6 +20,7 @@ from app.services.proof_card_service import select_proof_cards
 from app.services.share_link_service import get_share_link_url
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.headline_battle_service import select_headline_battle
+from app.core.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -64,7 +65,7 @@ def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
         .filter(
             ActivityLog.client_id == client_id,
             ActivityLog.event_type == "digest_sent",
-            ActivityLog.created_at >= datetime.utcnow() - timedelta(days=6),
+            ActivityLog.created_at >= utcnow() - timedelta(days=6),
         )
         .first()
     )
@@ -103,7 +104,7 @@ def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
 
 
 def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
-    since = datetime.utcnow() - timedelta(days=7)
+    since = utcnow() - timedelta(days=7)
 
     latest_scan: Scan | None = (
         db.query(Scan)

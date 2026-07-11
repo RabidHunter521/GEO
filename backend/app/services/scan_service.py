@@ -26,6 +26,7 @@ from app.services.scoring_service import (
     compute_geo_score,
     compute_platform_breakdown,
 )
+from app.core.time import utcnow
 
 logger = structlog.get_logger()
 
@@ -303,7 +304,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         ))
 
         scan.status = "completed"
-        scan.completed_at = datetime.utcnow()
+        scan.completed_at = utcnow()
         db.commit()
         logger.info("scan_completed", scan_id=str(scan_id), overall_score=overall)
 

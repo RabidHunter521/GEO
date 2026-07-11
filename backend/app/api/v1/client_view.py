@@ -1,3 +1,4 @@
+from app.core.time import utcnow
 """Read-only client view API — unauthenticated, gated by a 256-bit share token.
 
 The token in the URL is the credential. Invalid, revoked, and archived all
@@ -5,7 +6,7 @@ return a uniform 404 so responses never reveal which state applies. Every
 endpoint is read-only and serializes through the client_view whitelist
 schemas; raw AI responses and internal fields never reach this surface.
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from sqlalchemy.orm import Session
@@ -243,7 +244,7 @@ def get_overview(
     is_stale = False
     if last_checked_at:
         next_check_due = (last_checked_at + timedelta(days=client.scan_cadence_days)).date()
-        is_stale = (datetime.utcnow() - last_checked_at).days >= CLIENT_VIEW_STALE_AFTER_DAYS
+        is_stale = (utcnow() - last_checked_at).days >= CLIENT_VIEW_STALE_AFTER_DAYS
 
     has_progress = (
         db.query(RemediationItem.id).filter(RemediationItem.client_id == client.id).first()
@@ -251,7 +252,7 @@ def get_overview(
     )
 
     # Proof of work: how many tracked issues we've corrected this calendar month.
-    month_start = datetime.utcnow().replace(
+    month_start = utcnow().replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
     fixed_this_month = (

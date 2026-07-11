@@ -275,18 +275,3 @@ def accept_assessment(
     if row is None:
         raise HTTPException(status_code=404, detail="No assessment to accept — generate one first.")
     return row
-
-
-@router.get(
-    "/{client_id}/assessments",
-    response_model=list[AssessmentResponse],
-    dependencies=[Depends(require_api_key)],
-)
-def list_assessments(client_id: uuid.UUID, db: Session = Depends(get_db)):
-    c = db.get(Client, client_id)
-    if not c or c.archived_at is not None:
-        raise HTTPException(status_code=404, detail="Client not found")
-    return [
-        row for dimension in ASSESSABLE_DIMENSIONS
-        if (row := assessment_service.latest_assessment(client_id, dimension, db)) is not None
-    ]

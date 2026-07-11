@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
+from app.core.time import utcnow
 
 
 def _make_app():
@@ -15,7 +16,7 @@ def _make_app():
 def _fake_client(client_id, archived=False):
     m = MagicMock()
     m.id = client_id
-    m.archived_at = datetime.utcnow() if archived else None
+    m.archived_at = utcnow() if archived else None
     return m
 
 

@@ -1,10 +1,9 @@
-import html as _html
 import uuid
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from app.services.digest_service import DigestData, _build_email_html, _compute_trend, _detect_first_seen
 from app.services.headline_battle_service import HeadlineBattle
+from app.core.time import utcnow
 
 
 # ── _compute_trend ────────────────────────────────────────────────────────────
@@ -61,7 +60,7 @@ def _make_client(contact_email="client@example.com", archived=False):
     c.name = "Test Brand"
     c.industry = "Technology"
     c.contact_email = contact_email
-    c.archived_at = datetime.utcnow() if archived else None
+    c.archived_at = utcnow() if archived else None
     c.is_prospect = False
     return c
 

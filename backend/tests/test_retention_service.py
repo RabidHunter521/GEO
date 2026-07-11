@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from app.core.constants import CHURN_DELETE_DAYS, RAW_RESPONSE_RETENTION_DAYS
 from app.models.client import Client
@@ -8,6 +8,7 @@ from app.services.retention_service import (
     delete_churned_clients,
     purge_raw_responses,
 )
+from app.core.time import utcnow
 
 
 def _make_client(db, name="Acme Corp", **kwargs):
@@ -45,7 +46,7 @@ def _make_scan(db, client):
 def test_purge_nulls_only_old_responses(db):
     client = _make_client(db)
     scan = _make_scan(db, client)
-    now = datetime.utcnow()
+    now = utcnow()
     old = _make_result(db, scan, "old raw text", now - timedelta(days=RAW_RESPONSE_RETENTION_DAYS + 1))
     recent = _make_result(db, scan, "recent raw text", now - timedelta(days=1))
 
@@ -63,14 +64,14 @@ def test_purge_nulls_only_old_responses(db):
 def test_purge_is_idempotent(db):
     client = _make_client(db)
     scan = _make_scan(db, client)
-    _make_result(db, scan, "old", datetime.utcnow() - timedelta(days=RAW_RESPONSE_RETENTION_DAYS + 5))
+    _make_result(db, scan, "old", utcnow() - timedelta(days=RAW_RESPONSE_RETENTION_DAYS + 5))
 
     assert purge_raw_responses(db) == 1
     assert purge_raw_responses(db) == 0
 
 
 def test_delete_removes_only_long_archived_clients(db):
-    now = datetime.utcnow()
+    now = utcnow()
     churned = _make_client(db, name="Churned", archived_at=now - timedelta(days=CHURN_DELETE_DAYS + 1))
     recently_archived = _make_client(db, name="RecentlyArchived", archived_at=now - timedelta(days=1))
     active = _make_client(db, name="Active")
@@ -87,5 +88,5 @@ def test_delete_removes_only_long_archived_clients(db):
 
 def test_delete_noop_when_nothing_churned(db):
     _make_client(db, name="Active")
-    _make_client(db, name="RecentlyArchived", archived_at=datetime.utcnow() - timedelta(days=1))
+    _make_client(db, name="RecentlyArchived", archived_at=utcnow() - timedelta(days=1))
     assert delete_churned_clients(db) == 0

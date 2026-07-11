@@ -31,6 +31,7 @@ python-multipart = "^0.0.20"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"
 pytest-mock = "^3.14"
+ruff = "^0.8"
 
 [build-system]
 requires = ["poetry-core"]
@@ -38,3 +39,13 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["F", "PERF"]
+# PERF203 (try/except in a loop) fights the per-unit failure isolation this
+# codebase deliberately uses for concurrent/batch work (CLAUDE.md §10) — a scan
+# platform, digest send, or client build failing must not sink the rest.
+ignore = ["PERF203"]
