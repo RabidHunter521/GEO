@@ -37,3 +37,12 @@ frontend/screenshots/
 
 # Graphify output
 graphify-out/
+
+# Generated artifacts dropped at repo root (screenshots, PDF exports, browser
+# snapshot dumps) — not source, regenerated on demand. Root-only (leading /)
+# so this doesn't shadow real assets nested under frontend/backend.
+/*.jpeg
+/*.jpg
+/*.png
+/*.pdf
+/snap-*.yml
