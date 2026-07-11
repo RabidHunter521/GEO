@@ -27,16 +27,16 @@ _MAX_QUERIES = 24  # cap prompt size; most-recent lost/open queries are enough
 def _lost_queries(client_id, db: Session) -> list[dict]:
     """The client's lost/open neutral-intent queries from the latest scan."""
     win_loss = compute_win_loss(client_id, db)
-    out = []
-    for entry in win_loss.entries:
-        if entry.outcome in ("lost", "open"):
-            out.append({
-                "query_text": entry.query_text,
-                "platform": PLATFORM_LABELS.get(entry.platform, entry.platform),
-                "category": entry.category,
-                "competitors_winning": entry.competitors_seen,
-            })
-    return out
+    return [
+        {
+            "query_text": entry.query_text,
+            "platform": PLATFORM_LABELS.get(entry.platform, entry.platform),
+            "category": entry.category,
+            "competitors_winning": entry.competitors_seen,
+        }
+        for entry in win_loss.entries
+        if entry.outcome in ("lost", "open")
+    ]
 
 
 def generate_roadmap(client: Client, db: Session) -> dict:

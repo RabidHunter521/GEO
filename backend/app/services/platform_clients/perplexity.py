@@ -23,10 +23,11 @@ def _parse_citations(payload: dict) -> tuple[SourceCitation, ...]:
     """
     results = payload.get("search_results")
     if isinstance(results, list) and results:
-        parsed = []
-        for item in results:
-            if isinstance(item, dict) and item.get("url"):
-                parsed.append((item["url"], item.get("title")))
+        parsed = [
+            (item["url"], item.get("title"))
+            for item in results
+            if isinstance(item, dict) and item.get("url")
+        ]
         if parsed:
             return tuple(
                 SourceCitation(url=url, title=title, rank=i)
