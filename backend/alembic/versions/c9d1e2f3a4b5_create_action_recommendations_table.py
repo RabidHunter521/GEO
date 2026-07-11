@@ -1,6 +1,6 @@
 """create_action_recommendations_table
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: c9d1e2f3a4b5
 Revises: f8a9b0c1d2e3
 Create Date: 2026-06-10 00:00:00.000000
 
@@ -10,7 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-revision: str = 'a1b2c3d4e5f6'
+revision: str = 'c9d1e2f3a4b5'
 down_revision: Union[str, None] = 'f8a9b0c1d2e3'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
