@@ -385,7 +385,7 @@ AVISENA = {
             "Build out condition/treatment explainer pages for each specialist centre "
             "and publish patient-guide content (insurance, admission, health screening) "
             "— these are the query types where Sunway Medical Centre and SJMC currently "
-            "outrank Avisena in AI answers."
+            "appear instead of Avisena in AI answers."
         ),
         "entity_coverage_score": 54.0,
         "pages_crawled": 31,
@@ -745,7 +745,7 @@ AYAM_GEPUK_TOKMAT = {
             {
                 "topic": "Franchise info",
                 "title": "Franchise with Ayam Gepuk Tokmat: Requirements & How to Apply",
-                "rationale": "Franchise queries are a recommendation-category gap — Pak Gembus's franchise visibility currently outranks Tokmat here.",
+                "rationale": "Franchise queries are a recommendation-category gap — Pak Gembus currently appears here instead of Tokmat.",
             },
         ],
         "content_metrics_json": {"word_count": 3200, "h1_count": 9, "faq_count": 4, "blog_count": 0, "schema_present": False},
@@ -950,7 +950,7 @@ MEDILINK = {
         "content_quality_recommendation": (
             "Build out health-screening and condition explainer pages, and a dedicated "
             "corporate/occupational-health hub — these are the query types where Sentosa "
-            "Healthcare and Medipulse Healthcare currently outrank Medilink in AI answers."
+            "Healthcare and Medipulse Healthcare currently appear instead of Medilink in AI answers."
         ),
         "entity_coverage_score": 56.0,
         "pages_crawled": 27,

@@ -18,6 +18,7 @@ from app.prompts.content_analysis import (
 from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
 from app.services.content_crawler import CrawlResult, crawl_site
 from app.services.cost_tracker import record_llm_call
+from app.services.language_sanitizer import sanitize_text
 
 logger = structlog.get_logger()
 
@@ -49,7 +50,7 @@ def _quality_recommendation(client: Client, crawl: CrawlResult) -> str:
     record_llm_call(
         service="content_analysis_quality", model=MODEL, response=response, client_id=client.id
     )
-    return response.content[0].text.strip()
+    return sanitize_text(response.content[0].text.strip())
 
 
 def _suggested_content(client: Client, topics: list) -> list:
@@ -68,7 +69,11 @@ def _suggested_content(client: Client, topics: list) -> list:
         )
         raw = strip_code_fences(response.content[0].text)
         data = json.loads(raw)
-        return data.get("suggestions", []) if isinstance(data, dict) else []
+        suggestions = data.get("suggestions", []) if isinstance(data, dict) else []
+        for s in suggestions:
+            if isinstance(s, dict) and s.get("rationale"):
+                s["rationale"] = sanitize_text(s["rationale"])
+        return suggestions
     except Exception:
         logger.warning("suggested_content_failed", client_id=str(client.id))
         return []

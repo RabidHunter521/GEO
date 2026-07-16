@@ -12,6 +12,29 @@ from PIL import Image, ImageDraw, ImageFont
 _MAX_EXCERPT_CHARS = 280
 _FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 
+# AI answers are often numbered/bulleted lists. A bare list row ("1. Acme
+# Dental") is not a quotable sentence — naive sentence-splitting glued it to
+# the next row's number and shipped junk like "Acme Dental 2." to clients.
+_LIST_MARKER = re.compile(r"^\s*(?:[-*•]|\d{1,3}[.)])\s+")
+_MIN_EXCERPT_WORDS = 6
+
+
+def _candidate_sentences(text: str) -> list[str]:
+    """Quotable candidates: split lines first (so list rows never bleed into
+    each other), strip list markers, then split sentences within each line."""
+    out: list[str] = []
+    for raw_line in text.strip().splitlines():
+        line = _LIST_MARKER.sub("", raw_line.strip())
+        if not line:
+            continue
+        out.extend(s.strip() for s in re.split(r"(?<=[.!?])\s+", line) if s.strip())
+    return out
+
+
+def _substantial(sentence: str) -> bool:
+    """A proof quote must read like a sentence, not a bare list entry."""
+    return len(sentence.split()) >= _MIN_EXCERPT_WORDS
+
 
 def _redact(text: str, competitors: list[str]) -> str:
     for name in sorted([c for c in competitors if c], key=len, reverse=True):
@@ -32,11 +55,11 @@ def build_excerpt(response_text: str, brand: str, competitors: list[str]) -> str
     pattern = _brand_pattern(brand)
     if not pattern.search(response_text):
         return None
-    sentences = re.split(r"(?<=[.!?])\s+", response_text.strip())
-    chosen = next((s for s in sentences if pattern.search(s)), None)
+    sentences = _candidate_sentences(response_text)
+    chosen = next((s for s in sentences if pattern.search(s) and _substantial(s)), None)
     if chosen is None:
         return None
-    chosen = _redact(chosen.strip(), competitors)
+    chosen = _redact(chosen, competitors)
     if len(chosen) > _MAX_EXCERPT_CHARS:
         chosen = chosen[: _MAX_EXCERPT_CHARS - 1].rstrip() + "…"
     return chosen
@@ -62,11 +85,10 @@ def build_loss_excerpt(
     comp_pattern = re.compile(
         "|".join(rf"\b{re.escape(n)}\b" for n in names), re.IGNORECASE
     )
-    sentences = re.split(r"(?<=[.!?])\s+", response_text.strip())
-    chosen = next((s for s in sentences if comp_pattern.search(s)), None)
+    sentences = _candidate_sentences(response_text)
+    chosen = next((s for s in sentences if comp_pattern.search(s) and _substantial(s)), None)
     if chosen is None:
         return None
-    chosen = chosen.strip()
     if redact:
         chosen = _redact(chosen, names)
     if len(chosen) > _MAX_EXCERPT_CHARS:

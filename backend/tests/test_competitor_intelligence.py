@@ -96,7 +96,7 @@ def _fake_scan(scan_id, client_id):
     return m
 
 
-def _fake_result(scan_id, competitor_id=None, category="brand", detected=True):
+def _fake_result(scan_id, competitor_id=None, category="brand", detected=True, flagged=False):
     m = MagicMock()
     m.scan_id = scan_id
     m.platform = "gemini"
@@ -104,6 +104,7 @@ def _fake_result(scan_id, competitor_id=None, category="brand", detected=True):
     m.category = category
     m.query_text = f"Test {category} query"
     m.brand_detected = detected
+    m.hallucination_flagged = flagged
     return m
 
 
@@ -234,6 +235,42 @@ def test_intelligence_competitor_losing():
     assert data["client_ai_citability"] == 100.0
     assert data["competitors"][0]["is_winning"] is False
     assert data["competitors"][0]["ai_citability"] == 50.0
+
+
+def test_intelligence_excludes_flagged_answers_from_frequency():
+    """A hallucination-flagged answer must not count in the numerator OR the
+    denominator — matching the client view, digests and reports (the 71-vs-72
+    mismatch bug)."""
+    app, get_db = _make_app()
+    client_id = uuid.uuid4()
+    comp_id = uuid.uuid4()
+    scan_id = uuid.uuid4()
+    client_results = [
+        _fake_result(scan_id, None, "brand", True),
+        _fake_result(scan_id, None, "comparison", False),
+        _fake_result(scan_id, None, "recommendation", False),
+        # Flagged: excluded entirely → denominator is 3, not 4.
+        _fake_result(scan_id, None, "local", False, flagged=True),
+    ]
+    comp_results = [
+        _fake_result(scan_id, comp_id, "brand", True),
+        _fake_result(scan_id, comp_id, "comparison", False),
+    ]
+    mock_db = _build_mock_db(
+        client=_fake_client(client_id),
+        scan=_fake_scan(scan_id, client_id),
+        all_results=client_results + comp_results,
+        competitors=[_fake_competitor(comp_id, client_id)],
+    )
+    app.dependency_overrides[get_db] = lambda: mock_db
+    http = TestClient(app)
+    try:
+        resp = http.get(f"/api/v1/clients/{client_id}/competitors/intelligence")
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["client_ai_citability"] == 33.3  # 1 of 3, not 1 of 4
 
 
 def test_intelligence_client_not_found_returns_404():

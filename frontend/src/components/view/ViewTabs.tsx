@@ -62,7 +62,7 @@ export function ViewTabs({ token, showContentPlan, isProspect }: Props) {
     <div className="relative">
       <nav
         ref={scrollRef}
-        className="-mb-px flex gap-1 overflow-x-auto"
+        className="no-scrollbar -mb-px flex gap-1 overflow-x-auto"
         aria-label="Sections"
       >
         {tabs.map((tab) => {

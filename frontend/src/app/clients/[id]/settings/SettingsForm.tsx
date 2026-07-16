@@ -35,7 +35,6 @@ import { updateClientAction, updateTrafficAction, uploadClientLogoAction } from 
 import {
   addCompetitorAction,
   deleteCompetitorAction,
-  archiveClientAction,
 } from "@/app/clients/actions"
 import type { Client, Competitor, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
@@ -142,7 +141,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const [saved, setSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [archiving, setArchiving] = useState(false)
   const [platformWarning, setPlatformWarning] = useState(false)
 
   useEffect(() => {
@@ -347,11 +345,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
     } catch {
       setError("Failed to remove competitor.")
     }
-  }
-
-  async function handleArchive() {
-    setArchiving(true)
-    await archiveClientAction(client.id)
   }
 
   return (
@@ -903,49 +896,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
-
-      <Separator />
-
-      {/* Danger zone */}
-      <section className="space-y-3">
-        <h2 className="font-display text-lg font-semibold tracking-tight text-destructive">
-          Danger Zone
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Archiving removes this client from the dashboard. All data is retained for 6 months per our retention policy.
-        </p>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
-              disabled={archiving}
-            >
-              {archiving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Archive client
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Archive {client.name}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                They will be removed from your dashboard. All data is retained for
-                6 months per the retention policy, then auto-deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleArchive}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Archive
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </section>
     </form>
   )
 }

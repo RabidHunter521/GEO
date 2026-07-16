@@ -2,6 +2,7 @@
 import { getClient, getCompetitors, getContentGaps, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 import { ShareLinkCard } from "./ShareLinkCard"
+import { DangerZoneCard } from "./DangerZoneCard"
 import { InternalNotesCard } from "@/components/clients/InternalNotesCard"
 
 export default async function SettingsPage({
@@ -38,6 +39,7 @@ export default async function SettingsPage({
         clientId={client.id}
         initialNotes={client.internal_notes ?? ""}
       />
+      <DangerZoneCard client={client} />
     </div>
   )
 }

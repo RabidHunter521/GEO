@@ -145,6 +145,16 @@
   .bar-watch  { background-color: hsl(var(--score-watch)); }
   .bar-low    { background-color: hsl(var(--score-low)); }
   .bar-primary { background-color: hsl(var(--primary)); }
+
+  /* Hide the scrollbar on a horizontally-scrollable strip (e.g. mobile tab
+     bars) while keeping it scrollable — the edge-fade gradients are the
+     intended affordance for "there's more", not a visible scrollbar track. */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @keyframes reveal-up {

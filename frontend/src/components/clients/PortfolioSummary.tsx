@@ -58,11 +58,23 @@ export function PortfolioSummary({ clients, now }: Props) {
       ),
     },
     {
+      // A count of 0 here is good news — don't paint it with the "something's
+      // wrong" red used everywhere else in the app. Only tint red once there's
+      // an actual decline to flag, mirroring the "Needs attention" tile below.
       label: "Declined",
       icon: TrendingDown,
-      iconBg: "bg-score-low-bg",
-      iconColor: "text-score-low",
-      value: <span className="font-display text-2xl font-bold text-score-low">{declined}</span>,
+      iconBg: declined > 0 ? "bg-score-low-bg" : "bg-muted",
+      iconColor: declined > 0 ? "text-score-low" : "text-muted-foreground",
+      value: (
+        <span
+          className={cn(
+            "font-display text-2xl font-bold",
+            declined > 0 ? "text-score-low" : "",
+          )}
+        >
+          {declined}
+        </span>
+      ),
     },
     {
       label: "Needs attention",
