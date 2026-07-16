@@ -56,6 +56,25 @@ def test_client_queries_competitor_id_is_none():
     assert all(q["competitor_id"] is None for q in queries)
 
 
+def test_queries_collapse_industry_template_word_collision():
+    """An industry descriptor ending in a word a template also appends must not
+    produce doubled words ('provider providers' shipped to clients once)."""
+    client = make_client(industry="health screening company")
+    comp = make_competitor()
+    # COMPETITOR_QUERY_TEMPLATES recommendation is "Best {industry} company in {location}"
+    queries = build_competitor_queries(client, comp)
+    rec = next(q for q in queries if q["category"] == "recommendation")
+    assert rec["query_text"] == "Best health screening company in Kuala Lumpur, WP"
+
+
+def test_queries_collapse_singular_plural_collision():
+    client = make_client(industry="health screening companies")
+    comp = make_competitor()
+    queries = build_competitor_queries(client, comp)
+    rec = next(q for q in queries if q["category"] == "recommendation")
+    assert rec["query_text"] == "Best health screening companies in Kuala Lumpur, WP"
+
+
 def test_competitor_queries_returns_4_per_competitor():
     client = make_client()
     comp = make_competitor()

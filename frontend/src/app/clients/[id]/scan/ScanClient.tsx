@@ -102,6 +102,13 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
   const matchesFilter = (r: ScanQueryResult) =>
     platformFilter === "all" || r.platform === platformFilter
   const clientResults = allClientResults.filter(matchesFilter)
+  // Flagged answers are known-bad and excluded from every visibility stat
+  // system-wide (client view, digests, reports). The table still lists them so
+  // they can be managed here — only the numbers skip them.
+  const isCounted = (r: ScanQueryResult) => !flaggedIds.has(r.id)
+  const countedClientResults = allClientResults.filter(isCounted)
+  const countedResults = clientResults.filter(isCounted)
+  const flaggedCount = allClientResults.length - countedClientResults.length
   const competitorGroups = groupByCompetitor(
     scan?.results.filter((r) => r.competitor_id !== null && matchesFilter(r)) ?? [],
   )
@@ -169,7 +176,7 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
           {scannedPlatforms.length > 1 && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {scannedPlatforms.map((p) => {
-                const platformResults = allClientResults.filter((r) => r.platform === p)
+                const platformResults = countedClientResults.filter((r) => r.platform === p)
                 const seen = platformResults.filter((r) => r.brand_detected).length
                 const pct = platformResults.length
                   ? Math.round((seen / platformResults.length) * 100)
@@ -209,10 +216,10 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
           )}
 
           {/* Summary stats */}
-          {clientResults.length > 0 && (() => {
-            const seen = clientResults.filter((r) => r.brand_detected).length
-            const pct = Math.round((seen / clientResults.length) * 100)
-            const ranked = clientResults
+          {countedResults.length > 0 && (() => {
+            const seen = countedResults.filter((r) => r.brand_detected).length
+            const pct = Math.round((seen / countedResults.length) * 100)
+            const ranked = countedResults
               .map((r) => r.recommendation_position)
               .filter((p): p is number => p != null)
             const avgRank =
@@ -223,12 +230,18 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
                   <span className="font-display text-2xl font-bold tabular-nums text-primary">
-                    {seen}/{clientResults.length}
+                    {seen}/{countedResults.length}
                   </span>
                   <div>
                     <p className="text-sm font-medium leading-tight">queries — your brand was seen by AI</p>
                     <p className="text-xs text-muted-foreground">
                       visibility frequency: <span className="font-semibold">{pct}%</span>
+                      {flaggedCount > 0 && (
+                        <>
+                          {" · "}
+                          {flaggedCount} flagged {flaggedCount === 1 ? "answer" : "answers"} excluded
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>

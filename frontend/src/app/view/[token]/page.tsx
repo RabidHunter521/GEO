@@ -80,6 +80,21 @@ const BAR_CLASS: Record<ScoreColor, string> = {
   red: "bar-low",
 }
 
+// Platform tile accent — keyed to the same 3-band traffic light as the score
+// ring, not just "was the brand seen at all". A 39% platform and a 50%
+// platform both cleared the seen/not-seen boolean but neither cleared the
+// green threshold; painting both green overstated how well they're doing.
+const PLATFORM_ACCENT_CLASS: Record<ScoreColor, string> = {
+  green: "bg-score-strong",
+  yellow: "bg-score-watch",
+  red: "bg-score-low",
+}
+const PLATFORM_TEXT_CLASS: Record<ScoreColor, string> = {
+  green: "text-score-strong",
+  yellow: "text-score-watch",
+  red: "text-score-low",
+}
+
 const PRIORITY_CLASS: Record<string, string> = {
   high: "bg-score-low-bg text-score-low border-score-low/25",
   medium: "bg-score-watch-bg text-score-watch border-score-watch/30",
@@ -260,6 +275,7 @@ export default async function ViewOverviewPage({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {overview.platforms.map((p) => {
               const unavailable = p.visibility_frequency === null
+              const scoreColor = unavailable ? null : getScoreColor(p.visibility_frequency!)
               return (
                 <div
                   key={p.platform_label}
@@ -272,11 +288,7 @@ export default async function ViewOverviewPage({
                     aria-hidden
                     className={cn(
                       "absolute inset-x-0 top-0 h-0.5",
-                      unavailable
-                        ? "bg-transparent"
-                        : p.seen_by_ai
-                          ? "bg-score-strong"
-                          : "bg-muted-foreground/25",
+                      unavailable ? "bg-transparent" : PLATFORM_ACCENT_CLASS[scoreColor!],
                     )}
                   />
                   <div className="flex items-center justify-between gap-2">
@@ -298,7 +310,12 @@ export default async function ViewOverviewPage({
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 font-display text-2xl font-bold tabular-nums">
+                  <p
+                    className={cn(
+                      "mt-2 font-display text-2xl font-bold tabular-nums",
+                      !unavailable && PLATFORM_TEXT_CLASS[scoreColor!],
+                    )}
+                  >
                     {unavailable ? "—" : `${Math.round(p.visibility_frequency!)}%`}
                   </p>
                   <p className="text-xs text-muted-foreground">

@@ -113,6 +113,10 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
         .filter(ScanQueryResult.scan_id == latest_scan.id)
         .all()
     )
+    # Flagged answers are known-bad and excluded from every visibility stat
+    # system-wide (client view, digests, reports) — same rule here so the
+    # numbers on this page reconcile with the rest of the product.
+    all_results = [r for r in all_results if not r.hallucination_flagged]
 
     client_results = [r for r in all_results if r.competitor_id is None]
     client_citability = (
