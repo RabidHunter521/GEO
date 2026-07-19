@@ -73,39 +73,44 @@ function RoadmapItemCard({
 
   return (
     <>
-      <div className="rounded-lg border bg-card p-4 space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="font-semibold">
-            Week {item.week}
-          </Badge>
-          <Badge variant="outline" className={PRIORITY_STYLE[item.priority] ?? PRIORITY_STYLE.low}>
-            {item.priority}
-          </Badge>
-          <Badge variant="outline" className="gap-1 text-muted-foreground">
-            <FileText className="h-3 w-3" />
-            {item.content_type}
-          </Badge>
+      <div className="flex h-full flex-col rounded-lg border bg-card p-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className="font-semibold">
+              Week {item.week}
+            </Badge>
+            <Badge variant="outline" className={PRIORITY_STYLE[item.priority] ?? PRIORITY_STYLE.low}>
+              {item.priority}
+            </Badge>
+            <Badge variant="outline" className="gap-1 text-muted-foreground">
+              <FileText className="h-3 w-3" />
+              {item.content_type}
+            </Badge>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="block text-left text-sm font-medium leading-snug text-foreground hover:text-primary hover:underline"
+          >
+            {item.suggested_title}
+          </button>
+
+          <p className="text-xs text-muted-foreground">{item.theme}</p>
+          {item.rationale && (
+            <p className="text-xs text-muted-foreground leading-relaxed">{item.rationale}</p>
+          )}
+          {item.competitors_winning.length > 0 && (
+            <p className="text-xs text-score-low">
+              Your competitors are winning here: {item.competitors_winning.join(", ")}
+            </p>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="block text-left text-sm font-medium leading-snug text-foreground hover:text-primary hover:underline"
-        >
-          {item.suggested_title}
-        </button>
-
-        <p className="text-xs text-muted-foreground">{item.theme}</p>
-        {item.rationale && (
-          <p className="text-xs text-muted-foreground leading-relaxed">{item.rationale}</p>
-        )}
-        {item.competitors_winning.length > 0 && (
-          <p className="text-xs text-score-low">
-            Your competitors are winning here: {item.competitors_winning.join(", ")}
-          </p>
-        )}
-
-        <div className="pt-1">
+        {/* Pinned to the card's bottom edge regardless of how much copy sits
+            above, so "Write article" lines up across a row of cards even when
+            their rationale/competitor text is different lengths. */}
+        <div className="mt-auto pt-3">
           <Button
             type="button"
             variant="outline"
@@ -209,7 +214,11 @@ export function ContentRoadmapClient({ clientId, initialRoadmap }: Props) {
             Content Roadmap
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            A prioritized 90-day plan of 12 weekly content pieces, built from the questions where
+            {roadmap && roadmap.roadmap_json.length > 0
+              ? `A prioritized plan of ${roadmap.roadmap_json.length} weekly content ${
+                  roadmap.roadmap_json.length === 1 ? "piece" : "pieces"
+                }, built from the questions where`
+              : "A prioritized plan of weekly content pieces, built from the questions where"}{" "}
             your competitors are winning. Click any title to read or generate the full article.
           </p>
         </div>

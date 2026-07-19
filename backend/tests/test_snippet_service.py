@@ -58,6 +58,34 @@ def test_excerpt_no_competitors_returns_verbatim_sentence():
     assert result == "Acme Dental is the top clinic in KL."
 
 
+def test_excerpt_skips_numbered_list_fragments():
+    """A numbered-list response must not yield junk like 'Acme Dental 2.' —
+    the prose sentence about the brand wins over the bare list row."""
+    response = (
+        "Here are the top clinics in KL:\n"
+        "1. Acme Dental\n"
+        "2. RivalCo\n"
+        "3. OtherDent\n"
+        "Acme Dental is known for affordable implants and same-day crowns."
+    )
+    result = build_excerpt(response, brand="Acme Dental", competitors=["RivalCo"])
+    assert result == "Acme Dental is known for affordable implants and same-day crowns."
+
+
+def test_excerpt_returns_none_when_brand_only_in_bare_list():
+    """If the brand only appears as a bare list entry there is no quotable
+    sentence — drop the card rather than show a junk fragment."""
+    response = "Here are the top clinics in KL:\n1. Acme Dental\n2. RivalCo"
+    assert build_excerpt(response, brand="Acme Dental", competitors=["RivalCo"]) is None
+
+
+def test_excerpt_skips_inline_list_fragment():
+    """Single-line lists ('1. Acme Dental 2. RivalCo') must not produce a
+    'Acme Dental 2.' excerpt."""
+    response = "1. Acme Dental 2. RivalCo 3. OtherDent"
+    assert build_excerpt(response, brand="Acme Dental", competitors=["RivalCo"]) is None
+
+
 # --- build_loss_excerpt tests ---
 
 def test_build_loss_excerpt_redacts_competitor_when_brand_absent():
@@ -89,6 +117,24 @@ def test_build_loss_excerpt_truncates_long_sentence():
     long_sentence = "RivalCo " + "is widely recommended " * 40 + "in KL."
     result = build_loss_excerpt(long_sentence, brand="Acme Dental", competitors=["RivalCo"])
     assert result is not None and len(result) <= 280 and result.endswith("…")
+
+
+def test_loss_excerpt_skips_numbered_list_fragments():
+    """Loss cards must not show '[a competitor] 2.' when the response is a
+    numbered list — pick the prose sentence naming the rival instead."""
+    response = (
+        "Recommended options:\n"
+        "1. RivalCo\n"
+        "2. OtherDent\n"
+        "RivalCo is the most trusted choice for dental care in KL."
+    )
+    result = build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"])
+    assert result == "[a competitor] is the most trusted choice for dental care in KL."
+
+
+def test_loss_excerpt_none_when_competitor_only_in_bare_list():
+    response = "Top clinics:\n1. RivalCo\n2. OtherDent"
+    assert build_loss_excerpt(response, brand="Acme Dental", competitors=["RivalCo"]) is None
 
 
 # --- render_snippet_png tests ---

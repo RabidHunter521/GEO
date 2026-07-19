@@ -32,7 +32,7 @@ For each item:
 - content_type: e.g. "Blog post", "Comparison page", "FAQ page", "Location page"
 - suggested_title: a specific, publish-ready title
 - rationale: 1 sentence on why this wins the questions
-Never use the words "citation", "cited", "mentioned", "ranking position", or "visibility gap" — use "seen by AI", "AI Search Ranking", and "Your competitors are winning here" instead.
+Never use the words "citation", "cited", "mentioned", "ranking position", "outrank", "outranks", or "visibility gap" — use "seen by AI", "AI Search Ranking", and "Your competitors are winning here" instead.
 Output ONLY valid JSON, no code fences, exactly:
 {{"roadmap": [{{"week": 1, "theme": "string", "priority": "high", "target_queries": ["string"], "competitors_winning": ["string"], "content_type": "string", "suggested_title": "string", "rationale": "string"}}]}}"""
 
@@ -56,7 +56,7 @@ Requirements:
 - Aim for 600-900 words, genuinely useful and specific to this business and its audience.
 - Naturally include the business name and the kind of language a buyer would use when asking AI assistants the questions above.
 - Be accurate and concrete; do not invent fake statistics, awards, or quotes.
-- Never use the words "citation", "cited", "mentioned", "ranking position", or "visibility gap".
+- Never use the words "citation", "cited", "mentioned", "ranking position", "outrank", "outranks", or "visibility gap".
 
 After the article body, append exactly this metadata block with no extra blank lines between them:
 

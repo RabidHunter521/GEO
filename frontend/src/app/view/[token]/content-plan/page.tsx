@@ -126,10 +126,12 @@ export default async function ViewContentPlanPage({
       {hasRoadmap && roadmap && (
         <section className="reveal space-y-4" style={{ animationDelay: "60ms" }}>
           <div>
-            <h2 className="font-display text-lg font-semibold">Your 90-Day Content Plan</h2>
+            <h2 className="font-display text-lg font-semibold">Your Content Plan</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              12 weekly content pieces, built from the questions where your
-              competitors are currently winning. Click any title to read the full draft.
+              {roadmap.items.length} weekly content{" "}
+              {roadmap.items.length === 1 ? "piece" : "pieces"}, built from the
+              questions where your competitors are currently winning. Click any
+              title to read the full draft.
             </p>
           </div>
 

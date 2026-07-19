@@ -3,7 +3,9 @@
 Turns the queries a client is losing to competitors (win/loss "lost"/"open"
 entries from the latest scan) into a prioritized, time-phased content plan via
 one Claude call. Reuses compute_win_loss so it stays in sync with the
-admin win/loss board. Admin-only — never surfaced through the client view.
+admin win/loss board. Generated here (admin-triggered), but roadmap_json is
+also read verbatim by the client-view /roadmap endpoint — every field is
+client-facing and must follow CLAUDE.md §2 language rules.
 """
 import json
 
@@ -15,6 +17,7 @@ from app.models.client import Client
 from app.prompts.content_roadmap import PLAN_WEEKS, build_article, build_roadmap
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
 from app.services.cost_tracker import record_llm_call
+from app.services.language_sanitizer import sanitize_text
 from app.services.win_loss_service import compute_win_loss
 
 logger = structlog.get_logger()
@@ -80,7 +83,7 @@ def generate_roadmap(client: Client, db: Session) -> dict:
             "competitors_winning": [str(c).strip() for c in item.get("competitors_winning", []) if str(c).strip()],
             "content_type": str(item.get("content_type", "Blog post")).strip(),
             "suggested_title": title,
-            "rationale": str(item.get("rationale", "")).strip(),
+            "rationale": sanitize_text(str(item.get("rationale", "")).strip()),
             "article_content": None,
         })
 

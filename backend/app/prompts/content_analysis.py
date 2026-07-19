@@ -50,7 +50,9 @@ Sample of the site text:
 
 Write 2-3 plain-English sentences recommending how this business could improve its content so AI
 systems are more likely to feature it. Be specific and practical. Do not mention scores, tokens,
-or technical jargon. Output only the recommendation text."""
+or technical jargon. Do not use the words "outrank", "outranks", "ranking", "citation", "cited",
+"mentioned", or "gap" — if a competitor is favored by AI answers today, say they "currently appear
+instead of" this business. Output only the recommendation text."""
 
 
 def build_suggested_content(client: Client, missing_topics: list[str]) -> str:
