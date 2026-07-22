@@ -23,10 +23,11 @@ _DIMENSION_TIPS = {
 
 
 def _battle_tip(battle) -> str:
+    # No claim about score movement here: this tip also fires when the Claude
+    # action fails on a big move, so it must stay true in both cases.
     return (
-        f'Your score held steady this week. The fastest path to moving it: '
-        f'"{battle.query_text}" — {battle.rival_name} is currently the one '
-        f'seen by AI there.'
+        f'The fastest path to moving your score: "{battle.query_text}" — '
+        f'{battle.rival_name} is currently the one seen by AI there.'
     )
 
 
