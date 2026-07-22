@@ -26,6 +26,9 @@ class ScanQueryResult(Base):
     hallucination_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     # Brand's rank in list-style AI answers (recommendation/local categories). Null when not ranked.
     recommendation_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Benchmark row from a ControlQuery — excluded from score and all analysis
+    # surfaces; exists only for the optimized-vs-untouched causal comparison.
+    is_control: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     sources: Mapped[list["ScanQuerySource"]] = relationship(  # noqa: F821 — ruff false-positive on SQLAlchemy string forward-ref
