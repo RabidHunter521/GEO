@@ -11,6 +11,9 @@ import {
   deleteCompetitor as apiDeleteCompetitor,
   createControlQuery as apiCreateControlQuery,
   updateControlQuery as apiUpdateControlQuery,
+  createGuarantee as apiCreateGuarantee,
+  getGuarantee as apiGetGuarantee,
+  resolveGuarantee as apiResolveGuarantee,
   triggerScan as apiTriggerScan,
   generateShareToken as apiGenerateShareToken,
 } from "@/lib/api"
@@ -73,6 +76,27 @@ export async function addCompetitorAction(
   const comp = await apiAddCompetitor(clientId, data)
   revalidatePath(`/clients/${clientId}`)
   return comp
+}
+
+export async function createGuaranteeAction(
+  clientId: string,
+  data: { metric?: string; target_value: number; deadline_date: string },
+) {
+  await apiCreateGuarantee(clientId, data)
+  revalidatePath(`/clients/${clientId}`)
+  // Return the derived progress so the widget can render pace immediately.
+  return apiGetGuarantee(clientId)
+}
+
+export async function resolveGuaranteeAction(
+  clientId: string,
+  guaranteeId: string,
+  outcome: "met" | "missed" | "void",
+  note?: string,
+) {
+  const g = await apiResolveGuarantee(clientId, guaranteeId, { outcome, note })
+  revalidatePath(`/clients/${clientId}`)
+  return g
 }
 
 export async function addControlQueryAction(
