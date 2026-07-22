@@ -19,6 +19,7 @@ from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
+from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
 from app.schemas.provenance import (
     AcquisitionSource,
     BrandShare,
@@ -301,3 +302,47 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
     competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
     client = db.get(Client, client_id)
     return _summarize(unique, competitors, client, last_scan_at)
+
+
+def compute_and_persist_snapshot(
+    scan_id: uuid.UUID, client_id: uuid.UUID, db: Session
+) -> ShareOfSourceSnapshot | None:
+    """Persist a Share-of-Source snapshot for a just-completed scan.
+
+    Called from scan_service.run_scan's post-commit best-effort block,
+    immediately after enrich_scan_sources. Best-effort by design: this
+    function catches its own persistence failures so a bug here can never
+    undo the scan that was already committed — the caller wraps this call
+    in its own try/except too, matching every other post-commit step, as a
+    defense-in-depth backstop.
+
+    Returns None when there's nothing to persist yet (no third-party
+    sources for this scan) or when persistence itself fails.
+    """
+    try:
+        unique = _collect_sources(scan_id, db)
+        if not unique:
+            return None
+
+        competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+        client = db.get(Client, client_id)
+        summary = _summarize(unique, competitors, client, last_scan_at=None)
+
+        snapshot = ShareOfSourceSnapshot(
+            client_id=client_id,
+            scan_id=scan_id,
+            total_third_party_sources=summary.total_third_party_sources,
+            client_share_pct=summary.client_share.share_pct if summary.client_share else 0.0,
+            competitor_shares=[cs.model_dump(mode="json") for cs in summary.competitor_shares],
+            acquisition_list=[a.model_dump(mode="json") for a in summary.acquisition_list],
+        )
+        db.add(snapshot)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error(
+            "share_of_source_snapshot_persist_failed", scan_id=str(scan_id), error=str(exc)
+        )
+        return None
+
+    return snapshot

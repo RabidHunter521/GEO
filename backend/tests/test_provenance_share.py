@@ -80,3 +80,47 @@ def test_classify_source_type():
     assert ps.classify_source_type("acme.com", "acme.com", comp_domains) == "client_owned"
     assert ps.classify_source_type("rival.com", "acme.com", comp_domains) == "competitor_owned"
     assert ps.classify_source_type("g2.com", "acme.com", comp_domains) == "third_party"
+
+
+def test_persist_snapshot_matches_live_compute(db):
+    from app.services import provenance_service as ps
+    client, comp = _seed_enriched(db)
+    scan = db.query(Scan).filter(Scan.client_id == client.id).first()
+
+    live = ps.compute_share_of_source(client.id, db)
+    snapshot = ps.compute_and_persist_snapshot(scan.id, client.id, db)
+
+    assert snapshot is not None
+    assert snapshot.scan_id == scan.id
+    assert snapshot.client_id == client.id
+    assert snapshot.total_third_party_sources == live.total_third_party_sources
+    assert snapshot.client_share_pct == live.client_share.share_pct
+    assert len(snapshot.acquisition_list) == len(live.acquisition_list)
+    assert snapshot.acquisition_list[0]["domain"] == live.acquisition_list[0].domain
+    assert snapshot.acquisition_list[0]["citation_count"] == live.acquisition_list[0].citation_count
+
+
+def test_persist_snapshot_no_third_party_sources_returns_none(db):
+    from app.services import provenance_service as ps
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    db.add(client)
+    from datetime import datetime
+    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    db.add(scan)
+    db.commit()
+
+    result = ps.compute_and_persist_snapshot(scan.id, client.id, db)
+    assert result is None
+    assert db.query(ps.ShareOfSourceSnapshot).count() == 0
+
+
+def test_persist_snapshot_swallows_internal_failure(db, monkeypatch):
+    from app.services import provenance_service as ps
+    client, comp = _seed_enriched(db)
+    scan = db.query(Scan).filter(Scan.client_id == client.id).first()
+
+    monkeypatch.setattr(ps, "_summarize", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+    result = ps.compute_and_persist_snapshot(scan.id, client.id, db)
+
+    assert result is None
+    assert db.query(ps.ShareOfSourceSnapshot).count() == 0
