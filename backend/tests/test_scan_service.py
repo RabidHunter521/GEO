@@ -37,7 +37,8 @@ def make_client(name="ACME Corp", enabled_platforms=None):
 
 def make_result(platform="gemini", brand_detected=True, competitor_id=None):
     return MagicMock(
-        platform=platform, brand_detected=brand_detected, competitor_id=competitor_id
+        platform=platform, brand_detected=brand_detected, competitor_id=competitor_id,
+        is_control=False,
     )
 
 

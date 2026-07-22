@@ -282,6 +282,7 @@ def get_overview(
                     ScanQueryResult.scan_id == latest_scan.id,
                     ScanQueryResult.competitor_id.is_(None),
                     ScanQueryResult.hallucination_flagged.is_(False),
+                    ScanQueryResult.is_control.is_(False),
                 )
                 .all()
             )
@@ -392,12 +393,15 @@ def get_scan(
         return ClientViewScan(completed_at=None, results=[])
 
     # Client's own queries only; flagged answers are known-bad and never shown.
+    # Control (benchmark) rows stay off this list — the causal chart is their
+    # only client-facing surface.
     results = (
         db.query(ScanQueryResult)
         .filter(
             ScanQueryResult.scan_id == latest_scan.id,
             ScanQueryResult.competitor_id.is_(None),
             ScanQueryResult.hallucination_flagged.is_(False),
+            ScanQueryResult.is_control.is_(False),
         )
         .order_by(ScanQueryResult.category, ScanQueryResult.created_at)
         .all()

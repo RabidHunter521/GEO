@@ -80,7 +80,10 @@ def check_competitor_overtake_alert(client: Client, scan_id: uuid.UUID, db: Sess
 
     all_results = (
         db.query(ScanQueryResult)
-        .filter(ScanQueryResult.scan_id == scan_id)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.is_control.is_(False),
+        )
         .all()
     )
 

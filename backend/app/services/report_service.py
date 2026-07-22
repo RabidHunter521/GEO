@@ -672,6 +672,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         .filter(
             ScanQueryResult.scan_id == latest_scan.id,
             ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
         )
         .all()
     )
@@ -688,6 +689,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
             .filter(
                 ScanQueryResult.scan_id == prev_scan.id,
                 ScanQueryResult.competitor_id.is_(None),
+                ScanQueryResult.is_control.is_(False),
             )
             .all()
         )

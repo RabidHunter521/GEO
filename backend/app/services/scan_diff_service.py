@@ -44,6 +44,7 @@ def compute_scan_diff(client_id: uuid.UUID, db: Session) -> ScanDiffResponse:
                 ScanQueryResult.scan_id == scan_id,
                 ScanQueryResult.competitor_id.is_(None),
                 ScanQueryResult.hallucination_flagged.is_(False),
+                ScanQueryResult.is_control.is_(False),
             )
             .all()
         )

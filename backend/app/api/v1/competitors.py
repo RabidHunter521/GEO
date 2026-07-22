@@ -110,6 +110,8 @@ def generate_brief(
         .filter(
             ScanQueryResult.id == result_id,
             ScanQueryResult.competitor_id.is_(None),
+            # Controls are deliberately left unoptimized — no briefs for them.
+            ScanQueryResult.is_control.is_(False),
             Scan.client_id == client_id,
         )
         .first()

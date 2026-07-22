@@ -9,31 +9,31 @@ from app.services.scoring_service import (
 
 
 def test_citability_all_detected():
-    results = [MagicMock(brand_detected=True, competitor_id=None) for _ in range(8)]
+    results = [MagicMock(brand_detected=True, competitor_id=None, is_control=False) for _ in range(8)]
     assert compute_ai_citability(results) == 100.0
 
 
 def test_citability_none_detected():
-    results = [MagicMock(brand_detected=False, competitor_id=None) for _ in range(8)]
+    results = [MagicMock(brand_detected=False, competitor_id=None, is_control=False) for _ in range(8)]
     assert compute_ai_citability(results) == 0.0
 
 
 def test_citability_half_detected():
     results = (
-        [MagicMock(brand_detected=True, competitor_id=None) for _ in range(4)]
-        + [MagicMock(brand_detected=False, competitor_id=None) for _ in range(4)]
+        [MagicMock(brand_detected=True, competitor_id=None, is_control=False) for _ in range(4)]
+        + [MagicMock(brand_detected=False, competitor_id=None, is_control=False) for _ in range(4)]
     )
     assert compute_ai_citability(results) == 50.0
 
 
 def test_citability_ignores_competitor_queries():
-    client_results = [MagicMock(brand_detected=True, competitor_id=None) for _ in range(4)]
-    competitor_results = [MagicMock(brand_detected=False, competitor_id="some-id") for _ in range(4)]
+    client_results = [MagicMock(brand_detected=True, competitor_id=None, is_control=False) for _ in range(4)]
+    competitor_results = [MagicMock(brand_detected=False, competitor_id="some-id", is_control=False) for _ in range(4)]
     assert compute_ai_citability(client_results + competitor_results) == 100.0
 
 
 def _result(platform, detected, competitor_id=None):
-    return MagicMock(platform=platform, brand_detected=detected, competitor_id=competitor_id)
+    return MagicMock(platform=platform, brand_detected=detected, competitor_id=competitor_id, is_control=False)
 
 
 def test_platform_breakdown_per_platform_visibility():

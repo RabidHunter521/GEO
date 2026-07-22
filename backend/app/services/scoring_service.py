@@ -9,7 +9,10 @@ def compute_platform_breakdown(
     Returns {platform: {"visibility": float, "queries": int, "detected": int, "status": "ok"|"unavailable"}}.
     """
     breakdown: dict = {}
-    client_results = [r for r in query_results if r.competitor_id is None]
+    client_results = [
+        r for r in query_results
+        if r.competitor_id is None and not getattr(r, "is_control", False)
+    ]
     for result in client_results:
         entry = breakdown.setdefault(
             result.platform, {"visibility": 0.0, "queries": 0, "detected": 0, "status": "ok"}
@@ -36,7 +39,10 @@ def compute_ai_citability(query_results: list, platform_breakdown: dict | None =
             return 0.0
         return round(sum(e["visibility"] for e in ok_platforms) / len(ok_platforms), 2)
 
-    client_results = [r for r in query_results if r.competitor_id is None]
+    client_results = [
+        r for r in query_results
+        if r.competitor_id is None and not getattr(r, "is_control", False)
+    ]
     if not client_results:
         return 0.0
     detected = sum(1 for r in client_results if r.brand_detected)

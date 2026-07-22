@@ -69,6 +69,7 @@ def compute_gap_matrix(db: Session) -> GapMatrixResponse:
                 ScanQueryResult.scan_id.in_(latest_scan_ids),
                 ScanQueryResult.category.in_(WIN_LOSS_CATEGORIES),
                 ScanQueryResult.hallucination_flagged.is_(False),
+                ScanQueryResult.is_control.is_(False),
             )
             .all()
         )
