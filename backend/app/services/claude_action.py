@@ -13,6 +13,7 @@ def get_digest_action(
     current_ai_citability: float,
     prev_ai_citability: float | None,
     db: Session | None = None,
+    fallback_tip: str | None = None,
 ) -> str:
     score_change = (
         abs(current_ai_citability - prev_ai_citability)
@@ -24,6 +25,8 @@ def get_digest_action(
             return _generate_claude_action(client, current_ai_citability, prev_ai_citability, db)
         except Exception:
             pass
+    if fallback_tip:
+        return fallback_tip
     return DIGEST_STATIC_TIPS[_score_band(current_ai_citability)]
 
 

@@ -20,6 +20,7 @@ from app.services.proof_card_service import select_proof_cards
 from app.services.share_link_service import get_share_link_url
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.headline_battle_service import select_headline_battle
+from app.services.digest_tip_service import select_digest_tip
 from app.core.time import utcnow
 
 logger = structlog.get_logger()
@@ -161,7 +162,13 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
 
     trend = _compute_trend(current_citability, prev_citability)
     is_first_seen = _detect_first_seen(seen_count, prev_scan, db)
-    action_text = get_digest_action(client, current_citability, prev_citability)
+    headline_battle = select_headline_battle(client.id, db)
+    action_text = get_digest_action(
+        client,
+        current_citability,
+        prev_citability,
+        fallback_tip=select_digest_tip(client, headline_battle, current_citability),
+    )
 
     # Best verbatim win + named loss for the body — the most forwardable lines.
     # Excludes hallucination-flagged answers (known-bad) and competitor rows.
@@ -197,8 +204,6 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
     ai_visitors = latest_traffic.ai_visitors if latest_traffic else None
     captured = estimate_pipeline(ai_visitors, client)
     at_risk = estimate_value_at_risk(ai_visitors, current_citability / 100.0, client)
-
-    headline_battle = select_headline_battle(client.id, db)
 
     return DigestData(
         seen_count=seen_count,

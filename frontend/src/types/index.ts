@@ -481,11 +481,20 @@ export interface ClientViewCompetitor {
   queries: ClientViewCompetitorQuery[]
 }
 
+export interface ViewHeadlineBattle {
+  rival_name: string
+  query_text: string
+  platform_label: string
+  move_title: string | null
+  move_angle: string | null
+}
+
 export interface ClientViewCompetitors {
   your_visibility_frequency: number | null
   your_platform_visibility: Record<string, number>
   competitors: ClientViewCompetitor[]
   last_scan_at: string | null
+  headline_battle?: ViewHeadlineBattle | null
 }
 
 export interface ClientViewTrendSeries {

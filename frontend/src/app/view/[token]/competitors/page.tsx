@@ -142,6 +142,39 @@ export default async function ViewCompetitorsPage({
         </section>
       )}
 
+      {/* The battle to win next */}
+      {data.headline_battle && (
+        <section
+          className="reveal rounded-xl border border-score-watch/40 bg-score-watch-bg p-4"
+          style={{ animationDelay: "105ms" }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-score-watch">
+            The battle to win next
+          </p>
+          <p className="mt-2 text-sm text-foreground">
+            Your competitor{" "}
+            <span className="font-semibold">{data.headline_battle.rival_name}</span>{" "}
+            is winning &ldquo;{data.headline_battle.query_text}&rdquo; on{" "}
+            {data.headline_battle.platform_label}.
+          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {data.headline_battle.move_title ? (
+              <>
+                The one move to flip it:{" "}
+                <span className="font-medium text-foreground">
+                  {data.headline_battle.move_title}
+                </span>
+                {data.headline_battle.move_angle && (
+                  <> — {data.headline_battle.move_angle}</>
+                )}
+              </>
+            ) : (
+              <>The play to flip it is being prepared.</>
+            )}
+          </p>
+        </section>
+      )}
+
       {/* Per-competitor breakdown */}
       <section className="reveal space-y-3" style={{ animationDelay: "120ms" }}>
         {data.competitors.map((c) => (
