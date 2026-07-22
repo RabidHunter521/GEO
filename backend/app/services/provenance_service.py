@@ -24,6 +24,7 @@ from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
 from app.schemas.provenance import (
     AcquisitionSource,
     BrandShare,
+    ShareOfSourceHistoryPoint,
     ShareOfSourceResponse,
     SourcePresence,
 )
@@ -397,3 +398,25 @@ def compute_and_persist_snapshot(
         logger.error("citation_flip_detection_failed", scan_id=str(scan_id), error=str(exc))
 
     return snapshot
+
+
+def get_share_of_source_history(
+    client_id: uuid.UUID, db: Session, limit: int = 12
+) -> list[ShareOfSourceHistoryPoint]:
+    """Last `limit` Share-of-Source snapshots for a client, oldest → newest."""
+    rows = (
+        db.query(ShareOfSourceSnapshot)
+        .filter(ShareOfSourceSnapshot.client_id == client_id)
+        .order_by(ShareOfSourceSnapshot.computed_at.desc())
+        .limit(limit)
+        .all()
+    )
+    rows.reverse()
+    return [
+        ShareOfSourceHistoryPoint(
+            computed_at=r.computed_at.isoformat() + "Z",
+            client_share_pct=r.client_share_pct,
+            total_third_party_sources=r.total_third_party_sources,
+        )
+        for r in rows
+    ]

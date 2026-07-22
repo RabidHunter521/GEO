@@ -198,3 +198,34 @@ def test_first_scan_no_previous_snapshot_no_flip_no_error(db):
     assert snapshot is not None
     flips = db.query(ActivityLog).filter(ActivityLog.event_type == "citation_flip").all()
     assert len(flips) == 0
+
+
+def test_history_returns_oldest_to_newest_capped_at_limit(db):
+    from app.services import provenance_service as ps
+    from datetime import datetime, timedelta
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    db.add(client)
+    db.commit()
+
+    base = datetime(2026, 1, 1)
+    for i in range(15):
+        snap = ps.ShareOfSourceSnapshot(
+            client_id=client.id, scan_id=uuid.uuid4(),
+            computed_at=base + timedelta(days=i),
+            total_third_party_sources=i, client_share_pct=float(i),
+        )
+        db.add(snap)
+    db.commit()
+
+    history = ps.get_share_of_source_history(client.id, db)
+    assert len(history) == 12
+    assert history[0].client_share_pct < history[-1].client_share_pct  # oldest first
+    assert history[-1].client_share_pct == 14.0  # newest of the 15 seeded
+
+
+def test_history_empty_for_client_with_no_snapshots(db):
+    from app.services import provenance_service as ps
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    db.add(client)
+    db.commit()
+    assert ps.get_share_of_source_history(client.id, db) == []

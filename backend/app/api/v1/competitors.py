@@ -17,14 +17,14 @@ from app.schemas.competitor import (
     ContentBriefResponse,
     WinLossResponse,
 )
-from app.schemas.provenance import ShareOfSourceResponse
+from app.schemas.provenance import ShareOfSourceHistoryPoint, ShareOfSourceResponse
 from app.services.brand_detection import detect_brand_mention
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
     compute_competitor_trends,
 )
 from app.services.content_brief_service import generate_brief_for_result
-from app.services.provenance_service import compute_share_of_source
+from app.services.provenance_service import compute_share_of_source, get_share_of_source_history
 from app.services.win_loss_service import compute_win_loss
 
 router = APIRouter(prefix="/clients/{client_id}/competitors", tags=["competitors"])
@@ -68,6 +68,16 @@ def get_trends(client_id: uuid.UUID, db: Session = Depends(get_db)):
 def get_provenance(client_id: uuid.UUID, db: Session = Depends(get_db)):
     _get_client_or_404(client_id, db)
     return compute_share_of_source(client_id, db)
+
+
+@router.get(
+    "/provenance/history",
+    response_model=list[ShareOfSourceHistoryPoint],
+    dependencies=[Depends(require_api_key)],
+)
+def get_provenance_history(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    _get_client_or_404(client_id, db)
+    return get_share_of_source_history(client_id, db)
 
 
 @router.post(

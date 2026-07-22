@@ -30,3 +30,9 @@ class ShareOfSourceResponse(BaseModel):
     competitor_shares: list[BrandShare]
     acquisition_list: list[AcquisitionSource]
     flip_targets: list[AcquisitionSource]
+
+
+class ShareOfSourceHistoryPoint(BaseModel):
+    computed_at: str
+    client_share_pct: float
+    total_third_party_sources: int
