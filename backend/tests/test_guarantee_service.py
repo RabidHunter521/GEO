@@ -5,6 +5,7 @@ import pytest
 from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.guarantee import Guarantee
+from app.models.scan import Scan
 from app.services.guarantee_service import (
     create_guarantee, derive_state, get_guarantee_progress, resolve_guarantee,
 )
@@ -14,9 +15,13 @@ def _client_with_score(db, citability=40.0, overall=50.0):
     c = Client(name="A", website="https://a.my", industry="x")
     db.add(c)
     db.commit()
-    db.add(GeoScore(client_id=c.id, ai_citability=citability, brand_authority=50.0,
-                    content_quality=50.0, technical_foundations=0.0,
-                    structured_data=0.0, overall_score=overall))
+    s = Scan(client_id=c.id, status="completed")
+    db.add(s)
+    db.commit()
+    db.add(GeoScore(client_id=c.id, scan_id=s.id, ai_citability=citability,
+                    brand_authority=50.0, content_quality=50.0,
+                    technical_foundations=0.0, structured_data=0.0,
+                    overall_score=overall))
     db.commit()
     return c
 
