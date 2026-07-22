@@ -4,7 +4,6 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 
 import httpx
-import pytest
 
 from app.services.url_safety import SafeResponse
 
