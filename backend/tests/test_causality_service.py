@@ -11,13 +11,15 @@ def _scan(db, client, days_ago, opt_seen, opt_total, ctl_seen, ctl_total):
     s.completed_at = datetime.utcnow() - timedelta(days=days_ago)
     db.add(s)
     db.commit()
-    rows = []
-    for i in range(opt_total):
-        rows.append(ScanQueryResult(scan_id=s.id, platform="chatgpt", category="recommendation",
-                                    query_text=f"opt{i}", brand_detected=i < opt_seen))
-    for i in range(ctl_total):
-        rows.append(ScanQueryResult(scan_id=s.id, platform="chatgpt", category="recommendation",
-                                    query_text=f"ctl{i}", brand_detected=i < ctl_seen, is_control=True))
+    rows = [
+        ScanQueryResult(scan_id=s.id, platform="chatgpt", category="recommendation",
+                        query_text=f"opt{i}", brand_detected=i < opt_seen)
+        for i in range(opt_total)
+    ] + [
+        ScanQueryResult(scan_id=s.id, platform="chatgpt", category="recommendation",
+                        query_text=f"ctl{i}", brand_detected=i < ctl_seen, is_control=True)
+        for i in range(ctl_total)
+    ]
     db.add_all(rows)
     db.commit()
     return s
