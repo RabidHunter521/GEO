@@ -40,6 +40,7 @@ def _fake_client(name="Acme Corp"):
     m.lead_to_customer_pct = 20
     m.share_token = None
     m.share_token_created_at = None
+    m.ga4_property_id = None
     m.created_at = datetime(2026, 1, 1)
     m.archived_at = None
     m.is_prospect = False

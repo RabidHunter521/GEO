@@ -431,6 +431,8 @@ export interface ClientViewTrafficValue {
   est_leads: number | null
   est_pipeline_rm: number | null
   est_won_rm: number | null
+  // Pre-formatted per-platform split ("ChatGPT 140 · Perplexity 60"), GA4 months only.
+  breakdown_label?: string | null
 }
 
 export type RemediationStatus = "flagged" | "in_progress" | "corrected"

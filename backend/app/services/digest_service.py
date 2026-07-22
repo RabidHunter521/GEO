@@ -21,6 +21,7 @@ from app.services.share_link_service import get_share_link_url
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.headline_battle_service import select_headline_battle
 from app.services.digest_tip_service import select_digest_tip
+from app.services.ga4_traffic_service import format_breakdown
 from app.core.time import utcnow
 
 logger = structlog.get_logger()
@@ -43,6 +44,8 @@ class DigestData:
     at_risk_pipeline_rm: int | None = None
     at_risk_leads: int | None = None
     headline_battle: object | None = None  # HeadlineBattle | None
+    # Formatted per-platform split ("ChatGPT 140 · Perplexity 60"), GA4 months only.
+    ai_breakdown: str | None = None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -203,6 +206,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         .first()
     )
     ai_visitors = latest_traffic.ai_visitors if latest_traffic else None
+    ai_breakdown = format_breakdown(latest_traffic.breakdown) if latest_traffic else None
     captured = estimate_pipeline(ai_visitors, client)
     at_risk = estimate_value_at_risk(ai_visitors, current_citability / 100.0, client)
 
@@ -221,6 +225,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         at_risk_pipeline_rm=at_risk.missed_pipeline_rm if at_risk else None,
         at_risk_leads=at_risk.missed_leads if at_risk else None,
         headline_battle=headline_battle,
+        ai_breakdown=ai_breakdown,
     )
 
 
@@ -250,6 +255,19 @@ def _detect_first_seen(seen_count: int, prev_scan: Scan | None, db: Session) -> 
         .count()
     )
     return prev_detected == 0
+
+
+def _breakdown_line(breakdown: str | None) -> str:
+    """Per-platform visitor split line for the money block. "At least" hedge:
+    referral attribution undercounts, so never present the split as exact."""
+    if not breakdown:
+        return ""
+    return (
+        f"""
+          <p style="margin:6px 0 0;font-size:13px;color:#1e40af;">
+            At least: {html.escape(breakdown)} visitors came from AI tools.
+          </p>"""
+    )
 
 
 def _build_email_html(client: Client, data: DigestData) -> str:
@@ -317,7 +335,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
             AI visibility got you an estimated <strong>RM {data.captured_pipeline_rm:,}</strong>
             in pipeline this month. About <strong>RM {data.at_risk_pipeline_rm:,}</strong>
             (~{leads:,} potential customers) is still on the table.
-          </p>
+          </p>{_breakdown_line(data.ai_breakdown)}
         </div>"""
 
     battle_block = ""

@@ -46,6 +46,15 @@ def aggregate_rows(rows: list[tuple[str, str, int]]) -> dict[date, dict]:
     return out
 
 
+def format_breakdown(breakdown: dict | None) -> str | None:
+    """One-line per-platform split for client surfaces, biggest first,
+    e.g. "ChatGPT 140 · Perplexity 60". None when there's nothing to show."""
+    if not breakdown:
+        return None
+    parts = sorted(breakdown.items(), key=lambda kv: -kv[1])
+    return " · ".join(f"{AI_REFERRER_DOMAINS.get(d, d)} {n:,}" for d, n in parts)
+
+
 class Ga4SyncError(Exception):
     pass
 

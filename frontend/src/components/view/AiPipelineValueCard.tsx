@@ -58,6 +58,11 @@ export function AiPipelineValueCard({ value }: { value: ClientViewTrafficValue }
           </p>
         </>
       )}
+      {value.breakdown_label && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          At least: {value.breakdown_label} visitors came from AI tools.
+        </p>
+      )}
     </div>
   )
 }

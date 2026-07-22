@@ -76,6 +76,7 @@ from app.services.competitor_intelligence_service import (
 from app.services.issue_detection_service import detect_client_issues
 from app.services.proof_card_service import select_proof_cards, result_excerpt
 from app.services.causality_service import compute_causal_trend
+from app.services.ga4_traffic_service import format_breakdown
 from app.services.headline_battle_service import select_headline_battle
 from app.services.r2_service import presigned_pdf_url
 
@@ -237,6 +238,7 @@ def get_overview(
             at_risk_leads=at_risk.missed_leads if at_risk else None,
             at_risk_pipeline_rm=at_risk.missed_pipeline_rm if at_risk else None,
             at_risk_won_rm=at_risk.missed_won_rm if at_risk else None,
+            breakdown_label=format_breakdown(latest_traffic.breakdown),
         )
 
     # Freshness — driven by the client's review cadence (a reminder; nothing
