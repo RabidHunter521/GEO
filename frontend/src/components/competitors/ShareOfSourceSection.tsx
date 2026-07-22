@@ -36,11 +36,9 @@ export function ShareOfSourceSection({
           Of the {data.total_third_party_sources} sources AI leaned on to answer your
           category&apos;s questions, here is who shows up on them.
         </p>
-        {history.length >= 2 && (
-          <div className="mt-3">
-            <ShareOfSourceSparkline points={history} />
-          </div>
-        )}
+        <div className="mt-3">
+          <ShareOfSourceSparkline points={history} />
+        </div>
         <div className="mt-4 space-y-3">
           {rows.map((r) => (
             <div key={r.label} className="flex items-center gap-3">

@@ -45,7 +45,7 @@ export function ShareOfSourceSparkline({ points }: { points: ShareOfSourceHistor
       </svg>
       <div className="text-xs">
         <div className="font-medium tabular-nums">{last.toFixed(0)}% now</div>
-        <div className={`tabular-nums ${trendColor}`}>{trendLabel} vs {points.length} scans ago</div>
+        <div className={`tabular-nums ${trendColor}`}>{trendLabel} vs {points.length - 1} scans ago</div>
       </div>
     </div>
   )
