@@ -47,6 +47,7 @@ def setup_db(scan, client, stored_results):
     mock_db.query.return_value.filter.return_value.first.side_effect = [scan, client]
     mock_db.query.return_value.filter.return_value.all.side_effect = [
         [],              # competitors query
+        [],              # control queries query
         stored_results,  # scan_query_results query (for scoring)
     ]
     return mock_db

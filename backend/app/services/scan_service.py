@@ -11,6 +11,7 @@ from app.models.scan import Scan
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan_query_result import ScanQueryResult
+from app.models.control_query import ControlQuery
 from app.models.scan_query_source import ScanQuerySource
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
@@ -20,7 +21,7 @@ from app.services.cost_tracker import record_llm_usage
 from app.services.brand_detection import detect_brand_mention
 from app.services.position_extraction import extract_position
 from app.services.provenance_service import normalize_domain
-from app.services.query_builder import build_client_queries, build_competitor_queries
+from app.services.query_builder import build_client_queries, build_competitor_queries, build_control_queries
 from app.services.scoring_service import (
     compute_ai_citability,
     compute_geo_score,
@@ -114,6 +115,7 @@ def _run_platform_queries(
     scan: Scan,
     client: Client,
     competitors: list[Competitor],
+    control_queries: list[ControlQuery],
 ) -> tuple[list[ScanQueryResult], list[PlatformResult]]:
     """Run all queries for one platform using a pre-built client. Raises on
     platform failure — results are returned (not persisted) so a failed platform
@@ -169,6 +171,23 @@ def _run_platform_queries(
         results.append(sqr)
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
+    # Benchmark rows: measurement only — no position extraction, no provenance
+    # capture. They exist solely for the optimized-vs-untouched comparison.
+    for q in build_control_queries(control_queries):
+        result = platform_client.query(q["query_text"])
+        usages.append(result)
+        results.append(ScanQueryResult(
+            scan_id=scan.id,
+            platform=platform,
+            competitor_id=None,
+            category=q["category"],
+            query_text=q["query_text"],
+            response_text=result.text,
+            brand_detected=detect_brand_mention(result.text, client.name),
+            is_control=True,
+        ))
+        time.sleep(_INTER_QUERY_DELAY_SECONDS)
+
     for competitor in competitors:
         for q in build_competitor_queries(client, competitor):
             result = platform_client.query(q["query_text"])
@@ -210,6 +229,11 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         competitors: list[Competitor] = (
             db.query(Competitor).filter(Competitor.client_id == scan.client_id).all()
         )
+        control_queries: list[ControlQuery] = (
+            db.query(ControlQuery)
+            .filter(ControlQuery.client_id == scan.client_id, ControlQuery.active.is_(True))
+            .all()
+        )
 
         # Per-platform isolation: one provider outage never fails the whole scan.
         failed_platforms: list[str] = []
@@ -232,7 +256,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             with ThreadPoolExecutor(max_workers=len(clients_by_platform)) as pool:
                 future_to_platform = {
                     pool.submit(
-                        _run_platform_queries, platform, pc, scan, client, competitors
+                        _run_platform_queries, platform, pc, scan, client, competitors, control_queries
                     ): platform
                     for platform, pc in clients_by_platform.items()
                 }
