@@ -27,6 +27,7 @@ boto3 = "^1.35"
 beautifulsoup4 = "^4.12"
 lxml = "^5.3"
 python-multipart = "^0.0.20"
+google-analytics-data = "^0.18"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"
