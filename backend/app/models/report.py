@@ -4,6 +4,7 @@ from sqlalchemy import Float, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class Report(Base):
@@ -22,5 +23,5 @@ class Report(Base):
     overall_score: Mapped[float] = mapped_column(Float, nullable=False)
     # Claude "what changed this month" narrative, generated when the PDF is built
     change_narrative: Mapped[str | None] = mapped_column(Text, nullable=True)
-    generated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    generated_at: Mapped[datetime] = mapped_column(default=utcnow)
     sent_at: Mapped[datetime | None] = mapped_column(nullable=True)

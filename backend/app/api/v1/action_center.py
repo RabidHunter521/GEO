@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -9,6 +8,7 @@ from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.action_recommendation import ActionRecommendation
 from app.schemas.action_recommendation import ActionRecommendationResponse, ActionStatusUpdate
+from app.core.time import utcnow
 
 router = APIRouter(prefix="/clients/{client_id}/actions", tags=["action-center"])
 
@@ -54,7 +54,7 @@ def update_action_status(
         raise HTTPException(status_code=404, detail="Action not found")
 
     action.status = body.status
-    action.resolved_at = datetime.utcnow()
+    action.resolved_at = utcnow()
     db.commit()
     db.refresh(action)
     return action

@@ -1,3 +1,4 @@
+from app.core.time import utcnow
 # backend/app/services/remediation_service.py
 """Remediation loop — the "Flagged -> In progress -> Corrected" lifecycle the
 SeenBy team works through for AI hallucinations and competitor-won queries.
@@ -22,7 +23,6 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.constants import REMEDIATION_STATUSES
-from app.models.client import Client
 from app.models.remediation_item import RemediationItem
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
@@ -110,7 +110,7 @@ def sync_remediation_items(client_id: uuid.UUID, db: Session) -> None:
     """Reconcile a client's remediation items with the latest scan. Commits.
     Best-effort: rolls back and logs on any failure, never raises."""
     try:
-        now = datetime.utcnow()
+        now = utcnow()
         _sync_type(db, client_id, "hallucination", _current_hallucination_keys(client_id, db), now)
         _sync_type(db, client_id, "content_gap", _current_content_gap_keys(client_id, db), now)
         db.commit()
@@ -155,7 +155,7 @@ def set_remediation_status(item_id: uuid.UUID, status: str, db: Session) -> Reme
     if item is None:
         return None
     item.status = status
-    item.resolved_at = datetime.utcnow() if status == "corrected" else None
+    item.resolved_at = utcnow() if status == "corrected" else None
     db.commit()
     db.refresh(item)
     return item

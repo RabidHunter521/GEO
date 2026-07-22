@@ -4,6 +4,7 @@ from sqlalchemy import String, Text, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ContentBrief(Base):
@@ -29,4 +30,4 @@ class ContentBrief(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     angle: Mapped[str] = mapped_column(Text, nullable=False)
     outline: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    generated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    generated_at: Mapped[datetime] = mapped_column(default=utcnow)

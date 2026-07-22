@@ -1,5 +1,4 @@
 # backend/tests/test_win_loss_service.py
-import uuid
 from datetime import datetime
 
 from app.models.client import Client

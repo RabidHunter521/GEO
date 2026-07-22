@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ToolkitFiles(Base):
@@ -19,7 +20,7 @@ class ToolkitFiles(Base):
     llms_txt: Mapped[str] = mapped_column(Text, nullable=False)
     schema_json: Mapped[str] = mapped_column(Text, nullable=False)
     robots_txt: Mapped[str] = mapped_column(Text, nullable=False)
-    generated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    generated_at: Mapped[datetime] = mapped_column(default=utcnow)
     llms_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     schema_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     robots_verified: Mapped[bool] = mapped_column(Boolean, default=False)

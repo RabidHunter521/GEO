@@ -7,14 +7,14 @@ from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
 from app.services import provenance_service as ps
+from app.core.time import utcnow
 
 
 def _seed_enriched(db):
     client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
     comp = Competitor(id=uuid.uuid4(), client_id=client.id, name="Rival", website="https://rival.com")
     db.add_all([client, comp])
-    from datetime import datetime
-    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=utcnow())
     db.add(scan)
     sqr = ScanQueryResult(scan_id=scan.id, platform="perplexity", category="recommendation",
                           query_text="best crm", response_text="…", brand_detected=False)

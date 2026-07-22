@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +11,7 @@ from app.core.auth import require_api_key
 from app.core.database import get_db
 from app.models.client import Client
 from app.models.llm_call_log import LlmCallLog
+from app.core.time import utcnow
 
 router = APIRouter(prefix="/clients/{client_id}/costs", tags=["costs"])
 
@@ -54,7 +55,7 @@ def get_client_costs(client_id: uuid.UUID, db: Session = Depends(get_db)):
         .all()
     )
 
-    since_30 = datetime.utcnow() - timedelta(days=30)
+    since_30 = utcnow() - timedelta(days=30)
     last_30_cost: Decimal = (
         db.query(func.sum(LlmCallLog.cost_usd))
         .filter(LlmCallLog.client_id == client_id, LlmCallLog.called_at >= since_30)

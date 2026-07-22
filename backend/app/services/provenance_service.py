@@ -142,10 +142,7 @@ def enrich_scan_sources(scan_id: uuid.UUID, db: Session) -> None:
     fetched: dict[str, tuple[str, str | None]] = {}
     if third_party_urls:
         with ThreadPoolExecutor(max_workers=_FETCH_WORKERS) as pool:
-            for url, outcome in zip(
-                third_party_urls, pool.map(_fetch_page_text, third_party_urls)
-            ):
-                fetched[url] = outcome
+            fetched = dict(zip(third_party_urls, pool.map(_fetch_page_text, third_party_urls)))
 
     for url in third_party_urls:
         status, text = fetched.get(url, ("error", None))
@@ -229,7 +226,7 @@ def _summarize(
     comp_names = {str(c.id): c.name for c in competitors}
 
     client_present = sum(1 for u in unique.values() if u["present"].get("client"))
-    comp_present_counts: dict[str, int] = {cid: 0 for cid in comp_names}
+    comp_present_counts: dict[str, int] = dict.fromkeys(comp_names, 0)
     for u in unique.values():
         for cid in u["present"].get("competitors", []):
             if cid in comp_present_counts:

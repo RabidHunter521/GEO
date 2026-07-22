@@ -1,7 +1,7 @@
+from app.core.time import utcnow
 # backend/app/services/content_brief_service.py
 """On-demand Claude content briefs for queries the client lost to competitors."""
 import json
-from datetime import datetime
 
 import structlog
 from sqlalchemy.orm import Session
@@ -89,7 +89,7 @@ def generate_brief_for_result(
     brief.title = title
     brief.angle = angle
     brief.outline = outline
-    brief.generated_at = datetime.utcnow()
+    brief.generated_at = utcnow()
 
     db.add(ActivityLog(
         client_id=client.id,

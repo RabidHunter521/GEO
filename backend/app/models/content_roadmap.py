@@ -4,6 +4,7 @@ from sqlalchemy import Integer, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ContentRoadmap(Base):
@@ -26,5 +27,5 @@ class ContentRoadmap(Base):
     roadmap_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     # How many lost/open queries fed the plan — drives the empty-state message
     source_query_count: Mapped[int] = mapped_column(Integer, default=0)
-    generated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    generated_at: Mapped[datetime] = mapped_column(default=utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)

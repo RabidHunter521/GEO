@@ -523,17 +523,6 @@ export interface ClientViewIssueGroup {
 
 // --- Deliverables surfaced read-only on the client view ---
 
-export interface ClientViewToolkit {
-  llms_txt: string
-  schema_json: string
-  robots_txt: string
-  llms_verified: boolean
-  schema_verified: boolean
-  robots_verified: boolean
-  verified_at: string | null
-  generated_at: string
-}
-
 export interface ClientViewRoadmapItem {
   week: number
   theme: string
@@ -574,13 +563,6 @@ export interface ClientViewContentGaps {
   suggested_content: ClientViewSuggestedContent[]
   quality_recommendation: string | null
   analyzed_at: string
-}
-
-export interface ClientViewActivity {
-  kind: string
-  label: string
-  note: string
-  created_at: string
 }
 
 // ── Competitor Gap Matrix (/clients/gap-matrix) ───────────────────────────────

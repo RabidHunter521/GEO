@@ -245,7 +245,6 @@ def test_run_scan_skips_already_finalized_scan():
     platform calls, no duplicate result rows."""
     scan = make_scan()
     scan.status = "completed"
-    client = make_client()
     mock_db = MagicMock()
     mock_db.query.return_value.filter.return_value.first.return_value = scan
 
@@ -402,7 +401,6 @@ def test_has_active_scan_scoped_to_client(db):
 # ── reap_stale_scans (crashed-worker reconciliation) ─────────────────────────
 
 def test_reap_stale_scans_fails_stale_running(db):
-    from app.models.scan import Scan
     from app.services.scan_service import reap_stale_scans
     c = _guard_client(db)
     s = _guard_scan(db, c, "running", minutes_ago=20)

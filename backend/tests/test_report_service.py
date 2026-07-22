@@ -1,6 +1,7 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import MagicMock, patch
+from app.core.time import utcnow
 
 
 # ── _compute_trend ─────────────────────────────────────────────────────────────
@@ -228,7 +229,7 @@ def test_generate_report_pdf_returns_none_for_archived_client():
     from app.services.report_service import generate_report_pdf
     db = MagicMock()
     client = MagicMock()
-    client.archived_at = datetime.utcnow()
+    client.archived_at = utcnow()
     db.get.return_value = client
     assert generate_report_pdf(uuid.uuid4(), db) is None
 
@@ -257,7 +258,7 @@ def test_generate_report_pdf_uploads_to_r2_and_returns_report():
          patch("app.services.report_service.weasyprint") as mock_wp, \
          patch("app.services.report_service.upload_pdf", return_value="https://pub.seenby.my/reports/test.pdf") as mock_upload:
         mock_wp.HTML.return_value.write_pdf.return_value = b"fake-pdf-bytes"
-        result = generate_report_pdf(client.id, db)
+        generate_report_pdf(client.id, db)
 
     mock_upload.assert_called_once()
     assert mock_upload.call_args[0][1] == b"fake-pdf-bytes"
@@ -290,7 +291,7 @@ def test_generate_report_pdf_logs_report_generated_activity():
 # ── change narrative ──────────────────────────────────────────────────────────
 
 def test_fallback_narrative_first_report():
-    from app.services.report_service import _fallback_narrative, ReportData
+    from app.services.report_service import _fallback_narrative
     data = _make_report_data()
     data.trend = "first"
     data.prev_overall_score = None
@@ -552,7 +553,7 @@ def _make_mock_report(sent_at=None):
 def test_send_report_email_returns_false_when_already_sent():
     from app.services.report_service import send_report_email
     db = MagicMock()
-    db.get.return_value = _make_mock_report(sent_at=datetime.utcnow())
+    db.get.return_value = _make_mock_report(sent_at=utcnow())
     assert send_report_email(uuid.uuid4(), db) is False
 
 
@@ -691,7 +692,7 @@ def test_proof_html_empty_when_no_cards():
 # ── Task 3: value-at-risk pair in monthly PDF ─────────────────────────────────
 
 def test_report_html_shows_value_at_risk_when_configured():
-    from app.services.report_service import _build_report_html, ReportData
+    from app.services.report_service import _build_report_html
     from app.services.revenue_service import PipelineEstimate, ValueAtRisk
     client = MagicMock()
     client.name = "Acme Dental"
@@ -717,7 +718,7 @@ def test_report_html_no_at_risk_block_when_none():
 # ── Task 3: battle to win next in monthly PDF ─────────────────────────────────
 
 def test_report_html_shows_headline_battle():
-    from app.services.report_service import _build_report_html, ReportData
+    from app.services.report_service import _build_report_html
     from app.services.headline_battle_service import HeadlineBattle
     client = MagicMock(); client.name = "Acme Dental"
     data = _make_report_data()

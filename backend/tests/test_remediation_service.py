@@ -1,5 +1,3 @@
-import uuid
-from datetime import datetime, timedelta
 
 from app.models.client import Client
 from app.models.scan import Scan
@@ -11,6 +9,7 @@ from app.services.remediation_service import (
     get_remediation_items,
     set_remediation_status,
 )
+from app.core.time import utcnow
 
 
 def _client(db) -> Client:
@@ -22,7 +21,7 @@ def _client(db) -> Client:
 
 
 def _completed_scan(db, client_id, when=None) -> Scan:
-    s = Scan(client_id=client_id, status="completed", completed_at=when or datetime.utcnow())
+    s = Scan(client_id=client_id, status="completed", completed_at=when or utcnow())
     db.add(s)
     db.commit()
     db.refresh(s)
@@ -95,7 +94,7 @@ def test_sync_reopens_corrected_item_if_problem_returns(db):
     client = _client(db)
     item = RemediationItem(
         client_id=client.id, item_type="hallucination", platform="perplexity",
-        label="Is Acme open 24/7?", status="corrected", resolved_at=datetime.utcnow(),
+        label="Is Acme open 24/7?", status="corrected", resolved_at=utcnow(),
     )
     db.add(item)
     scan = _completed_scan(db, client.id)
@@ -153,7 +152,7 @@ def test_set_remediation_status_sets_and_clears_resolved_at(db):
 def test_get_items_orders_active_before_corrected(db):
     client = _client(db)
     db.add(RemediationItem(client_id=client.id, item_type="content_gap", platform="x",
-                           label="corrected one", status="corrected", resolved_at=datetime.utcnow()))
+                           label="corrected one", status="corrected", resolved_at=utcnow()))
     db.add(RemediationItem(client_id=client.id, item_type="content_gap", platform="y",
                            label="open one", status="flagged"))
     db.commit()

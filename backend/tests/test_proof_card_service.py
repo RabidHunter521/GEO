@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from app.services.proof_card_service import (
-    ProofCard,
     result_excerpt,
     select_proof_cards,
 )

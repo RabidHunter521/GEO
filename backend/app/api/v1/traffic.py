@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -10,6 +9,7 @@ from app.models.client import Client
 from app.models.activity_log import ActivityLog
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
 from app.schemas.ai_traffic import AiTrafficSnapshotResponse, AiTrafficSnapshotUpsert
+from app.core.time import utcnow
 
 router = APIRouter(prefix="/clients/{client_id}/traffic", tags=["ai-traffic"])
 
@@ -50,7 +50,7 @@ def upsert_traffic(client_id: uuid.UUID, body: AiTrafficSnapshotUpsert, db: Sess
     )
     if snapshot:
         snapshot.ai_visitors = body.ai_visitors
-        snapshot.updated_at = datetime.utcnow()
+        snapshot.updated_at = utcnow()
     else:
         snapshot = AiTrafficSnapshot(
             client_id=client_id,

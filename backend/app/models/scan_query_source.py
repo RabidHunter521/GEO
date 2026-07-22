@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ScanQuerySource(Base):
@@ -32,6 +33,6 @@ class ScanQuerySource(Base):
     fetch_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="pending")
     # {"client": bool, "competitors": [competitor_id_str, ...]} ; null until enriched
     present_brands: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
     scan_query_result = relationship("ScanQueryResult", back_populates="sources")

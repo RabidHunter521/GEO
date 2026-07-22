@@ -164,7 +164,6 @@ def test_pending_scan_is_excluded_from_diff(db):
 
 def test_competitor_results_excluded_from_diff(db):
     """Results with competitor_id set must not appear in newly_seen/newly_unseen."""
-    import uuid as _uuid
     from app.models.competitor import Competitor
 
     client = _make_client(db)

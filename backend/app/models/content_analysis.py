@@ -4,6 +4,7 @@ from sqlalchemy import Float, Integer, String, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ContentAnalysis(Base):
@@ -31,4 +32,4 @@ class ContentAnalysis(Base):
     content_metrics_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     content_quality_recommendation: Mapped[str | None] = mapped_column(Text, nullable=True)
     pages_crawled: Mapped[int] = mapped_column(Integer, default=0)
-    analyzed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    analyzed_at: Mapped[datetime] = mapped_column(default=utcnow)

@@ -1,7 +1,7 @@
+from app.core.time import utcnow
 # backend/app/services/assessment_service.py
 """Claude-assisted, admin-reviewed scoring for the manual GEO dimensions."""
 import json
-from datetime import datetime
 
 import structlog
 from sqlalchemy import desc
@@ -60,7 +60,7 @@ def generate_assessment(client: Client, dimension: str, db: Session) -> Dimensio
         evidence_bullets=bullets,
         raw_narrative=narrative,
         status="suggested",
-        generated_at=datetime.utcnow(),
+        generated_at=utcnow(),
     )
     db.add(row)
     db.add(ActivityLog(
@@ -111,7 +111,7 @@ def accept_assessment(
     accepted = row.suggested_score if final_score is None else max(0, min(100, int(final_score)))
     row.final_score = accepted
     row.status = "accepted" if accepted == row.suggested_score else "adjusted"
-    row.reviewed_at = datetime.utcnow()
+    row.reviewed_at = utcnow()
 
     setattr(client, _SCORE_FIELD[dimension], accepted)
     setattr(client, _EVIDENCE_FIELD[dimension], "\n".join(row.evidence_bullets))

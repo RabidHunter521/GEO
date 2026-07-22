@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 from types import SimpleNamespace
 
-from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk, ValueAtRisk
+from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 
 
 def _client(deal=None, v2l=2, l2c=20, avg_deal_value_rm=None, visitor_to_lead_pct=None, lead_to_customer_pct=None):

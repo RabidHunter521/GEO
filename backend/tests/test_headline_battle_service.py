@@ -2,7 +2,7 @@ import uuid
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from app.services.headline_battle_service import select_headline_battle, HeadlineBattle
+from app.services.headline_battle_service import select_headline_battle
 
 
 def _entry(category, query, competitors_seen, outcome, platform="chatgpt", brief=None):

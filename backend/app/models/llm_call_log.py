@@ -5,6 +5,7 @@ from sqlalchemy import String, Integer, ForeignKey, Numeric, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class LlmCallLog(Base):
@@ -27,5 +28,5 @@ class LlmCallLog(Base):
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False)
     called_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True
+        DateTime(timezone=True), default=utcnow, nullable=False, index=True
     )

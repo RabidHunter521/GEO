@@ -4,6 +4,7 @@ from sqlalchemy import Float, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class GeoScore(Base):
@@ -21,4 +22,4 @@ class GeoScore(Base):
     # Per-platform visibility: {"chatgpt": {"visibility": 75.0, "queries": 8, "detected": 6, "status": "ok"}, ...}
     # Null on scores computed before multi-platform scanning.
     platform_breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    computed_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    computed_at: Mapped[datetime] = mapped_column(default=utcnow)

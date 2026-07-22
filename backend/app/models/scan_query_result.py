@@ -4,6 +4,7 @@ from sqlalchemy import String, Boolean, Integer, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
+from app.core.time import utcnow
 
 
 class ScanQueryResult(Base):
@@ -25,9 +26,9 @@ class ScanQueryResult(Base):
     hallucination_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     # Brand's rank in list-style AI answers (recommendation/local categories). Null when not ranked.
     recommendation_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
-    sources: Mapped[list["ScanQuerySource"]] = relationship(
+    sources: Mapped[list["ScanQuerySource"]] = relationship(  # noqa: F821 — ruff false-positive on SQLAlchemy string forward-ref
         "ScanQuerySource",
         back_populates="scan_query_result",
         cascade="all, delete-orphan",

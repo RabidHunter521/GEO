@@ -5,6 +5,7 @@ from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.services.client_list_service import build_client_list, compute_next_scan_due
+from app.core.time import utcnow
 
 
 def _make_client(db, name="Acme Corp", **kwargs):
@@ -119,7 +120,7 @@ def test_computed_at_tie_broken_by_id(db):
 
 def test_enrichment_is_per_client(db):
     a = _make_client(db, name="A")
-    b = _make_client(db, name="B")
+    _make_client(db, name="B")
     scan_a = _make_scan(db, a, triggered_at=datetime(2026, 6, 1))
     _make_score(db, a, scan_a, 55.0, datetime(2026, 6, 1))
     items = {i.name: i for i in build_client_list(db)}
@@ -142,7 +143,7 @@ def test_compute_next_scan_due_returns_none_when_never_scanned():
 
 def test_compute_next_scan_due_overdue_flag_via_build(db):
     """Client scanned 40 days ago with 30-day cadence should be overdue."""
-    last_scan = datetime.utcnow() - timedelta(days=40)
+    last_scan = utcnow() - timedelta(days=40)
     c = _make_client(db, scan_cadence_days=30)
     scan = _make_scan(db, c)
     _make_score(db, c, scan, 65.0, last_scan)
@@ -154,7 +155,7 @@ def test_compute_next_scan_due_overdue_flag_via_build(db):
 
 def test_compute_next_scan_due_not_overdue_when_recent(db):
     """Client scanned yesterday with 30-day cadence should NOT be overdue."""
-    last_scan = datetime.utcnow() - timedelta(days=1)
+    last_scan = utcnow() - timedelta(days=1)
     c = _make_client(db, scan_cadence_days=30)
     scan = _make_scan(db, c)
     _make_score(db, c, scan, 72.0, last_scan)

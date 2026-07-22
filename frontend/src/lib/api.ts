@@ -413,7 +413,3 @@ export function acceptAssessment(
     { method: "POST", body: JSON.stringify({ final_score: finalScore }) },
   )
 }
-
-export function listAssessments(clientId: string): Promise<DimensionAssessment[]> {
-  return apiFetch<DimensionAssessment[]>(`/api/v1/clients/${clientId}/assessments`)
-}
