@@ -74,6 +74,16 @@ export interface Competitor {
   website: string | null
 }
 
+// Benchmark query SeenBy deliberately leaves alone (causal proof).
+export interface ControlQuery {
+  id: string
+  client_id: string
+  query_text: string
+  category: string
+  active: boolean
+  created_at: string
+}
+
 export interface GeoScore {
   id: string
   client_id: string

@@ -9,6 +9,8 @@ import {
   deleteClient as apiDeleteClient,
   addCompetitor as apiAddCompetitor,
   deleteCompetitor as apiDeleteCompetitor,
+  createControlQuery as apiCreateControlQuery,
+  updateControlQuery as apiUpdateControlQuery,
   triggerScan as apiTriggerScan,
   generateShareToken as apiGenerateShareToken,
 } from "@/lib/api"
@@ -71,6 +73,25 @@ export async function addCompetitorAction(
   const comp = await apiAddCompetitor(clientId, data)
   revalidatePath(`/clients/${clientId}`)
   return comp
+}
+
+export async function addControlQueryAction(
+  clientId: string,
+  data: { query_text: string; category?: string },
+) {
+  const cq = await apiCreateControlQuery(clientId, data)
+  revalidatePath(`/clients/${clientId}/settings`)
+  return cq
+}
+
+export async function toggleControlQueryAction(
+  clientId: string,
+  controlQueryId: string,
+  active: boolean,
+) {
+  const cq = await apiUpdateControlQuery(clientId, controlQueryId, { active })
+  revalidatePath(`/clients/${clientId}/settings`)
+  return cq
 }
 
 export async function deleteCompetitorAction(
