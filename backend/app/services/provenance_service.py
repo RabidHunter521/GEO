@@ -14,6 +14,7 @@ import structlog
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
+from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
@@ -304,6 +305,50 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
     return _summarize(unique, competitors, client, last_scan_at)
 
 
+def _detect_flips(
+    client_id: uuid.UUID, new_scan_id: uuid.UUID, new_unique: dict[str, dict], db: Session
+) -> None:
+    """Compare the client's previous snapshot's acquisition_list against the
+    freshly-collected new_unique data; log a verified citation_flip for every
+    URL that went from (client absent, competitor present) to (client
+    present) between the two snapshots.
+
+    Skips URLs that don't reappear in new_unique at all — that's
+    search-result drift, not a verified flip. Runs after the new snapshot is
+    already committed; the caller wraps this in its own try/except so a bug
+    here can only cost this run's activity-log entries, never the snapshot.
+    """
+    previous = (
+        db.query(ShareOfSourceSnapshot)
+        .filter(
+            ShareOfSourceSnapshot.client_id == client_id,
+            ShareOfSourceSnapshot.scan_id != new_scan_id,
+        )
+        .order_by(ShareOfSourceSnapshot.computed_at.desc())
+        .first()
+    )
+    if previous is None:
+        return
+
+    client = db.get(Client, client_id)
+    client_name = client.name if client else "your business"
+
+    for entry in previous.acquisition_list:
+        url = entry.get("url")
+        new_entry = new_unique.get(url)
+        if new_entry is None:
+            continue  # not verified — the URL didn't reappear this scan
+        if new_entry["present"].get("client"):
+            competitor_names = ", ".join(
+                c.get("name", "") for c in entry.get("competitors_present", [])
+            )
+            note = f"{new_entry['domain']} now cites {client_name}"
+            if competitor_names:
+                note += f" — previously only cited {competitor_names}"
+            db.add(ActivityLog(client_id=client_id, event_type="citation_flip", note=note))
+    db.commit()
+
+
 def compute_and_persist_snapshot(
     scan_id: uuid.UUID, client_id: uuid.UUID, db: Session
 ) -> ShareOfSourceSnapshot | None:
@@ -344,5 +389,11 @@ def compute_and_persist_snapshot(
             "share_of_source_snapshot_persist_failed", scan_id=str(scan_id), error=str(exc)
         )
         return None
+
+    try:
+        _detect_flips(client_id, scan_id, unique, db)
+    except Exception as exc:
+        db.rollback()
+        logger.error("citation_flip_detection_failed", scan_id=str(scan_id), error=str(exc))
 
     return snapshot

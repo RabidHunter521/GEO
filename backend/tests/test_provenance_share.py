@@ -1,5 +1,6 @@
 import uuid
 
+from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
@@ -124,3 +125,76 @@ def test_persist_snapshot_swallows_internal_failure(db, monkeypatch):
 
     assert result is None
     assert db.query(ps.ShareOfSourceSnapshot).count() == 0
+
+
+def _seed_second_scan_client_now_present(db, client, comp):
+    """Same client/comp as _seed_enriched, but a NEW scan where the client is
+    now present at the g2.com URL that was previously an acquisition target."""
+    from datetime import datetime
+    scan2 = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    db.add(scan2)
+    sqr2 = ScanQueryResult(scan_id=scan2.id, platform="perplexity", category="recommendation",
+                           query_text="best crm", response_text="…", brand_detected=True)
+    sqr2.sources.append(ScanQuerySource(
+        url="https://g2.com/crm", domain="g2.com", title="G2 CRMs", rank=1,
+        source_type="third_party", fetch_status="ok",
+        present_brands={"client": True, "competitors": [str(comp.id)]}))
+    db.add(sqr2)
+    db.commit()
+    return scan2
+
+
+def test_flip_detected_when_client_now_present(db):
+    from app.services import provenance_service as ps
+    client, comp = _seed_enriched(db)
+    scan1 = db.query(Scan).filter(Scan.client_id == client.id).first()
+    ps.compute_and_persist_snapshot(scan1.id, client.id, db)  # first snapshot: g2.com is an acquisition target
+
+    scan2 = _seed_second_scan_client_now_present(db, client, comp)
+    ps.compute_and_persist_snapshot(scan2.id, client.id, db)
+
+    flips = db.query(ActivityLog).filter(
+        ActivityLog.client_id == client.id, ActivityLog.event_type == "citation_flip"
+    ).all()
+    assert len(flips) == 1
+    assert "g2.com" in flips[0].note
+    assert client.name in flips[0].note
+
+
+def test_no_flip_when_url_absent_from_new_scan(db):
+    """A URL from the previous snapshot's acquisition list that simply doesn't
+    reappear in the new scan is search-result drift, not a verified flip."""
+    from app.services import provenance_service as ps
+    from datetime import datetime
+    client, comp = _seed_enriched(db)
+    scan1 = db.query(Scan).filter(Scan.client_id == client.id).first()
+    ps.compute_and_persist_snapshot(scan1.id, client.id, db)
+
+    # New scan with a completely different, unrelated third-party source —
+    # g2.com never shows up at all.
+    scan2 = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    db.add(scan2)
+    sqr2 = ScanQueryResult(scan_id=scan2.id, platform="perplexity", category="recommendation",
+                           query_text="best crm", response_text="…", brand_detected=False)
+    sqr2.sources.append(ScanQuerySource(
+        url="https://capterra.com/x", domain="capterra.com", title="Capterra", rank=1,
+        source_type="third_party", fetch_status="ok",
+        present_brands={"client": True, "competitors": []}))
+    db.add(sqr2)
+    db.commit()
+    ps.compute_and_persist_snapshot(scan2.id, client.id, db)
+
+    flips = db.query(ActivityLog).filter(ActivityLog.event_type == "citation_flip").all()
+    assert len(flips) == 0
+
+
+def test_first_scan_no_previous_snapshot_no_flip_no_error(db):
+    from app.services import provenance_service as ps
+    client, comp = _seed_enriched(db)
+    scan = db.query(Scan).filter(Scan.client_id == client.id).first()
+
+    snapshot = ps.compute_and_persist_snapshot(scan.id, client.id, db)
+
+    assert snapshot is not None
+    flips = db.query(ActivityLog).filter(ActivityLog.event_type == "citation_flip").all()
+    assert len(flips) == 0
