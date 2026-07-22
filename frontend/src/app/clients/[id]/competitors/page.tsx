@@ -5,6 +5,7 @@ import { getCompetitorIntelligence, getCompetitorTrends, getWinLoss, getProvenan
 import { VisibilityTrendChart } from "@/components/competitors/VisibilityTrendChart"
 import { WinLossSection } from "@/components/competitors/WinLossSection"
 import { ShareOfSourceSection } from "@/components/competitors/ShareOfSourceSection"
+import { AIReadinessSection } from "@/components/competitors/AIReadinessSection"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 
 interface Props {
@@ -72,6 +73,7 @@ export default async function CompetitorsPage({ params }: Props) {
             and trigger a scan.
           </p>
         </div>
+        <AIReadinessSection clientId={id} />
         <div className="space-y-4">
           {data.competitors.map((comp) => (
             <div key={comp.id} className="overflow-hidden rounded-lg border bg-card">
@@ -175,6 +177,9 @@ export default async function CompetitorsPage({ params }: Props) {
 
       {/* Share of Source */}
       {provenance && <ShareOfSourceSection data={provenance} history={shareOfSourceHistory} />}
+
+      {/* AI crawler readiness — live check, on demand */}
+      <AIReadinessSection clientId={id} />
 
       {/* Competitor cards */}
       <div className="space-y-4">

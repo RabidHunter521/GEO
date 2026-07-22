@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -217,6 +217,12 @@ export function getProvenance(clientId: string): Promise<ShareOfSource> {
 
 export function getShareOfSourceHistory(clientId: string): Promise<ShareOfSourceHistoryPoint[]> {
   return apiFetch<ShareOfSourceHistoryPoint[]>(`/api/v1/clients/${clientId}/competitors/provenance/history`)
+}
+
+// Live outbound check against the client's + competitors' sites — called
+// on-demand from a button, never on page load.
+export function getAIReadiness(clientId: string): Promise<CompetitorAIReadiness> {
+  return apiFetch<CompetitorAIReadiness>(`/api/v1/clients/${clientId}/competitors/ai-readiness`)
 }
 
 export function getIndustryBenchmark(clientId: string): Promise<IndustryBenchmark | null> {

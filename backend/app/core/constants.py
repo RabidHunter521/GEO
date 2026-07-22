@@ -102,6 +102,20 @@ PLATFORM_LABELS: Final = {
     "gemini":     "Gemini",
     "claude":     "Claude",
 }
+
+# AI crawlers checked by the competitor AI-readiness feature. Matches the bot
+# list toolkit_service.generate_robots_txt() already allow-lists for clients.
+AI_CRAWLER_BOTS: Final = [
+    "GPTBot",
+    "OAI-SearchBot",
+    "PerplexityBot",
+    "ClaudeBot",
+    "Google-Extended",
+    "Amazonbot",
+    "Meta-ExternalAgent",
+    "Applebot-Extended",
+    "DuckAssistBot",
+]
 # Scan.platform value for multi-platform scans (legacy rows hold a single platform name)
 SCAN_PLATFORM_MULTI: Final = "multi"
 
