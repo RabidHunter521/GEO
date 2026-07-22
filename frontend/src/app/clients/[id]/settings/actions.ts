@@ -2,7 +2,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo } from "@/lib/api"
+import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo, syncGa4Traffic } from "@/lib/api"
 import type { Platform } from "@/types"
 
 export async function updateClientAction(
@@ -28,12 +28,20 @@ export async function updateClientAction(
     visitor_to_lead_pct?: number
     lead_to_customer_pct?: number
     enabled_platforms?: Platform[]
+    ga4_property_id?: string | null
   },
 ) {
   const client = await updateClient(id, data)
   revalidatePath(`/clients/${id}`)
   revalidatePath("/clients")
   return client
+}
+
+export async function syncGa4TrafficAction(id: string) {
+  const report = await syncGa4Traffic(id)
+  revalidatePath(`/clients/${id}`)
+  revalidatePath(`/clients/${id}/settings`)
+  return report
 }
 
 export async function uploadClientLogoAction(id: string, formData: FormData) {
