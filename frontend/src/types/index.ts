@@ -46,6 +46,8 @@ export interface Client {
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
+  // GA4 property for automated AI-referral traffic sync; null = manual mode.
+  ga4_property_id: string | null
   created_at: string
   archived_at: string | null
   is_prospect: boolean
@@ -352,8 +354,18 @@ export interface AiTrafficSnapshot {
   client_id: string
   period: string
   ai_visitors: number
+  // "manual" (admin-typed) | "ga4" (synced)
+  source: "manual" | "ga4"
+  // Per-referrer session counts (ga4 rows only), e.g. {"chatgpt.com": 140}
+  breakdown: Record<string, number> | null
   created_at: string
   updated_at: string
+}
+
+export interface Ga4SyncReport {
+  synced_periods: string[]
+  skipped_manual: string[]
+  error: string | null
 }
 
 export interface Scan {
@@ -419,6 +431,8 @@ export interface ClientViewTrafficValue {
   est_leads: number | null
   est_pipeline_rm: number | null
   est_won_rm: number | null
+  // Pre-formatted per-platform split ("ChatGPT 140 · Perplexity 60"), GA4 months only.
+  breakdown_label?: string | null
 }
 
 export type RemediationStatus = "flagged" | "in_progress" | "corrected"

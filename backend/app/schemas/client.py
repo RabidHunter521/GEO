@@ -46,6 +46,8 @@ class ClientUpdate(BaseModel):
     enabled_platforms: list[str] | None = None
     is_prospect: bool | None = None
     internal_notes: str | None = None
+    # GA4 property id (digits) for AI-referral traffic sync; None = manual mode.
+    ga4_property_id: str | None = Field(default=None, max_length=32)
 
     @field_validator("enabled_platforms")
     @classmethod
@@ -87,6 +89,7 @@ class ClientResponse(BaseModel):
     lead_to_customer_pct: int = 20
     enabled_platforms: list[str] = SCAN_PLATFORMS
     share_token: str | None = None
+    ga4_property_id: str | None = None
     share_token_created_at: datetime | None = None
     created_at: datetime
     archived_at: datetime | None = None

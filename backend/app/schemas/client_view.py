@@ -83,6 +83,9 @@ class ClientViewTrafficValue(BaseModel):
     at_risk_leads: int | None = None
     at_risk_pipeline_rm: int | None = None
     at_risk_won_rm: int | None = None
+    # Formatted per-platform split ("ChatGPT 140 · Perplexity 60") for GA4-synced
+    # months; None for manual months. Pre-formatted server-side — whitelisted.
+    breakdown_label: str | None = None
 
 
 class ClientViewProgressItem(BaseModel):

@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime
-from sqlalchemy import Date, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import Date, Integer, ForeignKey, JSON, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
@@ -22,5 +22,10 @@ class AiTrafficSnapshot(Base):
     # First day of the month this snapshot covers, e.g. 2026-06-01
     period: Mapped[date] = mapped_column(Date, nullable=False)
     ai_visitors: Mapped[int] = mapped_column(Integer, default=0)
+    # "manual" (admin-typed) | "ga4" (synced). A ga4 sync never overwrites a
+    # manual row and vice versa without explicit admin action.
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="manual", server_default="manual")
+    # Per-referrer session counts, e.g. {"chatgpt.com": 140}. NULL for manual rows.
+    breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)

@@ -8,7 +8,12 @@ from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.activity_log import ActivityLog
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
-from app.schemas.ai_traffic import AiTrafficSnapshotResponse, AiTrafficSnapshotUpsert
+from app.schemas.ai_traffic import (
+    AiTrafficSnapshotResponse,
+    AiTrafficSnapshotUpsert,
+    Ga4SyncReportResponse,
+)
+from app.services.ga4_traffic_service import sync_client_traffic
 from app.core.time import utcnow
 
 router = APIRouter(prefix="/clients/{client_id}/traffic", tags=["ai-traffic"])
@@ -50,6 +55,11 @@ def upsert_traffic(client_id: uuid.UUID, body: AiTrafficSnapshotUpsert, db: Sess
     )
     if snapshot:
         snapshot.ai_visitors = body.ai_visitors
+        # Explicit admin action wins over a synced row — and flips the row back
+        # to manual so a later GA4 sync won't clobber the correction. The ga4
+        # breakdown no longer matches an admin-typed total, so drop it.
+        snapshot.source = "manual"
+        snapshot.breakdown = None
         snapshot.updated_at = utcnow()
     else:
         snapshot = AiTrafficSnapshot(
@@ -67,6 +77,23 @@ def upsert_traffic(client_id: uuid.UUID, body: AiTrafficSnapshotUpsert, db: Sess
     db.commit()
     db.refresh(snapshot)
     return snapshot
+
+
+@router.post(
+    "/sync",
+    response_model=Ga4SyncReportResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def sync_traffic(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Pull AI-referral sessions from GA4 into monthly snapshots. Errors come
+    back as a report field (admin UX), never a 5xx."""
+    _get_client_or_404(client_id, db)
+    report = sync_client_traffic(client_id, db)
+    return Ga4SyncReportResponse(
+        synced_periods=report.synced_periods,
+        skipped_manual=report.skipped_manual,
+        error=report.error,
+    )
 
 
 def _get_client_or_404(client_id: uuid.UUID, db: Session) -> Client:

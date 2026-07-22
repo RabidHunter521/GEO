@@ -31,7 +31,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Loader2, CheckCircle, Plus, Trash2, HelpCircle, Lightbulb } from "lucide-react"
-import { updateClientAction, updateTrafficAction, uploadClientLogoAction } from "./actions"
+import { updateClientAction, updateTrafficAction, uploadClientLogoAction, syncGa4TrafficAction } from "./actions"
 import {
   addCompetitorAction,
   addControlQueryAction,
@@ -235,6 +235,8 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const [trafficInput, setTrafficInput] = useState(currentTrafficValue?.toString() ?? "")
   const [savingTraffic, setSavingTraffic] = useState(false)
   const [trafficError, setTrafficError] = useState<string | null>(null)
+  const [syncingGa4, setSyncingGa4] = useState(false)
+  const [ga4Result, setGa4Result] = useState<string | null>(null)
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -294,6 +296,8 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             ? Number(fd.get("lead_to_customer_pct"))
             : undefined,
           enabled_platforms: enabledPlatforms,
+          // Empty property id clears it (back to manual mode).
+          ga4_property_id: ((fd.get("ga4_property_id") as string) ?? "").trim() || null,
         })
         setSaved(true)
         setIsDirty(false)
@@ -325,6 +329,29 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       setError("Failed to add competitor.")
     } finally {
       setAddingComp(false)
+    }
+  }
+
+  async function handleSyncGa4() {
+    setSyncingGa4(true)
+    setGa4Result(null)
+    try {
+      const report = await syncGa4TrafficAction(client.id)
+      if (report.error) {
+        setGa4Result(`Sync failed: ${report.error}`)
+      } else {
+        const fmt = (p: string) =>
+          new Date(p).toLocaleDateString("en-MY", { month: "short", year: "numeric" })
+        const synced = report.synced_periods.map(fmt).join(", ") || "nothing new"
+        const skipped = report.skipped_manual.length
+          ? ` · kept manual: ${report.skipped_manual.map(fmt).join(", ")}`
+          : ""
+        setGa4Result(`Synced: ${synced}${skipped}`)
+      }
+    } catch {
+      setGa4Result("Sync failed — check the backend logs.")
+    } finally {
+      setSyncingGa4(false)
     }
   }
 
@@ -886,6 +913,48 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           <p className="text-xs text-muted-foreground mt-0.5">
             Monthly AI-referral visitor count from the client&apos;s analytics. Informational only — does not affect the GEO score.
           </p>
+        </div>
+
+        {/* GA4 auto-sync */}
+        <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor="s-ga4-property" className="text-xs">
+                GA4 property ID (optional — enables automatic sync)
+              </Label>
+              <Input
+                id="s-ga4-property"
+                name="ga4_property_id"
+                defaultValue={client.ga4_property_id ?? ""}
+                placeholder="123456789"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleSyncGa4()
+              }}
+              disabled={syncingGa4 || !client.ga4_property_id}
+            >
+              {syncingGa4 ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Sync traffic"
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Grant Viewer access on the GA4 property to the SeenBy service
+            account first. Save the form after changing the property ID, then
+            sync. Months you typed by hand are never overwritten.
+          </p>
+          {ga4Result && (
+            <p className={`text-xs ${ga4Result.startsWith("Sync") && ga4Result.includes("failed") ? "text-destructive" : "text-muted-foreground"}`}>
+              {ga4Result}
+            </p>
+          )}
         </div>
         <div className="flex gap-2 items-end">
           <div className="flex-1 space-y-1">

@@ -43,6 +43,7 @@ from app.services.cost_tracker import record_llm_call
 from app.services.remediation_service import sync_remediation_items, get_remediation_items
 from app.services.revenue_service import estimate_pipeline, PipelineEstimate, estimate_value_at_risk, ValueAtRisk
 from app.services.causality_service import compute_causal_trend
+from app.services.ga4_traffic_service import format_breakdown
 from app.services.headline_battle_service import select_headline_battle
 from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
@@ -406,6 +407,8 @@ class ReportData:
     content_quality_evidence: str | None = None
     ai_visitors_current: int | None = None
     ai_visitors_prev: int | None = None
+    # Formatted per-platform split ("ChatGPT 140 · Perplexity 60") — GA4 months only.
+    ai_breakdown: str | None = None
     platform_breakdown: dict | None = None
     change_narrative: str = ""
     score_history: list[TrendPoint] = field(default_factory=list)
@@ -850,6 +853,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         content_quality_evidence=client.content_quality_evidence,
         ai_visitors_current=current_traffic.ai_visitors if current_traffic else None,
         ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
+        ai_breakdown=format_breakdown(current_traffic.breakdown) if current_traffic else None,
         platform_breakdown=current_gs.platform_breakdown,
         score_history=score_history,
         hallucinations=hallucinations,
@@ -1026,12 +1030,16 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             change_label = "New vs last month"
         else:
             change_label = "No change vs last month"
+        breakdown_line = (
+            f'<div class="stat-sub">At least: {html.escape(data.ai_breakdown)}</div>'
+            if data.ai_breakdown else ""
+        )
         visitor_stat = (
             f'<div class="stat-block">'
             f'<div class="stat-label">AI Visitors This Month</div>'
             f'<div class="stat-value">{data.ai_visitors_current:,}</div>'
             f'<div class="stat-sub">Visitors arriving via ChatGPT, Perplexity, Gemini and Claude'
-            f' &mdash; {change_label}</div></div>'
+            f' &mdash; {change_label}</div>{breakdown_line}</div>'
         )
     else:
         visitor_stat = (

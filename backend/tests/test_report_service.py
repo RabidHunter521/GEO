@@ -767,3 +767,24 @@ def test_causality_section_present_and_direction_honest():
     assert "Queries we left alone: seen by AI 45% of the time, down from 50%" in html
     # Never the banned framing on a client surface.
     assert "control group" not in html.lower()
+
+
+def test_visitor_stat_shows_breakdown_when_present():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.ai_visitors_current = 200
+    data.ai_breakdown = "ChatGPT 140 · Perplexity 60"
+    html = _build_report_html(client, data)
+    assert "ChatGPT 140 · Perplexity 60" in html
+
+
+def test_visitor_stat_no_breakdown_line_when_absent():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.ai_visitors_current = 200
+    html = _build_report_html(client, data)
+    assert "at least" not in html.lower() or data.ai_breakdown is None

@@ -92,6 +92,20 @@ CHURN_DELETE_DAYS: Final = 180
 MAX_COMPETITORS: Final = 5
 # Benchmark queries deliberately left unoptimized (causal proof) — per client.
 MAX_CONTROL_QUERIES: Final = 5
+
+# Referrer domains classified as AI-sourced traffic (GA4 sync). Keys are
+# matched against sessionSource/pageReferrer hosts (subdomain-tolerant).
+# Extending this dict is the only change needed to track a new AI referrer.
+AI_REFERRER_DOMAINS: Final = {
+    "chatgpt.com":          "ChatGPT",
+    "chat.openai.com":      "ChatGPT",
+    "perplexity.ai":        "Perplexity",
+    "gemini.google.com":    "Gemini",
+    "bard.google.com":      "Gemini",
+    "copilot.microsoft.com": "Copilot",
+    "claude.ai":            "Claude",
+    "you.com":              "You.com",
+}
 # Default review cadence — drives the "next scan due" reminder on /clients.
 # Reminder only; nothing auto-scans (MVP runs on-demand scans only).
 DEFAULT_SCAN_CADENCE_DAYS: Final = 30
