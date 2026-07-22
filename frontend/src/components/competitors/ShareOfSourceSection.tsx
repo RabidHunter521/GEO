@@ -1,7 +1,14 @@
 import { ExternalLink } from "lucide-react"
-import type { ShareOfSource } from "@/types"
+import type { ShareOfSource, ShareOfSourceHistoryPoint } from "@/types"
+import { ShareOfSourceSparkline } from "./ShareOfSourceSparkline"
 
-export function ShareOfSourceSection({ data }: { data: ShareOfSource }) {
+export function ShareOfSourceSection({
+  data,
+  history,
+}: {
+  data: ShareOfSource
+  history: ShareOfSourceHistoryPoint[]
+}) {
   if (data.total_third_party_sources === 0) {
     return (
       <div className="rounded-lg border bg-card p-5">
@@ -29,6 +36,9 @@ export function ShareOfSourceSection({ data }: { data: ShareOfSource }) {
           Of the {data.total_third_party_sources} sources AI leaned on to answer your
           category&apos;s questions, here is who shows up on them.
         </p>
+        <div className="mt-3">
+          <ShareOfSourceSparkline points={history} />
+        </div>
         <div className="mt-4 space-y-3">
           {rows.map((r) => (
             <div key={r.label} className="flex items-center gap-3">

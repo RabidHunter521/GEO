@@ -282,6 +282,47 @@ def test_run_scan_rolls_back_when_post_commit_alert_raises():
     assert mock_db.rollback.called
 
 
+def test_run_scan_rolls_back_when_post_commit_snapshot_raises():
+    """A swallowed Share-of-Source snapshot exception must not leave
+    uncommitted state on the session — run_scan rolls back after catching it,
+    and the scan itself still completes.
+
+    The other post-commit collaborators (score-drop alert, competitor-overtake
+    alert, Action Center refresh, remediation sync, source enrichment) are
+    neutralized here because, against these mocks, several of them already
+    fail and call db.rollback() on their own for mock-fidelity reasons
+    unrelated to this test. Without neutralizing them, `rollback.called`
+    would pass even if the snapshot hook's own `db.rollback()` were deleted.
+    Asserting `call_count == 1` isolates the snapshot hook as the sole source
+    of any rollback in this test.
+    """
+    scan = make_scan()
+    client = make_client()
+    mock_db = setup_db(scan, client, [make_result()])
+
+    patcher, _ = patch_platform_client(lambda q: "ACME Corp great.")
+    with patcher, patch("app.services.scan_service.time.sleep"), patch(
+        "app.services.scan_service.extract_position", return_value=None
+    ), patch("app.services.alert_service.check_score_drop_alert"), patch(
+        "app.services.alert_service.check_competitor_overtake_alert"
+    ), patch(
+        "app.services.action_center_service.refresh_actions_for_client"
+    ), patch(
+        "app.services.remediation_service.sync_remediation_items"
+    ), patch(
+        "app.services.provenance_service.enrich_scan_sources"
+    ), patch(
+        "app.services.provenance_service.compute_and_persist_snapshot",
+        side_effect=Exception("snapshot boom"),
+    ):
+        run_scan(scan.id, mock_db)
+
+    assert scan.status == "completed"
+    # Only the snapshot hook's own db.rollback() should fire — if that line
+    # were deleted from run_scan, this would drop to 0 and the test would fail.
+    assert mock_db.rollback.call_count == 1
+
+
 def test_run_scan_sets_failed_when_all_platforms_fail():
     scan = make_scan()
     client = make_client(enabled_platforms=["gemini", "claude"])

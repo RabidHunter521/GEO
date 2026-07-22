@@ -51,3 +51,35 @@ def test_provenance_client_not_found_404():
     resp = http.get(f"/api/v1/clients/{uuid.uuid4()}/competitors/provenance")
     app.dependency_overrides.clear()
     assert resp.status_code == 404
+
+
+def test_history_returns_points(monkeypatch):
+    from app.schemas.provenance import ShareOfSourceHistoryPoint
+    app, get_db = _make_app()
+    client_id = uuid.uuid4()
+    mock_db = MagicMock()
+    mock_db.get.return_value = _fake_client(client_id)
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    points = [ShareOfSourceHistoryPoint(
+        computed_at="2026-07-01T00:00:00Z", client_share_pct=25.0, total_third_party_sources=4
+    )]
+    import app.api.v1.competitors as comp_api
+    monkeypatch.setattr(comp_api, "get_share_of_source_history", lambda cid, db: points)
+
+    http = TestClient(app)
+    resp = http.get(f"/api/v1/clients/{client_id}/competitors/provenance/history")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json() == [{"computed_at": "2026-07-01T00:00:00Z", "client_share_pct": 25.0, "total_third_party_sources": 4}]
+
+
+def test_history_client_not_found_404():
+    app, get_db = _make_app()
+    mock_db = MagicMock()
+    mock_db.get.return_value = None
+    app.dependency_overrides[get_db] = lambda: mock_db
+    http = TestClient(app)
+    resp = http.get(f"/api/v1/clients/{uuid.uuid4()}/competitors/provenance/history")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404

@@ -348,6 +348,23 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             db.rollback()
             logger.error("scan_sources_enrichment_failed", scan_id=str(scan_id), error=str(exc))
 
+        # Share-of-Source snapshot + flip detection — persists a trend point
+        # for this scan and logs a citation_flip ActivityLog when a source
+        # that used to cite only a competitor now cites the client too.
+        # Best-effort: on failure roll back and swallow so a bug here never
+        # undoes a good scan (CLAUDE.md §10). The function also has its own
+        # internal isolation between persistence and flip detection; this
+        # try/except is a defense-in-depth backstop matching every other
+        # post-commit step in this function.
+        try:
+            from app.services.provenance_service import compute_and_persist_snapshot
+            compute_and_persist_snapshot(scan.id, client.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error(
+                "share_of_source_snapshot_failed", scan_id=str(scan_id), error=str(exc)
+            )
+
     except Exception as exc:
         # The session may hold a failed transaction — reset it so the
         # status update below can actually commit.

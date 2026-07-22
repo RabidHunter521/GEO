@@ -14,14 +14,17 @@ import structlog
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
+from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
+from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
 from app.schemas.provenance import (
     AcquisitionSource,
     BrandShare,
+    ShareOfSourceHistoryPoint,
     ShareOfSourceResponse,
     SourcePresence,
 )
@@ -181,53 +184,49 @@ def _empty_share(last_scan_at: str | None) -> ShareOfSourceResponse:
     )
 
 
-def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceResponse:
-    """Admin read model: Share-of-Source + acquisition list from the latest scan.
+def _collect_sources(scan_id: uuid.UUID, db: Session) -> dict[str, dict]:
+    """Unique third-party sources cited by a scan's client-owned queries.
 
-    Denominator is the count of unique third-party source URLs (fetch_status ok)
-    cited by the client's own queries. A URL cited N times counts once for share
-    but its N citations drive acquisition-list ranking.
+    Keyed by URL; kept in memory by callers that need raw per-URL presence
+    data (flip detection), not just the summarized acquisition list that
+    _summarize derives from it.
     """
-    latest = (
-        db.query(Scan)
-        .filter(Scan.client_id == client_id, Scan.status == "completed")
-        .order_by(Scan.completed_at.desc())
-        .first()
-    )
-    if not latest:
-        return _empty_share(None)
-    last_scan_at = latest.completed_at.isoformat() + "Z" if latest.completed_at else None
-
     rows = (
         db.query(ScanQuerySource)
         .join(ScanQueryResult, ScanQueryResult.id == ScanQuerySource.scan_query_result_id)
         .filter(
-            ScanQueryResult.scan_id == latest.id,
+            ScanQueryResult.scan_id == scan_id,
             ScanQueryResult.competitor_id.is_(None),
             ScanQuerySource.source_type == "third_party",
             ScanQuerySource.fetch_status == "ok",
         )
         .all()
     )
-    if not rows:
-        return _empty_share(last_scan_at)
-
-    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
-    comp_names = {str(c.id): c.name for c in competitors}
-    client = db.get(Client, client_id)
-
-    # Collapse occurrences to unique URLs; presence is identical across a URL's rows.
     unique: dict[str, dict] = {}
-    counts: dict[str, int] = {}
     for row in rows:
-        counts[row.url] = counts.get(row.url, 0) + 1
         if row.url not in unique:
             unique[row.url] = {
                 "domain": row.domain,
                 "title": row.title,
                 "present": row.present_brands or {"client": False, "competitors": []},
+                "count": 0,
             }
+        unique[row.url]["count"] += 1
+    return unique
+
+
+def _summarize(
+    unique: dict[str, dict],
+    competitors: list[Competitor],
+    client: Client | None,
+    last_scan_at: str | None,
+) -> ShareOfSourceResponse:
+    """Pure math over a _collect_sources() result: shares + acquisition list."""
     denom = len(unique)
+    if denom == 0:
+        return _empty_share(last_scan_at)
+
+    comp_names = {str(c.id): c.name for c in competitors}
 
     client_present = sum(1 for u in unique.values() if u["present"].get("client"))
     comp_present_counts: dict[str, int] = {cid: 0 for cid in comp_names}
@@ -265,7 +264,7 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
                     url=url,
                     domain=meta["domain"],
                     title=meta["title"],
-                    citation_count=counts[url],
+                    citation_count=meta["count"],
                     competitors_present=[
                         SourcePresence(competitor_id=uuid.UUID(cid), name=comp_names[cid])
                         for cid in comp_ids
@@ -282,3 +281,142 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
         acquisition_list=acquisition,
         flip_targets=acquisition[:3],
     )
+
+
+def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceResponse:
+    """Admin read model: Share-of-Source + acquisition list from the latest scan.
+
+    Denominator is the count of unique third-party source URLs (fetch_status ok)
+    cited by the client's own queries. A URL cited N times counts once for share
+    but its N citations drive acquisition-list ranking.
+    """
+    latest = (
+        db.query(Scan)
+        .filter(Scan.client_id == client_id, Scan.status == "completed")
+        .order_by(Scan.completed_at.desc())
+        .first()
+    )
+    if not latest:
+        return _empty_share(None)
+    last_scan_at = latest.completed_at.isoformat() + "Z" if latest.completed_at else None
+
+    unique = _collect_sources(latest.id, db)
+    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+    client = db.get(Client, client_id)
+    return _summarize(unique, competitors, client, last_scan_at)
+
+
+def _detect_flips(
+    client_id: uuid.UUID, new_scan_id: uuid.UUID, new_unique: dict[str, dict], db: Session
+) -> None:
+    """Compare the client's previous snapshot's acquisition_list against the
+    freshly-collected new_unique data; log a verified citation_flip for every
+    URL that went from (client absent, competitor present) to (client
+    present) between the two snapshots.
+
+    Skips URLs that don't reappear in new_unique at all — that's
+    search-result drift, not a verified flip. Runs after the new snapshot is
+    already committed; the caller wraps this in its own try/except so a bug
+    here can only cost this run's activity-log entries, never the snapshot.
+    """
+    previous = (
+        db.query(ShareOfSourceSnapshot)
+        .filter(
+            ShareOfSourceSnapshot.client_id == client_id,
+            ShareOfSourceSnapshot.scan_id != new_scan_id,
+        )
+        .order_by(ShareOfSourceSnapshot.computed_at.desc())
+        .first()
+    )
+    if previous is None:
+        return
+
+    client = db.get(Client, client_id)
+    client_name = client.name if client else "your business"
+
+    for entry in previous.acquisition_list:
+        url = entry.get("url")
+        new_entry = new_unique.get(url)
+        if new_entry is None:
+            continue  # not verified — the URL didn't reappear this scan
+        if new_entry["present"].get("client"):
+            competitor_names = ", ".join(
+                c.get("name", "") for c in entry.get("competitors_present", [])
+            )
+            note = f"{new_entry['domain']} now cites {client_name}"
+            if competitor_names:
+                note += f" — previously only cited {competitor_names}"
+            db.add(ActivityLog(client_id=client_id, event_type="citation_flip", note=note))
+    db.commit()
+
+
+def compute_and_persist_snapshot(
+    scan_id: uuid.UUID, client_id: uuid.UUID, db: Session
+) -> ShareOfSourceSnapshot | None:
+    """Persist a Share-of-Source snapshot for a just-completed scan.
+
+    Called from scan_service.run_scan's post-commit best-effort block,
+    immediately after enrich_scan_sources. Best-effort by design: this
+    function catches its own persistence failures so a bug here can never
+    undo the scan that was already committed — the caller wraps this call
+    in its own try/except too, matching every other post-commit step, as a
+    defense-in-depth backstop.
+
+    Returns None when there's nothing to persist yet (no third-party
+    sources for this scan) or when persistence itself fails.
+    """
+    try:
+        unique = _collect_sources(scan_id, db)
+        if not unique:
+            return None
+
+        competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+        client = db.get(Client, client_id)
+        summary = _summarize(unique, competitors, client, last_scan_at=None)
+
+        snapshot = ShareOfSourceSnapshot(
+            client_id=client_id,
+            scan_id=scan_id,
+            total_third_party_sources=summary.total_third_party_sources,
+            client_share_pct=summary.client_share.share_pct if summary.client_share else 0.0,
+            competitor_shares=[cs.model_dump(mode="json") for cs in summary.competitor_shares],
+            acquisition_list=[a.model_dump(mode="json") for a in summary.acquisition_list],
+        )
+        db.add(snapshot)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error(
+            "share_of_source_snapshot_persist_failed", scan_id=str(scan_id), error=str(exc)
+        )
+        return None
+
+    try:
+        _detect_flips(client_id, scan_id, unique, db)
+    except Exception as exc:
+        db.rollback()
+        logger.error("citation_flip_detection_failed", scan_id=str(scan_id), error=str(exc))
+
+    return snapshot
+
+
+def get_share_of_source_history(
+    client_id: uuid.UUID, db: Session, limit: int = 12
+) -> list[ShareOfSourceHistoryPoint]:
+    """Last `limit` Share-of-Source snapshots for a client, oldest → newest."""
+    rows = (
+        db.query(ShareOfSourceSnapshot)
+        .filter(ShareOfSourceSnapshot.client_id == client_id)
+        .order_by(ShareOfSourceSnapshot.computed_at.desc())
+        .limit(limit)
+        .all()
+    )
+    rows.reverse()
+    return [
+        ShareOfSourceHistoryPoint(
+            computed_at=r.computed_at.isoformat() + "Z",
+            client_share_pct=r.client_share_pct,
+            total_third_party_sources=r.total_third_party_sources,
+        )
+        for r in rows
+    ]

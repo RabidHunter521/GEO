@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource } from "@/types"
+import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -213,6 +213,10 @@ export function getCompetitorTrends(clientId: string): Promise<CompetitorTrendsR
 
 export function getProvenance(clientId: string): Promise<ShareOfSource> {
   return apiFetch<ShareOfSource>(`/api/v1/clients/${clientId}/competitors/provenance`)
+}
+
+export function getShareOfSourceHistory(clientId: string): Promise<ShareOfSourceHistoryPoint[]> {
+  return apiFetch<ShareOfSourceHistoryPoint[]>(`/api/v1/clients/${clientId}/competitors/provenance/history`)
 }
 
 export function getIndustryBenchmark(clientId: string): Promise<IndustryBenchmark | null> {
