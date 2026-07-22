@@ -788,3 +788,28 @@ def test_visitor_stat_no_breakdown_line_when_absent():
     data.ai_visitors_current = 200
     html = _build_report_html(client, data)
     assert "at least" not in html.lower() or data.ai_breakdown is None
+
+
+def test_commitment_section_present_when_active():
+    from app.services.guarantee_service import ClientCommitment
+    from app.services.report_service import _build_report_html
+    from datetime import date as _date
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.commitment = ClientCommitment(
+        metric_label="AI visibility", baseline=45, target=60, current=48.0,
+        deadline=_date(2026, 10, 20), state="in_progress",
+    )
+    html = _build_report_html(client, data)
+    assert "Our Commitment" in html
+    assert "from <strong>45</strong> to <strong>60</strong>" in html
+    assert "Today: <strong>48</strong>" in html
+
+
+def test_commitment_section_absent_when_none():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    html = _build_report_html(client, _make_report_data())
+    assert "Our Commitment" not in html

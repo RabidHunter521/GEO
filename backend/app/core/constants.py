@@ -170,6 +170,13 @@ REMEDIATION_STATUS_LABELS: Final = {
 }
 REMEDIATION_TYPES: Final = ("hallucination", "content_gap")
 
+# Guarantee engine — commitment tracking (baseline → target by deadline).
+GUARANTEE_METRICS: Final = ("ai_citability", "overall")
+GUARANTEE_STATUSES: Final = ("active", "met", "missed", "void")
+# Pace grace: no "at_risk" before this fraction of the period has elapsed,
+# so week 1 of a 90-day guarantee is never instantly behind.
+GUARANTEE_GRACE_FRACTION: Final = 0.15
+
 # Client view freshness: a visibility score older than this many days surfaces a
 # reassuring "next visibility check due ~<date>" line (driven by scan_cadence_days)
 # instead of a bare stale date. Reminder framing only — nothing auto-scans (§11).

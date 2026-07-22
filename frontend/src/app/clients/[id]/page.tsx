@@ -1,11 +1,12 @@
 // frontend/src/app/clients/[id]/page.tsx
 import Link from "next/link"
 import { TrendingUp, TrendingDown, Bot } from "lucide-react"
-import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark } from "@/lib/api"
+import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark, getGuarantee } from "@/lib/api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { ActionCenterCard } from "./ActionCenterCard"
+import { GuaranteeCard } from "./GuaranteeCard"
 import { getScoreBand, getScoreColor } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
 import type { Client, Platform } from "@/types"
@@ -54,12 +55,13 @@ export default async function ClientOverviewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [client, geoScore, actions, trafficHistory, benchmark] = await Promise.all([
+  const [client, geoScore, actions, trafficHistory, benchmark, guarantee] = await Promise.all([
     getClient(id),
     getLatestGeoScore(id),
     getActionRecommendations(id),
     getTrafficHistory(id),
     getIndustryBenchmark(id).catch(() => null),
+    getGuarantee(id).catch(() => null),
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
@@ -273,6 +275,8 @@ export default async function ClientOverviewPage({
       </div>
 
       {geoScore && <ActionCenterCard clientId={id} initialActions={actions} />}
+
+      <GuaranteeCard clientId={id} initialProgress={guarantee} />
 
       {geoScore && (() => {
         const computedAt = new Date(geoScore.computed_at)

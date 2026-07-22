@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -193,6 +193,39 @@ export function deleteCompetitor(
 
 export function getCausality(clientId: string): Promise<CausalityResponse> {
   return apiFetch<CausalityResponse>(`/api/v1/scans/client/${clientId}/causality`)
+}
+
+// ── Guarantee ────────────────────────────────────────────────────────────────
+
+export function getGuarantee(clientId: string): Promise<GuaranteeProgress | null> {
+  return apiFetch<GuaranteeProgress | null>(`/api/v1/clients/${clientId}/guarantee`)
+}
+
+export function createGuarantee(
+  clientId: string,
+  body: {
+    metric?: string
+    target_value: number
+    deadline_date: string
+    baseline_override?: number | null
+    start_date?: string | null
+  },
+): Promise<Guarantee> {
+  return apiFetch<Guarantee>(`/api/v1/clients/${clientId}/guarantee`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
+export function resolveGuarantee(
+  clientId: string,
+  guaranteeId: string,
+  body: { outcome: "met" | "missed" | "void"; note?: string },
+): Promise<Guarantee> {
+  return apiFetch<Guarantee>(
+    `/api/v1/clients/${clientId}/guarantee/${guaranteeId}/resolve`,
+    { method: "POST", body: JSON.stringify(body) },
+  )
 }
 
 // ── Control (benchmark) queries ──────────────────────────────────────────────

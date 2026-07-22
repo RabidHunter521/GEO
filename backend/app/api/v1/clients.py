@@ -18,6 +18,14 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, Clien
 from app.schemas.geo_score import GeoScoreResponse
 from app.schemas.benchmark import IndustryBenchmarkResponse
 from app.schemas.assessment import AcceptRequest, AssessmentResponse
+from app.models.guarantee import Guarantee
+from app.schemas.guarantee import (
+    GuaranteeCreate,
+    GuaranteeProgressResponse,
+    GuaranteeResolve,
+    GuaranteeResponse,
+)
+from app.services import guarantee_service
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.client_list_service import build_client_list
 from app.services.gap_matrix_service import compute_gap_matrix
@@ -275,3 +283,71 @@ def accept_assessment(
     if row is None:
         raise HTTPException(status_code=404, detail="No assessment to accept — generate one first.")
     return row
+
+
+@router.get(
+    "/{client_id}/guarantee",
+    response_model=GuaranteeProgressResponse | None,
+    dependencies=[Depends(require_api_key)],
+)
+def get_guarantee(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    progress = guarantee_service.get_guarantee_progress(client_id, db)
+    if progress is None:
+        return None
+    g = progress.guarantee
+    return GuaranteeProgressResponse(
+        id=g.id, metric=g.metric, baseline_value=g.baseline_value,
+        target_value=g.target_value, start_date=g.start_date,
+        deadline_date=g.deadline_date, status=g.status,
+        current_value=progress.current_value,
+        points_needed=progress.points_needed,
+        points_gained=progress.points_gained,
+        days_total=progress.days_total,
+        days_remaining=progress.days_remaining,
+        state=progress.state,
+    )
+
+
+@router.post(
+    "/{client_id}/guarantee",
+    response_model=GuaranteeResponse,
+    status_code=201,
+    dependencies=[Depends(require_api_key)],
+)
+def create_client_guarantee(
+    client_id: uuid.UUID, body: GuaranteeCreate, db: Session = Depends(get_db)
+):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    try:
+        return guarantee_service.create_guarantee(
+            client_id, body.metric, body.target_value, body.deadline_date, db,
+            baseline_override=body.baseline_override, start_date=body.start_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post(
+    "/{client_id}/guarantee/{guarantee_id}/resolve",
+    response_model=GuaranteeResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def resolve_client_guarantee(
+    client_id: uuid.UUID, guarantee_id: uuid.UUID, body: GuaranteeResolve,
+    db: Session = Depends(get_db),
+):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    g = db.get(Guarantee, guarantee_id)
+    if g is None or g.client_id != client_id:
+        raise HTTPException(status_code=404, detail="Guarantee not found")
+    try:
+        return guarantee_service.resolve_guarantee(guarantee_id, body.outcome, db, note=body.note)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))

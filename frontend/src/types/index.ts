@@ -76,6 +76,36 @@ export interface Competitor {
   website: string | null
 }
 
+// Guarantee engine — a written commitment: baseline → target by deadline.
+export interface Guarantee {
+  id: string
+  client_id: string
+  metric: string
+  baseline_value: number
+  target_value: number
+  start_date: string
+  deadline_date: string
+  status: "active" | "met" | "missed" | "void"
+  resolved_at: string | null
+  admin_note: string | null
+}
+
+export interface GuaranteeProgress {
+  id: string
+  metric: string
+  baseline_value: number
+  target_value: number
+  start_date: string
+  deadline_date: string
+  status: string
+  current_value: number | null
+  points_needed: number
+  points_gained: number
+  days_total: number
+  days_remaining: number
+  state: "met" | "on_track" | "at_risk" | "deadline_passed"
+}
+
 // Causal proof trend (admin) — optimized vs benchmark visibility per scan.
 export interface CausalityPoint {
   scan_id: string
@@ -485,6 +515,7 @@ export interface ClientViewOverview {
   is_stale: boolean
   proof_cards?: ClientViewProofCard[]
   causal_trend?: ClientViewCausalTrend | null
+  commitment?: ClientViewCommitment | null
 }
 
 export interface ClientViewScanResult {
@@ -526,6 +557,15 @@ export interface ViewHeadlineBattle {
   platform_label: string
   move_title: string | null
   move_angle: string | null
+}
+
+export interface ClientViewCommitment {
+  metric_label: string
+  baseline: number
+  target: number
+  current: number | null
+  deadline: string
+  state: "achieved" | "in_progress" | "missed"
 }
 
 export interface ClientViewCausalTrend {

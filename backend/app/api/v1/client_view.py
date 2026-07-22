@@ -35,6 +35,7 @@ from app.models.remediation_item import RemediationItem
 from app.schemas.client_view import (
     ClientViewBenchmark,
     ClientViewCausalTrend,
+    ClientViewCommitment,
     ClientViewCompetitorTrends,
     ClientViewPlatform,
     ClientViewProfile,
@@ -77,6 +78,7 @@ from app.services.issue_detection_service import detect_client_issues
 from app.services.proof_card_service import select_proof_cards, result_excerpt
 from app.services.causality_service import compute_causal_trend
 from app.services.ga4_traffic_service import format_breakdown
+from app.services.guarantee_service import get_client_commitment
 from app.services.headline_battle_service import select_headline_battle
 from app.services.r2_service import presigned_pdf_url
 
@@ -306,6 +308,20 @@ def get_overview(
                 for pc in select_proof_cards(scan_results, client.name, competitor_names)
             ]
 
+    # Visibility commitment — collapsed client-safe state, or hidden.
+    commitment = None
+    if not client.is_prospect:
+        cc = get_client_commitment(client.id, db)
+        if cc is not None:
+            commitment = ClientViewCommitment(
+                metric_label=cc.metric_label,
+                baseline=cc.baseline,
+                target=cc.target,
+                current=cc.current,
+                deadline=cc.deadline,
+                state=cc.state,
+            )
+
     # Causal proof chart — only meaningful once two scans carry benchmark data.
     causal_trend = None
     if not client.is_prospect:
@@ -369,6 +385,7 @@ def get_overview(
         next_check_due=next_check_due,
         is_stale=is_stale,
         causal_trend=causal_trend,
+        commitment=commitment,
     )
 
 

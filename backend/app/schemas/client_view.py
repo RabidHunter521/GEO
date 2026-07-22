@@ -101,6 +101,18 @@ class ClientViewProgressItem(BaseModel):
     status_label: str       # "Flagged" | "In progress" | "Corrected"
 
 
+class ClientViewCommitment(BaseModel):
+    """Whitelisted commitment block. state is COLLAPSED for clients:
+    "achieved" | "in_progress" | "missed" — internal pace states
+    (at_risk/deadline_passed) and admin_note never leave the server."""
+    metric_label: str
+    baseline: int
+    target: int
+    current: float | None = None
+    deadline: date
+    state: str
+
+
 class ClientViewCausalTrend(BaseModel):
     """Whitelisted causal-proof series: 'queries we optimized' vs 'queries we
     left alone'. Dates + two frequency arrays only — nothing internal."""
@@ -142,6 +154,9 @@ class ClientViewOverview(BaseModel):
     # Causal proof chart — present only once >=2 scans carry benchmark
     # ("left alone") data; None hides the section entirely.
     causal_trend: ClientViewCausalTrend | None = None
+    # Visibility commitment (guarantee), collapsed per the client-state rule;
+    # None hides the card (no guarantee, void, or unresolved deadline_passed).
+    commitment: ClientViewCommitment | None = None
 
 
 class ClientViewScanResult(BaseModel):

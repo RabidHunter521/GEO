@@ -311,6 +311,8 @@ def test_run_scan_rolls_back_when_post_commit_snapshot_raises():
     ), patch(
         "app.services.remediation_service.sync_remediation_items"
     ), patch(
+        "app.services.guarantee_alert.check_guarantee_transition"
+    ), patch(
         "app.services.provenance_service.enrich_scan_sources"
     ), patch(
         "app.services.provenance_service.compute_and_persist_snapshot",
