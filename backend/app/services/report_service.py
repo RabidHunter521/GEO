@@ -42,6 +42,7 @@ from app.services.share_link_service import get_share_link_url
 from app.services.cost_tracker import record_llm_call
 from app.services.remediation_service import sync_remediation_items, get_remediation_items
 from app.services.revenue_service import estimate_pipeline, PipelineEstimate, estimate_value_at_risk, ValueAtRisk
+from app.services.causality_service import compute_causal_trend
 from app.services.headline_battle_service import select_headline_battle
 from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
@@ -418,6 +419,12 @@ class ReportData:
     value_at_risk: ValueAtRisk | None = None
     # The single 'battle to win next' (rival + lost query + one move), or None.
     headline_battle: object | None = None
+    # Causal proof (first vs latest scan carrying benchmark data), or None
+    # when fewer than 2 scans have "left alone" points — section omitted.
+    causal_optimized_then: float | None = None
+    causal_optimized_now: float | None = None
+    causal_control_then: float | None = None
+    causal_control_now: float | None = None
     # Query-level changes vs previous scan — used by the narrative prompt so Claude
     # can name specific questions that moved rather than just quoting aggregate numbers.
     newly_seen_queries: list[str] = field(default_factory=list)
@@ -812,6 +819,12 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     )
     headline_battle = select_headline_battle(client.id, db)
 
+    # Causal proof: first vs latest scan carrying "left alone" benchmark data.
+    causal = compute_causal_trend(client.id, db)
+    causal_points = [p for p in causal.points if p.control_frequency is not None]
+    causal_then = causal_points[0] if len(causal_points) >= 2 else None
+    causal_now = causal_points[-1] if len(causal_points) >= 2 else None
+
     data = ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
@@ -847,6 +860,10 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         headline_battle=headline_battle,
         newly_seen_queries=newly_seen_queries,
         newly_lost_queries=newly_lost_queries,
+        causal_optimized_then=causal_then.optimized_frequency if causal_then else None,
+        causal_optimized_now=causal_now.optimized_frequency if causal_now else None,
+        causal_control_then=causal_then.control_frequency if causal_then else None,
+        causal_control_now=causal_now.control_frequency if causal_now else None,
     )
     from app.services.proof_card_service import select_proof_cards
     proof_cards = select_proof_cards(
@@ -906,6 +923,36 @@ def _build_battle_html(data: ReportData) -> str:
         f' &ldquo;{html.escape(b.query_text)}&rdquo; on {html.escape(b.platform_label)}'
         f' &mdash; you are not seen by AI there yet.<br>'
         f'<strong>The one move to flip it:</strong> {move_html}'
+        f'</div></div>'
+    )
+
+
+def _phrase_change(now: float, then: float) -> str:
+    """Direction-honest phrasing — never claims 'up from' on a fall."""
+    if now > then:
+        return f"seen by AI {now:.0f}% of the time, up from {then:.0f}%"
+    if now < then:
+        return f"seen by AI {now:.0f}% of the time, down from {then:.0f}%"
+    return f"seen by AI {now:.0f}% of the time, unchanged"
+
+
+def _build_causality_html(data: ReportData) -> str:
+    """'Did our work cause this?' — optimized vs left-alone, first vs latest.
+    Omitted until two scans carry benchmark data."""
+    if data.causal_control_now is None or data.causal_control_then is None:
+        return ""
+    if data.causal_optimized_now is None or data.causal_optimized_then is None:
+        return ""
+    worked = _phrase_change(data.causal_optimized_now, data.causal_optimized_then)
+    left = _phrase_change(data.causal_control_now, data.causal_control_then)
+    return (
+        f'<h2>Did Our Work Cause This?</h2>'
+        f'<div class="stat-card">'
+        f'<div class="stat-sub">'
+        f'Queries we worked on: {worked}. '
+        f'Queries we left alone: {left}. '
+        f'<span style="color:#6b7280;">The queries we deliberately left untouched are the '
+        f'benchmark — when only the optimized ones move, the movement is our work.</span>'
         f'</div></div>'
     )
 
@@ -1035,6 +1082,9 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
     # ── Section 7: Battle ──────────────────────────────────────────────────
     battle_section = _build_battle_html(data)
+
+    # ── Section 7b: Causal proof (optimized vs left alone) ────────────────
+    causality_section = _build_causality_html(data)
 
     # ── Section 8: Competitor comparison ──────────────────────────────────
     if data.competitors:
@@ -1185,6 +1235,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
 <!-- ── 7: BATTLE ──────────────────────────────────────────────────── -->
 {battle_section}
+{causality_section}
 
 <!-- ── 8: COMPETITOR COMPARISON ──────────────────────────────────── -->
 {competitor_section}

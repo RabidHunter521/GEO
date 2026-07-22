@@ -14,6 +14,7 @@ import {
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { ScoreHistoryChart } from "@/components/view/ScoreHistoryChart"
+import { CausalTrendChart } from "@/components/clients/CausalTrendChart"
 import { AiTrafficChart } from "@/components/view/AiTrafficChart"
 import { AiPipelineValueCard } from "@/components/view/AiPipelineValueCard"
 import { ClientProgressList } from "@/components/view/ClientProgressList"
@@ -247,6 +248,18 @@ export default async function ViewOverviewPage({
       {!isProspect && overview.proof_cards && overview.proof_cards.length > 0 && (
         <section className="reveal" style={{ animationDelay: "120ms" }}>
           <ProofCardList cards={overview.proof_cards} />
+        </section>
+      )}
+
+      {/* 2.4 Causal proof — optimized vs left-alone queries (clients only) */}
+      {!isProspect && overview.causal_trend && (
+        <section className="reveal" style={{ animationDelay: "135ms" }}>
+          <SectionHeading>Queries we optimized vs. queries we left alone</SectionHeading>
+          <CausalTrendChart
+            dates={overview.causal_trend.dates}
+            optimized={overview.causal_trend.optimized}
+            leftAlone={overview.causal_trend.left_alone}
+          />
         </section>
       )}
 

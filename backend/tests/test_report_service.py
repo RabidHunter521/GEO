@@ -740,3 +740,30 @@ def test_report_html_no_battle_section_when_none():
     data.headline_battle = None
     out = _build_report_html(client, data)
     assert "battle to win next" not in out.lower()
+
+
+# ── causal proof section ─────────────────────────────────────────────────────
+
+def test_causality_section_omitted_without_control_history():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    html = _build_report_html(client, _make_report_data())
+    assert "Did Our Work Cause This?" not in html
+
+
+def test_causality_section_present_and_direction_honest():
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.causal_optimized_then = 40.0
+    data.causal_optimized_now = 75.0
+    data.causal_control_then = 50.0
+    data.causal_control_now = 45.0
+    html = _build_report_html(client, data)
+    assert "Did Our Work Cause This?" in html
+    assert "Queries we worked on: seen by AI 75% of the time, up from 40%" in html
+    assert "Queries we left alone: seen by AI 45% of the time, down from 50%" in html
+    # Never the banned framing on a client surface.
+    assert "control group" not in html.lower()
