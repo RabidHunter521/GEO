@@ -9,20 +9,60 @@ from sqlalchemy.orm import Session
 
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
+from app.models.content_analysis import ContentAnalysis
 from app.models.dimension_assessment import DimensionAssessment
 from app.prompts.assessment import build_assessment_prompt
-from app.services.claude_client import anthropic_client, strip_code_fences, MODEL
+from app.services.claude_client import anthropic_client, strip_code_fences, MODEL_NARRATIVE
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_bullets  # noqa: F401 — re-exported
 
 logger = structlog.get_logger()
 
-_MAX_TOKENS = 800
+# Headroom for web-search turns, which interleave commentary between searches
+# before the final JSON; truncation is caught by the stop_reason guard below.
+_MAX_TOKENS = 1500
+
+# Server-side web search so evidence bullets cite real findings instead of
+# fabricated review counts (prompt-audit C1). Low volume — assessments run
+# on demand only — so the per-search cost is negligible.
+_WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}
 
 _SERVICE_BY_DIMENSION = {
     "brand_authority": "assessment_brand_authority",
     "content_quality": "assessment_content_quality",
 }
+
+
+def _final_text(response) -> str:
+    """Last text block of a Claude response.
+
+    Web-search turns return server_tool_use / web_search_tool_result blocks and
+    possibly interim text before the final answer — content[0].text is no
+    longer the JSON payload.
+    """
+    texts = [b.text for b in response.content if isinstance(getattr(b, "text", None), str)]
+    if not texts:
+        raise ValueError("no text block in Claude response")
+    return texts[-1]
+
+
+def _latest_crawl(client_id, db: Session) -> dict | None:
+    """Most recent completed crawl, shaped for the content-quality prompt
+    (prompt-audit C2: assess the site we actually crawled, not a guess)."""
+    row = (
+        db.query(ContentAnalysis)
+        .filter(ContentAnalysis.client_id == client_id, ContentAnalysis.status == "completed")
+        .order_by(desc(ContentAnalysis.analyzed_at))
+        .first()
+    )
+    if row is None:
+        return None
+    return {
+        "pages_crawled": row.pages_crawled,
+        "metrics": row.content_metrics_json or {},
+        "entity_coverage_score": row.entity_coverage_score,
+        "analyzed_at": row.analyzed_at.isoformat() if row.analyzed_at else None,
+    }
 
 
 def generate_assessment(client: Client, dimension: str, db: Session) -> DimensionAssessment | None:
@@ -33,13 +73,19 @@ def generate_assessment(client: Client, dimension: str, db: Session) -> Dimensio
     """
     try:
         service = _SERVICE_BY_DIMENSION[dimension]
+        crawl = _latest_crawl(client.id, db) if dimension == "content_quality" else None
         response = anthropic_client().messages.create(
-            model=MODEL,
+            model=MODEL_NARRATIVE,
             max_tokens=_MAX_TOKENS,
-            messages=[{"role": "user", "content": build_assessment_prompt(client, dimension)}],
+            temperature=0,
+            tools=[_WEB_SEARCH_TOOL],
+            messages=[{"role": "user", "content": build_assessment_prompt(client, dimension, crawl=crawl)}],
         )
-        record_llm_call(service=service, model=MODEL, response=response, client_id=client.id, db=db)
-        payload = json.loads(strip_code_fences(response.content[0].text))
+        record_llm_call(service=service, model=MODEL_NARRATIVE, response=response, client_id=client.id, db=db)
+        if response.stop_reason == "max_tokens":
+            # Truncated, not malformed — parsing a partial payload would persist garbage.
+            raise ValueError("assessment truncated: stop_reason=max_tokens")
+        payload = json.loads(strip_code_fences(_final_text(response)))
         score = int(payload["score"])
         score = max(0, min(100, score))
         bullets = sanitize_bullets(payload["bullets"])

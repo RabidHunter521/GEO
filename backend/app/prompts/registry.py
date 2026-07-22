@@ -30,8 +30,10 @@ REGISTRY: dict[str, dict[str, str]] = {
     "content_analysis_suggested":  {"version": content_analysis.SUGGESTED_CONTENT_VERSION,  "model": MODEL},
     "report_narrative":            {"version": report.VERSION,                     "model": MODEL_NARRATIVE},
     "digest_action":               {"version": digest.VERSION,                     "model": MODEL},
-    "assessment_brand_authority":  {"version": assessment.BRAND_AUTHORITY_VERSION,  "model": MODEL},
-    "assessment_content_quality":  {"version": assessment.CONTENT_QUALITY_VERSION,  "model": MODEL},
+    # Sonnet + web_search: client-visible evidence, on-demand volume — the
+    # high-stakes/low-volume case (audit C1; fabricated evidence on Haiku).
+    "assessment_brand_authority":  {"version": assessment.BRAND_AUTHORITY_VERSION,  "model": MODEL_NARRATIVE},
+    "assessment_content_quality":  {"version": assessment.CONTENT_QUALITY_VERSION,  "model": MODEL_NARRATIVE},
     # Scan platforms — templated visibility queries, not a Claude prompt. "model"
     # is documentation-only; cost rows store the real per-call model from usage.
     "scan_chatgpt":                {"version": SCAN_QUERY_VERSION,                 "model": "gpt-5-mini"},
