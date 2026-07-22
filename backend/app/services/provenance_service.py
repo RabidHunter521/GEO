@@ -181,53 +181,49 @@ def _empty_share(last_scan_at: str | None) -> ShareOfSourceResponse:
     )
 
 
-def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceResponse:
-    """Admin read model: Share-of-Source + acquisition list from the latest scan.
+def _collect_sources(scan_id: uuid.UUID, db: Session) -> dict[str, dict]:
+    """Unique third-party sources cited by a scan's client-owned queries.
 
-    Denominator is the count of unique third-party source URLs (fetch_status ok)
-    cited by the client's own queries. A URL cited N times counts once for share
-    but its N citations drive acquisition-list ranking.
+    Keyed by URL; kept in memory by callers that need raw per-URL presence
+    data (flip detection), not just the summarized acquisition list that
+    _summarize derives from it.
     """
-    latest = (
-        db.query(Scan)
-        .filter(Scan.client_id == client_id, Scan.status == "completed")
-        .order_by(Scan.completed_at.desc())
-        .first()
-    )
-    if not latest:
-        return _empty_share(None)
-    last_scan_at = latest.completed_at.isoformat() + "Z" if latest.completed_at else None
-
     rows = (
         db.query(ScanQuerySource)
         .join(ScanQueryResult, ScanQueryResult.id == ScanQuerySource.scan_query_result_id)
         .filter(
-            ScanQueryResult.scan_id == latest.id,
+            ScanQueryResult.scan_id == scan_id,
             ScanQueryResult.competitor_id.is_(None),
             ScanQuerySource.source_type == "third_party",
             ScanQuerySource.fetch_status == "ok",
         )
         .all()
     )
-    if not rows:
-        return _empty_share(last_scan_at)
-
-    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
-    comp_names = {str(c.id): c.name for c in competitors}
-    client = db.get(Client, client_id)
-
-    # Collapse occurrences to unique URLs; presence is identical across a URL's rows.
     unique: dict[str, dict] = {}
-    counts: dict[str, int] = {}
     for row in rows:
-        counts[row.url] = counts.get(row.url, 0) + 1
         if row.url not in unique:
             unique[row.url] = {
                 "domain": row.domain,
                 "title": row.title,
                 "present": row.present_brands or {"client": False, "competitors": []},
+                "count": 0,
             }
+        unique[row.url]["count"] += 1
+    return unique
+
+
+def _summarize(
+    unique: dict[str, dict],
+    competitors: list[Competitor],
+    client: Client | None,
+    last_scan_at: str | None,
+) -> ShareOfSourceResponse:
+    """Pure math over a _collect_sources() result: shares + acquisition list."""
     denom = len(unique)
+    if denom == 0:
+        return _empty_share(last_scan_at)
+
+    comp_names = {str(c.id): c.name for c in competitors}
 
     client_present = sum(1 for u in unique.values() if u["present"].get("client"))
     comp_present_counts: dict[str, int] = {cid: 0 for cid in comp_names}
@@ -265,7 +261,7 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
                     url=url,
                     domain=meta["domain"],
                     title=meta["title"],
-                    citation_count=counts[url],
+                    citation_count=meta["count"],
                     competitors_present=[
                         SourcePresence(competitor_id=uuid.UUID(cid), name=comp_names[cid])
                         for cid in comp_ids
@@ -282,3 +278,26 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
         acquisition_list=acquisition,
         flip_targets=acquisition[:3],
     )
+
+
+def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceResponse:
+    """Admin read model: Share-of-Source + acquisition list from the latest scan.
+
+    Denominator is the count of unique third-party source URLs (fetch_status ok)
+    cited by the client's own queries. A URL cited N times counts once for share
+    but its N citations drive acquisition-list ranking.
+    """
+    latest = (
+        db.query(Scan)
+        .filter(Scan.client_id == client_id, Scan.status == "completed")
+        .order_by(Scan.completed_at.desc())
+        .first()
+    )
+    if not latest:
+        return _empty_share(None)
+    last_scan_at = latest.completed_at.isoformat() + "Z" if latest.completed_at else None
+
+    unique = _collect_sources(latest.id, db)
+    competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
+    client = db.get(Client, client_id)
+    return _summarize(unique, competitors, client, last_scan_at)
