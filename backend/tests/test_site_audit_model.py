@@ -1,6 +1,3 @@
-import uuid
-
-
 def _make_client(db):
     from app.models.client import Client
     c = Client(
