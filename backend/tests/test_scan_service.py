@@ -282,6 +282,27 @@ def test_run_scan_rolls_back_when_post_commit_alert_raises():
     assert mock_db.rollback.called
 
 
+def test_run_scan_rolls_back_when_post_commit_snapshot_raises():
+    """A swallowed Share-of-Source snapshot exception must not leave
+    uncommitted state on the session — run_scan rolls back after catching it,
+    and the scan itself still completes."""
+    scan = make_scan()
+    client = make_client()
+    mock_db = setup_db(scan, client, [make_result()])
+
+    patcher, _ = patch_platform_client(lambda q: "ACME Corp great.")
+    with patcher, patch("app.services.scan_service.time.sleep"), patch(
+        "app.services.scan_service.extract_position", return_value=None
+    ), patch(
+        "app.services.provenance_service.compute_and_persist_snapshot",
+        side_effect=Exception("snapshot boom"),
+    ):
+        run_scan(scan.id, mock_db)
+
+    assert scan.status == "completed"
+    assert mock_db.rollback.called
+
+
 def test_run_scan_sets_failed_when_all_platforms_fail():
     scan = make_scan()
     client = make_client(enabled_platforms=["gemini", "claude"])
