@@ -1,7 +1,9 @@
 import uuid
+from unittest.mock import patch
 
 from app.core.constants import DIGEST_STATIC_TIPS
 from app.models.client import Client
+from app.services.claude_action import get_digest_action
 from app.services.digest_tip_service import select_digest_tip
 from app.services.headline_battle_service import HeadlineBattle
 
@@ -55,6 +57,25 @@ def test_rung4_band_fallback_for_brand_new_client():
     # fallback is reachable only when citability is None-like (no scan basis).
     tip = select_digest_tip(make_client(), None, None)
     assert tip in DIGEST_STATIC_TIPS.values()
+
+
+def test_get_digest_action_uses_fallback_tip_below_gate():
+    c = make_client()
+    tip = get_digest_action(c, 50.0, 48.0, fallback_tip="CUSTOM FALLBACK")
+    assert tip == "CUSTOM FALLBACK"
+
+
+def test_get_digest_action_static_floor_without_fallback():
+    c = make_client()
+    tip = get_digest_action(c, 50.0, 48.0)
+    assert tip in DIGEST_STATIC_TIPS.values()
+
+
+def test_get_digest_action_claude_failure_falls_to_fallback():
+    c = make_client()
+    with patch("app.services.claude_action._generate_claude_action", side_effect=RuntimeError):
+        tip = get_digest_action(c, 50.0, 30.0, fallback_tip="CUSTOM FALLBACK")
+    assert tip == "CUSTOM FALLBACK"
 
 
 def test_no_banned_vocabulary():
