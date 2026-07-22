@@ -57,6 +57,8 @@ class Client(Base):
     # to re-copy the link from settings at any time. NULL = no active link.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # GA4 property for automated AI-referral traffic sync. NULL = manual mode.
+    ga4_property_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # Free-text admin notes (CRM-style). Admin-only — never exposed in client view.
