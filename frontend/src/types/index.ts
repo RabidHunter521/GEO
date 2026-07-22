@@ -515,6 +515,7 @@ export interface ClientViewOverview {
   is_stale: boolean
   proof_cards?: ClientViewProofCard[]
   causal_trend?: ClientViewCausalTrend | null
+  commitment?: ClientViewCommitment | null
 }
 
 export interface ClientViewScanResult {
@@ -556,6 +557,15 @@ export interface ViewHeadlineBattle {
   platform_label: string
   move_title: string | null
   move_angle: string | null
+}
+
+export interface ClientViewCommitment {
+  metric_label: string
+  baseline: number
+  target: number
+  current: number | null
+  deadline: string
+  state: "achieved" | "in_progress" | "missed"
 }
 
 export interface ClientViewCausalTrend {

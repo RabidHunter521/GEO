@@ -251,6 +251,48 @@ export default async function ViewOverviewPage({
         </section>
       )}
 
+      {/* 2.35 Our commitment — the guarantee, collapsed to client-safe states */}
+      {!isProspect && overview.commitment && (
+        <section
+          className="reveal rounded-xl border bg-card p-4"
+          style={{ animationDelay: "130ms" }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Our commitment
+          </p>
+          <p className="mt-2 text-sm text-foreground">
+            We committed to lifting your {overview.commitment.metric_label.toLowerCase()} from{" "}
+            <span className="font-semibold">{overview.commitment.baseline}</span> to{" "}
+            <span className="font-semibold">{overview.commitment.target}</span> by{" "}
+            {new Date(overview.commitment.deadline).toLocaleDateString("en-MY", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}
+            {overview.commitment.current !== null && (
+              <>
+                . Today:{" "}
+                <span className="font-semibold tabular-nums">
+                  {overview.commitment.current.toFixed(0)}
+                </span>
+              </>
+            )}
+            .
+          </p>
+          {overview.commitment.state === "achieved" && (
+            <p className="mt-1.5 text-sm font-medium text-score-strong">
+              Target achieved.
+            </p>
+          )}
+          {overview.commitment.state === "missed" && (
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              We fell short of this one — your SeenBy team has been in touch
+              about what happens next.
+            </p>
+          )}
+        </section>
+      )}
+
       {/* 2.4 Causal proof — optimized vs left-alone queries (clients only) */}
       {!isProspect && overview.causal_trend && (
         <section className="reveal" style={{ animationDelay: "135ms" }}>

@@ -104,6 +104,53 @@ def get_guarantee_progress(client_id: uuid.UUID, db: Session) -> GuaranteeProgre
     )
 
 
+@dataclass
+class ClientCommitment:
+    """Collapsed, client-safe view of the guarantee. state is one of
+    "achieved" | "in_progress" | "missed" — internal pace states never leave
+    the server, and a client never learns "missed" before the admin resolves."""
+    metric_label: str
+    baseline: int
+    target: int
+    current: float | None
+    deadline: date
+    state: str
+
+
+def get_client_commitment(client_id: uuid.UUID, db: Session) -> ClientCommitment | None:
+    g = (
+        db.query(Guarantee)
+        .filter(Guarantee.client_id == client_id)
+        .order_by(desc(Guarantee.created_at))
+        .first()
+    )
+    if g is None or g.status == "void":
+        return None
+    current = _latest_metric_value(client_id, g.metric, db)
+    if g.status == "active":
+        state = derive_state(g, current, date.today())
+        if state == "met":
+            client_state = "achieved"
+        elif state == "deadline_passed":
+            return None  # hidden until the admin resolves the outcome
+        else:
+            client_state = "in_progress"  # on_track AND at_risk — numbers speak
+    elif g.status == "met":
+        client_state = "achieved"
+    elif g.status == "missed":
+        client_state = "missed"
+    else:
+        return None
+    return ClientCommitment(
+        metric_label="AI visibility" if g.metric == "ai_citability" else "Overall score",
+        baseline=g.baseline_value,
+        target=g.target_value,
+        current=current,
+        deadline=g.deadline_date,
+        state=client_state,
+    )
+
+
 def resolve_guarantee(
     guarantee_id: uuid.UUID, outcome: str, db: Session, note: str | None = None
 ) -> Guarantee:

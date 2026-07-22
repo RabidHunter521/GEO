@@ -44,6 +44,7 @@ from app.services.remediation_service import sync_remediation_items, get_remedia
 from app.services.revenue_service import estimate_pipeline, PipelineEstimate, estimate_value_at_risk, ValueAtRisk
 from app.services.causality_service import compute_causal_trend
 from app.services.ga4_traffic_service import format_breakdown
+from app.services.guarantee_service import get_client_commitment
 from app.services.headline_battle_service import select_headline_battle
 from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
@@ -428,6 +429,8 @@ class ReportData:
     causal_optimized_now: float | None = None
     causal_control_then: float | None = None
     causal_control_now: float | None = None
+    # Client-safe commitment (guarantee) block, or None when hidden.
+    commitment: object | None = None  # guarantee_service.ClientCommitment
     # Query-level changes vs previous scan — used by the narrative prompt so Claude
     # can name specific questions that moved rather than just quoting aggregate numbers.
     newly_seen_queries: list[str] = field(default_factory=list)
@@ -868,6 +871,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         causal_optimized_now=causal_now.optimized_frequency if causal_now else None,
         causal_control_then=causal_then.control_frequency if causal_then else None,
         causal_control_now=causal_now.control_frequency if causal_now else None,
+        commitment=get_client_commitment(client.id, db),
     )
     from app.services.proof_card_service import select_proof_cards
     proof_cards = select_proof_cards(
@@ -938,6 +942,33 @@ def _phrase_change(now: float, then: float) -> str:
     if now < then:
         return f"seen by AI {now:.0f}% of the time, down from {then:.0f}%"
     return f"seen by AI {now:.0f}% of the time, unchanged"
+
+
+def _build_commitment_html(data: ReportData) -> str:
+    """"Our Commitment" — the guarantee, collapsed to client-safe states."""
+    c = data.commitment
+    if c is None:
+        return ""
+    deadline = c.deadline.strftime("%d %b %Y")
+    today = f" Today: <strong>{c.current:.0f}</strong>." if c.current is not None else ""
+    if c.state == "achieved":
+        status_line = '<div class="stat-label" style="color:#059669;">Target achieved</div>'
+    elif c.state == "missed":
+        status_line = (
+            '<div class="stat-sub">We fell short of this one — your SeenBy team '
+            'has been in touch about what happens next.</div>'
+        )
+    else:
+        status_line = ""
+    return (
+        f'<h2>Our Commitment</h2>'
+        f'<div class="stat-card">'
+        f'<div class="stat-sub">We committed to lifting your '
+        f'{html.escape(c.metric_label.lower())} from <strong>{c.baseline}</strong> to '
+        f'<strong>{c.target}</strong> by {deadline}.{today}</div>'
+        f'{status_line}'
+        f'</div>'
+    )
 
 
 def _build_causality_html(data: ReportData) -> str:
@@ -1094,6 +1125,9 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     # ── Section 7b: Causal proof (optimized vs left alone) ────────────────
     causality_section = _build_causality_html(data)
 
+    # ── Section 7c: Commitment ────────────────────────────────────────────
+    commitment_section = _build_commitment_html(data)
+
     # ── Section 8: Competitor comparison ──────────────────────────────────
     if data.competitors:
         comp_rows = "".join(
@@ -1244,6 +1278,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 <!-- ── 7: BATTLE ──────────────────────────────────────────────────── -->
 {battle_section}
 {causality_section}
+{commitment_section}
 
 <!-- ── 8: COMPETITOR COMPARISON ──────────────────────────────────── -->
 {competitor_section}

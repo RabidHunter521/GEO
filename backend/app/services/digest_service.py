@@ -46,6 +46,8 @@ class DigestData:
     headline_battle: object | None = None  # HeadlineBattle | None
     # Formatted per-platform split ("ChatGPT 140 · Perplexity 60"), GA4 months only.
     ai_breakdown: str | None = None
+    # One-line commitment status ("45 → 60 by 20 Oct 2026 · today 48"), or None.
+    commitment_line: str | None = None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -226,6 +228,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         at_risk_leads=at_risk.missed_leads if at_risk else None,
         headline_battle=headline_battle,
         ai_breakdown=ai_breakdown,
+        commitment_line=_commitment_line(client, db),
     )
 
 
@@ -255,6 +258,24 @@ def _detect_first_seen(seen_count: int, prev_scan: Scan | None, db: Session) -> 
         .count()
     )
     return prev_detected == 0
+
+
+def _commitment_line(client: Client, db: Session) -> str | None:
+    """One neutral line for the digest while a commitment is live. Numbers only —
+    the client-state collapse rule (guarantee_service) decides visibility."""
+    from app.services.guarantee_service import get_client_commitment
+
+    c = get_client_commitment(client.id, db)
+    if c is None or c.state == "missed":
+        return None  # missed is a human conversation, never a digest line
+    today = f" · today {c.current:.0f}" if c.current is not None else ""
+    line = (
+        f"Our commitment: {c.metric_label.lower()} {c.baseline} → {c.target} "
+        f"by {c.deadline.strftime('%d %b %Y')}{today}"
+    )
+    if c.state == "achieved":
+        line += " · target achieved"
+    return line
 
 
 def _breakdown_line(breakdown: str | None) -> str:
@@ -290,6 +311,12 @@ def _build_email_html(client: Client, data: DigestData) -> str:
     # land in the email HTML — an "&" or "<" must not break the markup.
     safe_name = html.escape(client.name)
     safe_action = html.escape(data.action_text)
+    commitment_html = (
+        f"""          <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">
+            {html.escape(data.commitment_line)}
+          </p>"""
+        if data.commitment_line else ""
+    )
 
     # Verbatim "straight from AI" proof pair — win (green) + named loss (amber).
     # Excerpts are already extracted (no raw response_text); escape all values for HTML safety.
@@ -437,6 +464,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           <p style="color:{trend_color};font-size:15px;font-weight:600;margin:0 0 24px;">
             {trend_msg}
           </p>
+{commitment_html}
 
           <div style="border-top:1px solid #e5e7eb;padding-top:20px;">
             <p style="margin:0 0 8px;font-size:13px;color:#6b7280;
