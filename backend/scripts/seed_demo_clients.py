@@ -10,7 +10,7 @@ Run from backend/ with the project venv:
     python -m scripts.seed_demo_clients
 """
 import secrets
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 
 from app.core.database import SessionLocal
 from app.models.client import Client

@@ -105,8 +105,7 @@ def test_persist_snapshot_no_third_party_sources_returns_none(db):
     from app.services import provenance_service as ps
     client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
     db.add(client)
-    from datetime import datetime
-    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=utcnow())
     db.add(scan)
     db.commit()
 
@@ -130,8 +129,7 @@ def test_persist_snapshot_swallows_internal_failure(db, monkeypatch):
 def _seed_second_scan_client_now_present(db, client, comp):
     """Same client/comp as _seed_enriched, but a NEW scan where the client is
     now present at the g2.com URL that was previously an acquisition target."""
-    from datetime import datetime
-    scan2 = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    scan2 = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=utcnow())
     db.add(scan2)
     sqr2 = ScanQueryResult(scan_id=scan2.id, platform="perplexity", category="recommendation",
                            query_text="best crm", response_text="…", brand_detected=True)
@@ -165,14 +163,13 @@ def test_no_flip_when_url_absent_from_new_scan(db):
     """A URL from the previous snapshot's acquisition list that simply doesn't
     reappear in the new scan is search-result drift, not a verified flip."""
     from app.services import provenance_service as ps
-    from datetime import datetime
     client, comp = _seed_enriched(db)
     scan1 = db.query(Scan).filter(Scan.client_id == client.id).first()
     ps.compute_and_persist_snapshot(scan1.id, client.id, db)
 
     # New scan with a completely different, unrelated third-party source —
     # g2.com never shows up at all.
-    scan2 = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=datetime.utcnow())
+    scan2 = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=utcnow())
     db.add(scan2)
     sqr2 = ScanQueryResult(scan_id=scan2.id, platform="perplexity", category="recommendation",
                            query_text="best crm", response_text="…", brand_detected=False)
