@@ -25,3 +25,8 @@ class ToolkitFiles(Base):
     schema_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     robots_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # llms-full.txt is optional and added after the original three files —
+    # nullable because existing rows predate it (UI shows "Generate" when null).
+    # Its verification NEVER touches dimension scores (spec §6).
+    llms_full_txt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    llms_full_verified: Mapped[bool] = mapped_column(Boolean, default=False)
