@@ -34,6 +34,7 @@ from app.models.activity_log import ActivityLog
 from app.models.remediation_item import RemediationItem
 from app.schemas.client_view import (
     ClientViewBenchmark,
+    ClientViewCausalTrend,
     ClientViewCompetitorTrends,
     ClientViewPlatform,
     ClientViewProfile,
@@ -74,6 +75,7 @@ from app.services.competitor_intelligence_service import (
 )
 from app.services.issue_detection_service import detect_client_issues
 from app.services.proof_card_service import select_proof_cards, result_excerpt
+from app.services.causality_service import compute_causal_trend
 from app.services.headline_battle_service import select_headline_battle
 from app.services.r2_service import presigned_pdf_url
 
@@ -282,6 +284,7 @@ def get_overview(
                     ScanQueryResult.scan_id == latest_scan.id,
                     ScanQueryResult.competitor_id.is_(None),
                     ScanQueryResult.hallucination_flagged.is_(False),
+                    ScanQueryResult.is_control.is_(False),
                 )
                 .all()
             )
@@ -300,6 +303,18 @@ def get_overview(
                 )
                 for pc in select_proof_cards(scan_results, client.name, competitor_names)
             ]
+
+    # Causal proof chart — only meaningful once two scans carry benchmark data.
+    causal_trend = None
+    if not client.is_prospect:
+        trend = compute_causal_trend(client.id, db)
+        control_points = [p for p in trend.points if p.control_frequency is not None]
+        if len(control_points) >= 2:
+            causal_trend = ClientViewCausalTrend(
+                dates=[p.completed_at for p in trend.points],
+                optimized=[p.optimized_frequency for p in trend.points],
+                left_alone=[p.control_frequency for p in trend.points],
+            )
 
     return ClientViewOverview(
         profile=ClientViewProfile(
@@ -351,6 +366,7 @@ def get_overview(
         last_checked_at=last_checked_at,
         next_check_due=next_check_due,
         is_stale=is_stale,
+        causal_trend=causal_trend,
     )
 
 
@@ -392,12 +408,15 @@ def get_scan(
         return ClientViewScan(completed_at=None, results=[])
 
     # Client's own queries only; flagged answers are known-bad and never shown.
+    # Control (benchmark) rows stay off this list — the causal chart is their
+    # only client-facing surface.
     results = (
         db.query(ScanQueryResult)
         .filter(
             ScanQueryResult.scan_id == latest_scan.id,
             ScanQueryResult.competitor_id.is_(None),
             ScanQueryResult.hallucination_flagged.is_(False),
+            ScanQueryResult.is_control.is_(False),
         )
         .order_by(ScanQueryResult.category, ScanQueryResult.created_at)
         .all()

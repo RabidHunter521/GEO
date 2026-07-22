@@ -149,3 +149,16 @@ def build_competitor_queries(client, competitor) -> list[dict]:
             "competitor_id": competitor.id,
         })
     return queries
+
+
+def build_control_queries(control_queries) -> list[dict]:
+    """Benchmark queries the retainer deliberately leaves alone. Text is used
+    verbatim (admin-authored, no templating). Defensively capped."""
+    from app.core.constants import MAX_CONTROL_QUERIES
+
+    active = [cq for cq in control_queries if cq.active][:MAX_CONTROL_QUERIES]
+    return [
+        {"category": cq.category, "query_text": cq.query_text,
+         "competitor_id": None, "is_control": True}
+        for cq in active
+    ]

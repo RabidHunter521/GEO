@@ -30,6 +30,8 @@ class ScanQueryResultResponse(BaseModel):
     brand_detected: bool
     hallucination_flagged: bool = False
     recommendation_position: int | None = None
+    # Benchmark row (admin UI labels it "benchmark — left alone").
+    is_control: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

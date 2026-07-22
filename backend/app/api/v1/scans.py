@@ -16,6 +16,8 @@ from app.schemas.scan import (
     ScanWithResultsResponse,
     ScanDiffResponse,
 )
+from app.schemas.causality import CausalityPointResponse, CausalityResponse
+from app.services.causality_service import compute_causal_trend
 from app.services.scan_diff_service import compute_scan_diff
 from app.services import snippet_service
 
@@ -99,6 +101,7 @@ def get_latest_scan(client_id: uuid.UUID, db: Session = Depends(get_db)):
             brand_detected=row.ScanQueryResult.brand_detected,
             hallucination_flagged=row.ScanQueryResult.hallucination_flagged,
             recommendation_position=row.ScanQueryResult.recommendation_position,
+            is_control=row.ScanQueryResult.is_control,
             created_at=row.ScanQueryResult.created_at,
         )
         for row in rows
@@ -121,6 +124,26 @@ def get_latest_scan(client_id: uuid.UUID, db: Session = Depends(get_db)):
 )
 def get_scan_diff(client_id: uuid.UUID, db: Session = Depends(get_db)):
     return compute_scan_diff(client_id, db)
+
+
+@router.get(
+    "/client/{client_id}/causality",
+    response_model=CausalityResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_causality(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    trend = compute_causal_trend(client_id, db)
+    return CausalityResponse(
+        points=[
+            CausalityPointResponse(
+                scan_id=p.scan_id,
+                completed_at=p.completed_at,
+                optimized_frequency=p.optimized_frequency,
+                control_frequency=p.control_frequency,
+            )
+            for p in trend.points
+        ]
+    )
 
 
 @router.get(

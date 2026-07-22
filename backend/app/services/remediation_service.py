@@ -47,6 +47,7 @@ def _current_hallucination_keys(client_id: uuid.UUID, db: Session) -> dict[tuple
             ScanQueryResult.scan_id == latest_scan.id,
             ScanQueryResult.competitor_id.is_(None),
             ScanQueryResult.hallucination_flagged.is_(True),
+            ScanQueryResult.is_control.is_(False),
         )
         .all()
     )

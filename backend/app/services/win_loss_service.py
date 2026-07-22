@@ -51,6 +51,7 @@ def compute_win_loss(client_id: uuid.UUID, db: Session) -> WinLossResponse:
             ScanQueryResult.competitor_id.is_(None),
             ScanQueryResult.category.in_(WIN_LOSS_CATEGORIES),
             ScanQueryResult.hallucination_flagged.is_(False),
+            ScanQueryResult.is_control.is_(False),
         )
         .order_by(ScanQueryResult.category, ScanQueryResult.created_at)
         .all()

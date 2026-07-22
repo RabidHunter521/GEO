@@ -1,5 +1,5 @@
 // frontend/src/app/clients/[id]/settings/page.tsx
-import { getClient, getCompetitors, getContentGaps, getTrafficHistory } from "@/lib/api"
+import { getClient, getCompetitors, getContentGaps, getControlQueries, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 import { ShareLinkCard } from "./ShareLinkCard"
 import { DangerZoneCard } from "./DangerZoneCard"
@@ -11,10 +11,11 @@ export default async function SettingsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [client, competitors, trafficHistory] = await Promise.all([
+  const [client, competitors, trafficHistory, controlQueries] = await Promise.all([
     getClient(id),
     getCompetitors(id),
     getTrafficHistory(id),
+    getControlQueries(id),
   ])
 
   // Content Quality assist — latest crawl-derived recommendation (informational; never auto-scores)
@@ -33,6 +34,7 @@ export default async function SettingsPage({
         competitors={competitors}
         contentRecommendation={contentRecommendation}
         trafficHistory={trafficHistory}
+        controlQueries={controlQueries}
       />
       <ShareLinkCard client={client} />
       <InternalNotesCard

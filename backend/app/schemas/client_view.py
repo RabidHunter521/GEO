@@ -98,6 +98,14 @@ class ClientViewProgressItem(BaseModel):
     status_label: str       # "Flagged" | "In progress" | "Corrected"
 
 
+class ClientViewCausalTrend(BaseModel):
+    """Whitelisted causal-proof series: 'queries we optimized' vs 'queries we
+    left alone'. Dates + two frequency arrays only — nothing internal."""
+    dates: list[datetime]
+    optimized: list[float | None]
+    left_alone: list[float | None]
+
+
 class ClientViewOverview(BaseModel):
     profile: ClientViewProfile
     latest_score: ClientViewScore | None
@@ -128,6 +136,9 @@ class ClientViewOverview(BaseModel):
     last_checked_at: datetime | None = None
     next_check_due: date | None = None
     is_stale: bool = False
+    # Causal proof chart — present only once >=2 scans carry benchmark
+    # ("left alone") data; None hides the section entirely.
+    causal_trend: ClientViewCausalTrend | None = None
 
 
 class ClientViewScanResult(BaseModel):

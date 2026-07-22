@@ -37,7 +37,8 @@ def make_client(name="ACME Corp", enabled_platforms=None):
 
 def make_result(platform="gemini", brand_detected=True, competitor_id=None):
     return MagicMock(
-        platform=platform, brand_detected=brand_detected, competitor_id=competitor_id
+        platform=platform, brand_detected=brand_detected, competitor_id=competitor_id,
+        is_control=False,
     )
 
 
@@ -47,6 +48,7 @@ def setup_db(scan, client, stored_results):
     mock_db.query.return_value.filter.return_value.first.side_effect = [scan, client]
     mock_db.query.return_value.filter.return_value.all.side_effect = [
         [],              # competitors query
+        [],              # control queries query
         stored_results,  # scan_query_results query (for scoring)
     ]
     return mock_db

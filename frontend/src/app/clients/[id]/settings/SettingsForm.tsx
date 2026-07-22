@@ -34,9 +34,11 @@ import { Loader2, CheckCircle, Plus, Trash2, HelpCircle, Lightbulb } from "lucid
 import { updateClientAction, updateTrafficAction, uploadClientLogoAction } from "./actions"
 import {
   addCompetitorAction,
+  addControlQueryAction,
   deleteCompetitorAction,
+  toggleControlQueryAction,
 } from "@/app/clients/actions"
-import type { Client, Competitor, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
+import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
 import { isValidWebsite } from "@/lib/utils"
@@ -47,6 +49,7 @@ interface Props {
   competitors: Competitor[]
   contentRecommendation?: string | null
   trafficHistory: AiTrafficSnapshot[]
+  controlQueries: ControlQuery[]
 }
 
 function currentMonthPeriod(): string {
@@ -136,7 +139,7 @@ function AssessmentReview({
   )
 }
 
-export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory }: Props) {
+export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory, controlQueries: initialControlQueries }: Props) {
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -156,6 +159,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   const [compName, setCompName] = useState("")
   const [compWebsite, setCompWebsite] = useState("")
   const [addingComp, setAddingComp] = useState(false)
+
+  const [controlQueries, setControlQueries] = useState<ControlQuery[]>(initialControlQueries)
+  const [controlText, setControlText] = useState("")
+  const [addingControl, setAddingControl] = useState(false)
+  const [controlError, setControlError] = useState<string | null>(null)
 
   const [enabledPlatforms, setEnabledPlatforms] = useState<Platform[]>(
     () => client.enabled_platforms?.length ? client.enabled_platforms : [...SCAN_PLATFORMS]
@@ -335,6 +343,31 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       setError("Failed to save AI traffic.")
     } finally {
       setSavingTraffic(false)
+    }
+  }
+
+  async function handleAddControl() {
+    if (!controlText.trim()) return
+    setControlError(null)
+    setAddingControl(true)
+    try {
+      const cq = await addControlQueryAction(client.id, { query_text: controlText.trim() })
+      setControlQueries((prev) => [...prev, cq])
+      setControlText("")
+    } catch (e) {
+      setControlError(e instanceof Error ? e.message : "Failed to add benchmark query.")
+    } finally {
+      setAddingControl(false)
+    }
+  }
+
+  async function handleToggleControl(cqId: string, active: boolean) {
+    setControlError(null)
+    try {
+      const cq = await toggleControlQueryAction(client.id, cqId, active)
+      setControlQueries((prev) => prev.map((q) => (q.id === cqId ? cq : q)))
+    } catch (e) {
+      setControlError(e instanceof Error ? e.message : "Failed to update benchmark query.")
     }
   }
 
@@ -770,6 +803,78 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             </Button>
           </div>
         )}
+      </section>
+
+      <Separator />
+
+      {/* Benchmark queries we leave alone (causal proof) */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="font-display text-lg font-semibold tracking-tight">
+            Benchmark queries we leave alone ({controlQueries.filter((q) => q.active).length}/5)
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Pick queries the retainer will NOT touch. If we later work on one,
+            deactivate it. They run on every scan but never affect the score —
+            they exist to prove our work moved the queries we optimized.
+          </p>
+        </div>
+        {controlQueries.length > 0 && (
+          <ul className="space-y-2">
+            {controlQueries.map((q) => (
+              <li
+                key={q.id}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+              >
+                <span className={q.active ? "" : "text-muted-foreground line-through"}>
+                  {q.query_text}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 shrink-0 px-2 text-xs text-muted-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleToggleControl(q.id, !q.active)
+                  }}
+                >
+                  {q.active ? "Deactivate" : "Reactivate"}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {controlQueries.filter((q) => q.active).length < 5 && (
+          <div className="flex gap-2 items-end">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Query</Label>
+              <Input
+                value={controlText}
+                // Benchmark queries save on their own — don't dirty the main form.
+                onChange={(e) => {
+                  e.stopPropagation()
+                  setControlText(e.target.value)
+                }}
+                placeholder="Best physio clinic in Penang"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleAddControl}
+              disabled={addingControl || !controlText.trim()}
+            >
+              {addingControl ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        )}
+        {controlError && <p className="text-xs text-destructive">{controlError}</p>}
       </section>
 
       <Separator />

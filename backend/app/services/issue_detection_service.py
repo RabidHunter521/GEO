@@ -104,6 +104,7 @@ def detect_client_issues(client: Client, db: Session) -> list[dict]:
             .filter(
                 ScanQueryResult.scan_id == latest_scan.id,
                 ScanQueryResult.hallucination_flagged.is_(False),
+                ScanQueryResult.is_control.is_(False),
             )
             .all()
         )

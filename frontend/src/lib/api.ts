@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { Client, ClientListItem, Competitor, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, GeoScore, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -188,6 +188,40 @@ export function deleteCompetitor(
   return apiFetch<void>(`/api/v1/clients/${clientId}/competitors/${competitorId}`, {
     method: "DELETE",
   })
+}
+
+export function getCausality(clientId: string): Promise<CausalityResponse> {
+  return apiFetch<CausalityResponse>(`/api/v1/scans/client/${clientId}/causality`)
+}
+
+// ── Control (benchmark) queries ──────────────────────────────────────────────
+
+export function getControlQueries(clientId: string): Promise<ControlQuery[]> {
+  return apiFetch<ControlQuery[]>(`/api/v1/clients/${clientId}/control-queries`)
+}
+
+export function createControlQuery(
+  clientId: string,
+  body: { query_text: string; category?: string },
+): Promise<ControlQuery> {
+  return apiFetch<ControlQuery>(`/api/v1/clients/${clientId}/control-queries`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
+export function updateControlQuery(
+  clientId: string,
+  controlQueryId: string,
+  body: { active: boolean },
+): Promise<ControlQuery> {
+  return apiFetch<ControlQuery>(
+    `/api/v1/clients/${clientId}/control-queries/${controlQueryId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    },
+  )
 }
 
 export function getCompetitorIntelligence(clientId: string): Promise<CompetitorIntelligenceResponse> {

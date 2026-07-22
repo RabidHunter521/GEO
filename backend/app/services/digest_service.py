@@ -151,6 +151,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         .filter(
             ScanQueryResult.scan_id == latest_scan.id,
             ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
         )
         .all()
     )
@@ -244,6 +245,7 @@ def _detect_first_seen(seen_count: int, prev_scan: Scan | None, db: Session) -> 
             ScanQueryResult.scan_id == prev_scan.id,
             ScanQueryResult.competitor_id.is_(None),
             ScanQueryResult.brand_detected.is_(True),
+            ScanQueryResult.is_control.is_(False),
         )
         .count()
     )

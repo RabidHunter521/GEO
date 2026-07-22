@@ -74,6 +74,28 @@ export interface Competitor {
   website: string | null
 }
 
+// Causal proof trend (admin) — optimized vs benchmark visibility per scan.
+export interface CausalityPoint {
+  scan_id: string
+  completed_at: string
+  optimized_frequency: number | null
+  control_frequency: number | null
+}
+
+export interface CausalityResponse {
+  points: CausalityPoint[]
+}
+
+// Benchmark query SeenBy deliberately leaves alone (causal proof).
+export interface ControlQuery {
+  id: string
+  client_id: string
+  query_text: string
+  category: string
+  active: boolean
+  created_at: string
+}
+
 export interface GeoScore {
   id: string
   client_id: string
@@ -250,6 +272,8 @@ export interface ScanQueryResult {
   brand_detected: boolean
   hallucination_flagged: boolean
   recommendation_position: number | null
+  // Benchmark row deliberately left unoptimized — labeled, never aggregated.
+  is_control: boolean
   created_at: string
 }
 
@@ -446,6 +470,7 @@ export interface ClientViewOverview {
   next_check_due: string | null
   is_stale: boolean
   proof_cards?: ClientViewProofCard[]
+  causal_trend?: ClientViewCausalTrend | null
 }
 
 export interface ClientViewScanResult {
@@ -487,6 +512,12 @@ export interface ViewHeadlineBattle {
   platform_label: string
   move_title: string | null
   move_angle: string | null
+}
+
+export interface ClientViewCausalTrend {
+  dates: string[]
+  optimized: (number | null)[]
+  left_alone: (number | null)[]
 }
 
 export interface ClientViewCompetitors {

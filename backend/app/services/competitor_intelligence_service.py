@@ -110,7 +110,10 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
 
     all_results = (
         db.query(ScanQueryResult)
-        .filter(ScanQueryResult.scan_id == latest_scan.id)
+        .filter(
+            ScanQueryResult.scan_id == latest_scan.id,
+            ScanQueryResult.is_control.is_(False),
+        )
         .all()
     )
     # Flagged answers are known-bad and excluded from every visibility stat

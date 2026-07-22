@@ -90,6 +90,8 @@ RAW_RESPONSE_RETENTION_DAYS: Final = 90
 # CLAUDE.md §8: "Client data archived 6 months after churn, then auto-deleted."
 CHURN_DELETE_DAYS: Final = 180
 MAX_COMPETITORS: Final = 5
+# Benchmark queries deliberately left unoptimized (causal proof) — per client.
+MAX_CONTROL_QUERIES: Final = 5
 # Default review cadence — drives the "next scan due" reminder on /clients.
 # Reminder only; nothing auto-scans (MVP runs on-demand scans only).
 DEFAULT_SCAN_CADENCE_DAYS: Final = 30
