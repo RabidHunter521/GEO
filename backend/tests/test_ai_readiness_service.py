@@ -165,3 +165,31 @@ def test_compute_competitor_ai_readiness_isolates_per_site_failures():
     broken_result = next(c for c in result.competitors if c.name == "Down Site")
     assert ok_result.checked is True
     assert broken_result.checked is False
+
+
+# ── JSON-LD parsing helpers ──────────────────────────────────────────────────
+
+
+def test_parse_jsonld_scripts_flattens_graph():
+    from app.services.ai_readiness_service import parse_jsonld_scripts
+    html = ('<html><head><script type="application/ld+json">'
+            '{"@context": "https://schema.org", "@graph": ['
+            '{"@type": "Organization", "name": "Acme"},'
+            '{"@type": "FAQPage"}]}</script></head></html>')
+    items = parse_jsonld_scripts(html)
+    assert len(items) == 2
+    assert items[0]["@type"] == "Organization"
+
+
+def test_parse_jsonld_scripts_skips_malformed_json():
+    from app.services.ai_readiness_service import parse_jsonld_scripts
+    html = ('<script type="application/ld+json">{not json}</script>'
+            '<script type="application/ld+json">{"@type": "WebSite"}</script>')
+    items = parse_jsonld_scripts(html)
+    assert len(items) == 1
+
+
+def test_jsonld_types_from_handles_type_lists():
+    from app.services.ai_readiness_service import jsonld_types_from
+    types = jsonld_types_from([{"@type": ["Dentist", "LocalBusiness"]}, {"@type": "WebSite"}, {}])
+    assert types == ["Dentist", "LocalBusiness", "WebSite"]

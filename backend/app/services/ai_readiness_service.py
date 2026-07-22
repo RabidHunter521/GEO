@@ -94,6 +94,36 @@ def check_robots_ai_bot_access(website: str) -> list[str]:
         return []
 
 
+def parse_jsonld_scripts(html: str) -> list[dict]:
+    """Parsed JSON-LD items in <script type="application/ld+json"> tags.
+
+    Flattens @graph containers, skips malformed JSON and non-dict items.
+    Shared by the competitor readiness check and site_audit_service.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    items: list[dict] = []
+    for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            data = json.loads(tag.string or tag.get_text() or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        found = data.get("@graph") if isinstance(data, dict) and "@graph" in data else data
+        found = found if isinstance(found, list) else [found]
+        items.extend(i for i in found if isinstance(i, dict))
+    return items
+
+
+def jsonld_types_from(items: list[dict]) -> list[str]:
+    types: list[str] = []
+    for item in items:
+        t = item.get("@type")
+        if isinstance(t, str):
+            types.append(t)
+        elif isinstance(t, list):
+            types.extend(x for x in t if isinstance(x, str))
+    return types
+
+
 def check_homepage_schema(website: str) -> list[str]:
     """@type values found in JSON-LD on the homepage.
 
@@ -106,24 +136,7 @@ def check_homepage_schema(website: str) -> list[str]:
         r = safe_get(url, timeout=_TIMEOUT)
         if r.status_code != 200:
             return []
-        soup = BeautifulSoup(r.text, "html.parser")
-        types: list[str] = []
-        for tag in soup.find_all("script", attrs={"type": "application/ld+json"}):
-            try:
-                data = json.loads(tag.string or tag.get_text() or "")
-            except (json.JSONDecodeError, TypeError):
-                continue
-            items = data.get("@graph") if isinstance(data, dict) and "@graph" in data else data
-            items = items if isinstance(items, list) else [items]
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                t = item.get("@type")
-                if isinstance(t, str):
-                    types.append(t)
-                elif isinstance(t, list):
-                    types.extend(x for x in t if isinstance(x, str))
-        return types
+        return jsonld_types_from(parse_jsonld_scripts(r.text))
     except Exception:
         return []
 

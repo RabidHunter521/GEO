@@ -89,3 +89,41 @@ def test_verify_robots_txt_returns_false_when_gptbot_absent():
 def test_verify_robots_txt_returns_false_on_exception():
     with patch("app.services.verification_crawler.safe_get", side_effect=Exception("refused")):
         assert verify_robots_txt("https://acme.com") is False
+
+
+class _Resp:
+    def __init__(self, status_code, text=""):
+        self.status_code = status_code
+        self.text = text
+
+
+def test_verify_llms_full_txt_true_on_200_nonempty():
+    from app.services.verification_crawler import verify_llms_full_txt
+    with patch("app.services.verification_crawler.is_safe_crawl_url", return_value=True), \
+         patch("app.services.verification_crawler.safe_get", return_value=_Resp(200, "# Acme full")):
+        assert verify_llms_full_txt("https://acme.com") is True
+
+
+def test_verify_llms_full_txt_false_on_404_or_empty():
+    from app.services.verification_crawler import verify_llms_full_txt
+    with patch("app.services.verification_crawler.is_safe_crawl_url", return_value=True), \
+         patch("app.services.verification_crawler.safe_get", return_value=_Resp(404)):
+        assert verify_llms_full_txt("https://acme.com") is False
+    with patch("app.services.verification_crawler.is_safe_crawl_url", return_value=True), \
+         patch("app.services.verification_crawler.safe_get", return_value=_Resp(200, "   ")):
+        assert verify_llms_full_txt("https://acme.com") is False
+
+
+def test_verify_all_returns_four_keys():
+    from app.services.verification_crawler import verify_all
+    with patch("app.services.verification_crawler.verify_llms_txt", return_value=True), \
+         patch("app.services.verification_crawler.verify_schema_json", return_value=False), \
+         patch("app.services.verification_crawler.verify_robots_txt", return_value=True), \
+         patch("app.services.verification_crawler.verify_llms_full_txt", return_value=False):
+        result = verify_all("https://acme.com")
+    assert result == {
+        "llms_verified": True,
+        "schema_verified": False,
+        "robots_verified": True,
+        "llms_full_verified": False,
+    }
