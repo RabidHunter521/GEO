@@ -348,7 +348,17 @@ function ResultsTable({
                   {CATEGORY_LABELS[r.category] ?? r.category}
                 </Badge>
               </td>
-              <td className="px-4 py-3 text-muted-foreground text-sm">{r.query_text}</td>
+              <td className="px-4 py-3 text-muted-foreground text-sm">
+                {r.query_text}
+                {r.is_control && (
+                  <Badge
+                    variant="outline"
+                    className="ml-2 border-dashed text-xs font-normal text-muted-foreground"
+                  >
+                    benchmark — left alone
+                  </Badge>
+                )}
+              </td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
                   {r.brand_detected ? (

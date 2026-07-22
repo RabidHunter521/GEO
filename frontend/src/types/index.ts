@@ -272,6 +272,8 @@ export interface ScanQueryResult {
   brand_detected: boolean
   hallucination_flagged: boolean
   recommendation_position: number | null
+  // Benchmark row deliberately left unoptimized — labeled, never aggregated.
+  is_control: boolean
   created_at: string
 }
 
