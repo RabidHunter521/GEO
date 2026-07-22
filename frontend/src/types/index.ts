@@ -650,3 +650,9 @@ export interface ShareOfSource {
   acquisition_list: AcquisitionSource[]
   flip_targets: AcquisitionSource[]
 }
+
+export interface ShareOfSourceHistoryPoint {
+  computed_at: string
+  client_share_pct: number
+  total_third_party_sources: number
+}
