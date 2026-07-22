@@ -357,6 +357,13 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             db.rollback()
             logger.error("action_center_refresh_failed", scan_id=str(scan_id), error=str(exc))
 
+        try:
+            from app.services.guarantee_alert import check_guarantee_transition
+            check_guarantee_transition(client, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("guarantee_check_failed", scan_id=str(scan_id), error=str(exc))
+
         # Remediation loop sync — newly flagged hallucinations / lost queries are
         # tracked; issues no longer present auto-flip to "corrected". Best-effort:
         # the service swallows and logs its own errors.
