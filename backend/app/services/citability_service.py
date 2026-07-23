@@ -8,7 +8,6 @@ handed to clients alongside the rewrite suggestions.
 import json
 import re
 import statistics
-import uuid
 from urllib.parse import urlparse
 
 import structlog
