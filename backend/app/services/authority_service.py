@@ -11,7 +11,7 @@ import uuid
 import structlog
 from sqlalchemy.orm import Session
 
-from app.core.constants import AUTHORITY_ASSET_CATALOG, AUTHORITY_ASSET_TYPES
+from app.core.constants import AUTHORITY_ASSET_CATALOG, AUTHORITY_ASSET_STATUSES, AUTHORITY_ASSET_TYPES
 from app.models.activity_log import ActivityLog
 from app.models.authority_asset import AuthorityAsset
 from app.models.client import Client
@@ -115,7 +115,8 @@ def add_assets(client: Client, items: list[dict], db: Session) -> list[Authority
                 provenance_domain=(item.get("provenance_domain") or None),
             )
         to_add.append(row)
-        existing[key] = row if key else existing.get(key)  # dedupe within one call
+        if key:
+            existing[key] = row  # dedupe repeated catalog keys within one call
         result.append(row)
 
     if to_add:
@@ -133,7 +134,8 @@ def add_assets(client: Client, items: list[dict], db: Session) -> list[Authority
 def update_asset(asset: AuthorityAsset, patch: dict, db: Session) -> AuthorityAsset:
     """Apply status/url/notes/hidden. Logs only when status actually changes."""
     status_changed = False
-    if "status" in patch and patch["status"] and patch["status"] != asset.status:
+    if ("status" in patch and patch["status"] in AUTHORITY_ASSET_STATUSES
+            and patch["status"] != asset.status):
         asset.status = patch["status"]
         status_changed = True
     if "url" in patch:

@@ -104,3 +104,15 @@ def test_hidden_assets_excluded_by_default(db):
     authority_service.update_asset(asset, {"hidden": True}, db)
     assert authority_service.list_assets(client.id, db) == []
     assert len(authority_service.list_assets(client.id, db, include_hidden=True)) == 1
+
+
+def test_update_ignores_invalid_status(db):
+    from app.models.activity_log import ActivityLog
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(client, [{"asset_key": "gbp"}], db)
+    authority_service.update_asset(asset, {"status": "bogus"}, db)
+    assert asset.status == "missing"  # unchanged — invalid status ignored
+    assert db.query(ActivityLog).filter(
+        ActivityLog.event_type == "authority_status_changed"
+    ).count() == 0
