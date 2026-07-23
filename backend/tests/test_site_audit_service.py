@@ -223,7 +223,12 @@ def test_get_latest_with_delta(db):
     client = _make_client(db)
     with patch.object(site_audit_service, "run_site_audit",
                       return_value=[_check("h1", "fail")]):
-        site_audit_service.run_and_persist_site_audit(client.id, client.website, db)
+        first = site_audit_service.run_and_persist_site_audit(client.id, client.website, db)
+    # Backdate the first run so created_at ordering is deterministic even on
+    # hosts whose clock resolution makes back-to-back rows share a timestamp
+    # (real audits are seconds apart — this is a test-only concern).
+    first.created_at = first.created_at - timedelta(minutes=5)
+    db.commit()
     with patch.object(site_audit_service, "run_site_audit",
                       return_value=[_check("h1", "pass")]):
         site_audit_service.run_and_persist_site_audit(client.id, client.website, db)
