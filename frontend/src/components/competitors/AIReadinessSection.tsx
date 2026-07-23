@@ -4,8 +4,9 @@
 import { useState, useTransition } from "react"
 import { CheckCircle, XCircle, Loader2, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { CompetitorAIReadiness, SiteAIReadiness } from "@/types"
-import { checkAIReadinessAction } from "@/app/clients/[id]/competitors/actions"
+import type { CompetitorAIReadiness, SiteAIReadiness, CompetitorSiteAudit } from "@/types"
+import { checkAIReadinessAction, runCompetitorSiteAuditAction } from "@/app/clients/[id]/competitors/actions"
+import { SiteAuditResults } from "@/components/SiteAuditResults"
 
 export function AIReadinessSection({ clientId }: { clientId: string }) {
   const [data, setData] = useState<CompetitorAIReadiness | null>(null)
@@ -47,9 +48,9 @@ export function AIReadinessSection({ clientId }: { clientId: string }) {
 
       {data && (
         <div className="mt-4 divide-y">
-          <AIReadinessRow site={data.client} isYou />
+          <AIReadinessRow site={data.client} isYou clientId={clientId} />
           {data.competitors.map((c) => (
-            <AIReadinessRow key={c.name} site={c} />
+            <AIReadinessRow key={c.name} site={c} clientId={clientId} />
           ))}
         </div>
       )}
@@ -57,7 +58,30 @@ export function AIReadinessSection({ clientId }: { clientId: string }) {
   )
 }
 
-function AIReadinessRow({ site, isYou = false }: { site: SiteAIReadiness; isYou?: boolean }) {
+function AIReadinessRow({
+  site,
+  isYou = false,
+  clientId,
+}: {
+  site: SiteAIReadiness
+  isYou?: boolean
+  clientId: string
+}) {
+  const [audit, setAudit] = useState<CompetitorSiteAudit | null>(null)
+  const [auditFailed, setAuditFailed] = useState(false)
+  const [auditPending, startAuditTransition] = useTransition()
+
+  function handleFullAudit() {
+    setAuditFailed(false)
+    startAuditTransition(async () => {
+      try {
+        setAudit(await runCompetitorSiteAuditAction(clientId, site.competitor_id!))
+      } catch {
+        setAuditFailed(true)
+      }
+    })
+  }
+
   if (!site.checked) {
     return (
       <div className="flex items-center justify-between py-3 text-sm">
@@ -77,7 +101,21 @@ function AIReadinessRow({ site, isYou = false }: { site: SiteAIReadiness; isYou?
           {site.name}
           {isYou && <span className="text-muted-foreground"> (you)</span>}
         </span>
-        <span className="text-xs text-muted-foreground">{site.website}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground">{site.website}</span>
+          {site.competitor_id && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleFullAudit}
+              disabled={auditPending}
+            >
+              {auditPending && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+              {auditPending ? "Auditing…" : audit ? "Re-run full audit" : "Full audit"}
+            </Button>
+          )}
+        </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-2 text-xs">
         <span className="flex items-center gap-1.5 rounded-full border px-2.5 py-1">
@@ -105,6 +143,15 @@ function AIReadinessRow({ site, isYou = false }: { site: SiteAIReadiness; isYou?
           </span>
         )}
       </div>
+      {auditFailed && (
+        <p className="mt-2 text-xs text-destructive">Couldn&apos;t complete the audit — try again.</p>
+      )}
+      {audit && (
+        <div className="mt-3 rounded-md border bg-muted/10 p-4">
+          <p className="mb-3 text-xs text-muted-foreground">{audit.note}</p>
+          <SiteAuditResults checks={audit.checks} />
+        </div>
+      )}
     </div>
   )
 }
