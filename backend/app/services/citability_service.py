@@ -5,13 +5,23 @@ produces the number (same rule as action_center impact). Check details are
 plain English (CLAUDE.md §2) — they are shown to the admin and may be
 handed to clients alongside the rewrite suggestions.
 """
+import json
 import re
 import statistics
+import uuid
 from urllib.parse import urlparse
 
 import structlog
 from bs4 import BeautifulSoup
+from sqlalchemy.orm import Session
 
+from app.models.activity_log import ActivityLog
+from app.models.client import Client
+from app.models.page_audit import PageAudit
+from app.prompts.citability import build_citability_suggestions
+from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
+from app.services.cost_tracker import record_llm_call
+from app.services.language_sanitizer import sanitize_text
 from app.services.url_safety import is_safe_crawl_url, safe_get
 from app.services.verification_crawler import _domain_base
 
@@ -314,3 +324,83 @@ def run_citability_checks(html: str) -> list[dict]:
 def compute_citability_score(checks: list[dict]) -> int:
     """0-100, server-computed. points fields already hold EARNED points."""
     return sum(c["points"] for c in checks)
+
+
+_SUGGESTIONS_MAX_TOKENS = 1024
+_EXCERPT_WORDS = 1500
+_MAX_SUGGESTIONS = 5
+
+
+def generate_suggestions(
+    client: Client, checks: list[dict], page_text: str, db: Session
+) -> tuple[list[dict], bool]:
+    """(sanitized suggestion items, failed_flag). Never raises — a Claude
+    failure must not lose the audit (spec §7)."""
+    problems = [c for c in checks if c["status"] in ("warn", "fail")]
+    if not problems:
+        return [], False
+    excerpt = " ".join(page_text.split()[:_EXCERPT_WORDS])
+    try:
+        response = anthropic_client().messages.create(
+            model=MODEL,
+            max_tokens=_SUGGESTIONS_MAX_TOKENS,
+            messages=[{
+                "role": "user",
+                "content": build_citability_suggestions(client, problems, excerpt),
+            }],
+        )
+        record_llm_call(
+            service="citability_suggestions", model=MODEL, response=response,
+            client_id=client.id, db=db,
+        )
+        payload = json.loads(strip_code_fences(response.content[0].text))
+        items = payload.get("suggestions", []) if isinstance(payload, dict) else payload
+        cleaned: list[dict] = []
+        for item in items[:_MAX_SUGGESTIONS]:
+            if not isinstance(item, dict):
+                continue
+            section = sanitize_text(str(item.get("section", "")).strip())
+            issue = sanitize_text(str(item.get("issue", "")).strip())
+            rewrite = sanitize_text(str(item.get("rewrite", "")).strip())
+            if section and issue and rewrite:
+                cleaned.append({"section": section, "issue": issue, "rewrite": rewrite})
+        return cleaned, False
+    except Exception as exc:
+        logger.warning(
+            "citability_suggestions_failed", client_id=str(client.id), error=str(exc)
+        )
+        return [], True
+
+
+def audit_page(client: Client, url: str, db: Session) -> PageAudit:
+    """Validate → fetch → check → score → suggest → persist. One new row per run.
+
+    Raises OffDomainUrlError (route: 422) or PageFetchError (route: 502);
+    nothing is persisted on either.
+    """
+    normalized = validate_audit_url(client.website, url)
+    if normalized is None:
+        raise OffDomainUrlError(url)
+    html = fetch_page(normalized)
+    checks = run_citability_checks(html)
+    score = compute_citability_score(checks)
+    # Suggestions read the same text the checks saw.
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    page_text = soup.get_text(" ", strip=True)
+    suggestions, failed = generate_suggestions(client, checks, page_text, db)
+
+    audit = PageAudit(
+        client_id=client.id, url=normalized, score=score, checks=checks,
+        suggestions=suggestions, suggestions_failed=failed,
+    )
+    db.add(audit)
+    db.add(ActivityLog(
+        client_id=client.id,
+        event_type="page_audit_run",
+        note=f"Page readability audit run on {normalized} — scored {score}/100.",
+    ))
+    db.commit()
+    db.refresh(audit)
+    return audit

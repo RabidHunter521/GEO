@@ -16,6 +16,7 @@ from app.prompts import (
     report,
     digest,
     assessment,
+    citability,
 )
 
 # service name → {version, model}
@@ -40,6 +41,7 @@ REGISTRY: dict[str, dict[str, str]] = {
     "scan_perplexity":             {"version": SCAN_QUERY_VERSION,                 "model": "sonar"},
     "scan_gemini":                 {"version": SCAN_QUERY_VERSION,                 "model": "gemini-2.5-flash-lite"},
     "scan_claude":                 {"version": SCAN_QUERY_VERSION,                 "model": "claude-haiku-4-5-20251001"},
+    "citability_suggestions":      {"version": citability.SUGGESTIONS_VERSION,     "model": MODEL},
 }
 
 
