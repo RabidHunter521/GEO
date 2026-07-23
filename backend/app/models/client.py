@@ -21,6 +21,9 @@ class Client(Base):
     state: Mapped[str | None] = mapped_column(String(255), nullable=True)
     country: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Canonical business phone for NAP-consistency checks (spec §3). Admin-entered
+    # in settings; compared digits-only against phones found on verified directory pages.
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Hosted URL of the client's logo, shown in the read-only client view header.
     # Admin-entered (paste a URL) — no upload infra in MVP. NULL = text-only header.
     logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
