@@ -201,3 +201,69 @@ ACTION_PRIORITY_BANDS: Final = {
     "low":    (0, 2),
 }
 MAX_OPEN_ACTIONS: Final = 5
+
+# --- Authority & Presence Tracker (Phase 4) ---------------------------------
+# Asset types in display order (also the group order on the /authority page).
+AUTHORITY_ASSET_TYPES: Final = (
+    "directory", "review_platform", "social", "knowledge_graph", "media", "other",
+)
+# Lifecycle: admin drives missing → in_progress → live; the verify crawler
+# attempts live → verified. A failed check never downgrades.
+AUTHORITY_ASSET_STATUSES: Final = ("missing", "in_progress", "live", "verified")
+
+# Master reference list the admin picks from per client — NOT auto-seeded
+# (spec §4). suggested_industries only SORTS the picker; it never auto-selects.
+# Malaysia-first starting menu; trim/extend per client freely.
+AUTHORITY_ASSET_CATALOG: Final = [
+    {"key": "gbp", "name": "Google Business Profile", "type": "review_platform",
+     "provenance_domain": "google.com", "url_hint": "https://business.google.com/",
+     "suggested_industries": []},
+    {"key": "trustpilot", "name": "Trustpilot", "type": "review_platform",
+     "provenance_domain": "trustpilot.com", "url_hint": "https://www.trustpilot.com/",
+     "suggested_industries": []},
+    {"key": "facebook_reviews", "name": "Facebook Page reviews", "type": "review_platform",
+     "provenance_domain": "facebook.com", "url_hint": "https://www.facebook.com/",
+     "suggested_industries": []},
+    {"key": "crunchbase", "name": "Crunchbase", "type": "directory",
+     "provenance_domain": "crunchbase.com", "url_hint": "https://www.crunchbase.com/",
+     "suggested_industries": ["saas", "tech", "startup"]},
+    {"key": "clutch", "name": "Clutch", "type": "directory",
+     "provenance_domain": "clutch.co", "url_hint": "https://clutch.co/",
+     "suggested_industries": ["agency", "services", "software"]},
+    {"key": "yellowpages_my", "name": "Yellow Pages Malaysia", "type": "directory",
+     "provenance_domain": "yellowpages.my", "url_hint": "https://www.yellowpages.my/",
+     "suggested_industries": []},
+    {"key": "smecorp", "name": "SME Corp Malaysia directory", "type": "directory",
+     "provenance_domain": "smecorp.gov.my", "url_hint": "https://www.smecorp.gov.my/",
+     "suggested_industries": ["sme", "retail", "manufacturing"]},
+    {"key": "foursquare", "name": "Foursquare / Apple Maps listing", "type": "directory",
+     "provenance_domain": "foursquare.com", "url_hint": "https://foursquare.com/",
+     "suggested_industries": ["retail", "restaurant", "clinic"]},
+    {"key": "myhealth_clinic", "name": "MyHEALTH / MMC clinic directory", "type": "directory",
+     "provenance_domain": "myhealth.gov.my", "url_hint": "http://www.myhealth.gov.my/",
+     "suggested_industries": ["healthcare", "clinic", "dental"]},
+    {"key": "linkedin", "name": "LinkedIn company page", "type": "social",
+     "provenance_domain": "linkedin.com", "url_hint": "https://www.linkedin.com/company/",
+     "suggested_industries": []},
+    {"key": "youtube", "name": "YouTube channel", "type": "social",
+     "provenance_domain": "youtube.com", "url_hint": "https://www.youtube.com/",
+     "suggested_industries": []},
+    {"key": "facebook", "name": "Facebook page", "type": "social",
+     "provenance_domain": "facebook.com", "url_hint": "https://www.facebook.com/",
+     "suggested_industries": []},
+    {"key": "instagram", "name": "Instagram profile", "type": "social",
+     "provenance_domain": "instagram.com", "url_hint": "https://www.instagram.com/",
+     "suggested_industries": ["retail", "restaurant", "beauty", "clinic"]},
+    {"key": "wikidata", "name": "Wikidata entity", "type": "knowledge_graph",
+     "provenance_domain": "wikidata.org", "url_hint": "https://www.wikidata.org/",
+     "suggested_industries": []},
+    {"key": "wikipedia_readiness", "name": "Wikipedia readiness (checklist only)",
+     "type": "knowledge_graph", "provenance_domain": "wikipedia.org",
+     "url_hint": "https://en.wikipedia.org/", "suggested_industries": []},
+    {"key": "schema_sameas", "name": "sameAs links in site schema",
+     "type": "knowledge_graph", "provenance_domain": None, "url_hint": None,
+     "suggested_industries": []},
+    {"key": "media_mention", "name": "Industry blog / news mention target",
+     "type": "media", "provenance_domain": None, "url_hint": None,
+     "suggested_industries": []},
+]
