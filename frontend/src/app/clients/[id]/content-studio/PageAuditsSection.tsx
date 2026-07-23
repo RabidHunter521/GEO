@@ -52,12 +52,13 @@ export function PageAuditsSection({
   const [detail, setDetail] = useState<PageAudit | null>(null)
   const [loadingDetail, startDetail] = useTransition()
 
-  function handleRun() {
-    if (!url.trim()) return
+  function handleRun(overrideUrl?: string) {
+    const target = (overrideUrl ?? url).trim()
+    if (!target) return
     setRunError(null)
     startRun(async () => {
       try {
-        const audit = await runPageAuditAction(clientId, url.trim())
+        const audit = await runPageAuditAction(clientId, target)
         setAudits((prev) => {
           const rest = prev.filter((a) => a.url !== audit.url)
           const previous = prev.find((a) => a.url === audit.url)
@@ -120,7 +121,7 @@ export function PageAuditsSection({
           placeholder="https://clientdomain.com/services"
           className="max-w-xl"
         />
-        <Button onClick={handleRun} disabled={running || !url.trim()}>
+        <Button onClick={() => handleRun()} disabled={running || !url.trim()}>
           {running && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           {running ? "Auditing…" : "Run audit"}
         </Button>
@@ -227,10 +228,7 @@ export function PageAuditsSection({
                           Rewrite suggestions didn&apos;t generate this time —{" "}
                           <button
                             className="underline underline-offset-4"
-                            onClick={() => {
-                              setUrl(detail.url)
-                              handleRun()
-                            }}
+                            onClick={() => handleRun(detail.url)}
                           >
                             retry the audit
                           </button>
