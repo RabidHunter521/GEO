@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -319,6 +319,33 @@ export function verifyToolkitFiles(clientId: string): Promise<VerificationResult
   return apiFetch<VerificationResult>(`/api/v1/clients/${clientId}/toolkit/verify`, {
     method: "POST",
   })
+}
+
+export function generateLlmsFullTxt(clientId: string): Promise<ToolkitFiles> {
+  return apiFetch<ToolkitFiles>(`/api/v1/clients/${clientId}/toolkit/generate-llms-full`, {
+    method: "POST",
+  })
+}
+
+// ── Site AI-Readiness Audit ──────────────────────────────────────────────────
+
+export function runSiteAudit(clientId: string): Promise<SiteAudit> {
+  return apiFetch<SiteAudit>(`/api/v1/clients/${clientId}/site-audit`, { method: "POST" })
+}
+
+export function getLatestSiteAudit(clientId: string): Promise<SiteAuditLatest | null> {
+  return apiFetch<SiteAuditLatest | null>(`/api/v1/clients/${clientId}/site-audit/latest`)
+}
+
+// Live outbound check of a competitor site — never persisted.
+export function runCompetitorSiteAudit(
+  clientId: string,
+  competitorId: string,
+): Promise<CompetitorSiteAudit> {
+  return apiFetch<CompetitorSiteAudit>(
+    `/api/v1/clients/${clientId}/site-audit/competitor/${competitorId}`,
+    { method: "POST" },
+  )
 }
 
 // ── Content Gaps ────────────────────────────────────────────────────────────────

@@ -153,10 +153,12 @@ export interface ToolkitFiles {
   llms_txt: string
   schema_json: string
   robots_txt: string
+  llms_full_txt: string | null
   generated_at: string
   llms_verified: boolean
   schema_verified: boolean
   robots_verified: boolean
+  llms_full_verified: boolean
   verified_at: string | null
 }
 
@@ -164,6 +166,7 @@ export interface VerificationResult {
   llms_verified: boolean
   schema_verified: boolean
   robots_verified: boolean
+  llms_full_verified: boolean
   technical_foundations_updated: boolean
   structured_data_updated: boolean
 }
@@ -740,9 +743,52 @@ export interface SiteAIReadiness {
   has_llms_txt: boolean
   blocked_ai_bots: string[]
   schema_types: string[]
+  competitor_id?: string | null
 }
 
 export interface CompetitorAIReadiness {
   client: SiteAIReadiness
   competitors: SiteAIReadiness[]
+}
+
+// ── Site AI-Readiness Audit ──────────────────────────────────────────────────
+
+export type SiteAuditStatus = "pass" | "warn" | "fail" | "unknown"
+
+export interface SiteAuditCheck {
+  id: string
+  label: string
+  status: SiteAuditStatus
+  detail: string
+  fix: string
+}
+
+export interface SiteAudit {
+  id: string
+  client_id: string
+  checks: SiteAuditCheck[]
+  passed: number
+  warned: number
+  failed: number
+  unknown: number
+  created_at: string
+}
+
+export interface SiteAuditLatest {
+  audit: SiteAudit
+  fixed: string[]
+  regressed: string[]
+  has_previous: boolean
+}
+
+export interface CompetitorSiteAudit {
+  competitor_id: string
+  name: string
+  website: string | null
+  checks: SiteAuditCheck[]
+  passed: number
+  warned: number
+  failed: number
+  unknown: number
+  note: string
 }

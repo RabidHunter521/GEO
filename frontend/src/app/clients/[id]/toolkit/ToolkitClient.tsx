@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { copyToClipboard } from "@/lib/utils"
-import { generateToolkitAction, verifyToolkitAction } from "./actions"
+import { generateToolkitAction, verifyToolkitAction, generateLlmsFullAction } from "./actions"
 import type { ToolkitFiles, VerificationResult } from "@/types"
 
 interface Props {
@@ -33,6 +33,13 @@ const FILE_META = {
     instruction:
       "Upload this file to your website root so it's accessible at yourdomain.com/llms.txt. Most hosting providers let you upload via FTP or file manager. No plugin or configuration needed.",
     expectedUrl: "/llms.txt",
+  },
+  llms_full_txt: {
+    label: "llms-full.txt",
+    filename: "llms-full.txt",
+    instruction:
+      "Upload this file to your website root next to llms.txt, so it's accessible at yourdomain.com/llms-full.txt. It's the extended version — optional, but it gives AI assistants a much richer picture of the business. It does not change the score.",
+    expectedUrl: "/llms-full.txt",
   },
   schema_json: {
     label: "schema.json",
@@ -51,7 +58,7 @@ const FILE_META = {
 } as const
 
 type FileKey = keyof typeof FILE_META
-const FILE_KEYS: FileKey[] = ["llms_txt", "schema_json", "robots_txt"]
+const FILE_KEYS: FileKey[] = ["llms_txt", "llms_full_txt", "schema_json", "robots_txt"]
 
 export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) {
   function fullUrl(path: string): string {
@@ -92,6 +99,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
             llms_verified: result.llms_verified,
             schema_verified: result.schema_verified,
             robots_verified: result.robots_verified,
+            llms_full_verified: result.llms_full_verified,
           })
         }
       } catch {
@@ -100,15 +108,29 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
     })
   }
 
+  const [isGeneratingFull, startFullTransition] = useTransition()
+
+  function handleGenerateLlmsFull() {
+    startFullTransition(async () => {
+      setError(null)
+      try {
+        const result = await generateLlmsFullAction(clientId)
+        setFiles(result)
+      } catch {
+        setError("Failed to generate llms-full.txt. Please try again.")
+      }
+    })
+  }
+
   async function handleCopy(key: FileKey) {
-    const ok = await copyToClipboard(files![key])
+    const ok = await copyToClipboard(files![key] ?? "")
     toast[ok ? "success" : "error"](
       ok ? "Copied to clipboard" : "Couldn't copy — select the text and copy manually.",
     )
   }
 
   function handleDownload(key: FileKey) {
-    const blob = new Blob([files![key]], { type: "text/plain" })
+    const blob = new Blob([files![key] ?? ""], { type: "text/plain" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
@@ -120,6 +142,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
   function isVerified(key: FileKey): boolean {
     if (!files) return false
     if (key === "llms_txt") return files.llms_verified
+    if (key === "llms_full_txt") return files.llms_full_verified
     if (key === "schema_json") return files.schema_verified
     return files.robots_verified
   }
@@ -232,7 +255,19 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
 
           {/* Tab content */}
           {FILE_KEYS.map((key) =>
-            activeTab !== key ? null : (
+            activeTab !== key ? null : key === "llms_full_txt" && !files.llms_full_txt ? (
+              <div key={key} className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
+                <p className="font-medium">llms-full.txt not generated yet</p>
+                <p className="text-sm mt-1 max-w-md mx-auto">
+                  The extended companion to llms.txt — services in detail, more Q&amp;As,
+                  policies and key pages. Optional, and doesn&apos;t change the score.
+                </p>
+                <Button className="mt-4" onClick={handleGenerateLlmsFull} disabled={isGeneratingFull}>
+                  {isGeneratingFull && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Generate llms-full.txt
+                </Button>
+              </div>
+            ) : (
               <div key={key} className="space-y-4">
                 {/* File content area */}
                 <div className="relative rounded-md border bg-muted/20">
@@ -258,7 +293,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
                   </div>
                   <textarea
                     readOnly
-                    value={files[key]}
+                    value={files[key] ?? ""}
                     rows={14}
                     className="w-full rounded-md bg-transparent px-3 py-3 pt-10 text-xs font-mono resize-none focus:outline-none"
                   />
