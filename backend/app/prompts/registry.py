@@ -17,6 +17,7 @@ from app.prompts import (
     digest,
     assessment,
     citability,
+    deliverables,
 )
 
 # service name → {version, model}
@@ -42,6 +43,9 @@ REGISTRY: dict[str, dict[str, str]] = {
     "scan_gemini":                 {"version": SCAN_QUERY_VERSION,                 "model": "gemini-2.5-flash-lite"},
     "scan_claude":                 {"version": SCAN_QUERY_VERSION,                 "model": "claude-haiku-4-5-20251001"},
     "citability_suggestions":      {"version": citability.SUGGESTIONS_VERSION,     "model": MODEL},
+    "deliverable_faq_pack":        {"version": deliverables.FAQ_PACK_VERSION,        "model": MODEL_NARRATIVE},
+    "deliverable_comparison_page": {"version": deliverables.COMPARISON_PAGE_VERSION, "model": MODEL_NARRATIVE},
+    "deliverable_glossary":        {"version": deliverables.GLOSSARY_VERSION,        "model": MODEL_NARRATIVE},
 }
 
 
