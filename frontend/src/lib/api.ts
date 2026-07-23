@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -512,5 +512,48 @@ export function acceptAssessment(
   return apiFetch<DimensionAssessment>(
     `/api/v1/clients/${clientId}/assessments/${dimension}/accept`,
     { method: "POST", body: JSON.stringify({ final_score: finalScore }) },
+  )
+}
+
+// ── Content Studio ───────────────────────────────────────────────────────────
+
+export function runPageAudit(clientId: string, url: string): Promise<PageAudit> {
+  return apiFetch<PageAudit>(`/api/v1/clients/${clientId}/page-audits`, {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  })
+}
+
+export function getPageAudits(clientId: string): Promise<PageAuditListItem[]> {
+  return apiFetch<PageAuditListItem[]>(`/api/v1/clients/${clientId}/page-audits`)
+}
+
+export function getPageAudit(clientId: string, auditId: string): Promise<PageAudit> {
+  return apiFetch<PageAudit>(`/api/v1/clients/${clientId}/page-audits/${auditId}`)
+}
+
+export function generateDeliverable(
+  clientId: string,
+  type: DeliverableType,
+  competitorId?: string,
+): Promise<ContentDeliverable> {
+  return apiFetch<ContentDeliverable>(`/api/v1/clients/${clientId}/deliverables`, {
+    method: "POST",
+    body: JSON.stringify({ type, competitor_id: competitorId ?? null }),
+  })
+}
+
+export function getDeliverables(clientId: string): Promise<ContentDeliverable[]> {
+  return apiFetch<ContentDeliverable[]>(`/api/v1/clients/${clientId}/deliverables`)
+}
+
+export function updateDeliverable(
+  clientId: string,
+  deliverableId: string,
+  patch: { title?: string; body_md?: string; status?: "reviewed" },
+): Promise<ContentDeliverable> {
+  return apiFetch<ContentDeliverable>(
+    `/api/v1/clients/${clientId}/deliverables/${deliverableId}`,
+    { method: "PATCH", body: JSON.stringify(patch) },
   )
 }

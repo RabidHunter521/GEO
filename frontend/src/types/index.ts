@@ -792,3 +792,52 @@ export interface CompetitorSiteAudit {
   unknown: number
   note: string
 }
+
+// ── Content Studio ───────────────────────────────────────────────────────────
+
+export interface PageAuditCheck {
+  id: string
+  label: string
+  status: "pass" | "warn" | "fail"
+  detail: string
+  points: number
+}
+
+export interface PageAuditSuggestion {
+  section: string
+  issue: string
+  rewrite: string
+}
+
+export interface PageAudit {
+  id: string
+  client_id: string
+  url: string
+  score: number
+  checks: PageAuditCheck[]
+  suggestions: PageAuditSuggestion[]
+  suggestions_failed: boolean
+  created_at: string
+}
+
+export interface PageAuditListItem {
+  id: string
+  url: string
+  score: number
+  previous_score: number | null
+  created_at: string
+}
+
+export type DeliverableType = "faq_pack" | "comparison_page" | "glossary"
+
+export interface ContentDeliverable {
+  id: string
+  client_id: string
+  type: DeliverableType
+  competitor_id: string | null
+  title: string
+  body_md: string
+  status: "draft" | "reviewed"
+  generated_at: string
+  reviewed_at: string | null
+}
