@@ -13,9 +13,10 @@ phrased as "To verify: …" for the admin reviewer.
 from app.models.client import Client
 from app.core.constants import DIMENSION_BRAND_AUTHORITY, DIMENSION_CONTENT_QUALITY
 
-# v2: web_search grounding + "To verify:" evidence discipline — bullets may no
-# longer assert facts the model didn't find (audit C1).
-BRAND_AUTHORITY_VERSION = "v2"
+# v3: adds a SeenBy-tracked authority-asset evidence block (Phase 4) — the
+# assessment now reasons over the admin-curated directory/review/social
+# checklist, not just an outside web search.
+BRAND_AUTHORITY_VERSION = "v3"
 # v2: consumes persisted crawl metrics + same evidence discipline (audit C1/C2).
 CONTENT_QUALITY_VERSION = "v2"
 
@@ -46,7 +47,23 @@ def _location(client: Client) -> str:
     return ", ".join(p for p in (client.city, client.state, client.country) if p)
 
 
-def _brand_authority_prompt(client: Client) -> str:
+def _authority_block(authority: dict | None) -> str:
+    if not authority:
+        return ""
+    lines = [
+        f"- Verified profiles: {', '.join(authority['verified_names']) or 'none'}",
+        f"- Live (unverified) profiles: {', '.join(authority['live_names']) or 'none'}",
+        f"- Not yet set up: {', '.join(authority['missing_names']) or 'none'}",
+    ]
+    joined = "\n".join(lines)
+    return f"""
+
+SeenBy-tracked authority assets for this business (admin-curated checklist — treat as confirmed facts, not guesses):
+{joined}
+Weigh verified profiles as strong presence signals and the not-yet-set-up ones as gaps. Do NOT invent profiles beyond this list; anything not listed is unknown, so phrase it as "To verify: …"."""
+
+
+def _brand_authority_prompt(client: Client, authority: dict | None = None) -> str:
     loc = _location(client)
     return f"""You assess the BRAND AUTHORITY of a {client.industry} business called {client.name}{f" based in {loc}" if loc else ""} for AI search visibility.
 Website: {client.website}. Business context: {client.description or "n/a"}.
@@ -54,7 +71,7 @@ Website: {client.website}. Business context: {client.description or "n/a"}.
 Brand Authority measures how strongly AI models recognise this brand as a real, trusted entity, based on PUBLIC signals an outsider could verify:
 - Presence and engagement on high-AI-weight platforms (YouTube, Reddit, Wikipedia/Wikidata, LinkedIn).
 - Third-party reviews and directory listings (Google, G2, Trustpilot, industry directories).
-- Branded search demand and consistent name/usage across the web.
+- Branded search demand and consistent name/usage across the web.{_authority_block(authority)}
 
 Score 0-100 where 80-100 = a widely-recognised authority, 50-64 = present but thin, 0-34 = almost no public footprint.
 Each bullet is either a public fact you confirmed via search (e.g. "Listed on Google with 40+ reviews at 4.6 stars") or a "To verify: …" item — never an unconfirmed assertion, never an internal metric.
@@ -99,9 +116,11 @@ Each bullet is either a fact grounded in the crawl data above or a search result
 {_JSON_CONTRACT}"""
 
 
-def build_assessment_prompt(client: Client, dimension: str, crawl: dict | None = None) -> str:
+def build_assessment_prompt(
+    client: Client, dimension: str, crawl: dict | None = None, authority: dict | None = None
+) -> str:
     if dimension == DIMENSION_BRAND_AUTHORITY:
-        return _brand_authority_prompt(client)
+        return _brand_authority_prompt(client, authority=authority)
     if dimension == DIMENSION_CONTENT_QUALITY:
         return _content_quality_prompt(client, crawl=crawl)
     raise ValueError(f"unknown dimension: {dimension}")

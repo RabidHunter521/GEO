@@ -12,6 +12,7 @@ from app.models.client import Client
 from app.models.content_analysis import ContentAnalysis
 from app.models.dimension_assessment import DimensionAssessment
 from app.prompts.assessment import build_assessment_prompt
+from app.services import authority_service
 from app.services.claude_client import anthropic_client, strip_code_fences, MODEL_NARRATIVE
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_bullets  # noqa: F401 — re-exported
@@ -74,12 +75,17 @@ def generate_assessment(client: Client, dimension: str, db: Session) -> Dimensio
     try:
         service = _SERVICE_BY_DIMENSION[dimension]
         crawl = _latest_crawl(client.id, db) if dimension == "content_quality" else None
+        authority = (
+            authority_service.summarize_for_assessment(client.id, db)
+            if dimension == "brand_authority" else None
+        )
         response = anthropic_client().messages.create(
             model=MODEL_NARRATIVE,
             max_tokens=_MAX_TOKENS,
             temperature=0,
             tools=[_WEB_SEARCH_TOOL],
-            messages=[{"role": "user", "content": build_assessment_prompt(client, dimension, crawl=crawl)}],
+            messages=[{"role": "user",
+                       "content": build_assessment_prompt(client, dimension, crawl=crawl, authority=authority)}],
         )
         record_llm_call(service=service, model=MODEL_NARRATIVE, response=response, client_id=client.id, db=db)
         if response.stop_reason == "max_tokens":
