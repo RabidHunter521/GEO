@@ -162,7 +162,7 @@ def update_asset(asset: AuthorityAsset, patch: dict, db: Session) -> AuthorityAs
 
 _VERIFY_TIMEOUT = 10.0
 # A phone candidate: a run starting with an optional + then digits/space/-/()/.
-_PHONE_RE = re.compile(r"\+?\d[\d\s\-().]{6,16}\d")
+_PHONE_RE = re.compile(r"\+?\d[\d\s\-()]{6,16}\d")
 
 
 def _digits(value: str | None) -> str:
