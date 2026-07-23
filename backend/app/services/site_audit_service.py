@@ -81,10 +81,10 @@ def _http_redirects_to_https(base: str) -> bool | None:
         if not is_safe_crawl_url(url):
             return None
         with httpx.Client(follow_redirects=False, timeout=_TIMEOUT) as client:
-            r = client.get(url)
-        if r.is_redirect:
-            return r.headers.get("location", "").startswith("https://")
-        return False  # http serves content without redirecting
+            with client.stream("GET", url) as r:
+                if r.is_redirect:
+                    return r.headers.get("location", "").startswith("https://")
+                return False  # http serves content without redirecting
     except Exception:
         return None  # port 80 closed etc. — fine for an https-only site
 
@@ -201,7 +201,7 @@ def _group_a(robots, llms, llms_full, homepage, http_redirect) -> list[dict]:
         checks.append(_result(
             "https", label, "warn",
             "The site works over a secure connection, but the insecure http:// address "
-            "doesn't redirect visitors to it.",
+            "doesn't appear to send visitors straight to it.",
             "Ask your web host to redirect http:// to https:// automatically.",
         ))
     else:

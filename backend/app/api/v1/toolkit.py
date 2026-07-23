@@ -107,7 +107,8 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
     tf.robots_verified = results["robots_verified"]
     # Informational only — llms-full never touches dimension scores (spec §6).
     tf.llms_full_verified = results["llms_full_verified"]
-    if any(results.values()):
+    # verified_at tracks the three score-relevant files only — llms-full is informational.
+    if results["llms_verified"] or results["schema_verified"] or results["robots_verified"]:
         tf.verified_at = datetime.now(UTC)
 
     # spec: llms.txt + robots.txt must both verify for technical_foundations

@@ -254,3 +254,5 @@ def test_verify_persists_llms_full_flag_without_touching_scores():
     # llms-full alone must NOT flip either score dimension
     assert fake_client.technical_foundations_verified is False
     assert fake_client.structured_data_verified is False
+    # llms-full alone must NOT stamp verified_at either
+    assert fake_tf.verified_at is None

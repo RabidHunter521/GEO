@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+import pytest
 from fastapi.testclient import TestClient
 
 _CHECKS = [
@@ -135,7 +136,30 @@ def test_competitor_audit_404_when_wrong_client():
     assert resp.status_code == 404
 
 
-def test_run_audit_requires_auth():
+@pytest.mark.parametrize("method,path", [
+    ("post", "site-audit"),
+    ("get", "site-audit/latest"),
+    ("post", f"site-audit/competitor/{uuid.uuid4()}"),
+    ("post", "toolkit/generate-llms-full"),
+])
+def test_new_routes_require_auth(method, path):
     from app.main import app
-    resp = TestClient(app).post(f"/api/v1/clients/{uuid.uuid4()}/site-audit")
+    resp = getattr(TestClient(app), method)(f"/api/v1/clients/{uuid.uuid4()}/{path}")
     assert resp.status_code == 401
+
+
+def test_competitor_audit_400_when_no_website():
+    app, get_db = _make_app()
+    fake_client = _fake_client()
+    competitor = MagicMock()
+    competitor.id = uuid.uuid4()
+    competitor.client_id = fake_client.id
+    competitor.website = None
+    mock_db = MagicMock()
+    mock_db.get.side_effect = [fake_client, competitor]
+    app.dependency_overrides[get_db] = lambda: mock_db
+    resp = TestClient(app).post(
+        f"/api/v1/clients/{fake_client.id}/site-audit/competitor/{competitor.id}"
+    )
+    app.dependency_overrides.clear()
+    assert resp.status_code == 400
