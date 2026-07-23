@@ -3,7 +3,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 
 from app.models.client import Client
-from app.prompts.toolkit import build_llms_txt, build_schema_json
+from app.prompts.toolkit import build_llms_txt, build_llms_full_txt, build_schema_json
 from app.services.claude_client import MODEL as _MODEL
 from app.services.claude_client import anthropic_client as _anthropic_client
 from app.services.claude_client import strip_code_fences as _strip_code_fences
@@ -19,6 +19,18 @@ def generate_llms_txt(client: Client) -> str:
     record_llm_call(service="toolkit_llms_txt", model=_MODEL, response=response, client_id=client.id)
     # Haiku occasionally wraps output in a ``` fence despite the instruction above;
     # strip it so a stray fence never lands in the published llms.txt file.
+    return _strip_code_fences(response.content[0].text)
+
+
+def generate_llms_full_txt(client: Client) -> str:
+    response = _anthropic_client().messages.create(
+        model=_MODEL,
+        max_tokens=4096,
+        messages=[{"role": "user", "content": build_llms_full_txt(client)}],
+    )
+    record_llm_call(
+        service="toolkit_llms_full_txt", model=_MODEL, response=response, client_id=client.id
+    )
     return _strip_code_fences(response.content[0].text)
 
 

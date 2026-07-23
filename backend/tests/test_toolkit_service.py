@@ -176,3 +176,49 @@ def test_generate_toolkit_files_propagates_schema_error():
     with patch("app.services.toolkit_service._anthropic_client", return_value=_mock_ac("bad json")):
         with pytest.raises(ValueError, match="invalid JSON"):
             generate_toolkit_files(_fake_client())
+
+
+# ── generate_llms_full_txt ────────────────────────────────────────────────────
+
+def test_generate_llms_full_txt_calls_claude_with_4096_tokens():
+    from app.services.toolkit_service import generate_llms_full_txt
+    client = _fake_client()
+    mock_ac = _mock_ac("# Acme Corp — full\ndetailed content")
+    with patch("app.services.toolkit_service._anthropic_client", return_value=mock_ac), \
+         patch("app.services.toolkit_service.record_llm_call") as mock_record:
+        result = generate_llms_full_txt(client)
+    assert result.startswith("# Acme Corp")
+    assert mock_ac.messages.create.call_args.kwargs["max_tokens"] == 4096
+    assert mock_record.call_args.kwargs["service"] == "toolkit_llms_full_txt"
+
+
+def test_generate_llms_full_txt_strips_code_fences():
+    from app.services.toolkit_service import generate_llms_full_txt
+    client = _fake_client()
+    mock_ac = _mock_ac("```\n# Acme Corp — full\n```")
+    with patch("app.services.toolkit_service._anthropic_client", return_value=mock_ac), \
+         patch("app.services.toolkit_service.record_llm_call"):
+        assert generate_llms_full_txt(client) == "# Acme Corp — full"
+
+
+# ── llms-full + schema v5 prompts ────────────────────────────────────────────
+
+def test_build_llms_full_txt_prompt_covers_extended_sections():
+    from app.prompts.toolkit import build_llms_full_txt
+    client = _fake_client()
+    prompt = build_llms_full_txt(client)
+    assert "Acme Corp" in prompt
+    for required in ["Services", "Questions & Answers", "Policies", "Key Pages"]:
+        assert required in prompt, required
+
+
+def test_build_schema_json_v5_adds_service_and_breadcrumb():
+    from app.prompts.toolkit import build_schema_json, SCHEMA_JSON_VERSION
+    client = _fake_client()
+    prompt = build_schema_json(client)
+    assert SCHEMA_JSON_VERSION == "v5"
+    assert "6 schemas" in prompt
+    assert '"Service"' in prompt
+    assert '"BreadcrumbList"' in prompt
+    # existing types unchanged
+    assert '"Organization"' in prompt and '"FAQPage"' in prompt and '"WebSite"' in prompt
