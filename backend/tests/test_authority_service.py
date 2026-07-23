@@ -229,3 +229,107 @@ def test_review_snapshot_appends_in_order(db):
     assert [s["count"] for s in asset.review_snapshots] == [31, 58]
     assert asset.review_snapshots[0]["rating"] == 4.2
     assert "date" in asset.review_snapshots[0]
+
+
+def _seed_sources(db, client, domain_counts: dict[str, int]):
+    """Create one completed scan whose client-owned queries cite the given
+    domains the given number of times."""
+    from app.core.time import utcnow
+    from app.models.scan import Scan
+    from app.models.scan_query_result import ScanQueryResult
+    from app.models.scan_query_source import ScanQuerySource
+    scan = Scan(client_id=client.id, status="completed", completed_at=utcnow())
+    db.add(scan)
+    db.commit()
+    result = ScanQueryResult(
+        scan_id=scan.id, platform="perplexity", category="recommendation",
+        query_text="best dental clinic KL", response_text="...", brand_detected=False,
+    )
+    db.add(result)
+    db.commit()
+    rank = 1
+    for domain, n in domain_counts.items():
+        for _ in range(n):
+            db.add(ScanQuerySource(
+                scan_query_result_id=result.id, url=f"https://{domain}/x{rank}",
+                domain=domain, rank=rank, source_type="third_party", fetch_status="ok",
+            ))
+            rank += 1
+    db.commit()
+    return scan
+
+
+def test_provenance_counts_roll_up_per_domain(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    _seed_sources(db, client, {"cameragear.com": 3, "reddit.com": 2})
+    counts = authority_service.compute_provenance_counts(client.id, db)
+    assert counts == {"cameragear.com": 3, "reddit.com": 2}
+
+
+def test_asset_seen_count_uses_suffix_match(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    _seed_sources(db, client, {"maps.google.com": 4})
+    (asset,) = authority_service.add_assets(client, [{"asset_key": "gbp"}], db)  # google.com
+    view = authority_service.build_authority_view(client, db)
+    gbp = next(a for a in view["assets"] if a["asset_key"] == "gbp")
+    assert gbp["seen_in_ai_sources"] == 4
+
+
+def test_suggested_next_excludes_covered_and_needs_an_asset(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    _seed_sources(db, client, {"reddit.com": 5, "linkedin.com": 3})
+    # No assets yet → no suggestions at all (spec §5).
+    assert authority_service.build_authority_view(client, db)["suggested_next"] == []
+    # Add + mark LinkedIn live → linkedin.com is covered, reddit.com surfaces.
+    (li,) = authority_service.add_assets(client, [{"asset_key": "linkedin"}], db)
+    authority_service.update_asset(li, {"status": "live"}, db)
+    view = authority_service.build_authority_view(client, db)
+    domains = [s["domain"] for s in view["suggested_next"]]
+    assert "reddit.com" in domains
+    assert "linkedin.com" not in domains
+    reddit = next(s for s in view["suggested_next"] if s["domain"] == "reddit.com")
+    assert reddit["count"] == 5
+    assert reddit["catalog_key"] is None  # reddit isn't in the catalog
+
+
+def test_suggested_next_maps_catalog_key_when_domain_known(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    _seed_sources(db, client, {"crunchbase.com": 6})
+    (li,) = authority_service.add_assets(client, [{"asset_key": "linkedin"}], db)
+    authority_service.update_asset(li, {"status": "live"}, db)
+    view = authority_service.build_authority_view(client, db)
+    cb = next(s for s in view["suggested_next"] if s["domain"] == "crunchbase.com")
+    assert cb["catalog_key"] == "crunchbase"
+
+
+def test_summary_counts_live_and_verified(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    a1, a2 = authority_service.add_assets(
+        client, [{"asset_key": "gbp"}, {"asset_key": "linkedin"}], db)
+    authority_service.update_asset(a1, {"status": "verified"}, db)
+    authority_service.update_asset(a2, {"status": "live"}, db)
+    summary = authority_service.build_authority_view(client, db)["summary"]
+    assert summary["live"] == 1
+    assert summary["verified"] == 1
+    assert summary["total"] == 2
+
+
+def test_summarize_for_assessment_none_when_empty(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    assert authority_service.summarize_for_assessment(client.id, db) is None
+
+
+def test_summarize_for_assessment_reports_verified_names(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    (gbp,) = authority_service.add_assets(client, [{"asset_key": "gbp"}], db)
+    authority_service.update_asset(gbp, {"status": "verified"}, db)
+    summary = authority_service.summarize_for_assessment(client.id, db)
+    assert summary["verified"] == 1
+    assert "Google Business Profile" in summary["verified_names"]

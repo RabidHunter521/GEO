@@ -11,7 +11,12 @@ import uuid
 
 import structlog
 from bs4 import BeautifulSoup
+from sqlalchemy import func
 from sqlalchemy.orm import Session
+
+from app.models.scan import Scan
+from app.models.scan_query_result import ScanQueryResult
+from app.models.scan_query_source import ScanQuerySource
 
 from app.core.constants import AUTHORITY_ASSET_CATALOG, AUTHORITY_ASSET_STATUSES, AUTHORITY_ASSET_TYPES
 from app.core.time import utcnow
@@ -288,3 +293,121 @@ def add_review_snapshot(
     db.commit()
     db.refresh(asset)
     return asset
+
+
+_SUGGESTED_NEXT_LIMIT = 8
+_TOP_DOMAINS_FOR_COVERAGE = 5
+
+
+def compute_provenance_counts(client_id: uuid.UUID, db: Session) -> dict[str, int]:
+    """{domain: citations} across the client's completed-scan, client-owned
+    source rows. The Share-of-Source acquisition signal, reused as an authority
+    to-do list (spec §5)."""
+    rows = (
+        db.query(ScanQuerySource.domain, func.count(ScanQuerySource.id))
+        .join(ScanQueryResult, ScanQueryResult.id == ScanQuerySource.scan_query_result_id)
+        .join(Scan, Scan.id == ScanQueryResult.scan_id)
+        .filter(
+            Scan.client_id == client_id,
+            Scan.status == "completed",
+            ScanQueryResult.competitor_id.is_(None),
+        )
+        .group_by(ScanQuerySource.domain)
+        .all()
+    )
+    return {domain: count for domain, count in rows if domain}
+
+
+def _domain_matches(source_domain: str, provenance_domain: str | None) -> bool:
+    """Suffix match: google.com covers google.com and maps.google.com."""
+    if not provenance_domain:
+        return False
+    return source_domain == provenance_domain or source_domain.endswith("." + provenance_domain)
+
+
+_CATALOG_KEY_BY_DOMAIN: dict[str, str] = {
+    item["provenance_domain"]: item["key"]
+    for item in AUTHORITY_ASSET_CATALOG
+    if item["provenance_domain"]
+}
+
+
+def _asset_dict(asset: AuthorityAsset, counts: dict[str, int]) -> dict:
+    seen = sum(
+        n for domain, n in counts.items() if _domain_matches(domain, asset.provenance_domain)
+    )
+    return {
+        "id": str(asset.id), "asset_key": asset.asset_key, "name": asset.name,
+        "asset_type": asset.asset_type, "url": asset.url, "status": asset.status,
+        "notes": asset.notes, "provenance_domain": asset.provenance_domain,
+        "review_snapshots": asset.review_snapshots or [], "found_nap": asset.found_nap,
+        "nap_mismatch": asset.nap_mismatch,
+        "last_checked_at": asset.last_checked_at.isoformat() + "Z" if asset.last_checked_at else None,
+        "seen_in_ai_sources": seen,
+    }
+
+
+def build_authority_view(client: Client, db: Session) -> dict:
+    """Assets + provenance badges + suggested-next rail + summary (spec §5, §9)."""
+    assets = list_assets(client.id, db)
+    try:
+        counts = compute_provenance_counts(client.id, db)
+    except Exception as exc:  # degrade to the plain checklist, never a 500
+        logger.warning("authority_provenance_failed", client_id=str(client.id), error=str(exc))
+        counts = {}
+
+    asset_dicts = [_asset_dict(a, counts) for a in assets]
+
+    # A domain is "covered" when a live/verified asset's provenance_domain
+    # suffix-matches it. Suggested-next = uncovered domains by citation count.
+    covered_domains = [
+        a.provenance_domain for a in assets
+        if a.status in ("live", "verified") and a.provenance_domain
+    ]
+    suggested_next: list[dict] = []
+    if assets:  # spec §5: only once at least one asset exists
+        uncovered = {
+            domain: n for domain, n in counts.items()
+            if not any(_domain_matches(domain, pd) for pd in covered_domains)
+        }
+        for domain, n in sorted(uncovered.items(), key=lambda kv: -kv[1])[:_SUGGESTED_NEXT_LIMIT]:
+            suggested_next.append({
+                "domain": domain, "count": n,
+                "catalog_key": _CATALOG_KEY_BY_DOMAIN.get(domain),
+            })
+
+    top_domains = [d for d, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:_TOP_DOMAINS_FOR_COVERAGE]]
+    covered_top = sum(
+        1 for d in top_domains if any(_domain_matches(d, pd) for pd in covered_domains)
+    )
+    summary = {
+        "total": len(assets),
+        "live": sum(1 for a in assets if a.status == "live"),
+        "verified": sum(1 for a in assets if a.status == "verified"),
+        "covered_top_domains": covered_top,
+        "total_top_domains": len(top_domains),
+    }
+    return {"assets": asset_dicts, "suggested_next": suggested_next, "summary": summary}
+
+
+def summarize_for_assessment(client_id: uuid.UUID, db: Session) -> dict | None:
+    """Compact authority evidence for the Brand Authority prompt, or None when
+    the client has no assets (spec §7). Never includes internal metrics."""
+    assets = list_assets(client_id, db)
+    if not assets:
+        return None
+    by_status: dict[str, int] = {}
+    for a in assets:
+        by_status[a.status] = by_status.get(a.status, 0) + 1
+    verified_names = [a.name for a in assets if a.status == "verified"]
+    live_names = [a.name for a in assets if a.status == "live"]
+    missing_names = [a.name for a in assets if a.status == "missing"]
+    return {
+        "total": len(assets),
+        "live": by_status.get("live", 0),
+        "verified": by_status.get("verified", 0),
+        "missing": by_status.get("missing", 0),
+        "verified_names": verified_names,
+        "live_names": live_names,
+        "missing_names": missing_names,
+    }
