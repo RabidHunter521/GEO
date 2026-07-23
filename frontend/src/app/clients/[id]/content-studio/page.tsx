@@ -1,5 +1,6 @@
-import { getPageAudits } from "@/lib/api"
+import { getPageAudits, getDeliverables, getCompetitorIntelligence } from "@/lib/api"
 import { PageAuditsSection } from "./PageAuditsSection"
+import { DeliverablesSection } from "./DeliverablesSection"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -7,7 +8,12 @@ interface Props {
 
 export default async function ContentStudioPage({ params }: Props) {
   const { id } = await params
-  const audits = await getPageAudits(id).catch(() => [])
+  const [audits, deliverables, intel] = await Promise.all([
+    getPageAudits(id).catch(() => []),
+    getDeliverables(id).catch(() => []),
+    getCompetitorIntelligence(id).catch(() => null),
+  ])
+  const competitors = (intel?.competitors ?? []).map((c) => ({ id: c.id, name: c.name ?? "Unnamed" }))
   return (
     <div className="space-y-6">
       <div>
@@ -17,6 +23,11 @@ export default async function ContentStudioPage({ params }: Props) {
         </p>
       </div>
       <PageAuditsSection clientId={id} initialAudits={audits} />
+      <DeliverablesSection
+        clientId={id}
+        initialDeliverables={deliverables}
+        competitors={competitors}
+      />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
+import Link from "next/link"
 import { Loader2, RefreshCw, CheckCircle, XCircle, Lightbulb } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -83,6 +84,12 @@ export function ContentGapsClient({ clientId, initialAnalysis }: Props) {
             See which industry topics and entities your website covers — and what to create next
             so AI search engines feature you more often.
           </p>
+          <Link
+            href={`/clients/${clientId}/content-studio`}
+            className="mt-1 inline-block text-sm text-primary underline-offset-4 hover:underline"
+          >
+            Turn these into content &rarr;
+          </Link>
         </div>
         <Button onClick={handleRun} disabled={isPending || isRunning} className="shrink-0">
           {isPending || isRunning ? (
