@@ -82,6 +82,15 @@ def _by_id(checks):
     return {c["id"]: c for c in checks}
 
 
+def _make_client(db):
+    from app.models.client import Client
+    c = Client(name="Acme Dental", website="https://acme.com",
+               industry="Dental clinic", contact_email="hello@acme.com")
+    db.add(c)
+    db.commit()
+    return c
+
+
 # 1. Fully healthy fixture site → 19 passes.
 def test_healthy_site_all_19_pass():
     checks = _run(_HEALTHY_ROUTES)
@@ -170,3 +179,62 @@ def test_summarize_counts():
         {"id": "e", "label": "", "status": "unknown", "detail": "", "fix": ""},
     ]
     assert summarize(checks) == {"passed": 2, "warned": 1, "failed": 1, "unknown": 1}
+
+
+# ── Delta + persistence ──────────────────────────────────────────────────────
+
+def _check(check_id, status):
+    return {"id": check_id, "label": check_id, "status": status, "detail": "", "fix": ""}
+
+
+# 6. Delta computation: fail→pass shows in fixed, pass→fail in regressed.
+def test_compute_delta_fixed_and_regressed():
+    from app.services.site_audit_service import compute_delta
+    previous = [_check("a", "fail"), _check("b", "warn"), _check("c", "pass"),
+                _check("d", "pass"), _check("e", "unknown")]
+    latest = [_check("a", "pass"), _check("b", "pass"), _check("c", "fail"),
+              _check("d", "warn"), _check("e", "pass")]
+    delta = compute_delta(latest, previous)
+    assert delta["fixed"] == ["a", "b"]          # fail/warn → pass
+    assert delta["regressed"] == ["c", "d"]      # pass → fail/warn
+    # unknown → pass is neither fixed nor regressed
+    assert "e" not in delta["fixed"] and "e" not in delta["regressed"]
+
+
+def test_run_and_persist_writes_row_and_activity_log(db):
+    from unittest.mock import patch
+    from app.models.activity_log import ActivityLog
+    from app.models.site_audit import SiteAudit
+    from app.services import site_audit_service
+    client = _make_client(db)
+    checks = [_check("https", "pass"), _check("title", "warn"), _check("h1", "fail")]
+    with patch.object(site_audit_service, "run_site_audit", return_value=checks):
+        audit = site_audit_service.run_and_persist_site_audit(client.id, client.website, db)
+    assert audit.id is not None
+    assert (audit.passed, audit.warned, audit.failed, audit.unknown) == (1, 1, 1, 0)
+    log = db.query(ActivityLog).filter(ActivityLog.client_id == client.id).one()
+    assert log.event_type == "site_audit_run"
+    assert db.query(SiteAudit).count() == 1
+
+
+def test_get_latest_with_delta(db):
+    from unittest.mock import patch
+    from app.services import site_audit_service
+    client = _make_client(db)
+    with patch.object(site_audit_service, "run_site_audit",
+                      return_value=[_check("h1", "fail")]):
+        site_audit_service.run_and_persist_site_audit(client.id, client.website, db)
+    with patch.object(site_audit_service, "run_site_audit",
+                      return_value=[_check("h1", "pass")]):
+        site_audit_service.run_and_persist_site_audit(client.id, client.website, db)
+    result = site_audit_service.get_latest_with_delta(client.id, db)
+    assert result["has_previous"] is True
+    assert result["fixed"] == ["h1"]
+    assert result["regressed"] == []
+    assert result["audit"].checks[0]["status"] == "pass"
+
+
+def test_get_latest_with_delta_none_when_no_audits(db):
+    from app.services.site_audit_service import get_latest_with_delta
+    client = _make_client(db)
+    assert get_latest_with_delta(client.id, db) is None

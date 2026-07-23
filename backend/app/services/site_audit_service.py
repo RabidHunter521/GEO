@@ -11,6 +11,7 @@ problem: any fetch/parse error yields status "unknown". The audit always
 returns exactly 19 checks.
 """
 import time
+import uuid
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
@@ -18,8 +19,11 @@ from urllib.parse import urlparse
 
 import httpx
 import structlog
+from sqlalchemy.orm import Session
 
 from app.core.constants import AI_CRAWLER_BOTS
+from app.models.activity_log import ActivityLog
+from app.models.site_audit import SiteAudit
 from app.prompts.toolkit import _INDUSTRY_SCHEMA_TYPES
 from app.services.ai_readiness_service import (
     _is_agent_blocked,
@@ -589,3 +593,55 @@ def summarize(checks: list[dict]) -> dict:
         "failed": sum(1 for c in checks if c["status"] == "fail"),
         "unknown": sum(1 for c in checks if c["status"] == "unknown"),
     }
+
+
+def compute_delta(latest: list[dict], previous: list[dict]) -> dict:
+    """Which check ids went fail/warn → pass (fixed) or pass → fail/warn (regressed)."""
+    prev_by_id = {c["id"]: c["status"] for c in previous}
+    fixed: list[str] = []
+    regressed: list[str] = []
+    for c in latest:
+        prev = prev_by_id.get(c["id"])
+        if prev in ("warn", "fail") and c["status"] == "pass":
+            fixed.append(c["id"])
+        elif prev == "pass" and c["status"] in ("warn", "fail"):
+            regressed.append(c["id"])
+    return {"fixed": fixed, "regressed": regressed}
+
+
+def run_and_persist_site_audit(client_id: uuid.UUID, website: str, db: Session) -> SiteAudit:
+    checks = run_site_audit(website)
+    s = summarize(checks)
+    audit = SiteAudit(
+        client_id=client_id, checks=checks,
+        passed=s["passed"], warned=s["warned"], failed=s["failed"], unknown=s["unknown"],
+    )
+    db.add(audit)
+    db.add(ActivityLog(
+        client_id=client_id,
+        event_type="site_audit_run",
+        note=(
+            f"Site AI-readiness audit run: {s['passed']} passed, "
+            f"{s['warned']} to improve, {s['failed']} to fix."
+        ),
+    ))
+    db.commit()
+    db.refresh(audit)
+    return audit
+
+
+def get_latest_with_delta(client_id: uuid.UUID, db: Session) -> dict | None:
+    rows = (
+        db.query(SiteAudit)
+        .filter(SiteAudit.client_id == client_id)
+        .order_by(SiteAudit.created_at.desc())
+        .limit(2)
+        .all()
+    )
+    if not rows:
+        return None
+    latest = rows[0]
+    if len(rows) == 2:
+        delta = compute_delta(latest.checks, rows[1].checks)
+        return {"audit": latest, "fixed": delta["fixed"], "regressed": delta["regressed"], "has_previous": True}
+    return {"audit": latest, "fixed": [], "regressed": [], "has_previous": False}
