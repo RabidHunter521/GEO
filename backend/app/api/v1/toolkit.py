@@ -9,7 +9,7 @@ from app.models.client import Client
 from app.models.activity_log import ActivityLog
 from app.models.toolkit_files import ToolkitFiles
 from app.models.geo_score import GeoScore
-from app.services.toolkit_service import generate_toolkit_files
+from app.services.toolkit_service import generate_toolkit_files, generate_llms_full_txt
 from app.services.verification_crawler import verify_all
 from app.services.scoring_service import compute_geo_score
 from app.schemas.toolkit import ToolkitFilesResponse, VerificationResult
@@ -57,6 +57,28 @@ def generate(client_id: uuid.UUID, db: Session = Depends(get_db)):
     return tf
 
 
+@router.post(
+    "/generate-llms-full",
+    response_model=ToolkitFilesResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def generate_llms_full(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    client = _get_client_or_404(client_id, db)
+    tf = db.query(ToolkitFiles).filter(ToolkitFiles.client_id == client_id).first()
+    if not tf:
+        raise HTTPException(status_code=404, detail="Generate the toolkit files first")
+    tf.llms_full_txt = generate_llms_full_txt(client)
+    tf.llms_full_verified = False
+    db.add(ActivityLog(
+        client_id=client_id,
+        event_type="toolkit_generated",
+        note="llms-full.txt generated.",
+    ))
+    db.commit()
+    db.refresh(tf)
+    return tf
+
+
 @router.get(
     "/files",
     response_model=ToolkitFilesResponse | None,
@@ -83,6 +105,8 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
     tf.llms_verified = results["llms_verified"]
     tf.schema_verified = results["schema_verified"]
     tf.robots_verified = results["robots_verified"]
+    # Informational only — llms-full never touches dimension scores (spec §6).
+    tf.llms_full_verified = results["llms_full_verified"]
     if any(results.values()):
         tf.verified_at = datetime.now(UTC)
 
@@ -96,6 +120,7 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
             ("llms.txt", results["llms_verified"]),
             ("schema.json", results["schema_verified"]),
             ("robots.txt", results["robots_verified"]),
+            ("llms-full.txt", results["llms_full_verified"]),
         ]
         if ok
     ) or "none"
@@ -131,6 +156,7 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
         llms_verified=results["llms_verified"],
         schema_verified=results["schema_verified"],
         robots_verified=results["robots_verified"],
+        llms_full_verified=results["llms_full_verified"],
         technical_foundations_updated=client.technical_foundations_verified,
         structured_data_updated=client.structured_data_verified,
     )

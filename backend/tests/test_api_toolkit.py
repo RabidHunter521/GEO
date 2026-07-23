@@ -40,6 +40,8 @@ def _fake_toolkit(client_id):
     m.schema_verified = False
     m.robots_verified = False
     m.verified_at = None
+    m.llms_full_txt = None
+    m.llms_full_verified = False
     return m
 
 
@@ -73,6 +75,8 @@ def test_generate_creates_new_toolkit_files():
         obj.schema_verified = fake_tf.schema_verified
         obj.robots_verified = fake_tf.robots_verified
         obj.verified_at = fake_tf.verified_at
+        obj.llms_full_txt = fake_tf.llms_full_txt
+        obj.llms_full_verified = fake_tf.llms_full_verified
 
     mock_db = MagicMock()
     mock_db.get.return_value = fake_client
@@ -112,6 +116,8 @@ def test_generate_updates_existing_toolkit_files():
     existing.schema_verified = True
     existing.robots_verified = True
     existing.verified_at = datetime(2025, 1, 2)
+    existing.llms_full_txt = None
+    existing.llms_full_verified = False
 
     mock_db = MagicMock()
     mock_db.get.return_value = fake_client
@@ -149,6 +155,7 @@ def test_verify_returns_verification_results():
             "llms_verified": True,
             "schema_verified": True,
             "robots_verified": True,
+            "llms_full_verified": False,
         }
         http = TestClient(app)
         resp = http.post(f"/api/v1/clients/{fake_client.id}/toolkit/verify")
@@ -192,3 +199,58 @@ def test_get_client_not_found_returns_404():
     resp = http.get(f"/api/v1/clients/{uuid.uuid4()}/toolkit/files")
     app.dependency_overrides.clear()
     assert resp.status_code == 404
+
+
+def test_generate_llms_full_updates_row():
+    app, get_db = _make_app()
+    fake_client = _fake_client()
+    fake_tf = _fake_toolkit(fake_client.id)
+    fake_tf.llms_full_txt = None
+    fake_tf.llms_full_verified = False
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_client
+    mock_db.query.return_value.filter.return_value.first.return_value = fake_tf
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.generate_llms_full_txt", return_value="# Acme — full"):
+        resp = TestClient(app).post(f"/api/v1/clients/{fake_client.id}/toolkit/generate-llms-full")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert fake_tf.llms_full_txt == "# Acme — full"
+    assert fake_tf.llms_full_verified is False
+
+
+def test_generate_llms_full_404_without_base_files():
+    app, get_db = _make_app()
+    fake_client = _fake_client()
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_client
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    app.dependency_overrides[get_db] = lambda: mock_db
+    resp = TestClient(app).post(f"/api/v1/clients/{fake_client.id}/toolkit/generate-llms-full")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404
+
+
+def test_verify_persists_llms_full_flag_without_touching_scores():
+    app, get_db = _make_app()
+    fake_client = _fake_client()
+    fake_tf = _fake_toolkit(fake_client.id)
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_client
+    mock_db.query.return_value.filter.return_value.first.return_value = fake_tf
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.verify_all") as mock_verify:
+        mock_verify.return_value = {
+            "llms_verified": False,
+            "schema_verified": False,
+            "robots_verified": False,
+            "llms_full_verified": True,
+        }
+        resp = TestClient(app).post(f"/api/v1/clients/{fake_client.id}/toolkit/verify")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["llms_full_verified"] is True
+    assert fake_tf.llms_full_verified is True
+    # llms-full alone must NOT flip either score dimension
+    assert fake_client.technical_foundations_verified is False
+    assert fake_client.structured_data_verified is False

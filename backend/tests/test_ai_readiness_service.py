@@ -125,10 +125,12 @@ def test_compute_competitor_ai_readiness_isolates_per_site_failures():
     fake_client.website = "https://medilinkhealthcare.my"
 
     ok_competitor = MagicMock()
+    ok_competitor.id = uuid.uuid4()
     ok_competitor.name = "Care Clinics"
     ok_competitor.website = "https://careclinics.com.my"
 
     broken_competitor = MagicMock()
+    broken_competitor.id = uuid.uuid4()
     broken_competitor.name = "Down Site"
     broken_competitor.website = "https://down-site.example"
 
@@ -139,7 +141,7 @@ def test_compute_competitor_ai_readiness_isolates_per_site_failures():
         broken_competitor,
     ]
 
-    def fake_check(name, website):
+    def fake_check(name, website, competitor_id=None):
         if name == "Down Site":
             raise RuntimeError("network exploded")
         from app.schemas.ai_readiness import SiteAIReadiness
@@ -151,6 +153,7 @@ def test_compute_competitor_ai_readiness_isolates_per_site_failures():
             has_llms_txt=False,
             blocked_ai_bots=[],
             schema_types=[],
+            competitor_id=competitor_id,
         )
 
     with patch(

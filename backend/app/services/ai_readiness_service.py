@@ -141,9 +141,14 @@ def check_homepage_schema(website: str) -> list[str]:
         return []
 
 
-def check_site_ai_readiness(name: str, website: str | None) -> SiteAIReadiness:
+def check_site_ai_readiness(
+    name: str, website: str | None, competitor_id: uuid.UUID | None = None
+) -> SiteAIReadiness:
     if not website:
-        return SiteAIReadiness(name=name, website=website, checked=False, has_llms_txt=False)
+        return SiteAIReadiness(
+            name=name, website=website, checked=False, has_llms_txt=False,
+            competitor_id=competitor_id,
+        )
     return SiteAIReadiness(
         name=name,
         website=website,
@@ -151,6 +156,7 @@ def check_site_ai_readiness(name: str, website: str | None) -> SiteAIReadiness:
         has_llms_txt=verify_llms_txt(website),
         blocked_ai_bots=check_robots_ai_bot_access(website),
         schema_types=check_homepage_schema(website),
+        competitor_id=competitor_id,
     )
 
 
@@ -160,17 +166,20 @@ def compute_competitor_ai_readiness(
     client = db.get(Client, client_id)
     competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
 
-    sites: list[tuple[str, str | None]] = [(client.name, client.website)] + [
-        (c.name, c.website) for c in competitors
-    ]
+    sites: list[tuple[str, str | None, uuid.UUID | None]] = [
+        (client.name, client.website, None)
+    ] + [(c.name, c.website, c.id) for c in competitors]
 
-    def _safe_check(site: tuple[str, str | None]) -> SiteAIReadiness:
-        name, website = site
+    def _safe_check(site: tuple[str, str | None, uuid.UUID | None]) -> SiteAIReadiness:
+        name, website, comp_id = site
         try:
-            return check_site_ai_readiness(name, website)
+            return check_site_ai_readiness(name, website, comp_id)
         except Exception:
             logger.warning("ai_readiness_check_failed", name=name)
-            return SiteAIReadiness(name=name, website=website, checked=False, has_llms_txt=False)
+            return SiteAIReadiness(
+                name=name, website=website, checked=False, has_llms_txt=False,
+                competitor_id=comp_id,
+            )
 
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = list(executor.map(_safe_check, sites))

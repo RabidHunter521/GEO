@@ -1,3 +1,5 @@
+import uuid
+
 from pydantic import BaseModel
 
 
@@ -9,6 +11,7 @@ class SiteAIReadiness(BaseModel):
     has_llms_txt: bool
     blocked_ai_bots: list[str] = []
     schema_types: list[str] = []
+    competitor_id: uuid.UUID | None = None
 
 
 class CompetitorAIReadinessResponse(BaseModel):
