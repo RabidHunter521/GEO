@@ -116,3 +116,116 @@ def test_update_ignores_invalid_status(db):
     assert db.query(ActivityLog).filter(
         ActivityLog.event_type == "authority_status_changed"
     ).count() == 0
+
+
+from unittest.mock import patch
+
+from app.services.url_safety import SafeResponse
+
+_PAGE_WITH_NAME = (
+    "<html><body><h1>Acme Dental Clinic</h1>"
+    "<p>Call us at +60 3-1234 5678. 12 Jalan Ampang, Kuala Lumpur.</p>"
+    "</body></html>"
+)
+_PAGE_WITHOUT_NAME = "<html><body><p>Some unrelated directory listing.</p></body></html>"
+_PAGE_WRONG_PHONE = (
+    "<html><body><h1>Acme Dental Clinic</h1>"
+    "<p>Phone: 03-9999 0000</p></body></html>"
+)
+
+
+def _ok(html):
+    return SafeResponse(200, html, {"content-type": "text/html"})
+
+
+def test_verify_marks_verified_when_name_present(db):
+    from app.models.activity_log import ActivityLog
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "gbp", "url": "https://g.co/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get", return_value=_ok(_PAGE_WITH_NAME)):
+        asset, note = authority_service.verify_asset(asset, client, db)
+    assert asset.status == "verified"
+    assert asset.last_checked_at is not None
+    assert db.query(ActivityLog).filter(
+        ActivityLog.event_type == "authority_status_changed",
+        ActivityLog.note.like("%verified%"),
+    ).count() == 1
+
+
+def test_verify_name_absent_keeps_status_and_notes(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "gbp", "url": "https://g.co/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get", return_value=_ok(_PAGE_WITHOUT_NAME)):
+        asset, note = authority_service.verify_asset(asset, client, db)
+    assert asset.status == "live"  # never auto-upgraded, never downgraded
+    assert "couldn't" in note.lower() or "could not" in note.lower()
+
+
+def test_verify_without_url_returns_note(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(client, [{"asset_key": "gbp"}], db)
+    asset, note = authority_service.verify_asset(asset, client, db)
+    assert "url" in note.lower()
+    assert asset.status == "missing"
+
+
+def test_verify_fetch_failure_only_sets_last_checked(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "gbp", "url": "https://g.co/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get", side_effect=Exception("timeout")):
+        asset, note = authority_service.verify_asset(asset, client, db)
+    assert asset.status == "live"
+    assert asset.last_checked_at is not None
+    assert "reach" in note.lower() or "load" in note.lower()
+
+
+def test_nap_mismatch_flagged_on_different_phone(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    client.phone = "+60 3-1234 5678"
+    db.commit()
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "gbp", "url": "https://g.co/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get", return_value=_ok(_PAGE_WRONG_PHONE)):
+        asset, note = authority_service.verify_asset(asset, client, db)
+    assert asset.nap_mismatch is True
+
+
+def test_nap_match_when_same_digits_formatted_differently(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    client.phone = "03-1234 5678"  # same 9 significant digits as +60 3-1234 5678
+    db.commit()
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "gbp", "url": "https://g.co/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get", return_value=_ok(_PAGE_WITH_NAME)):
+        asset, note = authority_service.verify_asset(asset, client, db)
+    assert asset.nap_mismatch is False
+
+
+def test_review_snapshot_appends_in_order(db):
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(client, [{"asset_key": "gbp"}], db)
+    authority_service.add_review_snapshot(asset, 4.2, 31, db)
+    authority_service.add_review_snapshot(asset, 4.5, 58, db)
+    assert [s["count"] for s in asset.review_snapshots] == [31, 58]
+    assert asset.review_snapshots[0]["rating"] == 4.2
+    assert "date" in asset.review_snapshots[0]

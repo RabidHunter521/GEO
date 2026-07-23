@@ -6,15 +6,20 @@ SSRF-guarded page read (Task 3); provenance-driven priorities read
 scan_query_sources (Task 4). No score is written here — assets feed evidence
 into the assisted Brand Authority flow, admin still gates the number.
 """
+import re
 import uuid
 
 import structlog
+from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.core.constants import AUTHORITY_ASSET_CATALOG, AUTHORITY_ASSET_STATUSES, AUTHORITY_ASSET_TYPES
+from app.core.time import utcnow
 from app.models.activity_log import ActivityLog
 from app.models.authority_asset import AuthorityAsset
 from app.models.client import Client
+from app.services.brand_detection import detect_brand_mention
+from app.services.url_safety import is_safe_crawl_url, safe_get
 
 logger = structlog.get_logger()
 
@@ -150,6 +155,136 @@ def update_asset(asset: AuthorityAsset, patch: dict, db: Session) -> AuthorityAs
             client_id=asset.client_id, event_type="authority_status_changed",
             note=f"{asset.name} moved to {_STATUS_LABELS.get(asset.status, asset.status)}.",
         ))
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
+_VERIFY_TIMEOUT = 10.0
+# A phone candidate: a run starting with an optional + then digits/space/-/()/.
+_PHONE_RE = re.compile(r"\+?\d[\d\s\-().]{6,16}\d")
+
+
+def _digits(value: str | None) -> str:
+    return re.sub(r"\D", "", value or "")
+
+
+def _phone_candidates(text: str) -> list[str]:
+    """Digit-only phone candidates (9-13 significant digits) found in page text."""
+    out: list[str] = []
+    for match in _PHONE_RE.findall(text):
+        digits = _digits(match)
+        if 9 <= len(digits) <= 13:
+            out.append(digits)
+    return out
+
+
+def _page_text(html: str) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    return soup.get_text(" ", strip=True)
+
+
+def extract_nap(page_text: str, client: Client) -> dict:
+    """Best-effort Name/Address/Phone signals from a directory page's text.
+
+    Name = the client name when present (normalized). Phone = the first
+    candidate that matches the client's phone by last-9-digit suffix, else the
+    first candidate found. Address = a short window around the client's city.
+    """
+    name = client.name if detect_brand_mention(page_text, client.name) else None
+
+    candidates = _phone_candidates(page_text)
+    client_digits = _digits(client.phone)
+    phone = None
+    if client_digits:
+        phone = next((c for c in candidates if c[-9:] == client_digits[-9:]), None)
+    if phone is None and candidates:
+        phone = candidates[0]
+
+    address_text = None
+    if client.city:
+        idx = page_text.lower().find(client.city.lower())
+        if idx != -1:
+            start = max(0, idx - 40)
+            address_text = page_text[start:idx + len(client.city) + 20].strip()
+
+    return {"name": name, "phone": phone, "address_text": address_text}
+
+
+def _nap_has_mismatch(found_nap: dict, client: Client) -> bool:
+    """True only when a phone was found that disagrees with client.phone.
+
+    No client phone on file, or no phone found on the page → not a mismatch
+    (nothing to contradict). Compares the last 9 significant digits to tolerate
+    country-code and separator formatting differences (spec §6)."""
+    client_digits = _digits(client.phone)
+    found_digits = _digits(found_nap.get("phone"))
+    if not client_digits or not found_digits:
+        return False
+    return client_digits[-9:] != found_digits[-9:]
+
+
+def verify_asset(asset: AuthorityAsset, client: Client, db: Session) -> tuple[AuthorityAsset, str]:
+    """Single-page verification. Never raises; a failure sets last_checked_at
+    and returns an honest note without touching status (spec §6, §10)."""
+    if not asset.url:
+        return asset, "Add the profile URL first, then run the check."
+
+    note: str
+    asset.last_checked_at = utcnow()
+    try:
+        if not is_safe_crawl_url(asset.url):
+            note = "Couldn't reach that page safely — check the address."
+        else:
+            resp = safe_get(asset.url, timeout=_VERIFY_TIMEOUT)
+            ctype = resp.headers.get("content-type", "").lower()
+            if resp.status_code != 200 or ("html" not in ctype and ctype != ""):
+                note = "Couldn't load that page — it didn't return a readable web page."
+            else:
+                text = _page_text(resp.text)
+                found = extract_nap(text, client)
+                asset.found_nap = found
+                asset.nap_mismatch = _nap_has_mismatch(found, client)
+                if found["name"]:
+                    if asset.status != "verified":
+                        asset.status = "verified"
+                        db.add(ActivityLog(
+                            client_id=asset.client_id,
+                            event_type="authority_status_changed",
+                            note=f"{asset.name} verified — the page names {client.name}.",
+                        ))
+                    note = "Verified — the page names this business."
+                    if asset.nap_mismatch:
+                        note += " Heads up: the phone number on the page differs from the one on file."
+                else:
+                    note = ("Couldn't confirm automatically — many directories load their "
+                            "content in the browser. Verify by hand if the listing looks right.")
+    except Exception as exc:  # network/parse — honest shrug, no status change
+        logger.warning("authority_verify_failed", asset_id=str(asset.id), error=str(exc))
+        note = "Couldn't reach that page — try again in a moment."
+
+    db.commit()
+    db.refresh(asset)
+    return asset, note
+
+
+def add_review_snapshot(
+    asset: AuthorityAsset, rating: float, count: int, db: Session
+) -> AuthorityAsset:
+    """Append this month's {date, rating, count} to the review sparkline history."""
+    snapshot = {
+        "date": utcnow().date().isoformat(),
+        "rating": round(float(rating), 2),
+        "count": int(count),
+    }
+    # JSONB list needs reassignment for SQLAlchemy to detect the change.
+    asset.review_snapshots = list(asset.review_snapshots or []) + [snapshot]
+    db.add(ActivityLog(
+        client_id=asset.client_id, event_type="review_snapshot_added",
+        note=f"{asset.name}: {rating} stars, {count} reviews.",
+    ))
     db.commit()
     db.refresh(asset)
     return asset
