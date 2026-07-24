@@ -146,6 +146,7 @@ Exact structure — do not add pages without updating this:
 /clients/[id]/content-gaps→ content gaps (topic + entity coverage, content quality assist)
 /clients/[id]/content-roadmap→ 90-day content roadmap (competitor lost-query driven)
 /clients/[id]/content-studio→ content studio (page citability audits + content deliverables)
+/clients/[id]/authority  → authority & presence (directory/review/social checklist, provenance-prioritised)
 /clients/[id]/reports    → reports
 /clients/[id]/activity   → activity log
 /clients/[id]/settings   → client settings (incl. client view link controls)

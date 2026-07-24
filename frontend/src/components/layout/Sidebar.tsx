@@ -23,6 +23,7 @@ import {
   Eye,
   Menu,
   X,
+  Award,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -36,6 +37,7 @@ const CLIENT_NAV = [
   { href: "/content-gaps", label: "Content Gaps",          icon: Target },
   { href: "/content-roadmap", label: "Content Roadmap",    icon: Map },
   { href: "/content-studio", label: "Content Studio",      icon: PenTool },
+  { href: "/authority",  label: "Authority & Presence", icon: Award },
   { href: "/reports",     label: "Reports",                icon: FileText },
   { href: "/activity",    label: "Activity Log",           icon: Activity },
   { href: "/settings",    label: "Settings",               icon: Settings },

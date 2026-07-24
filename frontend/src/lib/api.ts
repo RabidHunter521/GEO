@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -98,6 +98,7 @@ export function updateClient(
       | "city"
       | "state"
       | "country"
+      | "phone"
       | "contact_email"
       | "brand_authority_score"
       | "brand_authority_evidence"
@@ -555,5 +556,42 @@ export function updateDeliverable(
   return apiFetch<ContentDeliverable>(
     `/api/v1/clients/${clientId}/deliverables/${deliverableId}`,
     { method: "PATCH", body: JSON.stringify(patch) },
+  )
+}
+
+export async function getAuthorityView(clientId: string): Promise<AuthorityView> {
+  return apiFetch<AuthorityView>(`/api/v1/clients/${clientId}/authority`)
+}
+export async function getAuthorityCatalog(clientId: string): Promise<AuthorityCatalogItem[]> {
+  return apiFetch<AuthorityCatalogItem[]>(`/api/v1/clients/${clientId}/authority/catalog`)
+}
+export async function addAuthorityAssets(
+  clientId: string, items: AddAuthorityAssetItem[],
+): Promise<AuthorityAsset[]> {
+  return apiFetch<AuthorityAsset[]>(`/api/v1/clients/${clientId}/authority`, {
+    method: "POST", body: JSON.stringify({ items }),
+  })
+}
+export async function patchAuthorityAsset(
+  clientId: string, assetId: string,
+  patch: { status?: AuthorityStatus; url?: string; notes?: string; hidden?: boolean },
+): Promise<AuthorityAsset> {
+  return apiFetch<AuthorityAsset>(`/api/v1/clients/${clientId}/authority/${assetId}`, {
+    method: "PATCH", body: JSON.stringify(patch),
+  })
+}
+export async function verifyAuthorityAsset(
+  clientId: string, assetId: string,
+): Promise<AuthorityVerifyResponse> {
+  return apiFetch<AuthorityVerifyResponse>(
+    `/api/v1/clients/${clientId}/authority/${assetId}/verify`, { method: "POST" },
+  )
+}
+export async function addAuthorityReviewSnapshot(
+  clientId: string, assetId: string, rating: number, count: number,
+): Promise<AuthorityAsset> {
+  return apiFetch<AuthorityAsset>(
+    `/api/v1/clients/${clientId}/authority/${assetId}/review-snapshot`,
+    { method: "POST", body: JSON.stringify({ rating, count }) },
   )
 }

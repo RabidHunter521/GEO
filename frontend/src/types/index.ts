@@ -30,6 +30,7 @@ export interface Client {
   city: string | null
   state: string | null
   country: string | null
+  phone: string | null
   contact_email: string | null
   logo_url: string | null
   brand_authority_score: number
@@ -840,4 +841,67 @@ export interface ContentDeliverable {
   status: "draft" | "reviewed"
   generated_at: string
   reviewed_at: string | null
+}
+
+// --- Authority & Presence Tracker (Phase 4) ---
+export type AuthorityAssetType =
+  | "directory" | "review_platform" | "social" | "knowledge_graph" | "media" | "other"
+export type AuthorityStatus = "missing" | "in_progress" | "live" | "verified"
+
+export interface AuthorityReviewSnapshot {
+  date: string
+  rating: number
+  count: number
+}
+export interface AuthorityAsset {
+  id: string
+  asset_key: string | null
+  name: string
+  asset_type: AuthorityAssetType
+  url: string | null
+  status: AuthorityStatus
+  notes: string | null
+  provenance_domain: string | null
+  review_snapshots: AuthorityReviewSnapshot[]
+  found_nap: { name?: string | null; phone?: string | null; address_text?: string | null } | null
+  nap_mismatch: boolean
+  last_checked_at: string | null
+  seen_in_ai_sources: number
+}
+export interface AuthorityCatalogItem {
+  key: string
+  name: string
+  type: AuthorityAssetType
+  provenance_domain: string | null
+  url_hint: string | null
+  suggested_industries: string[]
+  added: boolean
+}
+export interface AuthoritySuggestedDomain {
+  domain: string
+  count: number
+  catalog_key: string | null
+}
+export interface AuthoritySummary {
+  total: number
+  live: number
+  verified: number
+  covered_top_domains: number
+  total_top_domains: number
+}
+export interface AuthorityView {
+  assets: AuthorityAsset[]
+  suggested_next: AuthoritySuggestedDomain[]
+  summary: AuthoritySummary
+}
+export interface AuthorityVerifyResponse {
+  asset: AuthorityAsset
+  note: string
+}
+export interface AddAuthorityAssetItem {
+  asset_key?: string
+  name?: string
+  asset_type?: AuthorityAssetType
+  url?: string
+  provenance_domain?: string
 }

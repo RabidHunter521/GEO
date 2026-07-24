@@ -271,6 +271,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           city: (fd.get("city") as string) || undefined,
           state: (fd.get("state") as string) || undefined,
           country: (fd.get("country") as string) || undefined,
+          phone: (fd.get("phone") as string) || undefined,
           contact_email: (fd.get("contact_email") as string) || undefined,
           brand_authority_score: fd.get("brand_authority_score")
             ? Number(fd.get("brand_authority_score"))
@@ -480,6 +481,10 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             <Label htmlFor="s-city">City</Label>
             <Input id="s-city" name="city" defaultValue={client.city ?? ""} />
           </div>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="s-phone">Phone</Label>
+          <Input id="s-phone" name="phone" defaultValue={client.phone ?? ""} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="s-email">Contact email</Label>
