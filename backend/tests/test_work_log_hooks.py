@@ -1,6 +1,5 @@
 """Auto-suggest hooks (spec §3.3). Each writes a `suggested` row post-commit
 and is best-effort — a failure must never undo the triggering operation."""
-from datetime import date
 from unittest.mock import patch
 
 
