@@ -136,3 +136,113 @@ def test_work_log_gather_respects_period(db):
     assert "Inside" in descriptions
     assert "Outside" not in descriptions
     assert counts.get("technical") == 1
+
+
+# 9. Technical health must be period-scoped: a SiteAudit from before the period
+# is excluded even if it's the latest audit.
+def test_technical_health_excludes_audits_before_period(db):
+    """Regression test for: _gather_technical_health returns None when latest
+    SiteAudit.created_at < since, preventing stale audits from appearing as
+    "Fixed this period:" improvements."""
+    from app.core.time import utcnow
+    from app.models.site_audit import SiteAudit
+    from app.services import report_service
+
+    client = _make_client(db)
+    now = utcnow()
+    period_start = now - timedelta(days=30)
+
+    # Create a SiteAudit from 90 days ago (clearly before the 30-day period).
+    old_audit = SiteAudit(
+        client_id=client.id,
+        checks=[],
+        passed=8, warned=1, failed=1,
+        created_at=now - timedelta(days=90)
+    )
+    db.add(old_audit)
+    db.commit()
+
+    # Query with a period_start of 30 days ago: the old audit should be excluded.
+    result = report_service._gather_technical_health(client, db, period_start)
+    assert result is None, "SiteAudit from 90 days ago should be excluded from a 30-day period"
+
+    # Now add a recent audit (within the period) and verify it returns non-None.
+    recent_audit = SiteAudit(
+        client_id=client.id,
+        checks=[],
+        passed=8, warned=1, failed=1,
+        created_at=period_start + timedelta(days=15)  # 15 days into the period
+    )
+    db.add(recent_audit)
+    db.commit()
+
+    result = report_service._gather_technical_health(client, db, period_start)
+    assert result is not None, "SiteAudit within the period should be included"
+    assert result.passed == 8
+
+
+# 10. Content delivered improvements must deduplicate per URL (newest vs
+# second-newest only), even with 3+ audits.
+def test_content_delivered_deduplicates_multi_audit_urls(db):
+    """Regression test for: _gather_content_delivered compares newest vs
+    second-newest only, ensuring a URL audited 3+ times contributes at most
+    one improvement line instead of one per older row."""
+    from app.core.time import utcnow
+    from app.models.page_audit import PageAudit
+    from app.services import report_service
+
+    client = _make_client(db)
+    now = utcnow()
+    period_start = now - timedelta(days=30)
+
+    # Create three audits for the same URL with increasing scores and times.
+    url = "https://acme.com/services"
+    base_time = period_start + timedelta(days=5)
+
+    audit1 = PageAudit(
+        client_id=client.id,
+        url=url,
+        score=30,
+        checks=[],
+        suggestions=[],
+        created_at=base_time
+    )
+    db.add(audit1)
+    db.commit()
+
+    audit2 = PageAudit(
+        client_id=client.id,
+        url=url,
+        score=45,
+        checks=[],
+        suggestions=[],
+        created_at=base_time + timedelta(days=10)
+    )
+    db.add(audit2)
+    db.commit()
+
+    audit3 = PageAudit(
+        client_id=client.id,
+        url=url,
+        score=78,
+        checks=[],
+        suggestions=[],
+        created_at=base_time + timedelta(days=20)
+    )
+    db.add(audit3)
+    db.commit()
+
+    # Call _gather_content_delivered with the period_start.
+    result = report_service._gather_content_delivered(client, db, period_start)
+
+    # Should have exactly ONE improvement line for this URL (newest vs second-newest).
+    assert result is not None
+    improvements_for_url = [i for i in result.improvements if "/services" in i]
+    assert len(improvements_for_url) == 1, \
+        f"Expected 1 improvement line for /services, got {len(improvements_for_url)}: {improvements_for_url}"
+
+    # The improvement should compare 45 → 78 (second-newest vs newest),
+    # not 30 → 78 or 30 → 45.
+    line = improvements_for_url[0]
+    assert "45 → 78" in line, \
+        f"Expected improvement to show '45 → 78', got: {line}"
