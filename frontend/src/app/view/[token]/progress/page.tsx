@@ -2,6 +2,7 @@
 // Read-only delivery timeline — published work-log entries only. This is the
 // client-safe "what we've done for you" surface (spec §3.5); suggested and
 // dismissed entries never reach this page (filtered server-side).
+import { notFound } from "next/navigation"
 import { Sparkles } from "lucide-react"
 import { getViewWorkLog } from "@/lib/view-api"
 import { SectionHeading } from "@/components/view/SectionHeading"
@@ -19,7 +20,8 @@ export default async function ViewProgressPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const entries = (await getViewWorkLog(token)) ?? []
+  const entries = await getViewWorkLog(token)
+  if (!entries) notFound()
 
   if (entries.length === 0) {
     return (

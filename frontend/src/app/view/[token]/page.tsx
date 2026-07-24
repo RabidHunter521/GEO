@@ -218,7 +218,8 @@ export default async function ViewOverviewPage({
                       href={`/view/${token}/progress`}
                       className="text-sm text-primary underline-offset-4 hover:underline"
                     >
-                      {overview.improvements_last_30d} improvements delivered in the last 30 days
+                      {overview.improvements_last_30d} improvement
+                      {overview.improvements_last_30d === 1 ? "" : "s"} delivered in the last 30 days
                     </Link>
                   </p>
                 )}

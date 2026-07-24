@@ -1925,7 +1925,7 @@ def generate_scorecard_pdf(client_id: uuid.UUID, db: Session) -> bytes | None:
     except Exception:
         _improvements = 0
     improvements_line = (
-        f'<div class="sc-improvements">{_improvements} improvements delivered in the last 30 days</div>'
+        f'<div class="sc-improvements">{_improvements} improvement{"" if _improvements == 1 else "s"} delivered in the last 30 days</div>'
         if _improvements else ""
     )
 
