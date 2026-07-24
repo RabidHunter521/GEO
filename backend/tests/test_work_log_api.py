@@ -102,3 +102,56 @@ def test_patch_unknown_entry_404s(client, db, auth_headers):
     r = client.patch(f"/api/v1/clients/{c.id}/work-log/{uuid.uuid4()}",
                      headers=auth_headers, json={"status": "published"})
     assert r.status_code == 404
+
+
+def test_cross_client_isolation_patch_returns_404(client, db, auth_headers):
+    """Create entry for client B, attempt PATCH from client A's URL, verify 404 and entry unchanged."""
+    from app.services import work_log_service
+    client_a = _make_client(db)
+    client_b = _make_client(db)
+
+    # Create entry for client B
+    entry_b = work_log_service.create_manual(
+        client_b.id, "technical", "Original description", date(2026, 7, 24), db
+    )
+
+    # Attempt to PATCH it from client A's URL
+    r = client.patch(
+        f"/api/v1/clients/{client_a.id}/work-log/{entry_b.id}",
+        headers=auth_headers,
+        json={"description": "Modified by A", "status": "dismissed"}
+    )
+    assert r.status_code == 404
+
+    # Verify entry B was NOT modified
+    db.refresh(entry_b)
+    assert entry_b.description == "Original description"
+    assert entry_b.status == "published"
+
+
+def test_patch_with_invalid_status_returns_422(client, db, auth_headers):
+    """PATCH with unknown status value returns 422."""
+    from app.services import work_log_service
+    c = _make_client(db)
+    entry = work_log_service.create_manual(c.id, "content", "Test entry", date(2026, 7, 24), db)
+
+    r = client.patch(
+        f"/api/v1/clients/{c.id}/work-log/{entry.id}",
+        headers=auth_headers,
+        json={"status": "bogus"}
+    )
+    assert r.status_code == 422
+
+
+def test_patch_with_invalid_category_returns_422(client, db, auth_headers):
+    """PATCH with unknown category value returns 422."""
+    from app.services import work_log_service
+    c = _make_client(db)
+    entry = work_log_service.create_manual(c.id, "authority", "Test entry", date(2026, 7, 24), db)
+
+    r = client.patch(
+        f"/api/v1/clients/{c.id}/work-log/{entry.id}",
+        headers=auth_headers,
+        json={"category": "bogus"}
+    )
+    assert r.status_code == 422
