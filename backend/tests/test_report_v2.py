@@ -2,6 +2,13 @@
 from datetime import date, timedelta
 from unittest.mock import patch
 
+# CLAUDE.md §2 left column — never surface these to a client, in any form.
+BANNED_TERMS = [
+    "cited", "uncited", "mentioned", "citation rate", "ranking position",
+    "visibility gap", "confidence score", "char offset", "token count",
+    "first mentioned",
+]
+
 
 def _make_client(db):
     from app.models.client import Client
@@ -67,18 +74,23 @@ def test_all_sections_render_when_populated():
     assert "Content Delivered" in html
     assert "Authority Progress" in html
     assert "AI Sources" in html
-    assert "Before" in html
-    # Language rules: never "cited"
-    assert "cited" not in html.lower().replace("seen by ai", "")
+    assert "Before &amp; After" in html
+    # Language rules (CLAUDE.md §2): none of the banned left-column terms
+    # may reach a client, in any section.
+    html_lower = html.lower()
+    for term in BANNED_TERMS:
+        assert term not in html_lower, f"banned term {term!r} found in report HTML"
 
 
-# 7. A gather helper raising → section absent, report still builds.
+# 7. A gather helper raising → section absent, report still builds, and the
+# failure is isolated to ONLY the section that raised.
 def test_gather_failure_skips_section_not_report(db):
     """The guard must be reached: give the client a completed scan + score so
     _gather_report_data runs past its early returns and into the v2 gathers."""
     from app.core.time import utcnow
     from app.models.geo_score import GeoScore
     from app.models.scan import Scan
+    from app.models.site_audit import SiteAudit
     from app.services import report_service
 
     client = _make_client(db)
@@ -88,6 +100,10 @@ def test_gather_failure_skips_section_not_report(db):
     db.add(GeoScore(client_id=client.id, scan_id=scan.id, overall_score=70.0,
                     ai_citability=70.0, brand_authority=60.0, content_quality=60.0,
                     technical_foundations=80.0, structured_data=80.0))
+    # A recent audit so another v2 section (technical_health) has real data to
+    # populate — proving the work_log failure doesn't take other sections down.
+    db.add(SiteAudit(client_id=client.id, checks=[], passed=8, warned=1, failed=1,
+                     created_at=utcnow()))
     db.commit()
 
     with patch.object(report_service, "_gather_work_log", side_effect=Exception("boom")):
@@ -97,6 +113,10 @@ def test_gather_failure_skips_section_not_report(db):
     assert data is not None
     assert data.work_log == []
     assert data.work_log_counts == {}
+    # The property under test: skips ONLY its own section — other sections
+    # still populate normally.
+    assert data.technical_health is not None
+    assert data.technical_health.passed == 8
 
 
 # 8. Period boundary: an entry dated outside the window is excluded.

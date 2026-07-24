@@ -704,15 +704,17 @@ _MAX_WORK_LOG_LINES = 10
 _MAX_BEFORE_AFTER = 3
 
 
-def _gather_work_log(client: Client, db: Session, since_date) -> tuple[list[WorkLogLine], dict]:
+def _gather_work_log(client: Client, db: Session, since_date, until_date=None) -> tuple[list[WorkLogLine], dict]:
     """Published work-log entries in the period + per-category counts.
 
     Counts cover every published entry in the period; the printed lines are
     capped at _MAX_WORK_LOG_LINES so a busy month can't run the PDF long.
+    `until_date` bounds the period on the far end so a future-dated entry
+    (typo or backdated batch) can never leak into this or any later report.
     """
     from app.core.constants import WORK_LOG_CATEGORY_LABELS
     from app.services import work_log_service
-    entries = work_log_service.published_entries(client.id, db, since=since_date)
+    entries = work_log_service.published_entries(client.id, db, since=since_date, until=until_date)
     counts: dict = {}
     for e in entries:
         counts[e.category] = counts.get(e.category, 0) + 1
@@ -734,6 +736,9 @@ def _gather_technical_health(client: Client, db: Session, since) -> TechnicalHea
     `checks`, and "fixed" reuses site_audit_service.compute_delta so the report
     can never disagree with the toolkit page about what improved. compute_delta
     returns check ids, so they are mapped back to their client-facing labels.
+
+    Returns None when the latest audit predates the report period — otherwise
+    the section renders "Fixed this period:" over a fix that may be months old.
     """
     from app.models.site_audit import SiteAudit
     from app.services.site_audit_service import compute_delta
@@ -747,6 +752,8 @@ def _gather_technical_health(client: Client, db: Session, since) -> TechnicalHea
     if not audits:
         return None
     latest = audits[0]
+    if latest.created_at < since:
+        return None
     checks = latest.checks or []
     fixed: list[str] = []
     if len(audits) > 1:
@@ -779,11 +786,17 @@ def _gather_content_delivered(client: Client, db: Session, since) -> ContentDeli
         .all()
     )
     # Newest-first: the first row seen for a URL is its latest audit; the next
-    # one is the previous audit it should be compared against.
+    # one is the previous audit it should be compared against. `compared`
+    # ensures a URL audited 3+ times in the period contributes at most one
+    # line (newest vs second-newest only) instead of one per older row.
     seen: dict[str, PageAudit] = {}
+    compared: set[str] = set()
     improvements: list[str] = []
     for a in audits:
         if a.url in seen:
+            if a.url in compared:
+                continue
+            compared.add(a.url)
             older = a
             newer = seen[a.url]
             if newer.created_at >= since and newer.score > older.score:
@@ -791,6 +804,8 @@ def _gather_content_delivered(client: Client, db: Session, since) -> ContentDeli
                 improvements.append(f"{path}: {older.score} → {newer.score}")
             continue
         seen[a.url] = a
+    titles = titles[:10]
+    improvements = improvements[:10]
     if not titles and not improvements:
         return None
     return ContentDelivered(titles=titles, improvements=improvements)
@@ -1101,12 +1116,13 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         try:
             return fn()
         except Exception as exc:
+            db.rollback()
             logger.warning("report_section_failed", section=label,
                            client_id=str(client.id), error=str(exc))
             return default
 
     work_log, work_log_counts = _safe(
-        "work_log", lambda: _gather_work_log(client, db, since_date), ([], {}))
+        "work_log", lambda: _gather_work_log(client, db, since_date, now.date()), ([], {}))
     technical_health = _safe(
         "technical_health", lambda: _gather_technical_health(client, db, since), None)
     content_delivered = _safe(
