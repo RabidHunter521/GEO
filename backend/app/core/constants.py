@@ -267,3 +267,16 @@ AUTHORITY_ASSET_CATALOG: Final = [
      "type": "media", "provenance_domain": None, "url_hint": None,
      "suggested_industries": []},
 ]
+
+# --- Retainer packaging: client work log (Phase 5) --------------------------
+# Manual-first delivery timeline. Auto-triggers write "suggested" rows only;
+# nothing is client-visible until the admin explicitly publishes it.
+WORK_LOG_CATEGORIES: Final = ("technical", "content", "authority", "visibility", "correction")
+WORK_LOG_STATUSES: Final = ("suggested", "published", "dismissed")
+WORK_LOG_CATEGORY_LABELS: Final = {
+    "technical":  "Technical",
+    "content":    "Content",
+    "authority":  "Authority",
+    "visibility": "Visibility",
+    "correction": "Correction",
+}
