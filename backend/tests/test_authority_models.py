@@ -13,7 +13,7 @@ def _make_client(db):
 
 def test_client_phone_round_trip(db):
     from app.models.client import Client
-    client = _make_client(db)
+    _make_client(db)
     assert db.query(Client).one().phone == "+60 3-1234 5678"
 
 
