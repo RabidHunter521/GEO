@@ -1,0 +1,159 @@
+"""Client work log — the client-safe delivery timeline (spec §3).
+
+Manual-first by design: auto-triggers only ever write `suggested` rows that
+the admin reviews, edits, and explicitly publishes. Only `published` rows are
+client-visible. Every description is sanitized at write time (CLAUDE.md §2)
+even though the admin also sees and can edit it before publishing.
+"""
+import uuid
+from datetime import date
+
+import structlog
+from sqlalchemy import desc
+from sqlalchemy.orm import Session
+
+from app.core.constants import WORK_LOG_CATEGORIES, WORK_LOG_STATUSES
+from app.core.time import utcnow
+from app.models.work_log_entry import WorkLogEntry
+from app.services.language_sanitizer import sanitize_text
+
+logger = structlog.get_logger()
+
+
+def suggest(
+    client_id: uuid.UUID,
+    category: str,
+    description: str,
+    source_ref: str,
+    db: Session,
+    entry_date: date | None = None,
+) -> WorkLogEntry | None:
+    """Create or refresh a `suggested` work-log row for a system event.
+
+    BEST-EFFORT + POST-COMMIT: call this AFTER the triggering operation has
+    committed. It owns its own commit and swallows its own failures, so a
+    problem here can never undo the work that triggered it (CLAUDE.md §10).
+
+    Idempotent on (client_id, source_ref). A row that the admin has already
+    published or dismissed is returned untouched — a re-fired trigger must
+    never revert a reviewed decision or overwrite edited wording.
+    """
+    try:
+        if category not in WORK_LOG_CATEGORIES:
+            return None
+        existing = (
+            db.query(WorkLogEntry)
+            .filter(WorkLogEntry.client_id == client_id, WorkLogEntry.source_ref == source_ref)
+            .first()
+        )
+        if existing is not None:
+            if existing.status != "suggested":
+                return existing  # reviewed already — hands off
+            existing.description = sanitize_text(description)
+            existing.category = category
+            if entry_date is not None:
+                existing.entry_date = entry_date
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+        entry = WorkLogEntry(
+            client_id=client_id,
+            category=category,
+            description=sanitize_text(description),
+            source="auto",
+            source_ref=source_ref,
+            status="suggested",
+            entry_date=entry_date or utcnow().date(),
+        )
+        db.add(entry)
+        db.commit()
+        db.refresh(entry)
+        return entry
+    except Exception as exc:
+        db.rollback()
+        logger.warning(
+            "work_log_suggest_failed",
+            client_id=str(client_id), source_ref=source_ref, error=str(exc),
+        )
+        return None
+
+
+def create_manual(
+    client_id: uuid.UUID, category: str, description: str, entry_date: date, db: Session
+) -> WorkLogEntry:
+    """A manual entry is born published — typing it IS the publish action."""
+    if category not in WORK_LOG_CATEGORIES:
+        raise ValueError(f"unknown work-log category: {category}")
+    entry = WorkLogEntry(
+        client_id=client_id,
+        category=category,
+        description=sanitize_text(description),
+        source="manual",
+        source_ref=None,
+        status="published",
+        entry_date=entry_date,
+        published_at=utcnow(),
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+def update_entry(entry: WorkLogEntry, patch: dict, db: Session) -> WorkLogEntry:
+    """Edit content and/or move status. Editing is allowed after publish so a
+    mistake can still be corrected; `published → dismissed` is the undo."""
+    if "description" in patch and patch["description"]:
+        entry.description = sanitize_text(patch["description"])
+    if "category" in patch and patch["category"] in WORK_LOG_CATEGORIES:
+        entry.category = patch["category"]
+    if "entry_date" in patch and patch["entry_date"]:
+        entry.entry_date = patch["entry_date"]
+    if "status" in patch and patch["status"] in WORK_LOG_STATUSES:
+        new_status = patch["status"]
+        if new_status != entry.status:
+            entry.status = new_status
+            entry.published_at = utcnow() if new_status == "published" else None
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+def list_entries(
+    client_id: uuid.UUID, db: Session, status: str | None = None
+) -> list[WorkLogEntry]:
+    q = db.query(WorkLogEntry).filter(WorkLogEntry.client_id == client_id)
+    if status:
+        q = q.filter(WorkLogEntry.status == status)
+    return q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)).all()
+
+
+def published_entries(
+    client_id: uuid.UUID, db: Session, since: date | None = None, until: date | None = None
+) -> list[WorkLogEntry]:
+    """Published rows only — the single source of client-visible truth.
+
+    Status is filtered HERE, at the query, not merely omitted from a schema,
+    so a `suggested` row can never leak client-side (spec §3.5).
+    """
+    q = db.query(WorkLogEntry).filter(
+        WorkLogEntry.client_id == client_id, WorkLogEntry.status == "published"
+    )
+    if since is not None:
+        q = q.filter(WorkLogEntry.entry_date >= since)
+    if until is not None:
+        q = q.filter(WorkLogEntry.entry_date <= until)
+    return q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)).all()
+
+
+def published_count_since(client_id: uuid.UUID, db: Session, since: date) -> int:
+    return (
+        db.query(WorkLogEntry)
+        .filter(
+            WorkLogEntry.client_id == client_id,
+            WorkLogEntry.status == "published",
+            WorkLogEntry.entry_date >= since,
+        )
+        .count()
+    )
