@@ -27,6 +27,7 @@ class ClientUpdate(BaseModel):
     city: str | None = Field(default=None, max_length=255)
     state: str | None = Field(default=None, max_length=255)
     country: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=64)
     # max_length mirrors the DB column (String(255)), not the RFC 320 ceiling.
     contact_email: str | None = Field(default=None, pattern=_EMAIL_PATTERN, max_length=255)
     logo_url: str | None = Field(default=None, max_length=512)
@@ -74,6 +75,7 @@ class ClientResponse(BaseModel):
     city: str | None = None
     state: str | None = None
     country: str | None = None
+    phone: str | None = None
     contact_email: str | None = None
     logo_url: str | None = None
     brand_authority_score: int

@@ -25,6 +25,7 @@ def _fake_client(name="Acme Corp"):
     m.city = None
     m.state = None
     m.country = None
+    m.phone = None
     m.contact_email = None
     m.logo_url = None
     m.brand_authority_score = 0
@@ -166,6 +167,39 @@ def test_update_client():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["city"] == "Kuala Lumpur"
+
+
+def test_update_client_persists_phone():
+    """phone must survive PATCH request parsing and GET response serialization
+    end to end — the schema previously dropped it, silently defeating the
+    NAP-mismatch check in authority_service (nap_mismatch always saw None)."""
+    app, get_db = _make_app()
+    existing = _fake_client("Phone Co")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    # refresh is a no-op: the route's setattr loop mutates `existing` directly,
+    # so `existing` doubles as the "persisted row" for this MagicMock-backed test.
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    patch_response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"phone": "+60 12-345 6789"},
+    )
+    assert patch_response.status_code == 200
+    assert patch_response.json()["phone"] == "+60 12-345 6789"
+    # Proves the route's setattr actually applied phone to the row (request
+    # parsing side) rather than Pydantic silently dropping the unknown field.
+    assert existing.phone == "+60 12-345 6789"
+
+    get_response = client.get(f"/api/v1/clients/{existing.id}")
+    app.dependency_overrides.clear()
+    assert get_response.status_code == 200
+    # Proves ClientResponse no longer strips phone on read.
+    assert get_response.json()["phone"] == "+60 12-345 6789"
 
 
 def test_update_client_allows_zero_score_drop_threshold():
