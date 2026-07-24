@@ -327,8 +327,19 @@ def _domain_matches(source_domain: str, provenance_domain: str | None) -> bool:
 
 def seen_in_ai_sources_for(asset: AuthorityAsset, db: Session) -> int:
     """Provenance count for ONE asset — used by the mutating routes so their
-    responses carry the same badge value the view route computes."""
-    counts = compute_provenance_counts(asset.client_id, db)
+    responses carry the same badge value the view route computes.
+
+    Degrades to 0 on aggregation failure rather than raising: a provenance
+    hiccup must never turn a successful status/URL/review edit into a 500
+    (spec §10, same rule build_authority_view follows).
+    """
+    try:
+        counts = compute_provenance_counts(asset.client_id, db)
+    except Exception as exc:
+        logger.warning(
+            "authority_seen_count_failed", asset_id=str(asset.id), error=str(exc)
+        )
+        return 0
     return sum(n for domain, n in counts.items() if _domain_matches(domain, asset.provenance_domain))
 
 
