@@ -101,6 +101,15 @@ class ClientViewProgressItem(BaseModel):
     status_label: str       # "Flagged" | "In progress" | "Corrected"
 
 
+class ClientViewWorkLogItem(BaseModel):
+    """One published work-log entry, client-safe. Whitelisted fields only —
+    never source, status, ids, or internal notes (CLAUDE.md §8-9)."""
+    description: str
+    category: str
+    category_label: str
+    entry_date: date
+
+
 class ClientViewCommitment(BaseModel):
     """Whitelisted commitment block. state is COLLAPSED for clients:
     "achieved" | "in_progress" | "missed" — internal pace states
@@ -138,6 +147,11 @@ class ClientViewOverview(BaseModel):
     has_content_plan: bool = False
     # Whether the remediation loop has any tracked items (drives the progress card).
     has_progress: bool = False
+    # Whether any work-log entry has been PUBLISHED (drives the Progress tab).
+    # Distinct from has_progress, which is the remediation loop.
+    has_work_log: bool = False
+    # Count of published work-log entries in the last 30 days.
+    improvements_last_30d: int = 0
     # Count of remediation items corrected within the current calendar month —
     # the "items we fixed this month" proof-of-work stat on the overview hero.
     fixed_this_month: int = 0

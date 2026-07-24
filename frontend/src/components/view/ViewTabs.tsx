@@ -10,15 +10,17 @@ import { cn } from "@/lib/utils"
 const OVERVIEW_TAB = { segment: "", label: "Overview" } as const
 const SCAN_TAB = { segment: "/scan", label: "Scan & Visibility" } as const
 const COMPETITORS_TAB = { segment: "/competitors", label: "Competitors" } as const
+const PROGRESS_TAB = { segment: "/progress", label: "Progress" } as const
 const REPORTS_TAB = { segment: "/reports", label: "Reports" } as const
 
 interface Props {
   token: string
   showContentPlan?: boolean
+  showProgress?: boolean
   isProspect?: boolean
 }
 
-export function ViewTabs({ token, showContentPlan, isProspect }: Props) {
+export function ViewTabs({ token, showContentPlan, showProgress, isProspect }: Props) {
   const pathname = usePathname()
   const base = `/view/${token}`
 
@@ -54,6 +56,7 @@ export function ViewTabs({ token, showContentPlan, isProspect }: Props) {
         OVERVIEW_TAB,
         SCAN_TAB,
         COMPETITORS_TAB,
+        ...(showProgress ? [PROGRESS_TAB] : []),
         ...(showContentPlan ? [{ segment: "/content-plan", label: "Content Plan" }] : []),
         REPORTS_TAB,
       ]

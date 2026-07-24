@@ -64,6 +64,7 @@ from app.schemas.client_view import (
     ClientViewActivity,
     ClientViewTrafficValue,
     ClientViewProgressItem,
+    ClientViewWorkLogItem,
 )
 from app.services.assessment_service import latest_assessment
 from app.services.benchmark_service import compute_industry_benchmark
@@ -257,6 +258,11 @@ def get_overview(
         is not None
     )
 
+    from app.services import work_log_service
+    _since_date = (utcnow() - timedelta(days=30)).date()
+    improvements_last_30d = work_log_service.published_count_since(client.id, db, _since_date)
+    has_work_log = bool(work_log_service.published_entries(client.id, db))
+
     # Proof of work: how many tracked issues we've corrected this calendar month.
     month_start = utcnow().replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
@@ -379,6 +385,8 @@ def get_overview(
         has_content_plan=has_roadmap or has_gaps,
         traffic_value=traffic_value,
         has_progress=has_progress,
+        has_work_log=has_work_log,
+        improvements_last_30d=improvements_last_30d,
         fixed_this_month=fixed_this_month,
         proof_cards=proof_cards,
         last_checked_at=last_checked_at,
@@ -409,6 +417,29 @@ def get_progress(
             status_label=REMEDIATION_STATUS_LABELS.get(i.status, i.status.title()),
         )
         for i in items
+    ]
+
+
+@router.get("/work-log", response_model=list[ClientViewWorkLogItem])
+def get_work_log(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    """Published work-log entries — the client-safe delivery timeline.
+
+    Status is filtered in the service query, so a `suggested` or `dismissed`
+    row can never reach a client even if the schema changed (spec §3.5).
+    """
+    from app.core.constants import WORK_LOG_CATEGORY_LABELS
+    from app.services import work_log_service
+    return [
+        ClientViewWorkLogItem(
+            description=e.description,
+            category=e.category,
+            category_label=WORK_LOG_CATEGORY_LABELS.get(e.category, e.category.title()),
+            entry_date=e.entry_date,
+        )
+        for e in work_log_service.published_entries(client.id, db)
     ]
 
 

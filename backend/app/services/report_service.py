@@ -1795,12 +1795,15 @@ body {
 .sc-tile-name { font-size: 10pt; color: #475569; font-weight: 600; }
 .sc-tile-value { font-size: 20pt; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; }
 .sc-tile-sub { font-size: 8pt; color: #94a3b8; }
+.sc-improvements { margin-top: 12px; font-size: 10pt; color: #475569; font-weight: 600; }
 .sc-changed { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px; font-style: italic; color: #475569; }
 .sc-foot { margin-top: 28px; font-size: 9pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
 """
 
 
-def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
+def _build_scorecard_html(
+    client: Client, data: ReportData, benchmark, improvements_line: str = ""
+) -> str:
     safe_name = html.escape(client.name)
     safe_narrative = html.escape(data.change_narrative or "")
     generated_date = utcnow().strftime("%d %B %Y")
@@ -1878,6 +1881,8 @@ def _build_scorecard_html(client: Client, data: ReportData, benchmark) -> str:
     </tr>
   </table>
 
+  {improvements_line}
+
   {tiles}
   {changed_block}
 
@@ -1911,7 +1916,20 @@ def generate_scorecard_pdf(client_id: uuid.UUID, db: Session) -> bytes | None:
         )
 
     benchmark = compute_industry_benchmark(client, db)
-    scorecard_html = _build_scorecard_html(client, data, benchmark)
+
+    from app.services import work_log_service
+    try:
+        _improvements = work_log_service.published_count_since(
+            client.id, db, (utcnow() - timedelta(days=30)).date()
+        )
+    except Exception:
+        _improvements = 0
+    improvements_line = (
+        f'<div class="sc-improvements">{_improvements} improvements delivered in the last 30 days</div>'
+        if _improvements else ""
+    )
+
+    scorecard_html = _build_scorecard_html(client, data, benchmark, improvements_line)
     return weasyprint.HTML(string=scorecard_html).write_pdf()
 
 

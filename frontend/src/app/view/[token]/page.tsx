@@ -212,6 +212,16 @@ export default async function ViewOverviewPage({
                     {overview.fixed_this_month === 1 ? "" : "s"} we fixed this month
                   </p>
                 )}
+                {!isProspect && overview.improvements_last_30d > 0 && (
+                  <p className="mt-2">
+                    <Link
+                      href={`/view/${token}/progress`}
+                      className="text-sm text-primary underline-offset-4 hover:underline"
+                    >
+                      {overview.improvements_last_30d} improvements delivered in the last 30 days
+                    </Link>
+                  </p>
+                )}
               </>
             ) : (
               <>

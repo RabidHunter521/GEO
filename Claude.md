@@ -159,6 +159,7 @@ raw AI responses or internal fields):
 /view/[token]/scan        → scan & visibility results
 /view/[token]/competitors → competitor comparison
 /view/[token]/reports     → delivered PDF reports
+/view/[token]/progress    → delivery timeline (published work log only)
 
 ## 10. Coding Conventions
 

@@ -1,0 +1,71 @@
+"""Public work-log surface (spec §3.5, §7). Mirrors the fixtures used by the
+existing client-view tests — see test_api_client_view.py's `_build_test_client`
+for the get_db + rate-limit override pattern this file's `client` fixture reuses.
+"""
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def client(db):
+    from app.main import app
+    from app.core.database import get_db
+    from app.api.v1.client_view import _view_rate_limit
+
+    def fake_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = fake_get_db
+    app.dependency_overrides[_view_rate_limit] = lambda: None
+    tc = TestClient(app)
+    yield tc
+    app.dependency_overrides.clear()
+
+
+def _client_with_token(db):
+    from app.models.client import Client
+    c = Client(name="Acme Dental", website="https://acme.com", industry="Dental clinic",
+               contact_email="hello@acme.com", share_token="tok_" + "a" * 40)
+    db.add(c)
+    db.commit()
+    return c
+
+
+def test_work_log_exposes_only_published_and_whitelisted_fields(client, db):
+    from app.core.time import utcnow
+    from app.services import work_log_service
+    c = _client_with_token(db)
+    published = work_log_service.suggest(c.id, "technical", "Verified llms.txt", "r:1", db,
+                                         entry_date=utcnow().date())
+    work_log_service.update_entry(published, {"status": "published"}, db)
+    work_log_service.suggest(c.id, "content", "Still suggested", "r:2", db)
+    dismissed = work_log_service.suggest(c.id, "content", "Dismissed", "r:3", db)
+    work_log_service.update_entry(dismissed, {"status": "dismissed"}, db)
+
+    r = client.get(f"/api/v1/view/{c.share_token}/work-log")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert set(body[0]) == {"description", "category", "category_label", "entry_date"}
+    assert body[0]["description"] == "Verified llms.txt"
+
+
+def test_work_log_invalid_token_404(client, db):
+    r = client.get("/api/v1/view/not-a-real-token/work-log")
+    assert r.status_code == 404
+
+
+def test_overview_has_work_log_flag_and_count(client, db):
+    from app.core.time import utcnow
+    from app.services import work_log_service
+    c = _client_with_token(db)
+    overview = client.get(f"/api/v1/view/{c.share_token}/overview").json()
+    assert overview["has_work_log"] is False
+    assert overview["improvements_last_30d"] == 0
+
+    e = work_log_service.suggest(c.id, "technical", "Did a thing", "r:x", db,
+                                 entry_date=utcnow().date())
+    work_log_service.update_entry(e, {"status": "published"}, db)
+    overview2 = client.get(f"/api/v1/view/{c.share_token}/overview").json()
+    assert overview2["has_work_log"] is True
+    assert overview2["improvements_last_30d"] == 1

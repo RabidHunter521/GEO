@@ -513,6 +513,8 @@ export interface ClientViewOverview {
   has_our_work: boolean
   has_content_plan: boolean
   has_progress: boolean
+  has_work_log: boolean
+  improvements_last_30d: number
   fixed_this_month: number
   last_checked_at: string | null
   next_check_due: string | null
@@ -921,4 +923,13 @@ export interface WorkLogEntry {
   entry_date: string
   created_at: string
   published_at: string | null
+}
+
+// Public, client-safe work-log entry (whitelisted fields only — no ids,
+// source, or status; see ClientViewWorkLogItem in backend/app/schemas/client_view.py).
+export interface ClientViewWorkLogItem {
+  description: string
+  category: WorkLogCategory
+  category_label: string
+  entry_date: string
 }
