@@ -33,10 +33,13 @@ export function AuthorityClient({
   const [pending, setPending] = useState(false)
   const [note, setNote] = useState<string | null>(null)
 
-  async function reloadAfter<T>(fn: () => Promise<T>): Promise<T> {
+  async function reloadAfter<T>(fn: () => Promise<T>): Promise<T | undefined> {
     setPending(true)
     try {
       return await fn()
+    } catch {
+      setNote("Couldn't save that change — please try again.")
+      return undefined
     } finally {
       setPending(false)
     }
@@ -202,7 +205,7 @@ function ReviewSnapshotRow({
   asset: AuthorityAsset
   onUpdated: (a: AuthorityAsset) => void
   pending: boolean
-  run: <T>(fn: () => Promise<T>) => Promise<T>
+  run: <T>(fn: () => Promise<T>) => Promise<T | undefined>
 }) {
   const [rating, setRating] = useState("")
   const [count, setCount] = useState("")

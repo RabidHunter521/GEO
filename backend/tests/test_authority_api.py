@@ -113,3 +113,66 @@ def test_patch_unknown_asset_404s(client, db, auth_headers):
     r = client.patch(f"/api/v1/clients/{c.id}/authority/{uuid.uuid4()}",
                      headers=auth_headers, json={"status": "live"})
     assert r.status_code == 404
+
+
+def _seed_sources(db, client, domain_counts: dict[str, int]):
+    """Create one completed scan whose client-owned queries cite the given
+    domains the given number of times (mirrors test_authority_service.py)."""
+    from app.core.time import utcnow
+    from app.models.scan import Scan
+    from app.models.scan_query_result import ScanQueryResult
+    from app.models.scan_query_source import ScanQuerySource
+    scan = Scan(client_id=client.id, status="completed", completed_at=utcnow())
+    db.add(scan)
+    db.commit()
+    result = ScanQueryResult(
+        scan_id=scan.id, platform="perplexity", category="recommendation",
+        query_text="best dental clinic KL", response_text="...", brand_detected=False,
+    )
+    db.add(result)
+    db.commit()
+    rank = 1
+    for domain, n in domain_counts.items():
+        for _ in range(n):
+            db.add(ScanQuerySource(
+                scan_query_result_id=result.id, url=f"https://{domain}/x{rank}",
+                domain=domain, rank=rank, source_type="third_party", fetch_status="ok",
+            ))
+            rank += 1
+    db.commit()
+    return scan
+
+
+def test_patch_response_seen_in_ai_sources_is_real_count(client, db, auth_headers):
+    """PATCH must return the same non-zero seen_in_ai_sources the view route
+    computes — regression for the _out(asset) default-0 bug."""
+    c = _make_client(db)
+    _seed_sources(db, c, {"maps.google.com": 4})  # gbp's provenance_domain is google.com
+    add = client.post(f"/api/v1/clients/{c.id}/authority", headers=auth_headers,
+                      json={"items": [{"asset_key": "gbp"}]})
+    asset_id = add.json()[0]["id"]
+    r = client.patch(f"/api/v1/clients/{c.id}/authority/{asset_id}", headers=auth_headers,
+                     json={"status": "live"})
+    assert r.status_code == 200
+    assert r.json()["seen_in_ai_sources"] == 4
+
+
+def test_verify_response_last_checked_at_ends_with_z(client, db, auth_headers):
+    """Mutating routes must serialize last_checked_at as UTC with a trailing
+    Z, matching the view route's format — regression for the naive-datetime
+    local-time-vs-UTC mismatch bug."""
+    from app.services.url_safety import SafeResponse
+    from app.services import authority_service
+    c = _make_client(db)
+    add = client.post(f"/api/v1/clients/{c.id}/authority", headers=auth_headers,
+                      json={"items": [{"asset_key": "gbp", "url": "https://g.co/acme"}]})
+    asset_id = add.json()[0]["id"]
+    page = "<html><body><h1>Acme Dental</h1></body></html>"
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get",
+                      return_value=SafeResponse(200, page, {"content-type": "text/html"})):
+        r = client.post(f"/api/v1/clients/{c.id}/authority/{asset_id}/verify", headers=auth_headers)
+    assert r.status_code == 200
+    last_checked_at = r.json()["asset"]["last_checked_at"]
+    assert last_checked_at is not None
+    assert last_checked_at.endswith("Z")

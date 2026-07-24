@@ -36,9 +36,9 @@ def _get_asset_or_404(client_id: uuid.UUID, asset_id: uuid.UUID, db: Session) ->
     return asset
 
 
-def _out(asset: AuthorityAsset, seen: int = 0) -> AuthorityAssetOut:
+def _out(asset: AuthorityAsset, db: Session) -> AuthorityAssetOut:
     data = AuthorityAssetOut.model_validate(asset)
-    data.seen_in_ai_sources = seen
+    data.seen_in_ai_sources = authority_service.seen_in_ai_sources_for(asset, db)
     return data
 
 
@@ -58,7 +58,7 @@ def get_catalog(client_id: uuid.UUID, db: Session = Depends(get_db)):
 def add_assets(client_id: uuid.UUID, body: AddAssetsRequest, db: Session = Depends(get_db)):
     client = _get_client_or_404(client_id, db)
     rows = authority_service.add_assets(client, [i.model_dump() for i in body.items], db)
-    return [_out(r) for r in rows]
+    return [_out(r, db) for r in rows]
 
 
 @router.patch("/{asset_id}", response_model=AuthorityAssetOut, dependencies=[Depends(require_api_key)])
@@ -72,7 +72,7 @@ def patch_asset(
     if "status" in patch and patch["status"] not in AUTHORITY_ASSET_STATUSES:
         raise HTTPException(status_code=422, detail="Unknown status.")
     asset = authority_service.update_asset(asset, patch, db)
-    return _out(asset)
+    return _out(asset, db)
 
 
 @router.post("/{asset_id}/verify", response_model=VerifyResponse, dependencies=[Depends(require_api_key)])
@@ -80,7 +80,7 @@ def verify(client_id: uuid.UUID, asset_id: uuid.UUID, db: Session = Depends(get_
     client = _get_client_or_404(client_id, db)
     asset = _get_asset_or_404(client_id, asset_id, db)
     asset, note = authority_service.verify_asset(asset, client, db)
-    return VerifyResponse(asset=_out(asset), note=note)
+    return VerifyResponse(asset=_out(asset, db), note=note)
 
 
 @router.post("/{asset_id}/review-snapshot", response_model=AuthorityAssetOut, dependencies=[Depends(require_api_key)])
@@ -91,4 +91,4 @@ def review_snapshot(
     _get_client_or_404(client_id, db)
     asset = _get_asset_or_404(client_id, asset_id, db)
     asset = authority_service.add_review_snapshot(asset, body.rating, body.count, db)
-    return _out(asset)
+    return _out(asset, db)

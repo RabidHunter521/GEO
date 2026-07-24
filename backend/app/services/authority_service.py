@@ -325,6 +325,13 @@ def _domain_matches(source_domain: str, provenance_domain: str | None) -> bool:
     return source_domain == provenance_domain or source_domain.endswith("." + provenance_domain)
 
 
+def seen_in_ai_sources_for(asset: AuthorityAsset, db: Session) -> int:
+    """Provenance count for ONE asset — used by the mutating routes so their
+    responses carry the same badge value the view route computes."""
+    counts = compute_provenance_counts(asset.client_id, db)
+    return sum(n for domain, n in counts.items() if _domain_matches(domain, asset.provenance_domain))
+
+
 _CATALOG_KEY_BY_DOMAIN: dict[str, str] = {
     item["provenance_domain"]: item["key"]
     for item in AUTHORITY_ASSET_CATALOG
@@ -342,7 +349,7 @@ def _asset_dict(asset: AuthorityAsset, counts: dict[str, int]) -> dict:
         "notes": asset.notes, "provenance_domain": asset.provenance_domain,
         "review_snapshots": asset.review_snapshots or [], "found_nap": asset.found_nap,
         "nap_mismatch": asset.nap_mismatch,
-        "last_checked_at": asset.last_checked_at.isoformat() + "Z" if asset.last_checked_at else None,
+        "last_checked_at": asset.last_checked_at,
         "seen_in_ai_sources": seen,
     }
 

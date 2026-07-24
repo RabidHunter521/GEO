@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 
 
 class CatalogItem(BaseModel):
@@ -36,6 +36,11 @@ class AuthorityAssetOut(BaseModel):
     seen_in_ai_sources: int = 0
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("last_checked_at")
+    def _ser_last_checked_at(self, value: datetime | None) -> str | None:
+        # utcnow() stores naive UTC — stamp the Z so JS parses it as UTC, not local.
+        return None if value is None else value.isoformat() + "Z"
 
 
 class SuggestedDomain(BaseModel):
