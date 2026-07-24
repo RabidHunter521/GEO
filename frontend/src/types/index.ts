@@ -905,3 +905,20 @@ export interface AddAuthorityAssetItem {
   url?: string
   provenance_domain?: string
 }
+
+// --- Client work log (Phase 5) ---
+export type WorkLogCategory =
+  | "technical" | "content" | "authority" | "visibility" | "correction"
+export type WorkLogStatus = "suggested" | "published" | "dismissed"
+
+export interface WorkLogEntry {
+  id: string
+  category: WorkLogCategory
+  category_label: string
+  description: string
+  source: "auto" | "manual"
+  status: WorkLogStatus
+  entry_date: string
+  created_at: string
+  published_at: string | null
+}

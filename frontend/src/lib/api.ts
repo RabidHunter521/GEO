@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -302,6 +302,30 @@ export function getActivityLog(clientId: string, limit = 50, skip = 0): Promise<
   return apiFetch<ActivityLogEntry[]>(
     `/api/v1/clients/${clientId}/activity?limit=${limit}&skip=${skip}`,
   )
+}
+
+// ── Work log ─────────────────────────────────────────────────────────────────
+
+export async function getWorkLog(
+  clientId: string, status?: WorkLogStatus,
+): Promise<WorkLogEntry[]> {
+  const q = status ? `?status=${status}` : ""
+  return apiFetch<WorkLogEntry[]>(`/api/v1/clients/${clientId}/work-log${q}`)
+}
+export async function createWorkLogEntry(
+  clientId: string, body: { category: WorkLogCategory; description: string; entry_date: string },
+): Promise<WorkLogEntry> {
+  return apiFetch<WorkLogEntry>(`/api/v1/clients/${clientId}/work-log`, {
+    method: "POST", body: JSON.stringify(body),
+  })
+}
+export async function patchWorkLogEntry(
+  clientId: string, entryId: string,
+  patch: { category?: WorkLogCategory; description?: string; entry_date?: string; status?: WorkLogStatus },
+): Promise<WorkLogEntry> {
+  return apiFetch<WorkLogEntry>(`/api/v1/clients/${clientId}/work-log/${entryId}`, {
+    method: "PATCH", body: JSON.stringify(patch),
+  })
 }
 
 // ── Toolkit ───────────────────────────────────────────────────────────────────

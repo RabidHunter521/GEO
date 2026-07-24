@@ -1,8 +1,9 @@
 import Link from "next/link"
 import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle, ChevronLeft, ChevronRight, Search } from "lucide-react"
-import { getActivityLog } from "@/lib/api"
+import { getActivityLog, getWorkLog } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import type { ActivityLogEntry } from "@/types"
+import { WorkLogCard } from "./WorkLogCard"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -84,25 +85,31 @@ export default async function ActivityPage({ params, searchParams }: Props) {
     // backend down — fall through to empty state
   }
 
+  const workLog = await getWorkLog(id).catch(() => [])
+
   if (entries.length === 0 && page === 1) {
     return (
-      <div className="rounded-lg border border-dashed p-14 text-center text-muted-foreground">
-        <p className="font-medium">No activity yet</p>
-        <p className="text-sm mt-1">
-          Activity is recorded when you run scans, generate toolkit files, or verify your implementation.
-        </p>
-        <Link
-          href={`/clients/${id}/scan`}
-          className="mt-3 inline-flex items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Go to Scan &amp; Visibility →
-        </Link>
+      <div className="space-y-4">
+        <WorkLogCard clientId={id} initialEntries={workLog} />
+        <div className="rounded-lg border border-dashed p-14 text-center text-muted-foreground">
+          <p className="font-medium">No activity yet</p>
+          <p className="text-sm mt-1">
+            Activity is recorded when you run scans, generate toolkit files, or verify your implementation.
+          </p>
+          <Link
+            href={`/clients/${id}/scan`}
+            className="mt-3 inline-flex items-center text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Go to Scan &amp; Visibility →
+          </Link>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
+      <WorkLogCard clientId={id} initialEntries={workLog} />
       <p className="text-sm text-muted-foreground">
         Page {page} · showing {entries.length} event{entries.length !== 1 ? "s" : ""}, newest first.
       </p>
