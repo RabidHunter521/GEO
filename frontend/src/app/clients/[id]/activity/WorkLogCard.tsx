@@ -15,6 +15,14 @@ const CATEGORIES: WorkLogCategory[] = [
   "technical", "content", "authority", "visibility", "correction",
 ]
 
+const CATEGORY_LABELS: Record<WorkLogCategory, string> = {
+  technical: "Technical",
+  content: "Content",
+  authority: "Authority",
+  visibility: "Visibility",
+  correction: "Correction",
+}
+
 export function WorkLogCard({
   clientId, initialEntries,
 }: { clientId: string; initialEntries: WorkLogEntry[] }) {
@@ -29,6 +37,7 @@ export function WorkLogCard({
 
   const suggested = entries.filter((e) => e.status === "suggested")
   const published = entries.filter((e) => e.status === "published")
+  const dismissed = entries.filter((e) => e.status === "dismissed")
 
   async function run<T>(fn: () => Promise<T>) {
     setPending(true)
@@ -106,6 +115,23 @@ export function WorkLogCard({
           )}
         </div>
 
+        {dismissed.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">Dismissed ({dismissed.length})</h3>
+            {dismissed.map((e) => (
+              <div key={e.id} className="flex flex-wrap items-center gap-2 rounded-md border p-2.5 text-muted-foreground">
+                <Badge variant="outline">{e.category_label}</Badge>
+                <span className="min-w-[16rem] flex-1 text-sm">{e.description}</span>
+                <span className="text-xs">{e.entry_date}</span>
+                <Button size="sm" variant="ghost" disabled={pending}
+                        onClick={() => run(async () => replace(await patchWorkLogAction(clientId, e.id, { status: "suggested" })))}>
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="space-y-2 border-t pt-4">
           <h3 className="text-sm font-medium">Add an entry</h3>
           <div className="flex flex-wrap items-center gap-2">
@@ -115,7 +141,7 @@ export function WorkLogCard({
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                    <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
