@@ -2,7 +2,7 @@ import html
 import math
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 from app.core.time import utcnow
 
@@ -382,6 +382,55 @@ class TrendPoint:
     color: str
 
 
+# ── Report v2 (Phase 5) — one dataclass per "proof of the retainer" section.
+# Every one of these is optional on ReportData: a client who never used the
+# phase that feeds a section gets no section at all, not an empty header.
+
+
+@dataclass
+class WorkLogLine:
+    """One published work-log entry, already client-safe (sanitized at write)."""
+    category_label: str
+    description: str
+    entry_date: date
+
+
+@dataclass
+class TechnicalHealth:
+    """Latest site-audit tallies, plus checks that went warn/fail → pass."""
+    passed: int
+    warned: int
+    failed: int
+    fixed_checks: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ContentDelivered:
+    titles: list[str] = field(default_factory=list)
+    improvements: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AuthorityProgress:
+    newly_live: list[str] = field(default_factory=list)
+    newly_verified: list[str] = field(default_factory=list)
+    review_deltas: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SourcesTrend:
+    share_now: float
+    share_then: float | None = None
+    flips: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BeforeAfterCard:
+    query_text: str
+    platform_label: str
+    excerpt: str
+
+
 @dataclass
 class ReportData:
     period_start: datetime
@@ -437,6 +486,14 @@ class ReportData:
     newly_lost_queries: list[str] = field(default_factory=list)
     # Verbatim AI proof cards for the latest scan (rival named — private PDF).
     proof_cards: list["ProofCard"] = field(default_factory=list)
+    # ── Report v2 (Phase 5): every field optional; an empty phase yields no section.
+    work_log: list["WorkLogLine"] = field(default_factory=list)
+    work_log_counts: dict = field(default_factory=dict)
+    technical_health: "TechnicalHealth | None" = None
+    content_delivered: "ContentDelivered | None" = None
+    authority_progress: "AuthorityProgress | None" = None
+    sources_trend: "SourcesTrend | None" = None
+    before_after: list["BeforeAfterCard"] = field(default_factory=list)
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -643,6 +700,211 @@ def _build_dim_bars_html(data: "ReportData") -> str:
     )
 
 
+_MAX_WORK_LOG_LINES = 10
+_MAX_BEFORE_AFTER = 3
+
+
+def _gather_work_log(client: Client, db: Session, since_date) -> tuple[list[WorkLogLine], dict]:
+    """Published work-log entries in the period + per-category counts.
+
+    Counts cover every published entry in the period; the printed lines are
+    capped at _MAX_WORK_LOG_LINES so a busy month can't run the PDF long.
+    """
+    from app.core.constants import WORK_LOG_CATEGORY_LABELS
+    from app.services import work_log_service
+    entries = work_log_service.published_entries(client.id, db, since=since_date)
+    counts: dict = {}
+    for e in entries:
+        counts[e.category] = counts.get(e.category, 0) + 1
+    lines = [
+        WorkLogLine(
+            category_label=WORK_LOG_CATEGORY_LABELS.get(e.category, e.category.title()),
+            description=e.description,
+            entry_date=e.entry_date,
+        )
+        for e in entries[:_MAX_WORK_LOG_LINES]
+    ]
+    return lines, counts
+
+
+def _gather_technical_health(client: Client, db: Session, since) -> TechnicalHealth | None:
+    """Latest SiteAudit vs the one before it (Phase 2).
+
+    Tallies come off the persisted columns rather than being recounted from
+    `checks`, and "fixed" reuses site_audit_service.compute_delta so the report
+    can never disagree with the toolkit page about what improved. compute_delta
+    returns check ids, so they are mapped back to their client-facing labels.
+    """
+    from app.models.site_audit import SiteAudit
+    from app.services.site_audit_service import compute_delta
+    audits = (
+        db.query(SiteAudit)
+        .filter(SiteAudit.client_id == client.id)
+        .order_by(desc(SiteAudit.created_at))
+        .limit(2)
+        .all()
+    )
+    if not audits:
+        return None
+    latest = audits[0]
+    checks = latest.checks or []
+    fixed: list[str] = []
+    if len(audits) > 1:
+        labels = {c.get("id"): (c.get("label") or c.get("id") or "") for c in checks}
+        delta = compute_delta(checks, audits[1].checks or [])
+        fixed = [labels.get(check_id, check_id) for check_id in delta["fixed"]]
+    return TechnicalHealth(
+        passed=latest.passed, warned=latest.warned, failed=latest.failed, fixed_checks=fixed
+    )
+
+
+def _gather_content_delivered(client: Client, db: Session, since) -> ContentDelivered | None:
+    """Reviewed deliverables + page-audit score improvements this period (Phase 3)."""
+    from urllib.parse import urlparse
+
+    from app.models.content_deliverable import ContentDeliverable
+    from app.models.page_audit import PageAudit
+    titles = [
+        d.title for d in db.query(ContentDeliverable).filter(
+            ContentDeliverable.client_id == client.id,
+            ContentDeliverable.status == "reviewed",
+            ContentDeliverable.reviewed_at.isnot(None),
+            ContentDeliverable.reviewed_at >= since,
+        ).all()
+    ]
+    audits = (
+        db.query(PageAudit)
+        .filter(PageAudit.client_id == client.id)
+        .order_by(desc(PageAudit.created_at))
+        .all()
+    )
+    # Newest-first: the first row seen for a URL is its latest audit; the next
+    # one is the previous audit it should be compared against.
+    seen: dict[str, PageAudit] = {}
+    improvements: list[str] = []
+    for a in audits:
+        if a.url in seen:
+            older = a
+            newer = seen[a.url]
+            if newer.created_at >= since and newer.score > older.score:
+                path = urlparse(newer.url).path or "/"
+                improvements.append(f"{path}: {older.score} → {newer.score}")
+            continue
+        seen[a.url] = a
+    if not titles and not improvements:
+        return None
+    return ContentDelivered(titles=titles, improvements=improvements)
+
+
+def _gather_authority_progress(client: Client, db: Session, since) -> AuthorityProgress | None:
+    """Assets that went live/verified this period + review-snapshot deltas (Phase 4).
+
+    updated_at is an approximation of "reached this status during the period":
+    an unrelated later edit to the row re-dates it. Accepted — the alternative
+    is a status-history table this phase does not need.
+    """
+    from app.models.authority_asset import AuthorityAsset
+    assets = (
+        db.query(AuthorityAsset)
+        .filter(AuthorityAsset.client_id == client.id, AuthorityAsset.hidden.is_(False))
+        .all()
+    )
+    newly_live = [
+        a.name for a in assets if a.status == "live" and a.updated_at and a.updated_at >= since
+    ]
+    newly_verified = [
+        a.name for a in assets if a.status == "verified" and a.updated_at and a.updated_at >= since
+    ]
+    deltas: list[str] = []
+    for a in assets:
+        snaps = a.review_snapshots or []
+        if len(snaps) >= 2:
+            first, last = snaps[-2], snaps[-1]
+            if last.get("rating") != first.get("rating") or last.get("count") != first.get("count"):
+                deltas.append(
+                    f"{a.name} rating {first.get('rating')} → {last.get('rating')}, "
+                    f"{first.get('count')} → {last.get('count')} reviews"
+                )
+    if not newly_live and not newly_verified and not deltas:
+        return None
+    return AuthorityProgress(
+        newly_live=newly_live, newly_verified=newly_verified, review_deltas=deltas
+    )
+
+
+def _gather_sources_trend(client: Client, db: Session, since) -> SourcesTrend | None:
+    """Client share-of-source over the period + sources no longer missing them.
+
+    acquisition_list holds sources where the client is ABSENT but a competitor
+    is present, so a domain that leaves the list is no longer a gap. It may
+    have left because the source dropped out of AI answers entirely, which is
+    why the rendered copy claims only that — never that the source now
+    includes them.
+    """
+    from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
+    snaps = (
+        db.query(ShareOfSourceSnapshot)
+        .filter(ShareOfSourceSnapshot.client_id == client.id)
+        .order_by(desc(ShareOfSourceSnapshot.computed_at))
+        .limit(2)
+        .all()
+    )
+    if not snaps:
+        return None
+    now = snaps[0]
+    then = snaps[1] if len(snaps) > 1 else None
+    flips: list[str] = []
+    if then is not None:
+        then_absent = {
+            e.get("domain") for e in (then.acquisition_list or []) if e.get("domain")
+        }
+        now_domains = {
+            e.get("domain") for e in (now.acquisition_list or []) if e.get("domain")
+        }
+        flips = sorted(d for d in then_absent - now_domains if d)[:3]
+    return SourcesTrend(
+        share_now=now.client_share_pct,
+        share_then=then.client_share_pct if then else None,
+        flips=flips,
+    )
+
+
+def _gather_before_after(client: Client, db: Session, since) -> list[BeforeAfterCard]:
+    """Up to 3 queries that flipped to Seen by AI, with the verbatim snippet now."""
+    from app.services import proof_card_service
+    from app.services.scan_diff_service import compute_scan_diff
+    diff = compute_scan_diff(client.id, db)
+    if not diff.newly_seen or not diff.latest_scan_id:
+        return []
+    competitors = [
+        c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
+    ]
+    wanted = {(q.platform, q.query_text) for q in diff.newly_seen}
+    results = (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == diff.latest_scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+        )
+        .all()
+    )
+    cards: list[BeforeAfterCard] = []
+    for r in results:
+        if (r.platform, r.query_text) not in wanted:
+            continue
+        _, excerpt = proof_card_service.result_excerpt(r, client.name, competitors, redact=False)
+        if not excerpt:
+            continue
+        cards.append(BeforeAfterCard(
+            query_text=r.query_text,
+            platform_label=PLATFORM_LABELS.get(r.platform, r.platform.title()),
+            excerpt=excerpt,
+        ))
+        if len(cards) >= _MAX_BEFORE_AFTER:
+            break
+    return cards
+
+
 def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     since = utcnow() - timedelta(days=30)
 
@@ -831,6 +1093,31 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     causal_then = causal_points[0] if len(causal_points) >= 2 else None
     causal_now = causal_points[-1] if len(causal_points) >= 2 else None
 
+    # ── Report v2 sections. Each is independently guarded: a failure logs and
+    # skips its own section — it must never take the whole report down.
+    since_date = since.date()
+
+    def _safe(label: str, fn, default):
+        try:
+            return fn()
+        except Exception as exc:
+            logger.warning("report_section_failed", section=label,
+                           client_id=str(client.id), error=str(exc))
+            return default
+
+    work_log, work_log_counts = _safe(
+        "work_log", lambda: _gather_work_log(client, db, since_date), ([], {}))
+    technical_health = _safe(
+        "technical_health", lambda: _gather_technical_health(client, db, since), None)
+    content_delivered = _safe(
+        "content_delivered", lambda: _gather_content_delivered(client, db, since), None)
+    authority_progress = _safe(
+        "authority_progress", lambda: _gather_authority_progress(client, db, since), None)
+    sources_trend = _safe(
+        "sources_trend", lambda: _gather_sources_trend(client, db, since), None)
+    before_after = _safe(
+        "before_after", lambda: _gather_before_after(client, db, since), [])
+
     data = ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
@@ -872,6 +1159,13 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         causal_control_then=causal_then.control_frequency if causal_then else None,
         causal_control_now=causal_now.control_frequency if causal_now else None,
         commitment=get_client_commitment(client.id, db),
+        work_log=work_log,
+        work_log_counts=work_log_counts,
+        technical_health=technical_health,
+        content_delivered=content_delivered,
+        authority_progress=authority_progress,
+        sources_trend=sources_trend,
+        before_after=before_after,
     )
     from app.services.proof_card_service import select_proof_cards
     proof_cards = select_proof_cards(
@@ -990,6 +1284,117 @@ def _build_causality_html(data: ReportData) -> str:
         f'benchmark — when only the optimized ones move, the movement is our work.</span>'
         f'</div></div>'
     )
+
+
+# ── Report v2 section builders (Phase 5) ────────────────────────────────────
+# Every one returns "" when its data is absent, so a client who never used the
+# feeding phase gets a byte-identical v1 report — no empty headers.
+
+
+def _build_work_log_html(data: ReportData) -> str:
+    if not data.work_log:
+        return ""
+    from app.core.constants import WORK_LOG_CATEGORY_LABELS
+    counts = " · ".join(
+        f"{WORK_LOG_CATEGORY_LABELS.get(k, k.title())}: {v}"
+        for k, v in sorted(data.work_log_counts.items())
+    )
+    rows = "".join(
+        f'<tr><td>{line.entry_date.strftime("%d %b")}</td>'
+        f'<td>{html.escape(line.category_label)}</td>'
+        f'<td>{html.escape(line.description)}</td></tr>'
+        for line in data.work_log
+    )
+    return (
+        f'<h2>Work Delivered This Month</h2>'
+        f'<div class="stat-card"><div class="stat-sub">{html.escape(counts)}</div></div>'
+        f'<table><thead><tr><th>Date</th><th>Type</th><th>What we did</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table>'
+    )
+
+
+def _build_technical_health_html(data: ReportData) -> str:
+    t = data.technical_health
+    if t is None:
+        return ""
+    fixed = ""
+    if t.fixed_checks:
+        items = "".join(f"<li>{html.escape(c)}</li>" for c in t.fixed_checks)
+        fixed = f'<div class="stat-sub">Fixed this period:</div><ul>{items}</ul>'
+    return (
+        f'<h2>Technical Health</h2>'
+        f'<div class="stat-card">'
+        f'<div class="stat-sub">{t.passed} checks passing, {t.warned} needing attention, '
+        f'{t.failed} failing.</div>{fixed}</div>'
+    )
+
+
+def _build_content_delivered_html(data: ReportData) -> str:
+    c = data.content_delivered
+    if c is None:
+        return ""
+    parts = []
+    if c.titles:
+        items = "".join(f"<li>{html.escape(t)}</li>" for t in c.titles)
+        parts.append(f'<div class="stat-sub">Content delivered:</div><ul>{items}</ul>')
+    if c.improvements:
+        items = "".join(f"<li>{html.escape(i)}</li>" for i in c.improvements)
+        parts.append(f'<div class="stat-sub">Pages made easier for AI to read:</div><ul>{items}</ul>')
+    return f'<h2>Content Delivered</h2><div class="stat-card">{"".join(parts)}</div>'
+
+
+def _build_authority_progress_html(data: ReportData) -> str:
+    a = data.authority_progress
+    if a is None:
+        return ""
+    parts = []
+    if a.newly_verified:
+        parts.append(f'<div class="stat-sub">Verified this period: '
+                     f'{html.escape(", ".join(a.newly_verified))}</div>')
+    if a.newly_live:
+        parts.append(f'<div class="stat-sub">Now live: '
+                     f'{html.escape(", ".join(a.newly_live))}</div>')
+    if a.review_deltas:
+        items = "".join(f"<li>{html.escape(d)}</li>" for d in a.review_deltas)
+        parts.append(f"<ul>{items}</ul>")
+    return f'<h2>Authority Progress</h2><div class="stat-card">{"".join(parts)}</div>'
+
+
+def _build_sources_trend_html(data: ReportData) -> str:
+    s = data.sources_trend
+    if s is None:
+        return ""
+    if s.share_then is None:
+        line = (f"Your business appears in {s.share_now:.0f}% of the sources AI answers "
+                f"drew from.")
+    else:
+        line = (f"Your business appears in {s.share_now:.0f}% of the sources AI answers "
+                f"drew from, versus {s.share_then:.0f}% previously.")
+    flips = ""
+    if s.flips:
+        # Deliberately understated: leaving the missing-sources list is not proof
+        # the source now includes you (it may simply have stopped appearing).
+        items = "".join(f"<li>{html.escape(d)}</li>" for d in s.flips)
+        flips = (f'<div class="stat-sub">No longer on your missing-sources list:</div>'
+                 f'<ul>{items}</ul>')
+    return (
+        f'<h2>AI Sources Trend</h2>'
+        f'<div class="stat-card"><div class="stat-sub">{line}</div>{flips}</div>'
+    )
+
+
+def _build_before_after_html(data: ReportData) -> str:
+    if not data.before_after:
+        return ""
+    cards = "".join(
+        f'<div class="stat-card">'
+        f'<div class="stat-label">{html.escape(c.query_text)}</div>'
+        f'<div class="stat-sub">{html.escape(c.platform_label)} — previously Not seen by AI</div>'
+        f'<div class="stat-sub">&ldquo;{html.escape(c.excerpt)}&rdquo;</div>'
+        f'</div>'
+        for c in data.before_after
+    )
+    return f'<h2>Before &amp; After</h2>{cards}'
 
 
 def _build_report_html(client: Client, data: ReportData) -> str:
@@ -1207,6 +1612,14 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         hallucination_section = ""
 
+    # ── Report v2 sections (Phase 5) ──────────────────────────────────────
+    work_log_section = _build_work_log_html(data)
+    technical_health_section = _build_technical_health_html(data)
+    content_delivered_section = _build_content_delivered_html(data)
+    authority_progress_section = _build_authority_progress_html(data)
+    sources_trend_section = _build_sources_trend_html(data)
+    before_after_section = _build_before_after_html(data)
+
     # ── Gauge SVG + generated date ─────────────────────────────────────────
     gauge_svg = _build_gauge_svg(data.overall_score)
     generated_date = utcnow().strftime("%d %B %Y")
@@ -1288,6 +1701,16 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
 <!-- ── 10: HALLUCINATIONS ─────────────────────────────────────────── -->
 {hallucination_section}
+
+<!-- ── 10b-10g: RETAINER PROOF (Phase 5) ──────────────────────────────
+     Each of these renders as "" unless its phase produced data this period,
+     so a v1-only client's report is unchanged. -->
+{work_log_section}
+{technical_health_section}
+{content_delivered_section}
+{authority_progress_section}
+{sources_trend_section}
+{before_after_section}
 
 <!-- ── 11: AI READINESS TOOLKIT ──────────────────────────────────── -->
 <h2>AI Readiness Toolkit</h2>

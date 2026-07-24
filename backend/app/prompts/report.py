@@ -1,7 +1,7 @@
 # backend/app/prompts/report.py
 """Prompt template for the monthly report change narrative."""
 
-VERSION = "v2"
+VERSION = "v3"  # v3: work-delivered counts added to the context block
 
 
 def build_change_narrative(data) -> str:
@@ -29,6 +29,15 @@ def build_change_narrative(data) -> str:
         )
     query_context = ("\n" + "\n".join(query_lines)) if query_lines else ""
 
+    # Counts only — never the entry text. The narrative may reference the volume
+    # of work delivered, but the work log speaks for itself in its own section.
+    delivered = getattr(data, "work_log_counts", None) or {}
+    delivered_line = (
+        "Work delivered this period (counts by type): "
+        + ", ".join(f"{k}: {v}" for k, v in sorted(delivered.items()))
+        if delivered else "No delivery records were published for this period."
+    )
+
     return (
         "You are an AI visibility analyst writing a brief monthly summary for a client report. "
         "Write 2-3 sentences (plain text, no headings, under 70 words) explaining what changed this month. "
@@ -43,5 +52,6 @@ def build_change_narrative(data) -> str:
         f"Dimension scores now — Brand Authority {data.brand_authority:.0f}, Content Quality "
         f"{data.content_quality:.0f}, Technical Foundations {data.technical_foundations:.0f}, "
         f"Structured Data {data.structured_data:.0f}.\n"
-        f"{competitor_note}"
+        f"{competitor_note}\n"
+        f"{delivered_line}"
     )
