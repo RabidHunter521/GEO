@@ -397,6 +397,16 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                 "share_of_source_snapshot_failed", scan_id=str(scan_id), error=str(exc)
             )
 
+        # Work-log flip suggestions — one `visibility` suggestion per query that
+        # newly flipped to Seen by AI this scan. Best-effort, matching every
+        # other post-commit step in this function (CLAUDE.md §10).
+        try:
+            from app.services import work_log_service
+            work_log_service.suggest_query_flips(client.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("work_log_flip_suggestions_failed", scan_id=str(scan_id), error=str(exc))
+
     except Exception as exc:
         # The session may hold a failed transaction — reset it so the
         # status update below can actually commit.

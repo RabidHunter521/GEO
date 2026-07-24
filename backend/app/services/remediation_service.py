@@ -159,4 +159,14 @@ def set_remediation_status(item_id: uuid.UUID, status: str, db: Session) -> Reme
     item.resolved_at = utcnow() if status == "corrected" else None
     db.commit()
     db.refresh(item)
+
+    if status == "corrected":
+        try:
+            from app.services import work_log_service
+            work_log_service.suggest(
+                item.client_id, "correction", f"Corrected: {item.label}",
+                f"remediation:{item.id}", db,
+            )
+        except Exception:
+            db.rollback()
     return item

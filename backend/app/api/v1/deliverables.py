@@ -79,7 +79,8 @@ def update(
         d.title = body.title[:512]
     if body.body_md is not None:
         d.body_md = body.body_md
-    if body.status == "reviewed" and d.status != "reviewed":
+    just_reviewed = body.status == "reviewed" and d.status != "reviewed"
+    if just_reviewed:
         d.status = "reviewed"
         d.reviewed_at = datetime.now(UTC)
         db.add(ActivityLog(
@@ -89,6 +90,17 @@ def update(
         ))
     db.commit()
     db.refresh(d)
+
+    if just_reviewed:
+        try:
+            from app.services import work_log_service
+            work_log_service.suggest(
+                client_id, "content", f"Delivered: {d.title}",
+                f"deliverable:{d.id}", db,
+            )
+        except Exception:
+            db.rollback()
+
     return d
 
 

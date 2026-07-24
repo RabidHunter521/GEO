@@ -115,16 +115,13 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
     client.technical_foundations_verified = results["llms_verified"] and results["robots_verified"]
     client.structured_data_verified = results["schema_verified"]
 
-    verified_names = ", ".join(
-        name
-        for name, ok in [
-            ("llms.txt", results["llms_verified"]),
-            ("schema.json", results["schema_verified"]),
-            ("robots.txt", results["robots_verified"]),
-            ("llms-full.txt", results["llms_full_verified"]),
-        ]
-        if ok
-    ) or "none"
+    verified_map = {
+        "llms.txt": results["llms_verified"],
+        "schema.json": results["schema_verified"],
+        "robots.txt": results["robots_verified"],
+        "llms-full.txt": results["llms_full_verified"],
+    }
+    verified_names = ", ".join(name for name, ok in verified_map.items() if ok) or "none"
     db.add(ActivityLog(
         client_id=client_id,
         event_type="toolkit_verified",
@@ -152,6 +149,18 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
         ))
 
     db.commit()
+
+    try:
+        from app.services import work_log_service
+        for file_type, ok in verified_map.items():
+            if ok:
+                work_log_service.suggest(
+                    client.id, "technical",
+                    f"Published and verified {file_type} so AI systems can read your site",
+                    f"toolkit_verified:{file_type}", db,
+                )
+    except Exception:
+        db.rollback()
 
     return VerificationResult(
         llms_verified=results["llms_verified"],

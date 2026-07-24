@@ -402,4 +402,24 @@ def audit_page(client: Client, url: str, db: Session) -> PageAudit:
     ))
     db.commit()
     db.refresh(audit)
+
+    try:
+        previous = (
+            db.query(PageAudit)
+            .filter(PageAudit.client_id == client.id, PageAudit.url == normalized,
+                    PageAudit.id != audit.id)
+            .order_by(PageAudit.created_at.desc())
+            .first()
+        )
+        if previous is not None and audit.score > previous.score:
+            from app.services import work_log_service
+            path = urlparse(normalized).path or "/"
+            work_log_service.suggest(
+                client.id, "content",
+                f"Improved AI-readability of {path}: {previous.score} → {audit.score}",
+                f"page_audit:{audit.id}", db,
+            )
+    except Exception:
+        db.rollback()
+
     return audit

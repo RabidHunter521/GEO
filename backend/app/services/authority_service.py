@@ -162,6 +162,17 @@ def update_asset(asset: AuthorityAsset, patch: dict, db: Session) -> AuthorityAs
         ))
     db.commit()
     db.refresh(asset)
+
+    if status_changed and asset.status in ("live", "verified"):
+        try:
+            from app.services import work_log_service
+            work_log_service.suggest(
+                asset.client_id, "authority",
+                f"Your {asset.name} profile is now {asset.status}",
+                f"authority_{asset.status}:{asset.id}", db,
+            )
+        except Exception:  # never let a suggestion undo a saved status change
+            db.rollback()
     return asset
 
 
@@ -272,6 +283,17 @@ def verify_asset(asset: AuthorityAsset, client: Client, db: Session) -> tuple[Au
 
     db.commit()
     db.refresh(asset)
+
+    if asset.status == "verified":
+        try:
+            from app.services import work_log_service
+            work_log_service.suggest(
+                asset.client_id, "authority",
+                f"Your {asset.name} profile is now verified",
+                f"authority_verified:{asset.id}", db,
+            )
+        except Exception:
+            db.rollback()
     return asset, note
 
 

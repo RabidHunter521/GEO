@@ -157,3 +157,32 @@ def published_count_since(client_id: uuid.UUID, db: Session, since: date) -> int
         )
         .count()
     )
+
+
+_MAX_FLIP_SUGGESTIONS = 5
+
+
+def suggest_query_flips(client_id: uuid.UUID, db: Session) -> int:
+    """One `visibility` suggestion per query that flipped to Seen by AI.
+
+    Reads the existing scan-to-scan diff so the wording matches what the rest
+    of the product already computes. Best-effort like every other suggestion.
+    """
+    try:
+        from app.services.scan_diff_service import compute_scan_diff
+        diff = compute_scan_diff(client_id, db)
+    except Exception as exc:
+        logger.warning("work_log_flip_diff_failed", client_id=str(client_id), error=str(exc))
+        return 0
+    written = 0
+    for q in (diff.newly_seen or [])[:_MAX_FLIP_SUGGESTIONS]:
+        entry = suggest(
+            client_id,
+            "visibility",
+            f'Now seen by AI for: "{q.query_text}"',
+            f"query_flip:{q.platform}:{q.query_text[:60]}",
+            db,
+        )
+        if entry is not None:
+            written += 1
+    return written

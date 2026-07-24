@@ -612,6 +612,14 @@ def compute_delta(latest: list[dict], previous: list[dict]) -> dict:
 def run_and_persist_site_audit(client_id: uuid.UUID, website: str, db: Session) -> SiteAudit:
     checks = run_site_audit(website)
     s = summarize(checks)
+    # Captured before the new row is added so the delta below compares
+    # against the audit that was actually "previous" at the start of this run.
+    previous = (
+        db.query(SiteAudit)
+        .filter(SiteAudit.client_id == client_id)
+        .order_by(SiteAudit.created_at.desc())
+        .first()
+    )
     audit = SiteAudit(
         client_id=client_id, checks=checks,
         passed=s["passed"], warned=s["warned"], failed=s["failed"], unknown=s["unknown"],
@@ -627,6 +635,21 @@ def run_and_persist_site_audit(client_id: uuid.UUID, website: str, db: Session) 
     ))
     db.commit()
     db.refresh(audit)
+
+    try:
+        if previous is not None:
+            # Reuse the existing fixed/regressed delta rather than recomputing it.
+            fixed_count = len(compute_delta(checks, previous.checks)["fixed"])
+            if fixed_count > 0:
+                from app.services import work_log_service
+                work_log_service.suggest(
+                    client_id, "technical",
+                    f"Technical AI-readiness check: {fixed_count} issues fixed since last audit",
+                    f"site_audit:{audit.id}", db,
+                )
+    except Exception:
+        db.rollback()
+
     return audit
 
 
