@@ -5,6 +5,7 @@ the admin reviews, edits, and explicitly publishes. Only `published` rows are
 client-visible. Every description is sanitized at write time (CLAUDE.md §2)
 even though the admin also sees and can edit it before publishing.
 """
+import hashlib
 import uuid
 from datetime import date
 
@@ -176,11 +177,16 @@ def suggest_query_flips(client_id: uuid.UUID, db: Session) -> int:
         return 0
     written = 0
     for q in (diff.newly_seen or [])[:_MAX_FLIP_SUGGESTIONS]:
+        # Two distinct queries on the same platform can share a 60-char
+        # prefix; a full-text hash suffix keeps the source_ref collision
+        # resistant while staying inside the String(128) column and
+        # remaining greppable via the "query_flip:" prefix.
+        digest = hashlib.sha256(q.query_text.encode()).hexdigest()[:8]
         entry = suggest(
             client_id,
             "visibility",
             f'Now seen by AI for: "{q.query_text}"',
-            f"query_flip:{q.platform}:{q.query_text[:60]}",
+            f"query_flip:{q.platform}:{q.query_text[:60]}:{digest}",
             db,
         )
         if entry is not None:

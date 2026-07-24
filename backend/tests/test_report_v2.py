@@ -246,3 +246,52 @@ def test_content_delivered_deduplicates_multi_audit_urls(db):
     line = improvements_for_url[0]
     assert "45 → 78" in line, \
         f"Expected improvement to show '45 → 78', got: {line}"
+
+
+# 11. A hallucination-flagged result must never be quoted as a Before & After
+# win, even if the diff reports its query as newly seen (regression: the same
+# report can't flag an answer as false AND quote it as a proof of a win).
+def test_before_after_excludes_hallucination_flagged_results(db):
+    from unittest.mock import patch as mock_patch
+    from app.core.time import utcnow
+    from app.models.scan import Scan
+    from app.models.scan_query_result import ScanQueryResult
+    from app.schemas.scan import ScanDiffQuery, ScanDiffResponse
+    from app.services import report_service
+
+    client = _make_client(db)
+    scan = Scan(client_id=client.id, status="completed", completed_at=utcnow())
+    db.add(scan)
+    db.commit()
+
+    flagged = ScanQueryResult(
+        scan_id=scan.id, platform="chatgpt", category="brand",
+        query_text="best dental clinic in KL",
+        response_text="Acme Dental is a leading clinic known for excellent patient care.",
+        brand_detected=True, hallucination_flagged=True,
+    )
+    clean = ScanQueryResult(
+        scan_id=scan.id, platform="chatgpt", category="brand",
+        query_text="best dentist near me",
+        response_text="Acme Dental is a trusted dentist offering modern, friendly care.",
+        brand_detected=True, hallucination_flagged=False,
+    )
+    db.add_all([flagged, clean])
+    db.commit()
+
+    fake_diff = ScanDiffResponse(
+        latest_scan_id=scan.id,
+        newly_seen=[
+            ScanDiffQuery(platform="chatgpt", category="brand", query_text="best dental clinic in KL"),
+            ScanDiffQuery(platform="chatgpt", category="brand", query_text="best dentist near me"),
+        ],
+        has_comparison=True,
+    )
+    with mock_patch(
+        "app.services.scan_diff_service.compute_scan_diff", return_value=fake_diff
+    ):
+        cards = report_service._gather_before_after(client, db, utcnow())
+
+    query_texts = [c.query_text for c in cards]
+    assert "best dentist near me" in query_texts
+    assert "best dental clinic in KL" not in query_texts

@@ -72,7 +72,10 @@ def _sync_type(
     item_type: str,
     current: dict[tuple[str, str], str | None],
     now: datetime,
-) -> None:
+) -> list[RemediationItem]:
+    """Returns the items that transitioned flagged/in_progress -> corrected
+    during THIS call (auto-corrections only; items already corrected before
+    this sync ran are not re-included)."""
     existing = {
         (i.platform, i.label): i
         for i in db.query(RemediationItem)
@@ -101,23 +104,51 @@ def _sync_type(
                 item.resolved_at = None
 
     # Absent now -> the latest scan no longer shows it: auto-corrected.
+    newly_corrected: list[RemediationItem] = []
     for (platform, label), item in existing.items():
         if (platform, label) not in current and item.status != "corrected":
             item.status = "corrected"
             item.resolved_at = now
+            newly_corrected.append(item)
+    return newly_corrected
 
 
 def sync_remediation_items(client_id: uuid.UUID, db: Session) -> None:
     """Reconcile a client's remediation items with the latest scan. Commits.
     Best-effort: rolls back and logs on any failure, never raises."""
+    auto_corrected: list[RemediationItem] = []
     try:
         now = utcnow()
-        _sync_type(db, client_id, "hallucination", _current_hallucination_keys(client_id, db), now)
-        _sync_type(db, client_id, "content_gap", _current_content_gap_keys(client_id, db), now)
+        auto_corrected += _sync_type(
+            db, client_id, "hallucination", _current_hallucination_keys(client_id, db), now
+        )
+        auto_corrected += _sync_type(
+            db, client_id, "content_gap", _current_content_gap_keys(client_id, db), now
+        )
         db.commit()
     except Exception as exc:
         db.rollback()
         logger.warning("remediation_sync_failed", client_id=str(client_id), error=str(exc))
+        return
+
+    # POST-commit, best-effort: the same client-safe "correction" work-log
+    # suggestion the manual override writes (set_remediation_status below).
+    # Same source_ref format, so suggest() dedupes the manual and auto paths
+    # against each other automatically — an already-published/dismissed row
+    # is left untouched, and a failure here can never undo the sync above.
+    for item in auto_corrected:
+        try:
+            from app.services import work_log_service
+            work_log_service.suggest(
+                item.client_id, "correction", f"Corrected: {item.label}",
+                f"remediation:{item.id}", db,
+            )
+        except Exception as exc:
+            db.rollback()
+            logger.warning(
+                "remediation_auto_correction_suggest_failed",
+                item_id=str(item.id), error=str(exc),
+            )
 
 
 # Active items first (flagged, then in_progress), most recently corrected last.

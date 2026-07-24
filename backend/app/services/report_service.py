@@ -900,6 +900,7 @@ def _gather_before_after(client: Client, db: Session, since) -> list[BeforeAfter
         .filter(
             ScanQueryResult.scan_id == diff.latest_scan_id,
             ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.hallucination_flagged.is_(False),
         )
         .all()
     )

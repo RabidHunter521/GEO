@@ -35,6 +35,13 @@ _STATUS_LABELS = {
     "live": "live", "verified": "verified",
 }
 
+# Catalog keys whose names carry internal checklist/schema vocabulary
+# ("Wikipedia readiness (checklist only)", "sameAs links in site schema",
+# "Industry blog / news mention target") — never write a client-facing
+# work-log suggestion for these, since quoting the name verbatim would leak
+# admin planning language to the client (CLAUDE.md §2).
+_INTERNAL_ONLY_ASSET_KEYS = {"schema_sameas", "wikipedia_readiness", "media_mention"}
+
 
 def _industry_match(item: dict, industry: str) -> bool:
     """True when any of the item's suggested_industries appears in the client's
@@ -163,12 +170,14 @@ def update_asset(asset: AuthorityAsset, patch: dict, db: Session) -> AuthorityAs
     db.commit()
     db.refresh(asset)
 
-    if status_changed and asset.status in ("live", "verified"):
+    if (status_changed and asset.status in ("live", "verified")
+            and asset.asset_key not in _INTERNAL_ONLY_ASSET_KEYS):
         try:
             from app.services import work_log_service
+            label = _STATUS_LABELS.get(asset.status, asset.status)
             work_log_service.suggest(
                 asset.client_id, "authority",
-                f"Your {asset.name} profile is now {asset.status}",
+                f"{asset.name} — now {label}",
                 f"authority_{asset.status}:{asset.id}", db,
             )
         except Exception:  # never let a suggestion undo a saved status change
@@ -284,12 +293,12 @@ def verify_asset(asset: AuthorityAsset, client: Client, db: Session) -> tuple[Au
     db.commit()
     db.refresh(asset)
 
-    if asset.status == "verified":
+    if asset.status == "verified" and asset.asset_key not in _INTERNAL_ONLY_ASSET_KEYS:
         try:
             from app.services import work_log_service
             work_log_service.suggest(
                 asset.client_id, "authority",
-                f"Your {asset.name} profile is now verified",
+                f"{asset.name} — now verified",
                 f"authority_verified:{asset.id}", db,
             )
         except Exception:
