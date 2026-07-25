@@ -148,6 +148,20 @@ def published_entries(
     return q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)).all()
 
 
+def has_published(client_id: uuid.UUID, db: Session) -> bool:
+    """Cheap existence check for the share-view overview flag.
+
+    The overview drives every tab in the client view, so this runs on each page
+    load; hydrating the client's whole published history just to test emptiness
+    gets slower for the life of the account.
+    """
+    return (
+        db.query(WorkLogEntry.id)
+        .filter(WorkLogEntry.client_id == client_id, WorkLogEntry.status == "published")
+        .first()
+    ) is not None
+
+
 def published_count_since(client_id: uuid.UUID, db: Session, since: date) -> int:
     return (
         db.query(WorkLogEntry)

@@ -55,6 +55,22 @@ def test_work_log_invalid_token_404(client, db):
     assert r.status_code == 404
 
 
+def test_work_log_prospect_404(client, db):
+    """Prospects get overview + scan only; every other surface returns the
+    uniform 404 so a valid token reveals no more than it should."""
+    from app.core.time import utcnow
+    from app.services import work_log_service
+    c = _client_with_token(db)
+    c.is_prospect = True
+    published = work_log_service.suggest(c.id, "technical", "Verified llms.txt", "r:1", db,
+                                         entry_date=utcnow().date())
+    work_log_service.update_entry(published, {"status": "published"}, db)
+    db.commit()
+
+    r = client.get(f"/api/v1/view/{c.share_token}/work-log")
+    assert r.status_code == 404
+
+
 def test_overview_has_work_log_flag_and_count(client, db):
     from app.core.time import utcnow
     from app.services import work_log_service

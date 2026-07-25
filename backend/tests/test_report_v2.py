@@ -295,3 +295,110 @@ def test_before_after_excludes_hallucination_flagged_results(db):
     query_texts = [c.query_text for c in cards]
     assert "best dentist near me" in query_texts
     assert "best dental clinic in KL" not in query_texts
+
+
+def _make_asset(db, client, **overrides):
+    from app.models.authority_asset import AuthorityAsset
+    kwargs = dict(client_id=client.id, asset_key="gbp", name="Google Business Profile",
+                  asset_type="review_platform", status="verified")
+    kwargs.update(overrides)
+    a = AuthorityAsset(**kwargs)
+    db.add(a)
+    db.commit()
+    return a
+
+
+# 12. Authority progress must not re-report old wins. AuthorityAsset.updated_at
+# is re-dated by every verify_asset run (it always assigns last_checked_at and
+# found_nap), so a routine re-verification of a months-old asset would otherwise
+# print it as "verified this period" in every subsequent report.
+def test_authority_progress_ignores_stale_updated_at(db):
+    from app.core.time import utcnow
+    from app.services import report_service
+    client = _make_client(db)
+    # Freshly-dated row (as a re-verification leaves it) but no work-log entry
+    # in the period — nothing actually happened this month.
+    _make_asset(db, client, status="verified")
+
+    assert report_service._gather_authority_progress(client, db, utcnow() - timedelta(days=30)) is None
+
+
+def test_authority_progress_reads_published_work_log(db):
+    from app.core.time import utcnow
+    from app.services import report_service, work_log_service
+    client = _make_client(db)
+    asset = _make_asset(db, client, status="verified", name="LinkedIn Company Page")
+    entry = work_log_service.suggest(
+        client.id, "authority", f"{asset.name} — now verified",
+        f"authority_verified:{asset.id}", db, entry_date=utcnow().date())
+    work_log_service.update_entry(entry, {"status": "published"}, db)
+
+    got = report_service._gather_authority_progress(client, db, utcnow() - timedelta(days=30))
+    assert got is not None
+    assert got.newly_verified == ["LinkedIn Company Page"]
+
+
+def test_authority_progress_ignores_unpublished_work_log(db):
+    """A suggestion Faris never published must not reach the client's report."""
+    from app.core.time import utcnow
+    from app.services import report_service, work_log_service
+    client = _make_client(db)
+    asset = _make_asset(db, client, status="live")
+    work_log_service.suggest(client.id, "authority", f"{asset.name} — now live",
+                             f"authority_live:{asset.id}", db, entry_date=utcnow().date())
+
+    assert report_service._gather_authority_progress(client, db, utcnow() - timedelta(days=30)) is None
+
+
+# 13. Review-snapshot deltas must be period-scoped too, or a February snapshot
+# pair reprints identically in every report from March onward.
+def test_authority_review_deltas_respect_period(db):
+    from app.core.time import utcnow
+    from app.services import report_service
+    client = _make_client(db)
+    old = (utcnow().date() - timedelta(days=60)).isoformat()
+    _make_asset(db, client, review_snapshots=[
+        {"date": (utcnow().date() - timedelta(days=90)).isoformat(), "rating": 4.2, "count": 88},
+        {"date": old, "rating": 4.5, "count": 94},
+    ])
+
+    assert report_service._gather_authority_progress(client, db, utcnow() - timedelta(days=30)) is None
+
+
+def test_authority_review_deltas_included_when_recent(db):
+    from app.core.time import utcnow
+    from app.services import report_service
+    client = _make_client(db)
+    _make_asset(db, client, review_snapshots=[
+        {"date": (utcnow().date() - timedelta(days=40)).isoformat(), "rating": 4.2, "count": 88},
+        {"date": utcnow().date().isoformat(), "rating": 4.5, "count": 94},
+    ])
+
+    got = report_service._gather_authority_progress(client, db, utcnow() - timedelta(days=30))
+    assert got is not None
+    assert len(got.review_deltas) == 1
+    assert "4.2" in got.review_deltas[0] and "4.5" in got.review_deltas[0]
+
+
+# 14. The header counts every published entry but the table is capped at
+# _MAX_WORK_LOG_LINES — a client reading "Technical: 12" above 10 rows would
+# reasonably conclude the report is wrong. Disclose the remainder.
+def test_work_log_html_discloses_truncated_rows():
+    from app.services import report_service as rs
+    lines = [rs.WorkLogLine("Technical", f"Did thing {i}", date(2026, 7, 20))
+             for i in range(rs._MAX_WORK_LOG_LINES)]
+    html_out = rs._build_work_log_html(
+        _minimal_data(work_log=lines, work_log_counts={"technical": 12}))
+
+    assert "2 more" in html_out
+    for term in BANNED_TERMS:
+        assert term not in html_out.lower()
+
+
+def test_work_log_html_no_overflow_note_when_complete():
+    from app.services import report_service as rs
+    lines = [rs.WorkLogLine("Technical", f"Did thing {i}", date(2026, 7, 20)) for i in range(3)]
+    html_out = rs._build_work_log_html(
+        _minimal_data(work_log=lines, work_log_counts={"technical": 3}))
+
+    assert "more" not in html_out.lower()

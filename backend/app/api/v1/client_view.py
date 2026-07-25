@@ -261,7 +261,7 @@ def get_overview(
     from app.services import work_log_service
     _since_date = (utcnow() - timedelta(days=30)).date()
     improvements_last_30d = work_log_service.published_count_since(client.id, db, _since_date)
-    has_work_log = bool(work_log_service.published_entries(client.id, db))
+    has_work_log = work_log_service.has_published(client.id, db)
 
     # Proof of work: how many tracked issues we've corrected this calendar month.
     month_start = utcnow().replace(

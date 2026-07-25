@@ -811,35 +811,70 @@ def _gather_content_delivered(client: Client, db: Session, since) -> ContentDeli
     return ContentDelivered(titles=titles, improvements=improvements)
 
 
-def _gather_authority_progress(client: Client, db: Session, since) -> AuthorityProgress | None:
-    """Assets that went live/verified this period + review-snapshot deltas (Phase 4).
+def _gather_authority_progress(
+    client: Client, db: Session, since, until=None
+) -> AuthorityProgress | None:
+    """Assets that reached live/verified this period + review-snapshot deltas (Phase 4).
 
-    updated_at is an approximation of "reached this status during the period":
-    an unrelated later edit to the row re-dates it. Accepted — the alternative
-    is a status-history table this phase does not need.
+    Period membership comes from the published work log, NOT from
+    AuthorityAsset.updated_at. `verify_asset` assigns last_checked_at and
+    found_nap on every run, so `onupdate` re-dates the row and a routine
+    re-verification of a months-old asset would reprint it as this month's
+    progress in every subsequent report — re-billing delivered work on the one
+    page whose job is proving what happened *this* month. The work log is the
+    curated, admin-published record of what actually happened: if it was never
+    published there, it is not client-visible here.
     """
     from app.models.authority_asset import AuthorityAsset
+    from app.services import work_log_service
+
+    since_date = since.date() if hasattr(since, "date") else since
+    until_date = until.date() if hasattr(until, "date") else until
+
+    live_ids: set[str] = set()
+    verified_ids: set[str] = set()
+    for e in work_log_service.published_entries(
+        client.id, db, since=since_date, until=until_date
+    ):
+        if e.category != "authority" or not e.source_ref:
+            continue
+        # Hooks write "authority_{status}:{asset_id}" (authority_service).
+        prefix, _, raw_id = e.source_ref.partition(":")
+        if prefix == "authority_live":
+            live_ids.add(raw_id)
+        elif prefix == "authority_verified":
+            verified_ids.add(raw_id)
+
     assets = (
         db.query(AuthorityAsset)
         .filter(AuthorityAsset.client_id == client.id, AuthorityAsset.hidden.is_(False))
         .all()
     )
-    newly_live = [
-        a.name for a in assets if a.status == "live" and a.updated_at and a.updated_at >= since
-    ]
-    newly_verified = [
-        a.name for a in assets if a.status == "verified" and a.updated_at and a.updated_at >= since
-    ]
+    # Iterate assets (not the id sets) so ordering is stable across reports.
+    newly_live = [a.name for a in assets if str(a.id) in live_ids]
+    newly_verified = [a.name for a in assets if str(a.id) in verified_ids]
+
     deltas: list[str] = []
+    since_iso = since_date.isoformat()
+    until_iso = until_date.isoformat() if until_date else None
     for a in assets:
         snaps = a.review_snapshots or []
-        if len(snaps) >= 2:
-            first, last = snaps[-2], snaps[-1]
-            if last.get("rating") != first.get("rating") or last.get("count") != first.get("count"):
-                deltas.append(
-                    f"{a.name} rating {first.get('rating')} → {last.get('rating')}, "
-                    f"{first.get('count')} → {last.get('count')} reviews"
-                )
+        if len(snaps) < 2:
+            continue
+        first, last = snaps[-2], snaps[-1]
+        # Only a snapshot captured inside the period is this period's news —
+        # otherwise one February pair reprints in every report thereafter.
+        # ISO YYYY-MM-DD sorts lexicographically, so string compare is safe.
+        last_date = last.get("date")
+        if not last_date or last_date < since_iso:
+            continue
+        if until_iso and last_date > until_iso:
+            continue
+        if last.get("rating") != first.get("rating") or last.get("count") != first.get("count"):
+            deltas.append(
+                f"{a.name} rating {first.get('rating')} → {last.get('rating')}, "
+                f"{first.get('count')} → {last.get('count')} reviews"
+            )
     if not newly_live and not newly_verified and not deltas:
         return None
     return AuthorityProgress(
@@ -1129,7 +1164,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     content_delivered = _safe(
         "content_delivered", lambda: _gather_content_delivered(client, db, since), None)
     authority_progress = _safe(
-        "authority_progress", lambda: _gather_authority_progress(client, db, since), None)
+        "authority_progress", lambda: _gather_authority_progress(client, db, since, now), None)
     sources_trend = _safe(
         "sources_trend", lambda: _gather_sources_trend(client, db, since), None)
     before_after = _safe(
@@ -1322,11 +1357,19 @@ def _build_work_log_html(data: ReportData) -> str:
         f'<td>{html.escape(line.description)}</td></tr>'
         for line in data.work_log
     )
+    # The header counts every published entry in the period but the table is
+    # capped at _MAX_WORK_LOG_LINES. Disclose the difference — a client reading
+    # "Technical: 18" above ten rows would reasonably think the report is wrong.
+    remaining = sum(data.work_log_counts.values()) - len(data.work_log)
+    overflow = (
+        f'<div class="stat-sub">…and {remaining} more delivered this month.</div>'
+        if remaining > 0 else ""
+    )
     return (
         f'<h2>Work Delivered This Month</h2>'
         f'<div class="stat-card"><div class="stat-sub">{html.escape(counts)}</div></div>'
         f'<table><thead><tr><th>Date</th><th>Type</th><th>What we did</th></tr></thead>'
-        f'<tbody>{rows}</tbody></table>'
+        f'<tbody>{rows}</tbody></table>{overflow}'
     )
 
 
