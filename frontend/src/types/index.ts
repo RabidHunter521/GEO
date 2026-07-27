@@ -925,6 +925,13 @@ export interface WorkLogEntry {
   published_at: string | null
 }
 
+// A suggestion in the cross-client Review Queue — WorkLogEntry plus the client
+// it belongs to (see WorkLogSuggestionOut in backend/app/schemas/work_log.py).
+export interface WorkLogSuggestion extends WorkLogEntry {
+  client_id: string
+  client_name: string
+}
+
 // Public, client-safe work-log entry (whitelisted fields only — no ids,
 // source, or status; see ClientViewWorkLogItem in backend/app/schemas/client_view.py).
 export interface ClientViewWorkLogItem {
