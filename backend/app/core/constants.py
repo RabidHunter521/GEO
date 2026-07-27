@@ -280,3 +280,35 @@ WORK_LOG_CATEGORY_LABELS: Final = {
     "visibility": "Visibility",
     "correction": "Correction",
 }
+
+# --- AI misinformation compliance monitoring (Spec 8) -----------------------
+# Findings are flags for review, never a compliance certification. Claude only
+# proposes candidates; a finding cannot exist unless its quote is a verbatim
+# substring of the stored response (misinformation_service enforces this), and
+# nothing below "confirmed" reaches any client surface.
+MISINFORMATION_CATEGORIES: Final = ("wrong_service", "factual_error", "prohibited_claim", "outdated_info")
+MISINFORMATION_SEVERITIES: Final = ("high", "medium", "low")
+MISINFORMATION_STATUSES: Final = (
+    "suggested", "confirmed", "dismissed", "corrected", "candidate_fixed", "verified_fixed",
+)
+MISINFORMATION_CATEGORY_LABELS: Final = {
+    "wrong_service":    "Service the client does not offer",
+    "factual_error":    "Incorrect fact about the business",
+    "prohibited_claim": "Claim that creates advertising risk",
+    "outdated_info":    "Out-of-date information",
+}
+# Compliance checklist for the medical niche. Faris-maintained: Claude may only
+# cite keys from this dict, never invent a regulation. Faris owns the list's
+# legal accuracy.
+COMPLIANCE_RULES: Final = {
+    "guaranteed_results":   "Claims guaranteeing treatment outcomes or cure",
+    "superlative_medical":  "Superlative medical claims (best/safest/painless) presented as fact",
+    "unoffered_service":    "Attributes a service/treatment the client does not offer",
+    "wrong_credentials":    "Misstates practitioner credentials or specialist status",
+    "wrong_location_contact": "Wrong address, phone, or operating hours",
+    "price_misquote":       "States prices/promotions the client does not run",
+}
+# Bound the per-scan LLM fan-out: detection would otherwise run once per
+# brand-mentioned row (up to ~80 on a 4-platform client). Hallucination-flagged
+# rows are always examined first, then brand-mentioned rows, up to this cap.
+MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20

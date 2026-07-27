@@ -36,3 +36,10 @@ class ScanQueryResult(Base):
         back_populates="scan_query_result",
         cascade="all, delete-orphan",
     )
+    # Compliance findings quoting this response. Deleting the row takes its
+    # findings with it (the DB FK does the same); the 90-day purge only NULLs
+    # response_text, so a finding's copied quote still outlives the raw text.
+    misinformation_findings: Mapped[list["MisinformationFinding"]] = relationship(  # noqa: F821 — ruff false-positive on SQLAlchemy string forward-ref
+        "MisinformationFinding",
+        cascade="all, delete-orphan",
+    )
