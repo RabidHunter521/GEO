@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import WORK_LOG_CATEGORIES, WORK_LOG_STATUSES
 from app.core.time import utcnow
+from app.models.client import Client
 from app.models.work_log_entry import WorkLogEntry
 from app.services.language_sanitizer import sanitize_text
 
@@ -170,6 +171,38 @@ def published_count_since(client_id: uuid.UUID, db: Session, since: date) -> int
             WorkLogEntry.status == "published",
             WorkLogEntry.entry_date >= since,
         )
+        .count()
+    )
+
+
+def suggested_across_clients(db: Session) -> list[tuple[WorkLogEntry, Client]]:
+    """Every pending suggestion across all live clients, for the Review Queue.
+
+    Status is filtered HERE, at the query — a `published` or `dismissed` row must
+    never reach the queue. Archived clients are excluded to match the per-client
+    routes' `_get_client_or_404` behaviour. Ordering is client name then newest
+    first, so the page groups cleanly and does not reshuffle between refreshes.
+    """
+    return (
+        db.query(WorkLogEntry, Client)
+        .join(Client, Client.id == WorkLogEntry.client_id)
+        .filter(WorkLogEntry.status == "suggested", Client.archived_at.is_(None))
+        .order_by(Client.name, desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at))
+        .all()
+    )
+
+
+def suggested_count(db: Session) -> int:
+    """Count for the sidebar badge.
+
+    Deliberately a COUNT, not len(suggested_across_clients(db)) — this runs on
+    every admin page load. Same lesson as has_published(): never hydrate rows to
+    produce a number.
+    """
+    return (
+        db.query(WorkLogEntry.id)
+        .join(Client, Client.id == WorkLogEntry.client_id)
+        .filter(WorkLogEntry.status == "suggested", Client.archived_at.is_(None))
         .count()
     )
 
