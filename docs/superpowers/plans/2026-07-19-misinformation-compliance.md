@@ -1,5 +1,37 @@
 # AI Misinformation Compliance Monitoring (Spec 8) Implementation Plan
 
+> **STATUS 2026-07-28: Tasks 1–7 implemented on `feat/misinformation-compliance`.**
+> Verified on the branch: 865 backend tests pass, ruff clean (app/workers/tests),
+> frontend `tsc --noEmit` clean, `next build` ok, single alembic head
+> `c7e4d1b90fa2`, banned-language scan clean (all hits are negative
+> instructions). Browser: the review-queue panel renders its empty state on the
+> scan page with no console errors.
+>
+> **Spec corrections that stuck:**
+> - Routes are client-scoped (`/clients/{id}/misinformation/{finding_id}/...`)
+>   rather than the plan's flat `/misinformation/{id}`, matching remediation and
+>   work-log and giving ownership checks for free. `corrected` is its own
+>   endpoint alongside `review`/`resolve`.
+> - Detection fan-out is capped by `MISINFORMATION_MAX_ROWS_PER_SCAN` (20,
+>   hallucination-flagged rows first). The plan would have run one Claude call
+>   per brand-mentioned row — up to ~80 per scan on a 4-platform client.
+> - Spawned `misinformation` remediation items are allowlisted OUT of
+>   `/view/{token}/progress`. The plan did not notice that endpoint renders
+>   every stored item type, which would have put compliance work on the public
+>   client view while spec §4 keeps that surface unchanged until Premium gating.
+> - Dedupe blocks re-proposing a quote in every status except `verified_fixed`
+>   (including `dismissed`, so a rejected flag stays rejected); a quote returning
+>   after a verified fix is treated as a regression and re-flagged.
+> - PDF quotes are HTML-escaped but NOT passed through `language_sanitizer`:
+>   rewriting text presented as word-for-word would make the verbatim claim
+>   false. Our own copy around the quotes carries the language rules.
+>
+> **Outstanding:** prod Supabase migration (deferred to the `seenby-release`
+> runbook as in Phases 1–5) and the full lifecycle walkthrough in the browser,
+> which needs that migration plus real findings. The lifecycle itself
+> (firewall reject → confirm → remediation spawn → candidate_fixed → resolve →
+> PDF before/after) is covered by automated tests.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** First-class misinformation findings — verbatim AI quote, category, severity, admin review gate, corrective-action spawn into the existing remediation loop, re-scan candidate-fixed proof, and a "How AI represents you" PDF section.
