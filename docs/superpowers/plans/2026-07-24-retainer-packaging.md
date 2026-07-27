@@ -2337,7 +2337,7 @@ git commit -m "feat(work-log): public progress tab + overview line + scorecard l
 
 **Files:** none (verification only).
 
-- [ ] **Step 1: Run the seenby-verify gate**
+- [x] **Step 1: Run the seenby-verify gate** — PASSED 2026-07-26: 799 tests, ruff clean, tsc + build clean, single head `de87b61a859c`, banned-language scan clean (only negative-instruction/test-fixture hits).
 
 Invoke the `seenby-verify` skill and run everything it specifies:
 - `poetry run pytest -q` (from `backend/`) — all green.
@@ -2351,11 +2351,11 @@ git diff --name-only master...HEAD | grep -E "\.(py|ts|tsx)$" | while read f; do
 ```
 Expected: no hits outside legitimate negative instructions in prompt files.
 
-- [ ] **Step 2: Confirm the migration is release-ready (do NOT apply)**
+- [x] **Step 2: Confirm the migration is release-ready (do NOT apply)** — CONFIRMED 2026-07-26: `backend/alembic/versions/de87b61a859c_add_work_log_entries.py` is tracked; `git status backend/alembic/versions/` reports nothing untracked.
 
 `.env` points at prod — the migration runs at release via `seenby-release`, never in development. Confirm the new migration file is **tracked** (`git ls-files backend/alembic/versions/ | grep <revision>`) — an untracked migration is invisible to both `alembic heads` and the SQLite suite, and broke a fresh checkout in Phase 1.
 
-- [ ] **Step 3: End-to-end walkthrough (browser, admin login required)**
+- [x] **Step 3: End-to-end walkthrough (browser, admin login required)** — DONE 2026-07-26 on throwaway client `ZZ Test Prospect TWO DELETE`. All 7 items pass. Both period-scoping fixes from the whole-branch review confirmed against real data: the authority section printed "Now live: Google Business Profile" and correctly EXCLUDED LinkedIn (asset is `live` with fresh `updated_at`, but its suggestion was dismissed — the old `updated_at` logic would have printed it), and the work-log section rendered 10 rows + "…and 2 more delivered this month." against counts totalling 12. Sections with no data rendered no empty headers. Item 7 was a targeted leak scan across all 8 client-view endpoints (clean) rather than the full `seenby-demo-check` skill. Two notes for next time: (a) `_gather_report_data` returns None without a completed scan inside the period, so a client with stale scans cannot produce a report at all — the sections were exercised directly instead; (b) Radix checkboxes/Selects ignore synthetic clicks while the Browser pane is hidden (no compositing) — `scroll_to` then click fixes checkboxes, Selects needed the admin API.
 
 With the app running (`run-app` skill), logged in as admin, on a client that has scan history:
 1. Trigger something that fires a hook (verify a toolkit file, or set an authority asset to live). Open `/clients/[id]/activity` — the suggestion appears in the **Suggested** queue, not the published timeline.
@@ -2366,7 +2366,7 @@ With the app running (`run-app` skill), logged in as admin, on a client that has
 6. Generate a monthly report PDF for that client and confirm: the new sections appear only where data exists, no empty headers, and the narrative references delivered work.
 7. Run `seenby-demo-check` against the client view to confirm no internal fields leaked.
 
-- [ ] **Step 4: Update project memory**
+- [x] **Step 4: Update project memory** — DONE 2026-07-26. One walkthrough finding fixed on top (`10c22b9`): the "N improvements delivered" overview line sat inside the `score ? … : …` branch, so a month-one client with delivered work but no completed scan never saw it. Prod Supabase migrations `dd8483cfad4a` + `de87b61a859c` applied and verified by independent SQL the same day.
 
 Update `seenby-geo-endtoend-roadmap.md`: mark Phase 5 complete with the merge commit and prod-migration status. **All five phases of the GEO end-to-end roadmap are then done** — note what remains operationally (prod migration, live walkthroughs) and that the roadmap itself is complete.
 
