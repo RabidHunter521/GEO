@@ -13,6 +13,7 @@ you" claim would itself be misinformation.
 See docs/superpowers/specs/2026-07-19-misinformation-compliance-design.md.
 """
 import json
+import uuid
 from dataclasses import dataclass
 
 import structlog
@@ -21,9 +22,12 @@ from sqlalchemy.orm import Session
 from app.core.constants import (
     COMPLIANCE_RULES,
     MISINFORMATION_CATEGORIES,
+    MISINFORMATION_MAX_ROWS_PER_SCAN,
     MISINFORMATION_SEVERITIES,
 )
 from app.models.client import Client
+from app.models.misinformation_finding import MisinformationFinding
+from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.prompts.misinformation import build_detection
 from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
@@ -131,3 +135,108 @@ def _call_claude(client: Client, result: ScanQueryResult, db: Session | None = N
         # for a clean "nothing found" result.
         logger.warning("misinformation_response_truncated", result_id=str(result.id))
     return response.content[0].text.strip()
+
+
+# A quote already sitting in any of these statuses is not re-proposed: the admin
+# has either not looked yet, accepted it, or judged it a non-issue. Only
+# "verified_fixed" is absent — a statement we already corrected coming back is a
+# regression, and deserves a fresh finding.
+_DEDUPE_BLOCKING_STATUSES = (
+    "suggested", "confirmed", "dismissed", "corrected", "candidate_fixed",
+)
+
+
+def _rows_to_examine(scan_id: uuid.UUID, db: Session) -> list[ScanQueryResult]:
+    """Client-owned, non-control rows worth a compliance pass, capped.
+
+    A response can be visible AND non-compliant, so brand-mentioned rows are
+    examined too — but that is up to ~80 rows on a 4-platform client, so the
+    fan-out is bounded. Admin-flagged hallucinations always go first: they are
+    the rows a human already suspects.
+    """
+    rows = (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+            ScanQueryResult.response_text.isnot(None),
+        )
+        .all()
+    )
+    relevant = [
+        r for r in rows
+        if (r.hallucination_flagged or r.brand_detected)
+        # Defensive: Pitch Mode (spec 6) will add is_pitch; those scans are sales
+        # demos and must never create findings.
+        and not getattr(r, "is_pitch", False)
+    ]
+    relevant.sort(key=lambda r: (not r.hallucination_flagged, r.platform, str(r.id)))
+    return relevant[:MISINFORMATION_MAX_ROWS_PER_SCAN]
+
+
+def detect(scan_id: uuid.UUID, db: Session) -> int:
+    """Examine a completed scan's responses and store candidate findings.
+
+    Returns the number of findings stored. Never raises: this runs post-commit
+    inside the scan flow, where a compliance miss must never undo a good scan.
+    """
+    stored = 0
+    try:
+        scan = db.get(Scan, scan_id)
+        if scan is None:
+            return 0
+        client = db.get(Client, scan.client_id)
+        if client is None:
+            return 0
+
+        # Quotes already on the books for this client, normalized for comparison.
+        seen_quotes = {
+            normalize_ws(q)
+            for (q,) in db.query(MisinformationFinding.quote).filter(
+                MisinformationFinding.client_id == client.id,
+                MisinformationFinding.status.in_(_DEDUPE_BLOCKING_STATUSES),
+            ).all()
+        }
+
+        for result in _rows_to_examine(scan_id, db):
+            try:
+                raw = _call_claude(client, result, db)
+            except Exception as exc:
+                logger.warning(
+                    "misinformation_call_failed", result_id=str(result.id), error=str(exc)
+                )
+                continue
+
+            for candidate in parse_candidates(raw):
+                if not quote_in_response(candidate.quote, result.response_text):
+                    # The firewall doing its job — Claude quoted something the
+                    # response does not actually say.
+                    logger.warning(
+                        "misinformation_quote_rejected",
+                        result_id=str(result.id), quote=candidate.quote[:120],
+                    )
+                    continue
+                key = normalize_ws(candidate.quote)
+                if key in seen_quotes:
+                    continue
+                db.add(MisinformationFinding(
+                    client_id=client.id,
+                    scan_query_result_id=result.id,
+                    quote=candidate.quote,
+                    category=candidate.category,
+                    rule_key=candidate.rule_key,
+                    severity=candidate.severity,
+                    explanation=candidate.explanation,
+                ))
+                seen_quotes.add(key)
+                stored += 1
+
+        if stored:
+            db.commit()
+            logger.info("misinformation_findings_stored", scan_id=str(scan_id), count=stored)
+    except Exception as exc:
+        db.rollback()
+        logger.error("misinformation_detect_failed", scan_id=str(scan_id), error=str(exc))
+        return 0
+    return stored

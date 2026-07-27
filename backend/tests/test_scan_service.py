@@ -315,6 +315,8 @@ def test_run_scan_rolls_back_when_post_commit_snapshot_raises():
     ), patch(
         "app.services.provenance_service.enrich_scan_sources"
     ), patch(
+        "app.services.misinformation_service.detect"
+    ), patch(
         "app.services.provenance_service.compute_and_persist_snapshot",
         side_effect=Exception("snapshot boom"),
     ):

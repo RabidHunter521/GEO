@@ -407,6 +407,16 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             db.rollback()
             logger.error("work_log_flip_suggestions_failed", scan_id=str(scan_id), error=str(exc))
 
+        # Misinformation compliance pass — stores admin-review candidates whose
+        # quotes are verbatim in this scan's responses. Best-effort like every
+        # other post-commit step; the service also swallows its own errors.
+        try:
+            from app.services.misinformation_service import detect as detect_misinformation
+            detect_misinformation(scan.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("misinformation_detect_failed", scan_id=str(scan_id), error=str(exc))
+
     except Exception as exc:
         # The session may hold a failed transaction — reset it so the
         # status update below can actually commit.
