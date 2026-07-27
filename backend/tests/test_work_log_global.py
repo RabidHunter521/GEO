@@ -110,3 +110,46 @@ def test_suggested_grouped_by_client_then_newest_first(db):
         ("Acme Dental", "A older"),
         ("Bravo Legal", "B newest"),
     ]
+
+
+def test_route_returns_suggestions_with_client_identity(client, db, auth_headers):
+    from app.services import work_log_service
+    c = _make_client(db, "Acme Dental")
+    work_log_service.suggest(c.id, "technical", "Verified llms.txt", "r:1", db)
+
+    r = client.get("/api/v1/work-log/suggested", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert body[0]["client_id"] == str(c.id)
+    assert body[0]["client_name"] == "Acme Dental"
+    assert body[0]["category_label"] == "Technical"
+    assert body[0]["description"] == "Verified llms.txt"
+    assert body[0]["status"] == "suggested"
+
+
+def test_route_excludes_non_suggested(client, db, auth_headers):
+    from app.services import work_log_service
+    c = _make_client(db)
+    pub = work_log_service.suggest(c.id, "content", "Published", "r:2", db)
+    work_log_service.update_entry(pub, {"status": "published"}, db)
+
+    r = client.get("/api/v1/work-log/suggested", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_count_route(client, db, auth_headers):
+    from app.services import work_log_service
+    c = _make_client(db)
+    work_log_service.suggest(c.id, "technical", "One", "r:1", db)
+    work_log_service.suggest(c.id, "content", "Two", "r:2", db)
+
+    r = client.get("/api/v1/work-log/suggested/count", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json() == {"count": 2}
+
+
+def test_routes_require_auth(client, db):
+    assert client.get("/api/v1/work-log/suggested").status_code == 401
+    assert client.get("/api/v1/work-log/suggested/count").status_code == 401
