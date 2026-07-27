@@ -18,6 +18,7 @@ from app.prompts import (
     assessment,
     citability,
     deliverables,
+    misinformation,
 )
 
 # service name → {version, model}
@@ -46,6 +47,10 @@ REGISTRY: dict[str, dict[str, str]] = {
     "deliverable_faq_pack":        {"version": deliverables.FAQ_PACK_VERSION,        "model": MODEL_NARRATIVE},
     "deliverable_comparison_page": {"version": deliverables.COMPARISON_PAGE_VERSION, "model": MODEL_NARRATIVE},
     "deliverable_glossary":        {"version": deliverables.GLOSSARY_VERSION,        "model": MODEL_NARRATIVE},
+    # Haiku is safe here despite the stakes: the substring firewall in
+    # misinformation_service discards any finding Claude did not quote verbatim,
+    # and every finding is admin-reviewed before it reaches a client surface.
+    "misinformation_detection":    {"version": misinformation.DETECTION_VERSION,   "model": MODEL},
 }
 
 
