@@ -212,17 +212,6 @@ export default async function ViewOverviewPage({
                     {overview.fixed_this_month === 1 ? "" : "s"} we fixed this month
                   </p>
                 )}
-                {!isProspect && overview.improvements_last_30d > 0 && (
-                  <p className="mt-2">
-                    <Link
-                      href={`/view/${token}/progress`}
-                      className="text-sm text-primary underline-offset-4 hover:underline"
-                    >
-                      {overview.improvements_last_30d} improvement
-                      {overview.improvements_last_30d === 1 ? "" : "s"} delivered in the last 30 days
-                    </Link>
-                  </p>
-                )}
               </>
             ) : (
               <>
@@ -235,6 +224,20 @@ export default async function ViewOverviewPage({
                   Results will appear here soon.
                 </p>
               </>
+            )}
+            {/* Outside the score branch on purpose: a month-one client has
+                delivered work before their first scan completes, and that is
+                exactly when the proof-of-work link matters most. */}
+            {!isProspect && overview.improvements_last_30d > 0 && (
+              <p className="mt-3">
+                <Link
+                  href={`/view/${token}/progress`}
+                  className="text-sm text-primary underline-offset-4 hover:underline"
+                >
+                  {overview.improvements_last_30d} improvement
+                  {overview.improvements_last_30d === 1 ? "" : "s"} delivered in the last 30 days
+                </Link>
+              </p>
             )}
           </div>
         </div>
