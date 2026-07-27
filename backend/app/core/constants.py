@@ -168,7 +168,10 @@ REMEDIATION_STATUS_LABELS: Final = {
     "in_progress": "In progress",
     "corrected":   "Corrected",
 }
-REMEDIATION_TYPES: Final = ("hallucination", "content_gap")
+# "misinformation" items are spawned by a confirmed compliance finding and are
+# resolved through that finding's workflow — sync_remediation_items deliberately
+# does not reconcile them (a quote can vanish from one scan without being fixed).
+REMEDIATION_TYPES: Final = ("hallucination", "content_gap", "misinformation")
 
 # Guarantee engine — commitment tracking (baseline → target by deadline).
 GUARANTEE_METRICS: Final = ("ai_citability", "overall")

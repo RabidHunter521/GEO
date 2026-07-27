@@ -25,6 +25,7 @@ from app.core.constants import (
     MISINFORMATION_MAX_ROWS_PER_SCAN,
     MISINFORMATION_SEVERITIES,
 )
+from app.core.time import utcnow
 from app.models.client import Client
 from app.models.misinformation_finding import MisinformationFinding
 from app.models.scan import Scan
@@ -239,4 +240,158 @@ def detect(scan_id: uuid.UUID, db: Session) -> int:
         db.rollback()
         logger.error("misinformation_detect_failed", scan_id=str(scan_id), error=str(exc))
         return 0
+
+    # Same pass, opposite direction: statements that have stopped appearing.
+    try:
+        check_candidate_fixed(scan_id, db)
+    except Exception as exc:
+        db.rollback()
+        logger.error("misinformation_candidate_check_failed", scan_id=str(scan_id), error=str(exc))
     return stored
+
+
+# --- Review workflow --------------------------------------------------------
+# Claude proposes, Faris disposes. Every transition below is admin-driven except
+# candidate_fixed, which is only ever a suggestion for the admin to confirm.
+
+_OPEN_STATUS_ORDER = {
+    "suggested": 0, "candidate_fixed": 1, "confirmed": 2,
+    "corrected": 3, "verified_fixed": 4, "dismissed": 5,
+}
+
+
+def get_findings(client_id: uuid.UUID, db: Session) -> list[MisinformationFinding]:
+    """All findings for a client, work-needing ones first, newest within a group."""
+    rows = (
+        db.query(MisinformationFinding)
+        .filter(MisinformationFinding.client_id == client_id)
+        .all()
+    )
+    return sorted(
+        rows,
+        key=lambda f: (_OPEN_STATUS_ORDER.get(f.status, 9), -f.detected_at.timestamp()),
+    )
+
+
+def _spawn_remediation(finding: MisinformationFinding, db: Session) -> None:
+    """Track the corrective work in the existing remediation loop (get-or-create,
+    matching the uq_remediation_dedupe constraint)."""
+    from app.core.constants import COMPLIANCE_RULES, MISINFORMATION_CATEGORY_LABELS
+    from app.models.remediation_item import RemediationItem
+
+    result = db.get(ScanQueryResult, finding.scan_query_result_id)
+    if result is None:
+        return
+    detail = MISINFORMATION_CATEGORY_LABELS.get(finding.category, "Incorrect statement")
+    if finding.rule_key:
+        detail = f"{detail} — {COMPLIANCE_RULES[finding.rule_key]}"
+
+    existing = (
+        db.query(RemediationItem)
+        .filter(
+            RemediationItem.client_id == finding.client_id,
+            RemediationItem.item_type == "misinformation",
+            RemediationItem.platform == result.platform,
+            RemediationItem.label == result.query_text,
+        )
+        .first()
+    )
+    if existing is not None:
+        existing.detail = detail
+        return
+    db.add(RemediationItem(
+        client_id=finding.client_id,
+        item_type="misinformation",
+        platform=result.platform,
+        label=result.query_text,
+        detail=detail,
+        status="flagged",
+    ))
+
+
+def review_finding(
+    finding_id: uuid.UUID, action: str, db: Session, note: str | None = None
+) -> MisinformationFinding | None:
+    """Admin gate. `action` is "confirm" or "dismiss". Returns None if not found."""
+    if action not in ("confirm", "dismiss"):
+        raise ValueError('action must be "confirm" or "dismiss"')
+    finding = db.get(MisinformationFinding, finding_id)
+    if finding is None:
+        return None
+    finding.status = "confirmed" if action == "confirm" else "dismissed"
+    finding.reviewed_at = utcnow()
+    if note:
+        finding.admin_note = note
+    if action == "confirm":
+        _spawn_remediation(finding, db)
+    db.commit()
+    db.refresh(finding)
+    return finding
+
+
+def mark_corrected(finding_id: uuid.UUID, db: Session) -> MisinformationFinding | None:
+    """The corrective work is done and awaiting proof from a later scan.
+    Only a confirmed finding can be corrected."""
+    finding = db.get(MisinformationFinding, finding_id)
+    if finding is None or finding.status != "confirmed":
+        return None
+    finding.status = "corrected"
+    db.commit()
+    db.refresh(finding)
+    return finding
+
+
+def resolve_finding(finding_id: uuid.UUID, db: Session) -> MisinformationFinding | None:
+    """Admin confirms the fix held. Only from candidate_fixed: absence in one
+    scan is a suggestion, never proof, so the good news is gated too."""
+    finding = db.get(MisinformationFinding, finding_id)
+    if finding is None or finding.status != "candidate_fixed":
+        return None
+    finding.status = "verified_fixed"
+    finding.resolved_at = utcnow()
+    db.commit()
+    db.refresh(finding)
+    return finding
+
+
+def check_candidate_fixed(scan_id: uuid.UUID, db: Session) -> int:
+    """Flag confirmed/corrected findings whose quote no longer appears anywhere
+    in this scan's client-owned responses. Returns how many were flagged.
+
+    Deliberately conservative: a scan with no client rows (empty or failed)
+    proves nothing, and the flip is only ever to candidate_fixed.
+    """
+    scan = db.get(Scan, scan_id)
+    if scan is None:
+        return 0
+    responses = [
+        normalize_ws(r.response_text)
+        for r in db.query(ScanQueryResult).filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+            ScanQueryResult.response_text.isnot(None),
+        ).all()
+    ]
+    if not responses:
+        return 0
+
+    flipped = 0
+    findings = (
+        db.query(MisinformationFinding)
+        .filter(
+            MisinformationFinding.client_id == scan.client_id,
+            MisinformationFinding.status.in_(("confirmed", "corrected")),
+        )
+        .all()
+    )
+    for finding in findings:
+        needle = normalize_ws(finding.quote)
+        if any(needle in text for text in responses):
+            continue
+        finding.status = "candidate_fixed"
+        flipped += 1
+    if flipped:
+        db.commit()
+        logger.info("misinformation_candidate_fixed", scan_id=str(scan_id), count=flipped)
+    return flipped

@@ -405,11 +405,18 @@ def get_progress(
     """The remediation loop, client-safe: tracked hallucinations and competitor-won
     queries with their Flagged -> In progress -> Corrected status. Proof of the
     work behind the retainer."""
-    items = get_remediation_items(client.id, db, include_corrected=True)
+    # Allowlist by type, not "everything stored": misinformation items are
+    # spawned by the compliance workflow, whose only client surface is the
+    # monthly PDF until Premium gating exists (spec 8 §4). A new item_type must
+    # be added to _REMEDIATION_TYPE_LABELS deliberately before clients see it.
+    items = [
+        i for i in get_remediation_items(client.id, db, include_corrected=True)
+        if i.item_type in _REMEDIATION_TYPE_LABELS
+    ]
     return [
         ClientViewProgressItem(
             item_type=i.item_type,
-            type_label=_REMEDIATION_TYPE_LABELS.get(i.item_type, "Tracked issue"),
+            type_label=_REMEDIATION_TYPE_LABELS[i.item_type],
             platform_label=_platform_label(i.platform) if i.platform else None,
             label=i.label,
             detail=i.detail,
