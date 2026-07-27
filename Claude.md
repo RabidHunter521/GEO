@@ -138,7 +138,14 @@ Admin alerts (score drop / competitor overtake / hallucination):
 Exact structure — do not add pages without updating this:
 /                        → redirect to /clients
 /clients                 → all clients overview
-/clients/gap-matrix      → cross-client competitor gap matrix
+/gap-matrix              → cross-client competitor gap matrix
+/review-queue            → cross-client work-log inbox (pending suggestions)
+
+Global (non-client-scoped) admin pages live at the TOP LEVEL, inside the
+`src/app/(admin)/` route group so they share the sidebar + auth layout.
+`/clients/*` means client-scoped. A route group's parentheses do not appear in
+the URL. `/clients/gap-matrix` permanently redirects to `/gap-matrix`.
+
 /clients/[id]            → client detail
 /clients/[id]/scan       → scan & visibility
 /clients/[id]/competitors→ competitor intelligence

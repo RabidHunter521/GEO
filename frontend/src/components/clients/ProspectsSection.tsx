@@ -25,7 +25,7 @@ import {
 import {
   archiveClientsAction,
   convertProspectToClientAction,
-} from "@/app/clients/actions"
+} from "@/app/(admin)/clients/actions"
 import type { ClientListItem } from "@/types"
 
 function ProspectRow({ prospect }: { prospect: ClientListItem }) {

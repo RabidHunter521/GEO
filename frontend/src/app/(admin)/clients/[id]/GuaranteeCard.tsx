@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, ShieldCheck } from "lucide-react"
-import { createGuaranteeAction, resolveGuaranteeAction } from "@/app/clients/actions"
+import { createGuaranteeAction, resolveGuaranteeAction } from "@/app/(admin)/clients/actions"
 import type { GuaranteeProgress } from "@/types"
 
 const STATE_STYLE: Record<GuaranteeProgress["state"], { label: string; cls: string }> = {

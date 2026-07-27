@@ -20,8 +20,8 @@ import {
 import {
   createClientAction,
   addCompetitorAction,
-} from "@/app/clients/actions"
-import { updateClientAction } from "@/app/clients/[id]/settings/actions"
+} from "@/app/(admin)/clients/actions"
+import { updateClientAction } from "@/app/(admin)/clients/[id]/settings/actions"
 import { INDUSTRIES } from "@/lib/industries"
 import { isValidWebsite } from "@/lib/utils"
 import type { Client } from "@/types"

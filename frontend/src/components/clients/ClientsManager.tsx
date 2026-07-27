@@ -26,7 +26,7 @@ import { AddProspectButton } from "@/components/clients/AddProspectButton"
 import { NeedsAttentionQueue } from "@/components/clients/NeedsAttentionQueue"
 import { PortfolioSummary } from "@/components/clients/PortfolioSummary"
 import { ProspectsSection } from "@/components/clients/ProspectsSection"
-import { archiveClientsAction, bulkScanAction } from "@/app/clients/actions"
+import { archiveClientsAction, bulkScanAction } from "@/app/(admin)/clients/actions"
 import { applyFilters, DEFAULT_FILTERS, type ClientFilters } from "@/lib/client-list-utils"
 import type { ClientListItem } from "@/types"
 

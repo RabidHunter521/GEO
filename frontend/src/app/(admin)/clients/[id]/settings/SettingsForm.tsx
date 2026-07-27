@@ -37,7 +37,7 @@ import {
   addControlQueryAction,
   deleteCompetitorAction,
   toggleControlQueryAction,
-} from "@/app/clients/actions"
+} from "@/app/(admin)/clients/actions"
 import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"

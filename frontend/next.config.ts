@@ -18,6 +18,10 @@ const csp = [
 ].join("; ")
 
 const nextConfig: NextConfig = {
+  // Produces a self-contained .next/standalone build (server + only the
+  // node_modules it actually uses) so the Docker image doesn't ship the
+  // full node_modules tree.
+  output: "standalone",
   async headers() {
     return [
       {
@@ -33,6 +37,13 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
         ],
       },
+    ]
+  },
+  async redirects() {
+    return [
+      // Gap Matrix moved to the top level when global pages got their own
+      // route group; keep old bookmarks working.
+      { source: "/clients/gap-matrix", destination: "/gap-matrix", permanent: true },
     ]
   },
 }

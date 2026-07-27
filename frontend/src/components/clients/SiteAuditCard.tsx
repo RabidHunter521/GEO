@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { SiteAuditResults } from "@/components/SiteAuditResults"
-import { runSiteAuditAction } from "@/app/clients/[id]/toolkit/actions"
+import { runSiteAuditAction } from "@/app/(admin)/clients/[id]/toolkit/actions"
 import type { SiteAuditLatest } from "@/types"
 
 export function SiteAuditCard({

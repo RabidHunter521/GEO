@@ -8,7 +8,7 @@ import { NotebookPen } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { saveInternalNotesAction } from "@/app/clients/[id]/settings/actions"
+import { saveInternalNotesAction } from "@/app/(admin)/clients/[id]/settings/actions"
 
 interface Props {
   clientId: string

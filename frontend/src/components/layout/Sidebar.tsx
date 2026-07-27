@@ -58,13 +58,8 @@ function Brand() {
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
-  // Static sibling routes under /clients that are NOT a client id — they must not
-  // trigger the per-client nav block (otherwise it renders links like
-  // /clients/gap-matrix/scan).
-  const RESERVED_CLIENT_ROUTES = new Set(["gap-matrix"])
   const clientMatch = pathname.match(/^\/clients\/([^/]+)/)
-  const rawClientId = clientMatch?.[1]
-  const clientId = rawClientId && !RESERVED_CLIENT_ROUTES.has(rawClientId) ? rawClientId : undefined
+  const clientId = clientMatch?.[1]
 
   const linkClass = (active: boolean) =>
     cn(
@@ -80,7 +75,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
     ) : null
 
   const allClientsActive = pathname === "/clients" && !clientId
-  const gapActive = pathname === "/clients/gap-matrix"
+  const gapActive = pathname === "/gap-matrix"
 
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
@@ -89,7 +84,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         <Users className={cn("h-4 w-4 shrink-0", allClientsActive ? "text-primary" : "")} />
         All Clients
       </Link>
-      <Link href="/clients/gap-matrix" onClick={onNavigate} className={linkClass(gapActive)}>
+      <Link href="/gap-matrix" onClick={onNavigate} className={linkClass(gapActive)}>
         {activeBar(gapActive)}
         <Table2 className={cn("h-4 w-4 shrink-0", gapActive ? "text-primary" : "")} />
         Gap Matrix

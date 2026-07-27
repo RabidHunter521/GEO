@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import type { ContentBrief, WinLossEntry, WinLossResponse } from "@/types"
 import { PLATFORM_LABELS } from "@/types"
-import { generateBriefAction } from "@/app/clients/[id]/competitors/actions"
+import { generateBriefAction } from "@/app/(admin)/clients/[id]/competitors/actions"
 
 const CATEGORY_LABELS: Record<string, string> = {
   recommendation: "Recommendation",

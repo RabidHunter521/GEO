@@ -5,7 +5,7 @@ import { useState, useTransition } from "react"
 import { CheckCircle, XCircle, Loader2, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { CompetitorAIReadiness, SiteAIReadiness, CompetitorSiteAudit } from "@/types"
-import { checkAIReadinessAction, runCompetitorSiteAuditAction } from "@/app/clients/[id]/competitors/actions"
+import { checkAIReadinessAction, runCompetitorSiteAuditAction } from "@/app/(admin)/clients/[id]/competitors/actions"
 import { SiteAuditResults } from "@/components/SiteAuditResults"
 
 export function AIReadinessSection({ clientId }: { clientId: string }) {

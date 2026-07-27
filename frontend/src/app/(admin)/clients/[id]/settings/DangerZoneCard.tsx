@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { archiveClientAction } from "@/app/clients/actions"
+import { archiveClientAction } from "@/app/(admin)/clients/actions"
 import type { Client } from "@/types"
 
 export function DangerZoneCard({ client }: { client: Client }) {

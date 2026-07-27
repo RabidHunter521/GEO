@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { createProspectAction } from "@/app/clients/actions"
+import { createProspectAction } from "@/app/(admin)/clients/actions"
 import { INDUSTRIES } from "@/lib/industries"
 import { copyToClipboard } from "@/lib/utils"
 import type { Client } from "@/types"
