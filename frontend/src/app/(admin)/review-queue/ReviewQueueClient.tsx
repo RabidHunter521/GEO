@@ -127,6 +127,12 @@ export function ReviewQueueClient({
                 year: "numeric",
               })
               const isPending = pendingIds.has(item.id)
+              // The description is the only reliably distinguishing part of a
+              // row: when two hooks fire for one client on one day in one
+              // category — the common case, not an edge case — client, category
+              // and date are all identical and every button reads the same to a
+              // screen reader. Use the live draft so the label tracks edits.
+              const rowLabel = `${drafts[item.id] ?? item.description} (${item.category_label}, ${group.clientName}, ${formattedDate})`
               return (
                 <div
                   key={item.id}
@@ -142,7 +148,7 @@ export function ReviewQueueClient({
                     }
                     onBlur={() => saveDraft(item)}
                     className="flex-1"
-                    aria-label={`Edit "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
+                    aria-label={`Edit: ${rowLabel}`}
                   />
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {formattedDate}
@@ -152,7 +158,7 @@ export function ReviewQueueClient({
                       size="sm"
                       disabled={isPending}
                       onClick={() => review(item, "published")}
-                      aria-label={`Publish "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
+                      aria-label={`Publish: ${rowLabel}`}
                     >
                       Publish
                     </Button>
@@ -161,7 +167,7 @@ export function ReviewQueueClient({
                       variant="ghost"
                       disabled={isPending}
                       onClick={() => review(item, "dismissed")}
-                      aria-label={`Dismiss "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
+                      aria-label={`Dismiss: ${rowLabel}`}
                     >
                       Dismiss
                     </Button>
