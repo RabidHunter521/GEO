@@ -27,6 +27,9 @@ const STATUS_CHIP: Record<RemediationStatus, string> = {
 const TYPE_LABEL: Record<RemediationItem["item_type"], string> = {
   hallucination: "Inaccurate AI answer",
   content_gap: "Competitor winning",
+  // Spawned by a confirmed finding in the panel above; tracked here, but the
+  // client view allowlists this type out (spec 8 §4).
+  misinformation: "Corrective action",
 }
 
 export function RemediationPanel({

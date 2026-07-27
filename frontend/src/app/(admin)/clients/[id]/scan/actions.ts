@@ -7,9 +7,12 @@ import {
   getLatestScan,
   syncRemediation,
   updateRemediationStatus,
+  reviewMisinformation,
+  markMisinformationCorrected,
+  resolveMisinformation,
 } from "@/lib/api"
 import { revalidatePath } from "next/cache"
-import type { Scan, RemediationItem, RemediationStatus } from "@/types"
+import type { Scan, RemediationItem, RemediationStatus, MisinformationFinding } from "@/types"
 
 export async function triggerScanAction(clientId: string): Promise<Scan | null> {
   try {
@@ -59,4 +62,35 @@ export async function setRemediationStatusAction(
   const item = await updateRemediationStatus(clientId, itemId, status)
   revalidatePath(`/clients/${clientId}/scan`)
   return item
+}
+
+export async function reviewMisinformationAction(
+  clientId: string,
+  findingId: string,
+  action: "confirm" | "dismiss",
+  note?: string,
+): Promise<MisinformationFinding> {
+  const finding = await reviewMisinformation(clientId, findingId, action, note)
+  // Confirming spawns a tracked corrective item, so the remediation panel on
+  // this page is stale too.
+  revalidatePath(`/clients/${clientId}/scan`)
+  return finding
+}
+
+export async function markMisinformationCorrectedAction(
+  clientId: string,
+  findingId: string,
+): Promise<MisinformationFinding> {
+  const finding = await markMisinformationCorrected(clientId, findingId)
+  revalidatePath(`/clients/${clientId}/scan`)
+  return finding
+}
+
+export async function resolveMisinformationAction(
+  clientId: string,
+  findingId: string,
+): Promise<MisinformationFinding> {
+  const finding = await resolveMisinformation(clientId, findingId)
+  revalidatePath(`/clients/${clientId}/scan`)
+  return finding
 }

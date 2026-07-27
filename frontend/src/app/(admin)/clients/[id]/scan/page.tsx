@@ -1,9 +1,10 @@
 // frontend/src/app/clients/[id]/scan/page.tsx
-import { getCausality, getClient, getLatestScan, getScanDiff, listRemediation } from "@/lib/api"
-import type { CausalityResponse, ScanDiffResponse, RemediationItem, Platform } from "@/types"
+import { getCausality, getClient, getLatestScan, getScanDiff, listMisinformation, listRemediation } from "@/lib/api"
+import type { CausalityResponse, ScanDiffResponse, MisinformationFinding, RemediationItem, Platform } from "@/types"
 import { SCAN_PLATFORMS } from "@/types"
 import { ScanClient } from "./ScanClient"
 import { RemediationPanel } from "./RemediationPanel"
+import { MisinformationPanel } from "./MisinformationPanel"
 import { CausalTrendChart } from "@/components/clients/CausalTrendChart"
 
 interface Props {
@@ -16,22 +17,25 @@ export default async function ScanPage({ params }: Props) {
   let initialScan = null
   let initialDiff: ScanDiffResponse | null = null
   let remediation: RemediationItem[] = []
+  let findings: MisinformationFinding[] = []
   let enabledPlatforms: Platform[] = [...SCAN_PLATFORMS]
   let causality: CausalityResponse | null = null
 
   try {
-    const [client, scan, diff, items, causal] = await Promise.all([
+    const [client, scan, diff, items, causal, queue] = await Promise.all([
       getClient(id),
       getLatestScan(id),
       getScanDiff(id),
       listRemediation(id).catch(() => [] as RemediationItem[]),
       getCausality(id).catch(() => null),
+      listMisinformation(id).catch(() => null),
     ])
     clientName = client.name
     initialScan = scan
     initialDiff = diff
     remediation = items
     causality = causal
+    findings = queue?.findings ?? []
     if (client.enabled_platforms?.length) enabledPlatforms = client.enabled_platforms
   } catch {
     // backend down — show empty state
@@ -49,6 +53,7 @@ export default async function ScanPage({ params }: Props) {
         initialDiff={initialDiff}
         enabledPlatforms={enabledPlatforms}
       />
+      <MisinformationPanel clientId={id} initialFindings={findings} />
       <RemediationPanel clientId={id} initialItems={remediation} />
       {hasControlData && causalPoints.length >= 2 && (
         <section className="space-y-2">

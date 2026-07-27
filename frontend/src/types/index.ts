@@ -474,13 +474,50 @@ export type RemediationStatus = "flagged" | "in_progress" | "corrected"
 // Admin-side remediation item (full detail; client view uses ClientViewProgressItem).
 export interface RemediationItem {
   id: string
-  item_type: "hallucination" | "content_gap"
+  // "misinformation" items are spawned by a confirmed compliance finding and
+  // are admin-only — the client view allowlists the other two.
+  item_type: "hallucination" | "content_gap" | "misinformation"
   platform: string
   label: string
   detail: string | null
   status: RemediationStatus
   first_seen_at: string
   resolved_at: string | null
+}
+
+// --- AI misinformation compliance (admin-only) --------------------------------
+// Nothing below "confirmed" reaches a client surface, and `quote` is verbatim AI
+// text — these types must never be used on a /view page.
+export type MisinformationStatus =
+  | "suggested"
+  | "confirmed"
+  | "dismissed"
+  | "corrected"
+  | "candidate_fixed"
+  | "verified_fixed"
+
+export interface MisinformationFinding {
+  id: string
+  quote: string
+  category: string
+  category_label: string
+  rule_key: string | null
+  rule_text: string | null
+  severity: "high" | "medium" | "low"
+  explanation: string
+  status: MisinformationStatus
+  platform: string
+  platform_label: string
+  query_text: string
+  detected_at: string
+  reviewed_at: string | null
+  resolved_at: string | null
+  admin_note: string | null
+}
+
+export interface MisinformationQueue {
+  findings: MisinformationFinding[]
+  counts: Record<string, number>
 }
 
 export interface ClientViewProgressItem {

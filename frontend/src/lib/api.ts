@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -523,6 +523,44 @@ export function updateRemediationStatus(
   return apiFetch<RemediationItem>(
     `/api/v1/clients/${clientId}/remediation/${itemId}`,
     { method: "PATCH", body: JSON.stringify({ status }) },
+  )
+}
+
+// --- AI misinformation compliance (admin only) -------------------------------
+
+export function listMisinformation(clientId: string): Promise<MisinformationQueue> {
+  return apiFetch<MisinformationQueue>(`/api/v1/clients/${clientId}/misinformation`)
+}
+
+export function reviewMisinformation(
+  clientId: string,
+  findingId: string,
+  action: "confirm" | "dismiss",
+  note?: string,
+): Promise<MisinformationFinding> {
+  return apiFetch<MisinformationFinding>(
+    `/api/v1/clients/${clientId}/misinformation/${findingId}/review`,
+    { method: "POST", body: JSON.stringify({ action, note: note ?? null }) },
+  )
+}
+
+export function markMisinformationCorrected(
+  clientId: string,
+  findingId: string,
+): Promise<MisinformationFinding> {
+  return apiFetch<MisinformationFinding>(
+    `/api/v1/clients/${clientId}/misinformation/${findingId}/corrected`,
+    { method: "POST" },
+  )
+}
+
+export function resolveMisinformation(
+  clientId: string,
+  findingId: string,
+): Promise<MisinformationFinding> {
+  return apiFetch<MisinformationFinding>(
+    `/api/v1/clients/${clientId}/misinformation/${findingId}/resolve`,
+    { method: "POST" },
   )
 }
 
