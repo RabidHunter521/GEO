@@ -16,24 +16,57 @@ export function ReviewQueueClient({
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(initialSuggestions.map((s) => [s.id, s.description])),
   )
-  const [pendingId, setPendingId] = useState<string | null>(null)
+  // A Set, not a single id — publishing row A must not re-enable row B's
+  // buttons (or clear an error B just raised) while A is still in flight.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
+  function setPending(id: string, isPending: boolean) {
+    setPendingIds((prev) => {
+      const next = new Set(prev)
+      if (isPending) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  // Persist an edit as soon as the admin leaves the field — matches
+  // WorkLogCard.tsx on the activity page, which saves on blur. Without this,
+  // an edit only ever reached the server at publish time, so navigating away
+  // mid-edit silently discarded it. Status is left untouched (still
+  // "suggested"); this never publishes on its own.
+  async function saveDraft(item: WorkLogSuggestion) {
+    const description = drafts[item.id]?.trim()
+    if (!description || description === item.description) return
+    setPending(item.id, true)
+    try {
+      await reviewWorkLogAction(item.client_id, item.id, { description })
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, description } : i)),
+      )
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save that edit.")
+    } finally {
+      setPending(item.id, false)
+    }
+  }
+
   async function review(item: WorkLogSuggestion, status: "published" | "dismissed") {
-    setPendingId(item.id)
+    const description = drafts[item.id]?.trim()
+
+    // Prevent publishing with an empty description — it would silently revert to the original text
+    if (status === "published" && !description) {
+      setError("Add a description before publishing.")
+      return
+    }
+
+    setPending(item.id, true)
     setError(null)
     try {
-      const description = drafts[item.id]?.trim()
-
-      // Prevent publishing with an empty description — it would silently revert to the original text
-      if (status === "published" && !description) {
-        setError("Add a description before publishing.")
-        setPendingId(null)
-        return
-      }
-
       // Only send the description when it actually changed — an unnecessary
-      // write would re-sanitize and re-touch the row for nothing.
+      // write would re-sanitize and re-touch the row for nothing. Belt and
+      // braces with saveDraft's blur-save above: publishing an edited row
+      // must still land the edit even if the blur save never fired.
       const patch =
         status === "published" && description && description !== item.description
           ? { description, status }
@@ -43,7 +76,7 @@ export function ReviewQueueClient({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update that entry.")
     } finally {
-      setPendingId(null)
+      setPending(item.id, false)
     }
   }
 
@@ -85,10 +118,15 @@ export function ReviewQueueClient({
           </CardHeader>
           <CardContent className="space-y-3">
             {group.items.map((item) => {
+              // Includes the year — this queue exists to surface a backlog,
+              // so the oldest items are the point, and "22 Jul" from last
+              // year is indistinguishable from "22 Jul" from this year.
               const formattedDate = new Date(item.entry_date + "T00:00:00").toLocaleDateString("en-MY", {
                 day: "numeric",
                 month: "short",
+                year: "numeric",
               })
+              const isPending = pendingIds.has(item.id)
               return (
                 <div
                   key={item.id}
@@ -102,6 +140,7 @@ export function ReviewQueueClient({
                     onChange={(e) =>
                       setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
                     }
+                    onBlur={() => saveDraft(item)}
                     className="flex-1"
                     aria-label={`Edit "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
                   />
@@ -111,7 +150,7 @@ export function ReviewQueueClient({
                   <div className="flex shrink-0 gap-2">
                     <Button
                       size="sm"
-                      disabled={pendingId === item.id}
+                      disabled={isPending}
                       onClick={() => review(item, "published")}
                       aria-label={`Publish "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
                     >
@@ -120,7 +159,7 @@ export function ReviewQueueClient({
                     <Button
                       size="sm"
                       variant="ghost"
-                      disabled={pendingId === item.id}
+                      disabled={isPending}
                       onClick={() => review(item, "dismissed")}
                       aria-label={`Dismiss "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
                     >

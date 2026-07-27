@@ -13,13 +13,27 @@ import structlog
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.core.constants import WORK_LOG_CATEGORIES, WORK_LOG_STATUSES
+from app.core.constants import (
+    WORK_LOG_CATEGORIES,
+    WORK_LOG_CATEGORY_LABELS,
+    WORK_LOG_STATUSES,
+)
 from app.core.time import utcnow
 from app.models.client import Client
 from app.models.work_log_entry import WorkLogEntry
 from app.services.language_sanitizer import sanitize_text
 
 logger = structlog.get_logger()
+
+
+def category_label(entry: WorkLogEntry) -> str:
+    """Single source of truth for the display label of an entry's category.
+
+    Both the per-client route and the cross-client review-queue route
+    render this same field for the same rows — computing it in two places
+    let them drift silently, so both call this instead.
+    """
+    return WORK_LOG_CATEGORY_LABELS.get(entry.category, entry.category.title())
 
 
 def suggest(
@@ -187,7 +201,9 @@ def suggested_across_clients(db: Session) -> list[tuple[WorkLogEntry, Client]]:
         db.query(WorkLogEntry, Client)
         .join(Client, Client.id == WorkLogEntry.client_id)
         .filter(WorkLogEntry.status == "suggested", Client.archived_at.is_(None))
-        .order_by(Client.name, desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at))
+        .order_by(
+            Client.name, Client.id, desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)
+        )
         .all()
     )
 

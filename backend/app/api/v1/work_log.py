@@ -4,11 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_api_key
-from app.core.constants import (
-    WORK_LOG_CATEGORIES,
-    WORK_LOG_CATEGORY_LABELS,
-    WORK_LOG_STATUSES,
-)
+from app.core.constants import WORK_LOG_CATEGORIES, WORK_LOG_STATUSES
 from app.core.database import get_db
 from app.models.client import Client
 from app.models.work_log_entry import WorkLogEntry
@@ -27,7 +23,7 @@ def _get_client_or_404(client_id: uuid.UUID, db: Session) -> Client:
 
 def _out(entry: WorkLogEntry) -> WorkLogEntryOut:
     data = WorkLogEntryOut.model_validate(entry)
-    data.category_label = WORK_LOG_CATEGORY_LABELS.get(entry.category, entry.category.title())
+    data.category_label = work_log_service.category_label(entry)
     return data
 
 

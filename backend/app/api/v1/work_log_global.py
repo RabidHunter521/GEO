@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_api_key
-from app.core.constants import WORK_LOG_CATEGORY_LABELS
 from app.core.database import get_db
 from app.schemas.work_log import WorkLogSuggestionOut
 from app.services import work_log_service
@@ -26,9 +25,7 @@ def list_suggested(db: Session = Depends(get_db)):
     out: list[WorkLogSuggestionOut] = []
     for entry, client in work_log_service.suggested_across_clients(db):
         data = WorkLogSuggestionOut.model_validate(entry)
-        data.category_label = WORK_LOG_CATEGORY_LABELS.get(
-            entry.category, entry.category.title()
-        )
+        data.category_label = work_log_service.category_label(entry)
         data.client_name = client.name
         out.append(data)
     return out

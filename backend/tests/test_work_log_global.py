@@ -153,3 +153,28 @@ def test_count_route(client, db, auth_headers):
 def test_routes_require_auth(client, db):
     assert client.get("/api/v1/work-log/suggested").status_code == 401
     assert client.get("/api/v1/work-log/suggested/count").status_code == 401
+
+
+def test_category_label_matches_between_client_and_global_routes(client, db, auth_headers):
+    """Regression test: category_label used to be computed independently in
+    work_log.py and work_log_global.py. Both routers now delegate to
+    work_log_service.category_label(), so the same entry must render the same
+    label whether fetched per-client or across all clients."""
+    from app.services import work_log_service
+
+    c = _make_client(db, "Acme Dental")
+    entry = work_log_service.suggest(c.id, "authority", "Verified listing", "r:1", db)
+
+    per_client = client.get(f"/api/v1/clients/{c.id}/work-log", headers=auth_headers)
+    assert per_client.status_code == 200
+    per_client_label = next(
+        e["category_label"] for e in per_client.json() if e["id"] == str(entry.id)
+    )
+
+    global_resp = client.get("/api/v1/work-log/suggested", headers=auth_headers)
+    assert global_resp.status_code == 200
+    global_label = next(
+        e["category_label"] for e in global_resp.json() if e["client_id"] == str(c.id)
+    )
+
+    assert per_client_label == global_label == "Authority"
