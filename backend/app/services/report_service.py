@@ -388,6 +388,18 @@ class TrendPoint:
 
 
 @dataclass
+class MisinformationSummary:
+    """Admin-confirmed statements AI made about the client, and the ones we got
+    corrected this period. Only confirmed+ findings ever reach here."""
+    open_count: int
+    fixed_count: int
+    # severity → count, across the open items only.
+    severity_counts: dict
+    # Verbatim quotes of statements a later scan no longer shows, admin-verified.
+    fixed_stories: list[str]
+
+
+@dataclass
 class WorkLogLine:
     """One published work-log entry, already client-safe (sanitized at write)."""
     category_label: str
@@ -494,6 +506,7 @@ class ReportData:
     authority_progress: "AuthorityProgress | None" = None
     sources_trend: "SourcesTrend | None" = None
     before_after: list["BeforeAfterCard"] = field(default_factory=list)
+    misinformation: "MisinformationSummary | None" = None
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -919,6 +932,52 @@ def _gather_sources_trend(client: Client, db: Session, since) -> SourcesTrend | 
     )
 
 
+_MAX_FIXED_STORIES = 3
+
+
+def _gather_misinformation(client: Client, db: Session, since) -> MisinformationSummary | None:
+    """Confirmed compliance findings: what is still open, and what we corrected.
+
+    Unreviewed ("suggested") and dismissed findings are excluded by the status
+    filter — telling a client "AI is lying about you" before Faris has verified
+    it would itself be misinformation. Returns None when there is nothing
+    confirmed, so the section disappears rather than rendering an empty header.
+    """
+    from app.models.misinformation_finding import MisinformationFinding
+
+    rows = (
+        db.query(MisinformationFinding)
+        .filter(
+            MisinformationFinding.client_id == client.id,
+            MisinformationFinding.status.in_(
+                ("confirmed", "corrected", "candidate_fixed", "verified_fixed")
+            ),
+        )
+        .all()
+    )
+    open_rows = [r for r in rows if r.status != "verified_fixed"]
+    # Only fixes verified during THIS period — a win from March must not reprint
+    # every month (the same period-scoping bug Phase 5's review caught).
+    fixed_rows = [
+        r for r in rows
+        if r.status == "verified_fixed" and r.resolved_at is not None and r.resolved_at >= since
+    ]
+    if not open_rows and not fixed_rows:
+        return None
+
+    severity_counts: dict[str, int] = {}
+    for r in open_rows:
+        severity_counts[r.severity] = severity_counts.get(r.severity, 0) + 1
+
+    fixed_rows.sort(key=lambda r: r.resolved_at, reverse=True)
+    return MisinformationSummary(
+        open_count=len(open_rows),
+        fixed_count=len(fixed_rows),
+        severity_counts=severity_counts,
+        fixed_stories=[r.quote for r in fixed_rows[:_MAX_FIXED_STORIES]],
+    )
+
+
 def _gather_before_after(client: Client, db: Session, since) -> list[BeforeAfterCard]:
     """Up to 3 queries that flipped to Seen by AI, with the verbatim snippet now."""
     from app.services import proof_card_service
@@ -1169,6 +1228,8 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         "sources_trend", lambda: _gather_sources_trend(client, db, since), None)
     before_after = _safe(
         "before_after", lambda: _gather_before_after(client, db, since), [])
+    misinformation = _safe(
+        "misinformation", lambda: _gather_misinformation(client, db, since), None)
 
     data = ReportData(
         period_start=now - timedelta(days=30),
@@ -1217,6 +1278,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         content_delivered=content_delivered,
         authority_progress=authority_progress,
         sources_trend=sources_trend,
+        misinformation=misinformation,
         before_after=before_after,
     )
     from app.services.proof_card_service import select_proof_cards
@@ -1441,6 +1503,50 @@ def _build_sources_trend_html(data: ReportData) -> str:
         f'<h2>AI Sources Trend</h2>'
         f'<div class="stat-card"><div class="stat-sub">{line}</div>{flips}</div>'
     )
+
+
+def _build_misinformation_html(data: ReportData) -> str:
+    """"How AI Represents You" — monitoring reassurance, never alarm.
+
+    Open items are counted but NOT quoted: repeating a damaging statement we
+    have not fixed yet spreads it. Corrected items are quoted verbatim, because
+    the before/after is the whole proof. Quotes are escaped but not otherwise
+    rewritten — sanitizing text we present as word-for-word would make the
+    claim false.
+    """
+    m = data.misinformation
+    if m is None:
+        return ""
+
+    parts: list[str] = []
+    if m.open_count:
+        severity_bits = ", ".join(
+            f"{count} {label}"
+            for label, count in (
+                ("high priority", m.severity_counts.get("high", 0)),
+                ("medium", m.severity_counts.get("medium", 0)),
+                ("low", m.severity_counts.get("low", 0)),
+            ) if count
+        )
+        noun = "statement" if m.open_count == 1 else "statements"
+        parts.append(
+            f'<div class="stat-card"><div class="stat-sub">'
+            f'We are tracking {m.open_count} {noun} AI tools make about your business '
+            f'that we are working to correct ({html.escape(severity_bits)}).'
+            f'</div></div>'
+        )
+    parts.extend(
+        f'<div class="stat-card">'
+        f'<div class="stat-sub">AI previously said: &ldquo;{html.escape(quote)}&rdquo; '
+        f'&mdash; now corrected.</div></div>'
+        for quote in m.fixed_stories
+    )
+    if m.fixed_count > len(m.fixed_stories):
+        remaining = m.fixed_count - len(m.fixed_stories)
+        parts.append(
+            f'<div class="stat-sub">…and {remaining} more corrected this month.</div>'
+        )
+    return f'<h2>How AI Represents You</h2>{"".join(parts)}'
 
 
 def _build_before_after_html(data: ReportData) -> str:
@@ -1679,6 +1785,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     authority_progress_section = _build_authority_progress_html(data)
     sources_trend_section = _build_sources_trend_html(data)
     before_after_section = _build_before_after_html(data)
+    misinformation_section = _build_misinformation_html(data)
 
     # ── Gauge SVG + generated date ─────────────────────────────────────────
     gauge_svg = _build_gauge_svg(data.overall_score)
@@ -1771,6 +1878,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 {authority_progress_section}
 {sources_trend_section}
 {before_after_section}
+{misinformation_section}
 
 <!-- ── 11: AI READINESS TOOLKIT ──────────────────────────────────── -->
 <h2>AI Readiness Toolkit</h2>

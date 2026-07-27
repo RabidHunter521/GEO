@@ -3,6 +3,7 @@ import uuid
 from sqlalchemy.orm import Session
 import structlog
 
+from app.core.config import settings
 from app.core.constants import ALERTS_EMAIL, PLATFORM_LABELS
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
@@ -376,6 +377,8 @@ def _build_hallucination_email(client: Client, result: ScanQueryResult) -> str:
     name = html.escape(client.name)
     query = html.escape(result.query_text)
     response_preview = html.escape((result.response_text or "")[:500])
+    # Deep link to the compliance review queue, which lives on the scan page.
+    queue_url = f"{settings.FRONTEND_BASE_URL}/clients/{client.id}/scan"
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"></head>
@@ -401,6 +404,11 @@ def _build_hallucination_email(client: Client, result: ScanQueryResult) -> str:
                     padding:12px;font-size:14px;color:#374151;margin:0 0 0;
                     white-space:pre-wrap;word-break:break-word;">
             {response_preview}
+          </p>
+          <p style="margin:20px 0 0;font-size:13px;">
+            <a href="{queue_url}" style="color:#7c3aed;font-weight:600;">
+              Review what AI says about this client &rarr;
+            </a>
           </p>
           <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;
                     border-top:1px solid #f3f4f6;padding-top:16px;">

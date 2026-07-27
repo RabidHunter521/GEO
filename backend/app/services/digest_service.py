@@ -48,6 +48,8 @@ class DigestData:
     ai_breakdown: str | None = None
     # One-line commitment status ("45 → 60 by 20 Oct 2026 · today 48"), or None.
     commitment_line: str | None = None
+    # Reassurance line when a high-priority AI statement was confirmed this week.
+    protection_line: str | None = None
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -229,6 +231,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         headline_battle=headline_battle,
         ai_breakdown=ai_breakdown,
         commitment_line=_commitment_line(client, db),
+        protection_line=_protection_line(client, db),
     )
 
 
@@ -278,6 +281,37 @@ def _commitment_line(client: Client, db: Session) -> str | None:
     return line
 
 
+def _protection_line(client: Client, db: Session) -> str | None:
+    """One reassurance line when a HIGH finding was confirmed in the last 7 days.
+
+    Deliberately narrow: only high severity, only newly confirmed, and never the
+    statement itself — the weekly email is not the place to repeat something
+    damaging that is still being fixed. Details go in the monthly report.
+    """
+    from datetime import timedelta
+
+    from app.models.misinformation_finding import MisinformationFinding
+
+    cutoff = utcnow() - timedelta(days=7)
+    exists = (
+        db.query(MisinformationFinding.id)
+        .filter(
+            MisinformationFinding.client_id == client.id,
+            MisinformationFinding.severity == "high",
+            MisinformationFinding.status.in_(("confirmed", "corrected", "candidate_fixed")),
+            MisinformationFinding.reviewed_at.isnot(None),
+            MisinformationFinding.reviewed_at >= cutoff,
+        )
+        .first()
+    )
+    if exists is None:
+        return None
+    return (
+        f"We flagged and are correcting a high-priority statement AI made about "
+        f"{client.name} — details in your monthly report."
+    )
+
+
 def _breakdown_line(breakdown: str | None) -> str:
     """Per-platform visitor split line for the money block. "At least" hedge:
     referral attribution undercounts, so never present the split as exact."""
@@ -316,6 +350,14 @@ def _build_email_html(client: Client, data: DigestData) -> str:
             {html.escape(data.commitment_line)}
           </p>"""
         if data.commitment_line else ""
+    )
+    # Protection reassurance — only when a high-priority statement was newly
+    # confirmed this week. Never repeats the statement itself.
+    protection_html = (
+        f"""          <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">
+            {html.escape(data.protection_line)}
+          </p>"""
+        if data.protection_line else ""
     )
 
     # Verbatim "straight from AI" proof pair — win (green) + named loss (amber).
@@ -465,6 +507,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
             {trend_msg}
           </p>
 {commitment_html}
+{protection_html}
 
           <div style="border-top:1px solid #e5e7eb;padding-top:20px;">
             <p style="margin:0 0 8px;font-size:13px;color:#6b7280;
