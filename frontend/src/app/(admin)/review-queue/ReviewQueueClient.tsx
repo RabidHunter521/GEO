@@ -24,6 +24,14 @@ export function ReviewQueueClient({
     setError(null)
     try {
       const description = drafts[item.id]?.trim()
+
+      // Prevent publishing with an empty description — it would silently revert to the original text
+      if (status === "published" && !description) {
+        setError("Add a description before publishing.")
+        setPendingId(null)
+        return
+      }
+
       // Only send the description when it actually changed — an unnecessary
       // write would re-sanitize and re-touch the row for nothing.
       const patch =
@@ -76,47 +84,52 @@ export function ReviewQueueClient({
             <Badge variant="secondary">{group.items.length} waiting</Badge>
           </CardHeader>
           <CardContent className="space-y-3">
-            {group.items.map((item) => (
-              <div
-                key={item.id}
-                className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center"
-              >
-                <Badge variant="outline" className="w-fit shrink-0">
-                  {item.category_label}
-                </Badge>
-                <Input
-                  value={drafts[item.id] ?? ""}
-                  onChange={(e) =>
-                    setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
-                  }
-                  className="flex-1"
-                  aria-label={`What we did for ${group.clientName}`}
-                />
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {new Date(item.entry_date + "T00:00:00").toLocaleDateString("en-MY", {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </span>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    size="sm"
-                    disabled={pendingId === item.id}
-                    onClick={() => review(item, "published")}
-                  >
-                    Publish
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={pendingId === item.id}
-                    onClick={() => review(item, "dismissed")}
-                  >
-                    Dismiss
-                  </Button>
+            {group.items.map((item) => {
+              const formattedDate = new Date(item.entry_date + "T00:00:00").toLocaleDateString("en-MY", {
+                day: "numeric",
+                month: "short",
+              })
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center"
+                >
+                  <Badge variant="outline" className="w-fit shrink-0">
+                    {item.category_label}
+                  </Badge>
+                  <Input
+                    value={drafts[item.id] ?? ""}
+                    onChange={(e) =>
+                      setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))
+                    }
+                    className="flex-1"
+                    aria-label={`Edit "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
+                  />
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formattedDate}
+                  </span>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      size="sm"
+                      disabled={pendingId === item.id}
+                      onClick={() => review(item, "published")}
+                      aria-label={`Publish "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
+                    >
+                      Publish
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={pendingId === item.id}
+                      onClick={() => review(item, "dismissed")}
+                      aria-label={`Dismiss "${item.category_label}" entry for ${group.clientName} dated ${formattedDate}`}
+                    >
+                      Dismiss
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </CardContent>
         </Card>
       ))}
