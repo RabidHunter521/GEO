@@ -94,16 +94,19 @@ def test_suggested_grouped_by_client_then_newest_first(db):
     today = date.today()
     b = _make_client(db, "Bravo Legal")
     a = _make_client(db, "Acme Dental")
-    work_log_service.suggest(b.id, "content", "B old", "r:b1", db,
-                             entry_date=today - timedelta(days=5))
-    work_log_service.suggest(a.id, "technical", "A new", "r:a1", db, entry_date=today)
-    work_log_service.suggest(a.id, "technical", "A old", "r:a2", db,
+    # Intentionally inverted: Bravo has the newest entry_date, but Acme must come
+    # first alphabetically. This ensures the test catches if Client.name is dropped
+    # from the sort order. A pure entry_date DESC sort would return Bravo first.
+    work_log_service.suggest(b.id, "content", "B newest", "r:b1", db, entry_date=today)
+    work_log_service.suggest(a.id, "technical", "A newer", "r:a1", db,
                              entry_date=today - timedelta(days=2))
+    work_log_service.suggest(a.id, "technical", "A older", "r:a2", db,
+                             entry_date=today - timedelta(days=5))
 
     rows = work_log_service.suggested_across_clients(db)
     # Client name ascending, then newest entry_date first inside each client.
     assert [(c.name, e.description) for e, c in rows] == [
-        ("Acme Dental", "A new"),
-        ("Acme Dental", "A old"),
-        ("Bravo Legal", "B old"),
+        ("Acme Dental", "A newer"),
+        ("Acme Dental", "A older"),
+        ("Bravo Legal", "B newest"),
     ]
