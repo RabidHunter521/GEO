@@ -24,6 +24,7 @@ import {
   Menu,
   X,
   Award,
+  Inbox,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -56,7 +57,9 @@ function Brand() {
   )
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({
+  onNavigate, suggestedCount = 0,
+}: { onNavigate?: () => void; suggestedCount?: number }) {
   const pathname = usePathname()
   const clientMatch = pathname.match(/^\/clients\/([^/]+)/)
   const clientId = clientMatch?.[1]
@@ -76,6 +79,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
   const allClientsActive = pathname === "/clients" && !clientId
   const gapActive = pathname === "/gap-matrix"
+  const reviewActive = pathname === "/review-queue"
 
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
@@ -88,6 +92,16 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
         {activeBar(gapActive)}
         <Table2 className={cn("h-4 w-4 shrink-0", gapActive ? "text-primary" : "")} />
         Gap Matrix
+      </Link>
+      <Link href="/review-queue" onClick={onNavigate} className={linkClass(reviewActive)}>
+        {activeBar(reviewActive)}
+        <Inbox className={cn("h-4 w-4 shrink-0", reviewActive ? "text-primary" : "")} />
+        Review Queue
+        {suggestedCount > 0 && (
+          <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+            {suggestedCount}
+          </span>
+        )}
       </Link>
 
       {clientId && (
@@ -142,7 +156,7 @@ function SignOutButton() {
 }
 
 /** Desktop rail — hidden on small screens */
-export function Sidebar() {
+export function Sidebar({ suggestedCount }: { suggestedCount?: number }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] backdrop-blur md:flex">
       {/* Subtle top gradient wash echoing brand */}
@@ -150,14 +164,14 @@ export function Sidebar() {
       <div className="relative flex h-16 items-center border-b border-[hsl(var(--sidebar-border))] px-5">
         <Brand />
       </div>
-      <NavLinks />
+      <NavLinks suggestedCount={suggestedCount} />
       <SignOutButton />
     </aside>
   )
 }
 
 /** Mobile top bar + slide-over drawer — visible only on small screens */
-export function MobileSidebar() {
+export function MobileSidebar({ suggestedCount }: { suggestedCount?: number }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -182,7 +196,7 @@ export function MobileSidebar() {
                   </Button>
                 </DialogPrimitive.Close>
               </div>
-              <NavLinks onNavigate={() => setOpen(false)} />
+              <NavLinks onNavigate={() => setOpen(false)} suggestedCount={suggestedCount} />
               <SignOutButton />
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
