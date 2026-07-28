@@ -722,8 +722,9 @@ def _gather_work_log(client: Client, db: Session, since_date, until_date=None) -
 
     Counts cover every published entry in the period; the printed lines are
     capped at _MAX_WORK_LOG_LINES so a busy month can't run the PDF long.
-    `until_date` bounds the period on the far end so a future-dated entry
-    (typo or backdated batch) can never leak into this or any later report.
+    Period membership is by publish date, not entry_date — see
+    work_log_service._reported_on(). `until_date` bounds the far end so a
+    backdated batch published later can't be double-counted here.
     """
     from app.core.constants import WORK_LOG_CATEGORY_LABELS
     from app.services import work_log_service

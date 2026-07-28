@@ -87,23 +87,82 @@ def test_edit_before_publish_persists(db):
     assert e.description == "Faris's better wording"
 
 
+def _publish_backdated(db, entry, published_on: date):
+    """Publish an entry, then force published_at into the past.
+
+    update_entry always stamps utcnow(), so a row that was genuinely published
+    in an earlier period can only be simulated by rewriting the column.
+    """
+    from datetime import datetime
+    from app.services import work_log_service
+    work_log_service.update_entry(entry, {"status": "published"}, db)
+    entry.published_at = datetime(published_on.year, published_on.month, published_on.day, 12, 0)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
 def test_published_entries_filters_status_and_window(db):
     from app.services import work_log_service
     client = _make_client(db)
     today = date(2026, 7, 24)
+    since = today - timedelta(days=30)
+
     inside = work_log_service.suggest(client.id, "technical", "Inside", "ref:in", db, entry_date=today)
-    work_log_service.update_entry(inside, {"status": "published"}, db)
+    _publish_backdated(db, inside, today)
+    # Work done AND published two months ago: already reported, must not repeat.
     outside = work_log_service.suggest(
         client.id, "technical", "Outside", "ref:out", db, entry_date=today - timedelta(days=60))
-    work_log_service.update_entry(outside, {"status": "published"}, db)
+    _publish_backdated(db, outside, today - timedelta(days=60))
     work_log_service.suggest(client.id, "technical", "Still suggested", "ref:sug", db, entry_date=today)
 
-    published = work_log_service.published_entries(client.id, db, since=today - timedelta(days=30))
+    published = work_log_service.published_entries(client.id, db, since=since)
     descriptions = [p.description for p in published]
     assert "Inside" in descriptions
-    assert "Outside" not in descriptions      # outside the window
+    assert "Outside" not in descriptions      # reported in its own period already
     assert "Still suggested" not in descriptions  # not published
-    assert work_log_service.published_count_since(client.id, db, today - timedelta(days=30)) == 1
+    assert work_log_service.published_count_since(client.id, db, since) == 1
+
+
+# The Review Queue's whole justification: a suggestion whose hook fired months
+# ago, published from the queue today, must land in TODAY's report. Filtering on
+# entry_date dropped it from the current window and from every already-shipped
+# report — it would have reached no PDF, ever.
+def test_late_published_old_entry_lands_in_current_period(db):
+    from app.services import work_log_service
+    client = _make_client(db)
+    today = date(2026, 7, 24)
+    since = today - timedelta(days=30)
+
+    late = work_log_service.suggest(
+        client.id, "authority", "Listed you in three directories",
+        "ref:late", db, entry_date=today - timedelta(days=75))
+    _publish_backdated(db, late, today)   # hook fired in May, admin published today
+
+    published = work_log_service.published_entries(client.id, db, since=since, until=today)
+    assert [p.description for p in published] == ["Listed you in three directories"]
+    # The client still sees WHEN the work happened, not when it was approved.
+    assert published[0].entry_date == today - timedelta(days=75)
+    assert work_log_service.published_count_since(client.id, db, since) == 1
+
+
+# Defensive: a published row with no published_at (only reachable if a future
+# write path forgets the stamp) must fall back to entry_date rather than
+# vanishing from every report forever.
+def test_published_entry_without_timestamp_falls_back_to_entry_date(db):
+    from app.services import work_log_service
+    client = _make_client(db)
+    today = date(2026, 7, 24)
+
+    e = work_log_service.suggest(
+        client.id, "content", "Legacy row", "ref:legacy", db, entry_date=today)
+    work_log_service.update_entry(e, {"status": "published"}, db)
+    e.published_at = None
+    db.commit()
+
+    published = work_log_service.published_entries(
+        client.id, db, since=today - timedelta(days=30), until=today)
+    assert [p.description for p in published] == ["Legacy row"]
 
 
 def test_create_manual_rejects_unknown_category(db):

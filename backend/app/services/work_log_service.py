@@ -10,7 +10,7 @@ import uuid
 from datetime import date
 
 import structlog
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.core.constants import (
@@ -145,21 +145,41 @@ def list_entries(
     return q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)).all()
 
 
+def _reported_on():
+    """The day a published row first became visible to the client.
+
+    Report periods are scoped by this, NOT by entry_date. A suggestion whose
+    hook fired in May but that the admin publishes from the Review Queue in
+    July belongs in July's report: May's report has already shipped without
+    it, so entry_date scoping meant it reached no PDF, ever — which defeated
+    the queue's own reason for existing.
+
+    COALESCE falls back to entry_date so a published row that somehow carries
+    no published_at degrades to the old behaviour instead of disappearing from
+    every report. func.date() keeps the comparison a date on both Postgres and
+    the SQLite test DB.
+    """
+    return func.coalesce(func.date(WorkLogEntry.published_at), WorkLogEntry.entry_date)
+
+
 def published_entries(
     client_id: uuid.UUID, db: Session, since: date | None = None, until: date | None = None
 ) -> list[WorkLogEntry]:
     """Published rows only — the single source of client-visible truth.
 
     Status is filtered HERE, at the query, not merely omitted from a schema,
-    so a `suggested` row can never leak client-side (spec §3.5).
+    so a `suggested` row can never leak client-side (spec §3.5). The window,
+    when given, is scoped by _reported_on() — see that docstring for why.
+    Ordering stays on entry_date: the client reads a timeline of when work
+    happened, not of when it was approved.
     """
     q = db.query(WorkLogEntry).filter(
         WorkLogEntry.client_id == client_id, WorkLogEntry.status == "published"
     )
     if since is not None:
-        q = q.filter(WorkLogEntry.entry_date >= since)
+        q = q.filter(_reported_on() >= since)
     if until is not None:
-        q = q.filter(WorkLogEntry.entry_date <= until)
+        q = q.filter(_reported_on() <= until)
     return q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)).all()
 
 
@@ -178,12 +198,19 @@ def has_published(client_id: uuid.UUID, db: Session) -> bool:
 
 
 def published_count_since(client_id: uuid.UUID, db: Session, since: date) -> int:
+    """Drives the client-view "N improvements delivered" line.
+
+    Shares _reported_on() with published_entries so the overview count and the
+    report table can never disagree about what falls in a period — two paths
+    computing the same number differently is how the Phase 4 provenance badge
+    broke.
+    """
     return (
         db.query(WorkLogEntry)
         .filter(
             WorkLogEntry.client_id == client_id,
             WorkLogEntry.status == "published",
-            WorkLogEntry.entry_date >= since,
+            _reported_on() >= since,
         )
         .count()
     )

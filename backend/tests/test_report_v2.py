@@ -119,23 +119,55 @@ def test_gather_failure_skips_section_not_report(db):
     assert data.technical_health.passed == 8
 
 
-# 8. Period boundary: an entry dated outside the window is excluded.
+def _publish_on(db, entry, published_on):
+    """Publish, then backdate published_at — update_entry always stamps now."""
+    from datetime import datetime
+    from app.services import work_log_service
+    work_log_service.update_entry(entry, {"status": "published"}, db)
+    entry.published_at = datetime(published_on.year, published_on.month, published_on.day, 12, 0)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+# 8. Period boundary: an entry already reported in an earlier period is excluded.
 def test_work_log_gather_respects_period(db):
     from app.core.time import utcnow
     from app.services import report_service, work_log_service
     client = _make_client(db)
     today = utcnow().date()
     inside = work_log_service.suggest(client.id, "technical", "Inside", "r:i", db, entry_date=today)
-    work_log_service.update_entry(inside, {"status": "published"}, db)
+    _publish_on(db, inside, today)
     outside = work_log_service.suggest(
         client.id, "technical", "Outside", "r:o", db, entry_date=today - timedelta(days=60))
-    work_log_service.update_entry(outside, {"status": "published"}, db)
+    _publish_on(db, outside, today - timedelta(days=60))
 
     lines, counts = report_service._gather_work_log(client, db, today - timedelta(days=30))
     descriptions = [line.description for line in lines]
     assert "Inside" in descriptions
     assert "Outside" not in descriptions
     assert counts.get("technical") == 1
+
+
+# 8b. The Review Queue case: work whose hook fired before the window but that
+# was published inside it belongs in THIS report — its own period's report has
+# already shipped, so entry_date scoping meant it reached no PDF at all.
+def test_work_log_gather_includes_late_published_old_work(db):
+    from app.core.time import utcnow
+    from app.services import report_service, work_log_service
+    client = _make_client(db)
+    today = utcnow().date()
+    late = work_log_service.suggest(
+        client.id, "authority", "Listed you in three directories",
+        "r:late", db, entry_date=today - timedelta(days=75))
+    _publish_on(db, late, today)
+
+    lines, counts = report_service._gather_work_log(
+        client, db, today - timedelta(days=30), today)
+    assert [line.description for line in lines] == ["Listed you in three directories"]
+    # Displayed date is when the work happened, not when it was approved.
+    assert lines[0].entry_date == today - timedelta(days=75)
+    assert counts.get("authority") == 1
 
 
 # 9. Technical health must be period-scoped: a SiteAudit from before the period
