@@ -81,7 +81,13 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
     setIsGenerating(true)
     setGenerateError(null)
     startTransition(async () => {
-      await triggerGenerateReport(clientId)
+      const error = await triggerGenerateReport(clientId)
+      if (error) {
+        // Nothing was queued, so stop the poller now rather than letting it
+        // run its full 90s and report a misleading "timed out".
+        setIsGenerating(false)
+        setGenerateError(error)
+      }
     })
   }
 

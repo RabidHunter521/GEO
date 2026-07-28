@@ -1,6 +1,7 @@
 import re
 import uuid
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -11,7 +12,10 @@ from app.models.client import Client
 from app.models.report import Report
 from app.schemas.report import ReportResponse
 from app.services.r2_service import presigned_pdf_url
+from app.services.worker_health import workers_online
 from app.core.time import utcnow
+
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/clients/{client_id}/reports", tags=["reports"])
 
@@ -50,8 +54,30 @@ def generate_report(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
+
+    # Enqueueing is not the same as running. With the worker stopped, .delay()
+    # succeeds against a live Redis and the job waits forever while the UI
+    # promises an auto-update that never arrives — walkthrough §6.1 bug 6.
+    if not workers_online():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The background worker is offline, so the report cannot be built. "
+                "Start the Celery worker and try again."
+            ),
+        )
+
     from workers.tasks.report_tasks import generate_client_report
-    task = generate_client_report.delay(str(client_id))
+    try:
+        task = generate_client_report.delay(str(client_id))
+    except Exception as exc:
+        # The ping passed but the broker refused the publish — report it as the
+        # failure it is rather than returning "queued" for a lost job.
+        logger.warning("report_enqueue_failed", client_id=str(client_id), error=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="Could not reach the job queue, so the report was not started. Try again.",
+        ) from exc
     return {"task_id": task.id, "client_id": str(client_id), "status": "queued"}
 
 
