@@ -798,6 +798,10 @@ def _build_dim_bars_html(data: "ReportData") -> str:
 
 
 _MAX_WORK_LOG_LINES = 10
+# Bound on the page-audit rows scanned for score improvements. Generous enough
+# that the newest two audits of every URL a client tracks are always present,
+# small enough that the query cannot grow with account age.
+_MAX_PAGE_AUDIT_ROWS = 200
 _MAX_BEFORE_AFTER = 3
 
 
@@ -877,10 +881,16 @@ def _gather_content_delivered(client: Client, db: Session, since) -> ContentDeli
             ContentDeliverable.reviewed_at >= since,
         ).all()
     ]
+    # Only the newest two audits per URL can produce a line, and the output is
+    # capped at 10 — so loading every audit the client has ever had was work
+    # that grew forever and changed nothing. The cap cannot be `created_at >=
+    # since`: the older half of each comparison legitimately predates the
+    # period.
     audits = (
         db.query(PageAudit)
         .filter(PageAudit.client_id == client.id)
         .order_by(desc(PageAudit.created_at))
+        .limit(_MAX_PAGE_AUDIT_ROWS)
         .all()
     )
     # Newest-first: the first row seen for a URL is its latest audit; the next
@@ -2158,6 +2168,10 @@ def generate_scorecard_pdf(client_id: uuid.UUID, db: Session) -> bytes | None:
             client.id, db, (utcnow() - timedelta(days=30)).date()
         )
     except Exception:
+        # Roll back so a failed read does not leave the session in a broken
+        # transaction for whatever the caller does next — every other
+        # best-effort block in this codebase does the same (CLAUDE.md §10).
+        db.rollback()
         _improvements = 0
     improvements_line = (
         f'<div class="sc-improvements">{_improvements} improvement{"" if _improvements == 1 else "s"} delivered in the last 30 days</div>'

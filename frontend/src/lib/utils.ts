@@ -48,6 +48,22 @@ export function isValidWebsite(raw: string): boolean {
   }
 }
 
+// Parse a date-ONLY value ("2026-07-24") as local midnight.
+//
+// `new Date("2026-07-24")` is parsed as UTC midnight, then rendered in the
+// viewer's timezone — so a client reading their progress page from anywhere
+// west of UTC sees the previous day, and work delivered on the 1st appears to
+// have happened last month. Safe at UTC+8 only, which is why it went unnoticed.
+//
+// Use ONLY for fields the API types as `date` (entry_date, deadline,
+// next_check_due). Real timestamps carry a time and SHOULD shift to local.
+export function parseDateOnly(iso: string): Date {
+  const [y, m, d] = iso.split("-").map(Number)
+  return Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)
+    ? new Date(y, m - 1, d)
+    : new Date(iso) // not a bare Y-M-D — let Date do its normal thing
+}
+
 // "A", "A and B", "A, B and C" — for listing enabled platforms in prose.
 export function joinWithAnd(items: string[]): string {
   if (items.length <= 1) return items[0] ?? ""

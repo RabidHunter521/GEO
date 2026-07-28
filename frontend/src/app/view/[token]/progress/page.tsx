@@ -7,11 +7,12 @@ import { Sparkles } from "lucide-react"
 import { getViewWorkLog } from "@/lib/view-api"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import type { ClientViewWorkLogItem } from "@/types"
+import { parseDateOnly } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 
 function monthLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-MY", { month: "long", year: "numeric" })
+  return parseDateOnly(iso).toLocaleDateString("en-MY", { month: "long", year: "numeric" })
 }
 
 export default async function ViewProgressPage({
@@ -78,7 +79,7 @@ export default async function ViewProgressPage({
                   {e.description}
                 </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {new Date(e.entry_date).toLocaleDateString("en-MY", {
+                  {parseDateOnly(e.entry_date).toLocaleDateString("en-MY", {
                     day: "numeric",
                     month: "short",
                   })}

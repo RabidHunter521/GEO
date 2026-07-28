@@ -158,6 +158,11 @@ def _view_headers(response: Response) -> None:
 # of a leaked link. Fails open if Redis is down (see rate_limit).
 _view_rate_limit = rate_limit("client_view", max_requests=120, window_seconds=60)
 
+# The delivery timeline grows for the life of the account and this endpoint is
+# reachable with only a share token, so the response has to be bounded. Newest
+# first, so the cap drops the oldest history rather than recent work.
+_MAX_PUBLIC_WORK_LOG_ROWS = 200
+
 router = APIRouter(
     prefix="/view/{token}",
     tags=["client-view"],
@@ -444,6 +449,10 @@ def get_work_log(
 
     Status is filtered in the service query, so a `suggested` or `dismissed`
     row can never reach a client even if the schema changed (spec §3.5).
+
+    Bounded: this is an unauthenticated share-link endpoint, and the timeline
+    grows for the life of the account. Newest first, so the cap only ever drops
+    the oldest history.
     """
     from app.core.constants import WORK_LOG_CATEGORY_LABELS
     from app.services import work_log_service
@@ -454,7 +463,9 @@ def get_work_log(
             category_label=WORK_LOG_CATEGORY_LABELS.get(e.category, e.category.title()),
             entry_date=e.entry_date,
         )
-        for e in work_log_service.published_entries(client.id, db)
+        for e in work_log_service.published_entries(
+            client.id, db, limit=_MAX_PUBLIC_WORK_LOG_ROWS
+        )
     ]
 
 

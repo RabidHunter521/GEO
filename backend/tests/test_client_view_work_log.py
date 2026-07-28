@@ -85,3 +85,27 @@ def test_overview_has_work_log_flag_and_count(client, db):
     overview2 = client.get(f"/api/v1/view/{c.share_token}/overview").json()
     assert overview2["has_work_log"] is True
     assert overview2["improvements_last_30d"] == 1
+
+
+# ── deferred minor: the public timeline must be bounded ───────────────────────
+# Unauthenticated share-link endpoint; the timeline grows for the life of the
+# account, so an uncapped query gets slower forever and is trivially amplified.
+
+def test_public_work_log_is_capped(db):
+    from datetime import date
+    from app.api.v1.client_view import _MAX_PUBLIC_WORK_LOG_ROWS
+    from app.services import work_log_service
+    assert _MAX_PUBLIC_WORK_LOG_ROWS > 0
+
+    client = _client_with_token(db)
+    for i in range(5):
+        e = work_log_service.create_manual(
+            client.id, "technical", f"Delivered item {i}", date(2026, 7, 1 + i), db)
+        assert e.status == "published"
+
+    capped = work_log_service.published_entries(client.id, db, limit=3)
+    assert len(capped) == 3
+    # Newest first, so the cap drops the OLDEST history, never recent work.
+    assert capped[0].description == "Delivered item 4"
+
+    assert len(work_log_service.published_entries(client.id, db)) == 5

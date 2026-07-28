@@ -163,7 +163,11 @@ def _reported_on():
 
 
 def published_entries(
-    client_id: uuid.UUID, db: Session, since: date | None = None, until: date | None = None
+    client_id: uuid.UUID,
+    db: Session,
+    since: date | None = None,
+    until: date | None = None,
+    limit: int | None = None,
 ) -> list[WorkLogEntry]:
     """Published rows only — the single source of client-visible truth.
 
@@ -180,7 +184,10 @@ def published_entries(
         q = q.filter(_reported_on() >= since)
     if until is not None:
         q = q.filter(_reported_on() <= until)
-    return q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at)).all()
+    q = q.order_by(desc(WorkLogEntry.entry_date), desc(WorkLogEntry.created_at))
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
 
 
 def has_published(client_id: uuid.UUID, db: Session) -> bool:

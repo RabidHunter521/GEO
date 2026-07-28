@@ -24,7 +24,7 @@ import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { getScoreBand, getScoreColor, type ScoreColor } from "@/lib/score-utils"
-import { cn, joinWithAnd } from "@/lib/utils"
+import { cn, joinWithAnd, parseDateOnly } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
 
 const DIMENSIONS = [
@@ -198,7 +198,7 @@ export default async function ViewOverviewPage({
                   {overview.is_stale && overview.next_check_due && (
                     <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/5 px-2 py-0.5 font-medium text-primary">
                       Next visibility check due{" "}
-                      {new Date(overview.next_check_due).toLocaleDateString("en-MY", {
+                      {parseDateOnly(overview.next_check_due).toLocaleDateString("en-MY", {
                         day: "numeric",
                         month: "short",
                       })}
@@ -278,7 +278,7 @@ export default async function ViewOverviewPage({
             We committed to lifting your {overview.commitment.metric_label.toLowerCase()} from{" "}
             <span className="font-semibold">{overview.commitment.baseline}</span> to{" "}
             <span className="font-semibold">{overview.commitment.target}</span> by{" "}
-            {new Date(overview.commitment.deadline).toLocaleDateString("en-MY", {
+            {parseDateOnly(overview.commitment.deadline).toLocaleDateString("en-MY", {
               day: "numeric",
               month: "short",
               year: "numeric",
