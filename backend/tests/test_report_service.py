@@ -545,6 +545,7 @@ def _make_mock_report(sent_at=None):
     r.r2_key = "reports/client/20260601.pdf"
     r.r2_url = "https://pub.seenby.my/reports/client/20260601.pdf"
     r.period_start = datetime(2026, 5, 1)
+    r.period_end = datetime(2026, 5, 31)
     r.overall_score = 72.0
     r.sent_at = sent_at
     return r
@@ -813,3 +814,47 @@ def test_commitment_section_absent_when_none():
     client.name = "Acme Corp"
     html = _build_report_html(client, _make_report_data())
     assert "Our Commitment" not in html
+
+
+# ── format_period_label ────────────────────────────────────────────────────────
+# The PDF cover used now.strftime("%B %Y") while the email subject and filename
+# used period_start.strftime("%B %Y"), so one report announced two different
+# months — and a rolling 30-day window was labelled by a single calendar month
+# it only partly covered (walkthrough §6.1 bug 3).
+
+def test_period_label_spells_out_the_actual_window():
+    from datetime import datetime
+    from app.services.report_service import format_period_label
+    label = format_period_label(datetime(2026, 6, 23), datetime(2026, 7, 22))
+    assert label == "23 Jun – 22 Jul 2026"
+
+
+def test_period_label_repeats_the_year_when_the_window_crosses_one():
+    from datetime import datetime
+    from app.services.report_service import format_period_label
+    label = format_period_label(datetime(2025, 12, 23), datetime(2026, 1, 22))
+    assert label == "23 Dec 2025 – 22 Jan 2026"
+
+
+def test_email_subject_and_filename_use_the_report_window():
+    """The subject and attachment name must describe the report's real window,
+    not the month its period happened to start in."""
+    import resend as resend_module
+    from app.services.report_service import send_report_email
+    db = MagicMock()
+    report = _make_mock_report()          # 1 May – 31 May 2026
+    client = MagicMock()
+    client.name = "Acme Corp"
+    client.contact_email = "client@acme.com"
+    db.get.side_effect = [report, client]
+
+    with patch("app.services.report_service.download_pdf", return_value=b"pdf-bytes"), \
+         patch.object(resend_module.Emails, "send") as mock_send:
+        assert send_report_email(uuid.uuid4(), db) is True
+
+    sent = mock_send.call_args[0][0]
+    assert "1 May – 31 May 2026" in sent["subject"]
+    # Filename stays ASCII-safe — no en dash, no spaces.
+    filename = sent["attachments"][0]["filename"]
+    assert filename == "SeenBy-Report-1-May-to-31-May-2026.pdf"
+    assert "–" not in filename and " " not in filename

@@ -519,11 +519,28 @@ def _compute_trend(current: float, prev: float | None) -> str:
     return "flat"
 
 
+def format_period_label(start: datetime, end: datetime) -> str:
+    """The one human label for a report's window, e.g. "23 Jun – 22 Jul 2026".
+
+    A report covers a rolling 30 days, so naming it after a single calendar
+    month always overclaims: a report built on 5 July mostly describes June.
+    Worse, the cover used to derive its month from `now` while the email
+    subject and PDF filename derived theirs from `period_start`, so one report
+    announced two different months. Everything reads this instead.
+
+    The year is printed once when the window stays inside it, and on both ends
+    when it does not.
+    """
+    if start.year == end.year:
+        return f"{start.day} {start:%b} – {end.day} {end:%b} {end.year}"
+    return f"{start.day} {start:%b} {start.year} – {end.day} {end:%b} {end.year}"
+
+
 def _fallback_narrative(data: "ReportData") -> str:
     """Deterministic narrative used for first reports or when Claude is unavailable."""
     if data.trend == "first":
         return (
-            f"This is {data.period_label}'s first AI Visibility Report. "
+            f"This is your first AI Visibility Report, covering {data.period_label}. "
             f"Your brand was seen by AI in {data.seen_count} of {data.total_count} tracked queries, "
             f"giving an overall score of {data.overall_score:.0f}. "
             f"We'll track how this changes month over month from here."
@@ -1237,7 +1254,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     data = ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
-        period_label=now.strftime("%B %Y"),
+        period_label=format_period_label(now - timedelta(days=30), now),
         overall_score=current_gs.overall_score,
         score_band=score_band,
         score_color=score_color,
@@ -2150,8 +2167,10 @@ def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
         return False
 
     pdf_bytes = download_pdf(report.r2_key)
-    period_label = report.period_start.strftime("%B %Y")
-    filename = f"SeenBy-Report-{period_label.replace(' ', '-')}.pdf"
+    # Same label the PDF prints on its cover — these used to disagree by a month.
+    period_label = format_period_label(report.period_start, report.period_end)
+    # The label carries an en dash and spaces; keep the filename ASCII-safe.
+    filename = f"SeenBy-Report-{period_label.replace(' – ', '-to-').replace(' ', '-')}.pdf"
 
     resend_module.api_key = settings.RESEND_API_KEY
     resend_module.Emails.send({
