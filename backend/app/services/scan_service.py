@@ -18,7 +18,7 @@ from app.models.activity_log import ActivityLog
 from app.services.platform_clients import get_platform_client
 from app.services.platform_clients.base import PlatformResult
 from app.services.cost_tracker import record_llm_usage
-from app.services.brand_detection import detect_brand_mention
+from app.services.brand_detection import detect_brand_in_answer
 from app.services.position_extraction import extract_position
 from app.services.provenance_service import normalize_domain
 from app.services.query_builder import build_client_queries, build_competitor_queries, build_control_queries
@@ -131,7 +131,7 @@ def _run_platform_queries(
         result = platform_client.query(q["query_text"])
         usages.append(result)
         response_text = result.text
-        detected = detect_brand_mention(response_text, client.name)
+        detected = detect_brand_in_answer(response_text, client.name)
 
         # Recommendation Position — only for ranked-list categories where the brand appears.
         # Isolated so an extraction failure leaves position None and never fails the scan.
@@ -183,7 +183,7 @@ def _run_platform_queries(
             category=q["category"],
             query_text=q["query_text"],
             response_text=result.text,
-            brand_detected=detect_brand_mention(result.text, client.name),
+            brand_detected=detect_brand_in_answer(result.text, client.name),
             is_control=True,
         ))
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
@@ -193,7 +193,7 @@ def _run_platform_queries(
             result = platform_client.query(q["query_text"])
             usages.append(result)
             response_text = result.text
-            detected = detect_brand_mention(response_text, competitor.name)
+            detected = detect_brand_in_answer(response_text, competitor.name)
             results.append(ScanQueryResult(
                 scan_id=scan.id,
                 platform=platform,

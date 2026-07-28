@@ -1,7 +1,7 @@
 # backend/app/core/constants.py
 from typing import Final
 
-SCORE_VERSION: Final = "v1.2.0"  # v1.2.0: Brand Authority & Content Quality are Claude-suggested, admin-reviewed (assisted scoring); weights unchanged
+SCORE_VERSION: Final = "v1.3.0"  # v1.3.0: an AI denying knowledge of the brand no longer counts as "Seen by AI" (AI Citability only; weights unchanged)
 
 SCORE_WEIGHTS: Final = {
     "ai_citability":         0.40,

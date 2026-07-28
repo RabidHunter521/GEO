@@ -76,7 +76,18 @@ without updating this file and bumping SCORE_VERSION.
 | Structured Data | 10% | Auto — AI Readiness Toolkit verified |
 
 Manual dimensions must always show label: "Based on public evidence · Reviewed by SeenBy"
-SCORE_VERSION = "v1.2.0" — bump when weights or formula change.
+SCORE_VERSION = "v1.3.0" — bump when weights or formula change.
+(v1.3.0: AI Citability counts a brand as seen only when an answer mentions it
+for a reason OTHER than denying knowledge of it. Brand-category queries contain
+the brand name, so models echo it back while saying "X does not appear to be a
+recognized company" — a plain regex match scored that as visibility and
+inflated the heaviest dimension worst for the least-visible clients.
+`detect_brand_in_answer` (denial blocklist, sentence-scoped) is used for AI
+answers; `detect_brand_mention` stays the pure matcher for CRAWLED PAGE TEXT.
+Stance only — a positive but wrong answer still counts, since truthfulness is
+handled separately by `hallucination_flagged`. Weights unchanged. Expect
+existing clients' AI Citability to FALL on their next scan; historical scores
+were computed under v1.2.0 and are not recomputed.)
 (v1.1.0: AI Citability = equal-weighted average of per-platform visibility
 across the client's enabled platforms; unavailable platforms are excluded.)
 (v1.2.0: Brand Authority + Content Quality sourcing changed from bare admin

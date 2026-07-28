@@ -21,7 +21,7 @@ from app.models.content_deliverable import ContentDeliverable
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.prompts.deliverables import build_comparison_page, build_faq_pack, build_glossary
-from app.services.brand_detection import detect_brand_mention
+from app.services.brand_detection import detect_brand_in_answer
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
@@ -80,7 +80,7 @@ def _build_evidence(
         evidence_lines: list[str] = []
         used_ids: list[str] = []
         for r in results:
-            if r.response_text and detect_brand_mention(r.response_text, competitor.name):
+            if r.response_text and detect_brand_in_answer(r.response_text, competitor.name):
                 outcome = "also seen by AI" if r.brand_detected else "seen by AI while the client was not"
                 evidence_lines.append(f'Asked "{r.query_text}": {competitor.name} was {outcome}.')
                 used_ids.append(str(r.id))

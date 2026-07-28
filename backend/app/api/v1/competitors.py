@@ -20,7 +20,7 @@ from app.schemas.competitor import (
 )
 from app.schemas.provenance import ShareOfSourceHistoryPoint, ShareOfSourceResponse
 from app.services.ai_readiness_service import compute_competitor_ai_readiness
-from app.services.brand_detection import detect_brand_mention
+from app.services.brand_detection import detect_brand_in_answer
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
     compute_competitor_trends,
@@ -132,7 +132,7 @@ def generate_brief(
     # competitors_seen recomputed server-side — request body is never trusted
     competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
     competitors_seen = [
-        c.name for c in competitors if detect_brand_mention(result.response_text, c.name)
+        c.name for c in competitors if detect_brand_in_answer(result.response_text, c.name)
     ]
 
     brief = generate_brief_for_result(client, result, competitors_seen, db)

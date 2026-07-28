@@ -18,7 +18,7 @@ from app.models.competitor import Competitor
 from app.models.content_brief import ContentBrief
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
-from app.services.brand_detection import detect_brand_mention
+from app.services.brand_detection import detect_brand_in_answer
 from app.schemas.competitor import (
     ContentBriefResponse,
     WinLossEntry,
@@ -68,7 +68,7 @@ def compute_win_loss(client_id: uuid.UUID, db: Session) -> WinLossResponse:
     summary = {"won": 0, "lost": 0, "shared": 0, "open": 0}
     for r in results:
         competitors_seen = [
-            c.name for c in competitors if detect_brand_mention(r.response_text, c.name)
+            c.name for c in competitors if detect_brand_in_answer(r.response_text, c.name)
         ]
         outcome = classify_result(r.brand_detected, competitors_seen)
         summary[outcome] += 1

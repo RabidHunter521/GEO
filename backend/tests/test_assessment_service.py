@@ -37,7 +37,10 @@ def test_dimension_assessment_row_roundtrips(db):
 
 
 def test_assessment_constants_present():
-    assert constants.SCORE_VERSION == "v1.2.0"
+    # Version lock — edited by hand only when the score formula genuinely
+    # changes. v1.3.0: an AI denying knowledge of the brand no longer counts
+    # toward AI Citability (weights unchanged). See CLAUDE.md §4.
+    assert constants.SCORE_VERSION == "v1.3.0"
     assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
     assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")
     assert constants.DIMENSION_EVIDENCE_LABEL == "Based on public evidence · Reviewed by SeenBy"
