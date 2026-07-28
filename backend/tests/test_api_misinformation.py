@@ -137,16 +137,39 @@ def test_corrected_refused_before_confirm(client, db, auth_headers):
     assert res.status_code == 409
 
 
-def test_spawned_item_never_reaches_the_public_progress_tab(client, db, auth_headers):
-    """Spec §4: the client view is unchanged until Premium gating exists."""
+def test_review_refused_once_the_finding_left_review(client, db, auth_headers):
+    c, f = _seed(db, status="confirmed")
+    res = client.post(
+        f"/api/v1/clients/{c.id}/misinformation/{f.id}/review",
+        json={"action": "confirm"}, headers=auth_headers,
+    )
+    assert res.status_code == 409
+
+
+def test_spawned_item_never_reaches_any_client_surface(client, db, auth_headers):
+    """Spec §4: the client view is unchanged until Premium gating exists. That
+    covers the overview counters too, not just the Progress tab — a resolved
+    compliance item stamps status=corrected + resolved_at, which is exactly
+    what the "fixed this month" counter looks for."""
+    from app.models.misinformation_finding import MisinformationFinding
+    from app.models.remediation_item import RemediationItem
+
     c, f = _seed(db)
     client.post(
         f"/api/v1/clients/{c.id}/misinformation/{f.id}/review",
         json={"action": "confirm"}, headers=auth_headers,
     )
+    db.query(MisinformationFinding).filter_by(id=f.id).one().status = "candidate_fixed"
+    db.commit()
+    client.post(f"/api/v1/clients/{c.id}/misinformation/{f.id}/resolve", headers=auth_headers)
+
+    item = db.query(RemediationItem).one()
+    assert item.status == "corrected" and item.resolved_at is not None
+
     c.share_token = "tok_" + "b" * 40
     db.commit()
 
-    res = client.get(f"/api/v1/view/{c.share_token}/progress")
-    assert res.status_code == 200
-    assert res.json() == []
+    assert client.get(f"/api/v1/view/{c.share_token}/progress").json() == []
+    overview = client.get(f"/api/v1/view/{c.share_token}/overview").json()
+    assert overview["has_progress"] is False
+    assert overview["fixed_this_month"] == 0

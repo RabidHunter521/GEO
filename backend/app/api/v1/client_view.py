@@ -253,8 +253,15 @@ def get_overview(
         next_check_due = (last_checked_at + timedelta(days=client.scan_cadence_days)).date()
         is_stale = (utcnow() - last_checked_at).days >= CLIENT_VIEW_STALE_AFTER_DAYS
 
+    # Same allowlist as /progress below — an item type the client can't see on
+    # the Progress tab must not light up the overview either (spec 8 §4).
     has_progress = (
-        db.query(RemediationItem.id).filter(RemediationItem.client_id == client.id).first()
+        db.query(RemediationItem.id)
+        .filter(
+            RemediationItem.client_id == client.id,
+            RemediationItem.item_type.in_(_REMEDIATION_TYPE_LABELS.keys()),
+        )
+        .first()
         is not None
     )
 
@@ -273,6 +280,7 @@ def get_overview(
             RemediationItem.client_id == client.id,
             RemediationItem.status == "corrected",
             RemediationItem.resolved_at >= month_start,
+            RemediationItem.item_type.in_(_REMEDIATION_TYPE_LABELS.keys()),
         )
         .count()
     )

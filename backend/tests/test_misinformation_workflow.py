@@ -64,11 +64,85 @@ def test_confirm_stamps_review_and_spawns_remediation(db):
     assert RESPONSE not in (item.detail or "")
 
 
-def test_confirm_twice_does_not_duplicate_remediation(db):
+def test_confirm_is_refused_once_the_finding_left_review(db):
+    """Re-confirming would re-stamp reviewed_at, which re-fires the weekly
+    digest protection line and drags a fixed statement back into the PDF's
+    open count."""
     _, _, _, finding = _setup(db)
     review_finding(finding.id, "confirm", db)
-    review_finding(finding.id, "confirm", db)
+    first_reviewed_at = finding.reviewed_at
+
+    assert review_finding(finding.id, "confirm", db) is None
+    db.refresh(finding)
+    assert finding.reviewed_at == first_reviewed_at
     assert db.query(RemediationItem).count() == 1
+
+    for status in ("corrected", "candidate_fixed", "verified_fixed"):
+        finding.status = status
+        db.commit()
+        assert review_finding(finding.id, "confirm", db) is None
+
+
+def test_a_dismissal_can_be_reversed(db):
+    """Dismiss is a judgement call, not a dead end — the admin can change
+    their mind, and that first real confirmation should behave normally."""
+    _, _, _, finding = _setup(db)
+    review_finding(finding.id, "dismiss", db)
+
+    assert review_finding(finding.id, "confirm", db) is not None
+    db.refresh(finding)
+    assert finding.status == "confirmed"
+    assert db.query(RemediationItem).count() == 1
+
+
+def test_finding_lifecycle_carries_the_spawned_item_with_it(db):
+    """sync_remediation_items skips this type, so if the finding workflow
+    doesn't move the item, nothing does."""
+    _, _, _, finding = _setup(db)
+    review_finding(finding.id, "confirm", db)
+    item = db.query(RemediationItem).one()
+    assert item.status == "flagged"
+
+    mark_corrected(finding.id, db)
+    db.refresh(item)
+    assert item.status == "in_progress"
+
+    finding.status = "candidate_fixed"
+    db.commit()
+    resolve_finding(finding.id, db)
+    db.refresh(item)
+    assert item.status == "corrected"
+    assert item.resolved_at is not None
+
+
+def test_spawn_survives_a_retired_compliance_rule(db):
+    """COMPLIANCE_RULES is Faris-maintained; a key can be retired while a
+    finding citing it is still queued. That must not 500 the confirm."""
+    _, _, _, finding = _setup(db)
+    finding.rule_key = "rule_that_was_removed_last_month"
+    db.commit()
+
+    assert review_finding(finding.id, "confirm", db) is not None
+    item = db.query(RemediationItem).one()
+    assert item.detail == "Claim that creates advertising risk"
+
+
+def test_two_problems_in_one_answer_keep_both_details(db):
+    client, _, result, first = _setup(db)
+    second = MisinformationFinding(
+        client_id=client.id, scan_query_result_id=result.id,
+        quote="every patient", category="wrong_service", rule_key=None,
+        severity="medium", explanation="They don't offer this.",
+    )
+    db.add(second)
+    db.commit()
+
+    review_finding(first.id, "confirm", db)
+    review_finding(second.id, "confirm", db)
+
+    item = db.query(RemediationItem).one()  # dedupe key can't tell them apart
+    assert "advertising risk" in item.detail
+    assert "does not offer" in item.detail
 
 
 def test_dismiss_is_terminal_and_spawns_nothing(db):
@@ -149,6 +223,52 @@ def test_candidate_fixed_ignores_scans_with_no_client_rows(db):
     db.commit()
 
     assert check_candidate_fixed(empty.id, db) == 0
+    db.refresh(finding)
+    assert finding.status == "confirmed"
+
+
+def test_no_flip_when_the_findings_platform_was_not_rechecked(db):
+    """Per-platform scan failures are expected (CLAUDE.md §5). A platform that
+    errored contributes no rows — "we didn't ask" is not "it's gone"."""
+    client, _, _, finding = _setup(db)
+    review_finding(finding.id, "confirm", db)
+
+    # ChatGPT (the finding's platform) failed; the others answered cleanly.
+    partial = Scan(client_id=client.id, status="completed", completed_at=utcnow())
+    db.add(partial)
+    db.commit()
+    for platform in ("perplexity", "gemini", "claude"):
+        db.add(ScanQueryResult(
+            scan_id=partial.id, platform=platform, category="brand",
+            query_text="Is Klinik A any good?",
+            response_text="Klinik A is a dental clinic in Kuala Lumpur.",
+            brand_detected=True,
+        ))
+    db.commit()
+
+    assert check_candidate_fixed(partial.id, db) == 0
+    db.refresh(finding)
+    assert finding.status == "confirmed"
+
+
+def test_candidate_fixed_reverts_when_the_statement_comes_back(db):
+    """AI answers vary between runs. Without a way back, a one-scan absence
+    would leave "Confirm fixed" on offer forever for a live statement."""
+    client, _, _, finding = _setup(db)
+    review_finding(finding.id, "confirm", db)
+    finding.status = "candidate_fixed"
+    db.commit()
+
+    regression = Scan(client_id=client.id, status="completed", completed_at=utcnow())
+    db.add(regression)
+    db.commit()
+    db.add(ScanQueryResult(
+        scan_id=regression.id, platform="chatgpt", category="brand",
+        query_text="Is Klinik A any good?", response_text=RESPONSE, brand_detected=True,
+    ))
+    db.commit()
+
+    assert check_candidate_fixed(regression.id, db) == 1
     db.refresh(finding)
     assert finding.status == "confirmed"
 

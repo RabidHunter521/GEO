@@ -273,6 +273,29 @@ def get_findings(client_id: uuid.UUID, db: Session) -> list[MisinformationFindin
     )
 
 
+def _paired_remediation_item(finding: MisinformationFinding, db: Session):
+    """The RemediationItem spawned for this finding, if it still exists.
+
+    Keyed exactly as _spawn_remediation created it, which is also the
+    uq_remediation_dedupe key.
+    """
+    from app.models.remediation_item import RemediationItem
+
+    result = db.get(ScanQueryResult, finding.scan_query_result_id)
+    if result is None:
+        return None
+    return (
+        db.query(RemediationItem)
+        .filter(
+            RemediationItem.client_id == finding.client_id,
+            RemediationItem.item_type == "misinformation",
+            RemediationItem.platform == result.platform,
+            RemediationItem.label == result.query_text,
+        )
+        .first()
+    )
+
+
 def _spawn_remediation(finding: MisinformationFinding, db: Session) -> None:
     """Track the corrective work in the existing remediation loop (get-or-create,
     matching the uq_remediation_dedupe constraint)."""
@@ -283,21 +306,20 @@ def _spawn_remediation(finding: MisinformationFinding, db: Session) -> None:
     if result is None:
         return
     detail = MISINFORMATION_CATEGORY_LABELS.get(finding.category, "Incorrect statement")
-    if finding.rule_key:
-        detail = f"{detail} — {COMPLIANCE_RULES[finding.rule_key]}"
+    # .get, not [] — COMPLIANCE_RULES is Faris-maintained, so a key can be
+    # renamed or retired while findings that cite it are still in the queue.
+    # A stale key must not make the finding permanently unconfirmable.
+    rule_text = COMPLIANCE_RULES.get(finding.rule_key) if finding.rule_key else None
+    if rule_text:
+        detail = f"{detail} — {rule_text}"
 
-    existing = (
-        db.query(RemediationItem)
-        .filter(
-            RemediationItem.client_id == finding.client_id,
-            RemediationItem.item_type == "misinformation",
-            RemediationItem.platform == result.platform,
-            RemediationItem.label == result.query_text,
-        )
-        .first()
-    )
+    existing = _paired_remediation_item(finding, db)
     if existing is not None:
-        existing.detail = detail
+        # One AI answer can carry two different problems, and the remediation
+        # dedupe key can't tell them apart — append rather than overwrite so the
+        # first finding's category isn't silently lost.
+        if detail not in (existing.detail or ""):
+            existing.detail = f"{existing.detail}; {detail}" if existing.detail else detail
         return
     db.add(RemediationItem(
         client_id=finding.client_id,
@@ -309,14 +331,22 @@ def _spawn_remediation(finding: MisinformationFinding, db: Session) -> None:
     ))
 
 
+# Reviewing is a first look, or a change of mind about a dismissal. Once a
+# finding is in the fix pipeline, re-reviewing it would re-stamp reviewed_at —
+# which re-fires the weekly digest protection line and pulls an already-fixed
+# statement back into the monthly PDF's open count.
+_REVIEWABLE_STATUSES = ("suggested", "dismissed")
+
+
 def review_finding(
     finding_id: uuid.UUID, action: str, db: Session, note: str | None = None
 ) -> MisinformationFinding | None:
-    """Admin gate. `action` is "confirm" or "dismiss". Returns None if not found."""
+    """Admin gate. `action` is "confirm" or "dismiss". Returns None when the
+    finding does not exist or has already moved past review."""
     if action not in ("confirm", "dismiss"):
         raise ValueError('action must be "confirm" or "dismiss"')
     finding = db.get(MisinformationFinding, finding_id)
-    if finding is None:
+    if finding is None or finding.status not in _REVIEWABLE_STATUSES:
         return None
     finding.status = "confirmed" if action == "confirm" else "dismissed"
     finding.reviewed_at = utcnow()
@@ -336,6 +366,11 @@ def mark_corrected(finding_id: uuid.UUID, db: Session) -> MisinformationFinding 
     if finding is None or finding.status != "confirmed":
         return None
     finding.status = "corrected"
+    # Keep the tracked item in step — sync_remediation_items deliberately skips
+    # this type, so the finding workflow is the only thing that can move it.
+    item = _paired_remediation_item(finding, db)
+    if item is not None and item.status == "flagged":
+        item.status = "in_progress"
     db.commit()
     db.refresh(finding)
     return finding
@@ -349,49 +384,69 @@ def resolve_finding(finding_id: uuid.UUID, db: Session) -> MisinformationFinding
         return None
     finding.status = "verified_fixed"
     finding.resolved_at = utcnow()
+    # Close the spawned item too, otherwise it sits "Flagged" forever and the
+    # admin's natural cleanup click is what finally stamps resolved_at.
+    item = _paired_remediation_item(finding, db)
+    if item is not None and item.status != "corrected":
+        item.status = "corrected"
+        item.resolved_at = finding.resolved_at
     db.commit()
     db.refresh(finding)
     return finding
 
 
 def check_candidate_fixed(scan_id: uuid.UUID, db: Session) -> int:
-    """Flag confirmed/corrected findings whose quote no longer appears anywhere
-    in this scan's client-owned responses. Returns how many were flagged.
+    """Re-check open findings against this scan's responses. Returns how many
+    findings changed status.
 
-    Deliberately conservative: a scan with no client rows (empty or failed)
-    proves nothing, and the flip is only ever to candidate_fixed.
+    Two directions, both conservative:
+      - confirmed/corrected → candidate_fixed when the statement is gone.
+      - candidate_fixed → confirmed when it comes back (AI answers are
+        non-deterministic, so a single absence that later reverses is normal;
+        without this the finding would be stuck offering "Confirm fixed").
+
+    Comparison is scoped to the platform the finding came from. A platform that
+    failed or was disabled contributes no rows this scan (scan_service isolates
+    per-platform failures by design), and "we didn't ask" must never read as
+    "the statement is gone".
     """
     scan = db.get(Scan, scan_id)
     if scan is None:
         return 0
-    responses = [
-        normalize_ws(r.response_text)
-        for r in db.query(ScanQueryResult).filter(
-            ScanQueryResult.scan_id == scan_id,
-            ScanQueryResult.competitor_id.is_(None),
-            ScanQueryResult.is_control.is_(False),
-            ScanQueryResult.response_text.isnot(None),
-        ).all()
-    ]
-    if not responses:
+    responses_by_platform: dict[str, list[str]] = {}
+    for r in db.query(ScanQueryResult).filter(
+        ScanQueryResult.scan_id == scan_id,
+        ScanQueryResult.competitor_id.is_(None),
+        ScanQueryResult.is_control.is_(False),
+        ScanQueryResult.response_text.isnot(None),
+    ).all():
+        responses_by_platform.setdefault(r.platform, []).append(normalize_ws(r.response_text))
+    if not responses_by_platform:
         return 0
 
-    flipped = 0
+    changed = 0
     findings = (
         db.query(MisinformationFinding)
         .filter(
             MisinformationFinding.client_id == scan.client_id,
-            MisinformationFinding.status.in_(("confirmed", "corrected")),
+            MisinformationFinding.status.in_(("confirmed", "corrected", "candidate_fixed")),
         )
         .all()
     )
     for finding in findings:
+        source = db.get(ScanQueryResult, finding.scan_query_result_id)
+        texts = responses_by_platform.get(source.platform) if source else None
+        if not texts:
+            continue  # that platform wasn't re-checked this scan
         needle = normalize_ws(finding.quote)
-        if any(needle in text for text in responses):
-            continue
-        finding.status = "candidate_fixed"
-        flipped += 1
-    if flipped:
+        present = any(needle in text for text in texts)
+        if present and finding.status == "candidate_fixed":
+            finding.status = "confirmed"
+            changed += 1
+        elif not present and finding.status in ("confirmed", "corrected"):
+            finding.status = "candidate_fixed"
+            changed += 1
+    if changed:
         db.commit()
-        logger.info("misinformation_candidate_fixed", scan_id=str(scan_id), count=flipped)
-    return flipped
+        logger.info("misinformation_status_rechecked", scan_id=str(scan_id), count=changed)
+    return changed

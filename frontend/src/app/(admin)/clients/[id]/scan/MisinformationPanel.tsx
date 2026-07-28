@@ -141,32 +141,35 @@ export function MisinformationPanel({
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {busy && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                  {/* Dismissed findings keep a Confirm button: dismissing is a
+                      judgement call the admin can reverse. Once a finding is in
+                      the fix pipeline the backend refuses re-review (409). */}
+                  {(f.status === "suggested" || f.status === "dismissed") && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      aria-label={`Confirm finding: ${f.quote}`}
+                      onClick={() =>
+                        run(f.id, () => reviewMisinformationAction(clientId, f.id, "confirm"))
+                      }
+                    >
+                      {f.status === "dismissed" ? "Confirm after all" : "Confirm"}
+                    </Button>
+                  )}
                   {f.status === "suggested" && (
-                    <>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={busy}
-                        aria-label={`Confirm finding: ${f.quote}`}
-                        onClick={() =>
-                          run(f.id, () => reviewMisinformationAction(clientId, f.id, "confirm"))
-                        }
-                      >
-                        Confirm
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        aria-label={`Dismiss finding: ${f.quote}`}
-                        onClick={() =>
-                          run(f.id, () => reviewMisinformationAction(clientId, f.id, "dismiss"))
-                        }
-                      >
-                        Dismiss
-                      </Button>
-                    </>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      aria-label={`Dismiss finding: ${f.quote}`}
+                      onClick={() =>
+                        run(f.id, () => reviewMisinformationAction(clientId, f.id, "dismiss"))
+                      }
+                    >
+                      Dismiss
+                    </Button>
                   )}
                   {f.status === "confirmed" && (
                     <Button

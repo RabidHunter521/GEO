@@ -99,6 +99,11 @@ def review(
     _require_client(client_id, db)
     _require_finding(client_id, finding_id, db)
     finding = review_finding(finding_id, body.action, db, note=body.note)
+    if finding is None:
+        raise HTTPException(
+            status_code=409,
+            detail="This finding has already been reviewed and is being worked on",
+        )
     return _out(finding, db)
 
 
