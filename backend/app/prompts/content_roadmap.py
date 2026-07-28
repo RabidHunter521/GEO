@@ -1,9 +1,12 @@
 # backend/app/prompts/content_roadmap.py
 """Prompt templates for the 90-day content roadmap generator."""
 from app.models.client import Client
+from app.prompts.language import LANGUAGE_RULES
 
-ROADMAP_VERSION = "v1"
-ARTICLE_VERSION = "v2"
+# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
+ROADMAP_VERSION = "v2"
+# v3: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
+ARTICLE_VERSION = "v3"
 
 PLAN_WEEKS = 12  # 90-day plan == 12 weekly content pieces
 
@@ -32,7 +35,8 @@ For each item:
 - content_type: e.g. "Blog post", "Comparison page", "FAQ page", "Location page"
 - suggested_title: a specific, publish-ready title
 - rationale: 1 sentence on why this wins the questions
-Never use the words "citation", "cited", "mentioned", "ranking position", "outrank", "outranks", or "visibility gap" — use "seen by AI", "AI Search Ranking", and "Your competitors are winning here" instead.
+{LANGUAGE_RULES}
+Also avoid "outrank" and "outranks".
 Output ONLY valid JSON, no code fences, exactly:
 {{"roadmap": [{{"week": 1, "theme": "string", "priority": "high", "target_queries": ["string"], "competitors_winning": ["string"], "content_type": "string", "suggested_title": "string", "rationale": "string"}}]}}"""
 
@@ -56,7 +60,7 @@ Requirements:
 - Aim for 600-900 words, genuinely useful and specific to this business and its audience.
 - Naturally include the business name and the kind of language a buyer would use when asking AI assistants the questions above.
 - Be accurate and concrete; do not invent fake statistics, awards, or quotes.
-- Never use the words "citation", "cited", "mentioned", "ranking position", "outrank", "outranks", or "visibility gap".
+- {LANGUAGE_RULES} Also avoid "outrank" and "outranks".
 
 After the article body, append exactly this metadata block with no extra blank lines between them:
 

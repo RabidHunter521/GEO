@@ -9,8 +9,10 @@ regulations: rule_key must come from the COMPLIANCE_RULES keys passed in.
 """
 from app.core.constants import COMPLIANCE_RULES
 from app.models.client import Client
+from app.prompts.language import LANGUAGE_RULES
 
-DETECTION_VERSION = "v1"
+# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
+DETECTION_VERSION = "v2"
 
 
 def build_detection(client: Client, query_text: str, response_text: str) -> str:
@@ -64,8 +66,7 @@ normal case — do not invent problems to be helpful.
 - "explanation" is one sentence, under 25 words, saying why it is a problem for this business.
 - "severity": high = legal or safety risk, or a factual error that would send a customer to \
 the wrong place; medium = misleading but recoverable; low = minor or cosmetic.
-- Never use the words "citation", "cited", "mentioned", "citation rate", "ranking position", \
-or "visibility gap" — say "seen by AI" and "visibility frequency" instead.
+- {LANGUAGE_RULES}
 
 Output ONLY valid JSON, no code fences, exactly:
 [{{"quote": "string", "category": "wrong_service|factual_error|prohibited_claim|outdated_info", \

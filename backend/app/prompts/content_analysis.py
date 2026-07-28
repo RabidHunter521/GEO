@@ -1,10 +1,15 @@
 # backend/app/prompts/content_analysis.py
 """Prompt templates for content gap and quality analysis."""
 from app.models.client import Client
+from app.prompts.language import LANGUAGE_RULES
 
+# Unversioned by this change: topic/entity extraction emits internal JSON that
+# never reaches a client, so it carries no language rules to share.
 TOPICS_ENTITIES_VERSION = "v1"
-QUALITY_REC_VERSION = "v1"
-SUGGESTED_CONTENT_VERSION = "v1"
+# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
+QUALITY_REC_VERSION = "v2"
+# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
+SUGGESTED_CONTENT_VERSION = "v2"
 
 
 def build_topics_entities(client: Client, corpus: str) -> str:
@@ -50,9 +55,9 @@ Sample of the site text:
 
 Write 2-3 plain-English sentences recommending how this business could improve its content so AI
 systems are more likely to feature it. Be specific and practical. Do not mention scores, tokens,
-or technical jargon. Do not use the words "outrank", "outranks", "ranking", "citation", "cited",
-"mentioned", or "gap" — if a competitor is favored by AI answers today, say they "currently appear
-instead of" this business. Output only the recommendation text."""
+or technical jargon. {LANGUAGE_RULES}
+Also avoid "outrank", "outranks", "ranking" and "gap" — if a competitor is favored by AI answers
+today, say they "currently appear instead of" this business. Output only the recommendation text."""
 
 
 def build_suggested_content(client: Client, missing_topics: list[str]) -> str:
@@ -65,8 +70,9 @@ The business does not currently cover these topics on its website:
 
 For EACH topic above, suggest exactly 2 concrete content/blog post titles the business could
 publish, plus a one-sentence rationale for each. The rationale should explain the opportunity in
-plain English — for example, framing it as competitors already covering this topic. Do not use
-the words "gap", "citation", "mentioned", or "ranking".
+plain English — for example, framing it as competitors already covering this topic.
+{LANGUAGE_RULES}
+Also avoid the words "gap" and "ranking".
 
 Output ONLY valid JSON, no code fences, in exactly this shape:
 {{"suggestions": [{{"topic": "string", "title": "string", "rationale": "string"}}]}}"""

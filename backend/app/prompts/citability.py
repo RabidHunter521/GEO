@@ -2,8 +2,10 @@
 """Prompt for the page-citability rewrite suggestions (assist-only —
 the score is computed server-side; Claude only proposes text)."""
 from app.models.client import Client
+from app.prompts.language import LANGUAGE_RULES
 
-SUGGESTIONS_VERSION = "v1"
+# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
+SUGGESTIONS_VERSION = "v2"
 
 
 def build_citability_suggestions(client: Client, problem_checks: list[dict], excerpt: str) -> str:
@@ -28,7 +30,6 @@ Propose up to 5 concrete rewrites that fix the audit issues. For each:
 the page's own voice, factually grounded ONLY in what the page already says — never \
 invent services, prices, statistics, or claims.
 
-Never use the words "citation", "cited", "mentioned", "citation rate", "ranking position", \
-or "visibility gap" — say "seen by AI" and "visibility frequency" instead.
+{LANGUAGE_RULES}
 Output ONLY valid JSON, no code fences, exactly:
 {{"suggestions": [{{"section": "string", "issue": "string", "rewrite": "string"}}]}}"""
