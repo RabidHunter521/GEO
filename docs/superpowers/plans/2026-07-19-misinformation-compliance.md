@@ -26,6 +26,29 @@
 >   rewriting text presented as word-for-word would make the verbatim claim
 >   false. Our own copy around the quotes carries the language rules.
 >
+> **Whole-branch review (ultrareview) done 2026-07-28: 2 normal + 2 nit, all
+> real, all fixed in `0b1da15`** (872 tests, +7). The two normal ones were the
+> same class of mistake — trusting an absence:
+> 1. `check_candidate_fixed` compared each quote against *every* platform's
+>    responses. A per-platform scan failure (which `scan_service` isolates by
+>    design, leaving zero rows) or a disabled platform therefore read as "the
+>    statement is gone" → candidate_fixed → admin clicks Confirm fixed → the PDF
+>    tells the client a still-live statement was corrected. Now platform-scoped.
+>    Related: `candidate_fixed` had no path back, so a reappearing statement
+>    stayed on offer as fixed — now reverts to `confirmed`.
+> 2. The spawned `RemediationItem` was never closed by the finding workflow, and
+>    `sync_remediation_items` skips the type on purpose — so it sat `Flagged`
+>    forever and the admin's eventual cleanup click stamped `resolved_at`, which
+>    the client overview's `fixed_this_month` counter picks up. The `/progress`
+>    allowlist I added did not cover `has_progress`/`fixed_this_month`; it does
+>    now, and the lifecycle moves the item itself.
+>
+> Nits: `review_finding` accepted `confirm` from any status (re-stamping
+> `reviewed_at`, which re-fires the client digest line) — now gated to
+> suggested/dismissed with a 409; `COMPLIANCE_RULES[...]` → `.get()` so a
+> retired rule key can't make a finding unconfirmable; two problems in one AI
+> answer no longer overwrite each other's remediation detail.
+>
 > **Outstanding:** prod Supabase migration (deferred to the `seenby-release`
 > runbook as in Phases 1–5) and the full lifecycle walkthrough in the browser,
 > which needs that migration plus real findings. The lifecycle itself
