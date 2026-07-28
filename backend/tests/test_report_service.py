@@ -858,3 +858,17 @@ def test_email_subject_and_filename_use_the_report_window():
     filename = sent["attachments"][0]["filename"]
     assert filename == "SeenBy-Report-1-May-to-31-May-2026.pdf"
     assert "–" not in filename and " " not in filename
+
+
+# ── PDF toolchain ──────────────────────────────────────────────────────────────
+# WeasyPrint 62.x calls super().transform(...), a method pydyf removed in 0.11,
+# and declares only `pydyf >=0.10.0`. Poetry resolved 0.12.1 and every PDF
+# raised "AttributeError: 'super' object has no attribute 'transform'" — which
+# is why the reports table was empty. pyproject pins pydyf <0.11; this fails if
+# that pin is ever loosened.
+
+def test_pdf_toolchain_actually_renders():
+    weasyprint = __import__("weasyprint")
+    pdf = weasyprint.HTML(string="<h1>SeenBy</h1><p>render check</p>").write_pdf()
+    assert pdf[:5] == b"%PDF-", "WeasyPrint did not emit a PDF"
+    assert len(pdf) > 500

@@ -93,46 +93,63 @@ _CSS = """
   margin-left: 2cm;
   margin-right: 2cm;
 
+  /* The two top boxes tile the page exactly (40% + 60%), and box-sizing keeps
+     the 2cm inset INSIDE that share. Without it, a percentage width resolves
+     against the full page width and the padding is then added on top, so the
+     boxes totalled 945px on a 794px page: @top-right started at x=181 while
+     @top-left still ran to x=484, and — sharing the same dark background —
+     painted over the tail of the wordmark. That is the "SeenI" clipping in
+     walkthrough §6.1 bug 4. The `* { box-sizing: border-box }` rule below
+     cannot help here: `*` does not select margin boxes. */
   @top-left {
+    box-sizing: border-box;
     background-color: #070d1a;
     color: #ffffff;
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 8.5pt;
     font-weight: 600;
     content: "SeenBy";
-    padding: 0 2cm;
+    padding-left: 2cm;
     vertical-align: middle;
     width: 40%;
   }
   @top-right {
+    box-sizing: border-box;
     background-color: #070d1a;
     color: #94a3b8;
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 8.5pt;
     content: string(report-page-header);
-    padding: 0 2cm;
+    padding-right: 2cm;
     vertical-align: middle;
     text-align: right;
     width: 60%;
   }
+  /* Same tiling for the footer. These had no width at all, so they shrank to
+     fit their text and the 1px border-top rule rendered as two stubs with a
+     gap between them instead of one line across the page. */
   @bottom-left {
+    box-sizing: border-box;
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 8pt;
     color: #94a3b8;
     content: "Confidential";
-    padding: 0 2cm;
+    padding-left: 2cm;
     vertical-align: middle;
     border-top: 1px solid #e2e8f0;
+    width: 50%;
   }
   @bottom-right {
+    box-sizing: border-box;
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 8pt;
     color: #94a3b8;
     content: "Page " counter(page) " of " counter(pages);
-    padding: 0 2cm;
+    padding-right: 2cm;
     vertical-align: middle;
     text-align: right;
     border-top: 1px solid #e2e8f0;
+    width: 50%;
   }
 }
 
@@ -469,6 +486,10 @@ class ReportData:
     content_quality_evidence: str | None = None
     ai_visitors_current: int | None = None
     ai_visitors_prev: int | None = None
+    # Which month ai_visitors_current actually describes. The newest snapshot is
+    # usually LAST month (this month's is not recorded yet), so the label has to
+    # name it rather than claim "this month".
+    ai_traffic_period: date | None = None
     # Formatted per-platform split ("ChatGPT 140 · Perplexity 60") — GA4 months only.
     ai_breakdown: str | None = None
     platform_breakdown: dict | None = None
@@ -517,6 +538,45 @@ def _compute_trend(current: float, prev: float | None) -> str:
     if current < prev - 0.5:
         return "down"
     return "flat"
+
+
+# How far back a traffic snapshot may be and still be shown as the current
+# figure. One month covers the normal case (this month's numbers are not in
+# yet); anything older is stale enough that printing it as "this month" would
+# be its own lie.
+_TRAFFIC_MAX_AGE_DAYS = 70
+
+
+def _select_traffic(client_id: uuid.UUID, db: Session, current_period: date):
+    """The two most recent traffic snapshots at or before `current_period`.
+
+    Traffic is recorded one row per calendar month, and for most of any given
+    month that month's row does not exist yet — it is entered manually, or
+    synced from GA4 after the fact. The report used to demand a row for the
+    CURRENT calendar month and print "Tracking begins soon" when it was
+    missing, so a client with 1,680 visitors last month was told their
+    analytics were not connected (walkthrough §6.1 bug 5).
+
+    Takes the newest available month instead, and the one before it for the
+    comparison. Future-dated rows are ignored so a typo cannot become "this
+    month", and a snapshot older than _TRAFFIC_MAX_AGE_DAYS is treated as no
+    data rather than passed off as current.
+    """
+    rows = (
+        db.query(AiTrafficSnapshot)
+        .filter(
+            AiTrafficSnapshot.client_id == client_id,
+            AiTrafficSnapshot.period <= current_period,
+        )
+        .order_by(desc(AiTrafficSnapshot.period))
+        .limit(2)
+        .all()
+    )
+    if not rows:
+        return None, None
+    if (current_period - rows[0].period).days > _TRAFFIC_MAX_AGE_DAYS:
+        return None, None
+    return rows[0], (rows[1] if len(rows) > 1 else None)
 
 
 def format_period_label(start: datetime, end: datetime) -> str:
@@ -1146,17 +1206,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     now = utcnow()
 
     current_period = now.date().replace(day=1)
-    prev_period = (current_period - timedelta(days=1)).replace(day=1)
-    current_traffic = (
-        db.query(AiTrafficSnapshot)
-        .filter(AiTrafficSnapshot.client_id == client.id, AiTrafficSnapshot.period == current_period)
-        .first()
-    )
-    prev_traffic = (
-        db.query(AiTrafficSnapshot)
-        .filter(AiTrafficSnapshot.client_id == client.id, AiTrafficSnapshot.period == prev_period)
-        .first()
-    )
+    current_traffic, prev_traffic = _select_traffic(client.id, db, current_period)
 
     # ── Score Trend — last N computed scores, oldest first ──────────────────
     history_scores = (
@@ -1276,6 +1326,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         content_quality_evidence=client.content_quality_evidence,
         ai_visitors_current=current_traffic.ai_visitors if current_traffic else None,
         ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
+        ai_traffic_period=current_traffic.period if current_traffic else None,
         ai_breakdown=format_breakdown(current_traffic.breakdown) if current_traffic else None,
         platform_breakdown=current_gs.platform_breakdown,
         score_history=score_history,
@@ -1656,9 +1707,15 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             f'<div class="stat-sub">At least: {html.escape(data.ai_breakdown)}</div>'
             if data.ai_breakdown else ""
         )
+        # Name the month the figure is actually for. The newest snapshot is
+        # normally the previous month, so a fixed "This Month" would misdate it.
+        traffic_label = (
+            f"AI Visitors &mdash; {data.ai_traffic_period:%B %Y}"
+            if data.ai_traffic_period else "AI Visitors This Month"
+        )
         visitor_stat = (
             f'<div class="stat-block">'
-            f'<div class="stat-label">AI Visitors This Month</div>'
+            f'<div class="stat-label">{traffic_label}</div>'
             f'<div class="stat-value">{data.ai_visitors_current:,}</div>'
             f'<div class="stat-sub">Visitors arriving via ChatGPT, Perplexity, Gemini and Claude'
             f' &mdash; {change_label}</div>{breakdown_line}</div>'

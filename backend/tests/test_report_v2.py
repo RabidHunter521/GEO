@@ -434,3 +434,109 @@ def test_work_log_html_no_overflow_note_when_complete():
         _minimal_data(work_log=lines, work_log_counts={"technical": 3}))
 
     assert "more" not in html_out.lower()
+
+
+# ── traffic period selection (walkthrough §6.1 bug 5) ─────────────────────────
+# The report demanded a snapshot for the CURRENT CALENDAR MONTH. Traffic is
+# entered per month, so on 5 July there is no July row yet and the PDF printed
+# "Tracking begins soon" to a client whose June traffic was sitting in the DB.
+
+def _traffic(db, client_id, period, visitors, source="manual"):
+    from app.models.ai_traffic_snapshot import AiTrafficSnapshot
+    row = AiTrafficSnapshot(
+        client_id=client_id, period=period, ai_visitors=visitors, source=source)
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_traffic_uses_latest_available_month_not_current_calendar_month(db):
+    from app.core.time import utcnow
+    from app.services.report_service import _select_traffic
+    client = _make_client(db)
+    today = utcnow().date()
+    this_month = today.replace(day=1)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+    month_before = (last_month - timedelta(days=1)).replace(day=1)
+
+    _traffic(db, client.id, month_before, 1320)
+    _traffic(db, client.id, last_month, 1680)   # newest; no row for this_month
+
+    current, prev = _select_traffic(client.id, db, this_month)
+    assert current is not None, "last month's traffic must not be discarded"
+    assert current.ai_visitors == 1680
+    assert prev is not None and prev.ai_visitors == 1320
+
+
+def test_traffic_prefers_the_current_month_when_it_exists(db):
+    from app.core.time import utcnow
+    from app.services.report_service import _select_traffic
+    client = _make_client(db)
+    this_month = utcnow().date().replace(day=1)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+    _traffic(db, client.id, last_month, 1680)
+    _traffic(db, client.id, this_month, 1900)
+
+    current, prev = _select_traffic(client.id, db, this_month)
+    assert current.ai_visitors == 1900
+    assert prev.ai_visitors == 1680
+
+
+def test_stale_traffic_is_not_presented_as_current(db):
+    """A snapshot from many months ago must not be printed as this month's
+    number — that would be a different lie from the one being fixed."""
+    from datetime import timedelta as td
+    from app.core.time import utcnow
+    from app.services.report_service import _select_traffic
+    client = _make_client(db)
+    this_month = utcnow().date().replace(day=1)
+    ancient = (this_month - td(days=300)).replace(day=1)
+    _traffic(db, client.id, ancient, 999)
+
+    current, prev = _select_traffic(client.id, db, this_month)
+    assert current is None
+    assert prev is None
+
+
+def test_no_traffic_at_all_still_yields_none(db):
+    from app.core.time import utcnow
+    from app.services.report_service import _select_traffic
+    client = _make_client(db)
+    current, prev = _select_traffic(client.id, db, utcnow().date().replace(day=1))
+    assert current is None and prev is None
+
+
+def test_future_dated_traffic_is_ignored(db):
+    from datetime import timedelta as td
+    from app.core.time import utcnow
+    from app.services.report_service import _select_traffic
+    client = _make_client(db)
+    this_month = utcnow().date().replace(day=1)
+    future = (this_month + td(days=62)).replace(day=1)
+    _traffic(db, client.id, future, 5000)
+    _traffic(db, client.id, this_month, 1200)
+
+    current, _ = _select_traffic(client.id, db, this_month)
+    assert current.ai_visitors == 1200
+
+
+def test_traffic_label_names_the_month_it_describes(db):
+    """Printing last month's figure under "This Month" would be a new lie."""
+    from datetime import date
+    from app.services import report_service as rs
+    data = _minimal_data(ai_visitors_current=1680, ai_traffic_period=date(2026, 6, 1))
+    html = rs._build_report_html(
+        type("C", (), {"name": "Acme", "website": "https://acme.com", "industry": "Dental"})(),
+        data,
+    )
+    assert "AI Visitors &mdash; June 2026" in html
+    assert "Tracking begins soon" not in html
+
+
+def test_traffic_zero_state_only_when_there_is_no_data(db):
+    from app.services import report_service as rs
+    html = rs._build_report_html(
+        type("C", (), {"name": "Acme", "website": "https://acme.com", "industry": "Dental"})(),
+        _minimal_data(),   # no traffic at all
+    )
+    assert "Tracking begins soon" in html
