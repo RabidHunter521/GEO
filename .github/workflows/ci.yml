@@ -1,0 +1,140 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # The migration-chain tests read `git ls-files`, so they need real
+        # history rather than a detached export.
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        working-directory: backend
+        run: poetry install --no-interaction
+
+      # WeasyPrint needs the system Pango/Cairo stack. Without these the PDF
+      # tests are skipped rather than failing, which is how a completely broken
+      # PDF toolchain (weasyprint/pydyf mismatch) went unnoticed for months.
+      - name: Install WeasyPrint system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-2.0-0
+
+      - name: Lint
+        working-directory: backend
+        run: poetry run ruff check app workers tests
+
+      - name: Tests
+        working-directory: backend
+        env:
+          # The suite runs on in-memory SQLite (tests/conftest.py); these only
+          # have to exist for Settings validation — nothing connects to them.
+          DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/unused
+          ADMIN_API_KEY: ci-test-key
+          ANTHROPIC_API_KEY: sk-ci-not-a-real-key
+        run: poetry run pytest -q
+
+  # The chain-integrity tests above run without a database. This job is the
+  # other half the Phase 1 review asked for: prove the migrations actually
+  # APPLY. They use JSONB, partial unique indexes and ROW LEVEL SECURITY, none
+  # of which the SQLite test suite exercises, so only a real Postgres can tell
+  # us the chain is runnable.
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: seenby_migrations
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Install dependencies
+        working-directory: backend
+        run: poetry install --no-interaction
+
+      - name: alembic upgrade head on a throwaway database
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seenby_migrations
+          ADMIN_API_KEY: ci-test-key
+          ANTHROPIC_API_KEY: sk-ci-not-a-real-key
+        run: |
+          poetry run alembic upgrade head
+          poetry run alembic current
+
+      # A migration you cannot reverse is a migration you cannot roll back
+      # during an incident. Every downgrade in this repo is meant to be
+      # reversible; this proves it against a real schema.
+      - name: alembic downgrade base and re-upgrade
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seenby_migrations
+          ADMIN_API_KEY: ci-test-key
+          ANTHROPIC_API_KEY: sk-ci-not-a-real-key
+        run: |
+          poetry run alembic downgrade base
+          poetry run alembic upgrade head
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  banned-language:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # CLAUDE.md §2. This regression has shipped twice. Matches inside prompt
+      # files are expected — they are the negative instructions telling the
+      # model NOT to use these words — so only client-rendered surfaces are
+      # scanned here.
+      - name: No banned vocabulary in client-facing UI
+        run: |
+          if grep -rniE "\b(cited|uncited|citation rate|ranking position|visibility gap|first mentioned)\b" \
+               frontend/src --include=*.tsx --include=*.ts \
+             | grep -vE "^[^:]+:[0-9]+:\s*(//|\*|/\*)"; then
+            echo "::error::banned CLAUDE.md §2 vocabulary found in client-facing code"
+            exit 1
+          fi
+          echo "clean"
