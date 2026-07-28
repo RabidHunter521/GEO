@@ -943,7 +943,7 @@ Confirm `poetry run alembic heads` still shows exactly one head, `de87b61a859c` 
 
 Banned-language scan across changed files:
 ```bash
-git diff --name-only HEAD~6..HEAD -- '*.py' '*.ts' '*.tsx' | while read f; do [ -f "$f" ] && grep -Hni -E "\b(cited|uncited|mentioned)\b|citation rate|ranking position|visibility gap|confidence score|char offset|token count|first mentioned" "$f"; done
+git diff --name-only 86c62cc..HEAD -- '*.py' '*.ts' '*.tsx' | while read f; do [ -f "$f" ] && grep -Hni -E "\b(cited|uncited|mentioned)\b|citation rate|ranking position|visibility gap|confidence score|char offset|token count|first mentioned" "$f"; done
 ```
 Expected: no hits outside negative instructions in prompt files and the banned-word lists inside tests.
 

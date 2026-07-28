@@ -18,6 +18,9 @@ node_modules/
 .next/
 out/
 
+# Tooling caches
+.rtk/
+
 # IDE
 .vscode/
 .idea/
