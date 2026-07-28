@@ -1,0 +1,12 @@
+# Replace with your real domain before first deploy. Caddy auto-issues and
+# renews a Let's Encrypt cert for it — no manual certbot step required.
+your-domain.com {
+	reverse_proxy frontend:3000
+	encode gzip
+}
+
+# Optional: bare IP access while DNS propagates (no TLS possible without a
+# domain). Remove once your-domain.com is live.
+:80 {
+	reverse_proxy frontend:3000
+}
