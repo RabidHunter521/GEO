@@ -75,11 +75,11 @@ Still open from this finding's wish-list: article body and brief angle are not
 sanitized — both are admin-reviewed before publication, so the human gate stands
 in for the automatic one.
 
-### H3. No temperature control on extraction/scoring calls
+### H3. No temperature control on extraction/scoring calls — ✅ FIXED 2026-07-28
 
 No call sets `temperature`. For strict-JSON and scoring tasks (position_extraction, topics/entities, assessments, action center) the standard is `temperature=0`–`0.2` for determinism and parse reliability. Keep default (1.0) for creative work (articles, briefs, narrative). Today two runs on the same client can produce different assessment scores — bad for a product selling trend tracking.
 
-### H4. Truncation risk: no `stop_reason == "max_tokens"` guard
+### H4. Truncation risk: no `stop_reason == "max_tokens"` guard — ✅ FIXED 2026-07-28
 
 `content_analysis` topics/entities (20 topics + entities in 2048 tokens) and toolkit schema.json (FAQPage in 2048) can hit the cap mid-JSON → `json.loads` fails → feature errors with no hint why. Add a check: if `response.stop_reason == "max_tokens"`, log it distinctly and retry once with a higher cap (or reduce requested items).
 
@@ -91,7 +91,7 @@ No call sets `temperature`. For strict-JSON and scoring tasks (position_extracti
 
 ## MEDIUM
 
-### M1. Report narrative prompt never names the business
+### M1. Report narrative prompt never names the business — ✅ FIXED 2026-07-28
 
 `report.py` sends `Business: {data.period_label} report.` — the label reads "Business: June 2026 report." The client name is never provided, so the narrative can't use it, and the field is mislabeled. Pass the client name.
 
@@ -103,7 +103,7 @@ It names the weakest dimension and score, nothing else. If "structured data (0/1
 
 `build_article` produces a competent blog post, but the point is to get *seen by AI*. Add to requirements: answer the target question directly in the first two sentences; each H2 opens with a direct answer then elaborates; include a short FAQ section mirroring the target queries; use the location name naturally. Also 600–900 words is thin for pillar pieces — allow the roadmap item's priority to set length (high → 1,200–1,500).
 
-### M4. llms.txt has no links — Answer.AI spec expects link lists
+### M4. llms.txt has no links — Answer.AI spec expects link lists — ✅ FIXED 2026-07-28
 
 Our output is prose sections (fine, common adaptation) but contains **zero URLs** except Contact. The spec's core value is pointing AI systems at canonical pages. Add a `## Key Pages` section with real URLs (homepage, main service page, contact) built from `client.website` — never invented deep links.
 
@@ -141,3 +141,36 @@ Assessments are the highest-stakes generative output (drives 40% of manually-sco
 3. H3 + H4 (temperature + truncation guard) — cheap reliability wins.
 4. M1, M2, M4 — one-line to small edits.
 5. H1 (system prompts + caching) and H5 (forced tool use) — do together as a "prompt infra v2" pass, one service at a time, bumping versions.
+
+
+---
+
+## 2026-07-28 closure notes
+
+**H3** — `temperature=0` added to every extraction/scoring/strict-JSON call:
+action_center, citability_suggestions, content_analysis topics + suggested,
+content_roadmap (roadmap), position_extraction, and all three toolkit
+generators. 11 of 18 calls now pin it. The six left on the default are creative
+prose by design — digest tip, content-quality recommendation, content brief,
+roadmap article, deliverable body, report narrative.
+
+**H4** — `claude_client.was_truncated(response, service)` logs
+`claude_response_truncated` with a "raise max_tokens" hint, and is called before
+every JSON parse (action_center, citability, content_analysis topics,
+content_brief, content_roadmap, deliverables, toolkit schema). A truncated reply
+is valid JSON that simply stops early, so `json.loads` failures alone never
+pointed at the cause.
+
+**M1** — `ReportData.business_name` now carries the client name to the narrative
+prompt (`report` v5). The "Business:" line had held the PERIOD LABEL, so the
+model wrote about a business it was never told the name of.
+
+**M4** — `build_llms_txt` gained a "## Key Pages" markdown link list built from
+`discover_pages()` sitemap URLs (`toolkit` llms.txt v4), with an explicit
+never-invent-a-URL instruction; discovery is best-effort so a crawl failure
+costs the link list, not the file. Hallucinated links would be worse than none.
+
+Still open: **H1** (no system prompts anywhere — the static role/rules blocks
+are not `system` params, so nothing is prompt-cacheable; real cost saving on
+action_center/roadmap), **H5** (JSON reliability rests on prompt discipline
+alone), **M2/M3/M5/M6/M7/M8**.

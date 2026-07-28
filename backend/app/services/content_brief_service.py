@@ -11,7 +11,7 @@ from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.content_brief import ContentBrief
 from app.models.scan_query_result import ScanQueryResult
-from app.services.claude_client import anthropic_client, strip_code_fences, MODEL
+from app.services.claude_client import anthropic_client, strip_code_fences, MODEL, was_truncated
 from app.services.cost_tracker import record_llm_call
 
 logger = structlog.get_logger()
@@ -60,6 +60,7 @@ def generate_brief_for_result(
         record_llm_call(
             service="content_brief", model=MODEL, response=response, client_id=client.id, db=db
         )
+        was_truncated(response, "content_brief")
         payload = json.loads(strip_code_fences(response.content[0].text))
         title = str(payload["title"]).strip()
         angle = str(payload["angle"]).strip()

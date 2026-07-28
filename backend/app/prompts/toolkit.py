@@ -2,7 +2,9 @@
 """Prompt templates for the AI Readiness Toolkit file generators."""
 from app.models.client import Client
 
-LLMS_TXT_VERSION = "v3"
+# v4: "## Key Pages" markdown link list built from real sitemap URLs, with an
+# explicit never-invent-a-URL rule (prompt audit M4).
+LLMS_TXT_VERSION = "v4"
 LLMS_FULL_TXT_VERSION = "v1"
 # v4: feed logo_url as logo/image; drop the WordPress-only SearchAction; stop
 # emitting hallucinated sameAs URLs into the published file.
@@ -63,7 +65,30 @@ def _schema_type_for(industry: str) -> str:
     return "LocalBusiness"
 
 
-def build_llms_txt(client: Client) -> str:
+def _key_pages_block(page_urls: list[str] | None) -> str:
+    """The Answer.AI spec's whole point is link lists — llms.txt shipped without
+    a single page URL, so an AI reading it learnt what the business does and had
+    nowhere to go (prompt audit M4).
+
+    The URLs are passed in from the real sitemap crawl, never invented: an
+    llms.txt full of hallucinated 404s is worse than one with no links.
+    """
+    if not page_urls:
+        return ""
+    listed = "\n".join(f"- {u}" for u in page_urls)
+    return f"""
+
+## Key Pages
+[Markdown link list. Use ONLY the URLs below — never invent, guess, complete or
+alter a URL. Write each as "- [Descriptive page title](URL): one short line on
+what a customer finds there". Infer the title from the URL slug. Skip any URL
+you cannot describe confidently. Omit this whole section if the list is empty.]
+
+URLs discovered on this site (verbatim, use exactly as written):
+{listed}"""
+
+
+def build_llms_txt(client: Client, page_urls: list[str] | None = None) -> str:
     location_parts = [p for p in [client.city, client.state, client.country] if p]
     location = ", ".join(location_parts)
 
@@ -96,7 +121,7 @@ Required format — use exactly these section headings in this order:
 [4-6 Q&A pairs. Write the questions exactly as a potential customer would ask an AI assistant — \
 natural, conversational language, not keyword-stuffed. Each answer must be 1-2 sentences, \
 specific to this business, and naturally include the business name. \
-Cover: what the business does, who it's for, what makes it different, how to get started.]
+Cover: what the business does, who it's for, what makes it different, how to get started.]{_key_pages_block(page_urls)}
 
 ---
 

@@ -3,8 +3,11 @@
 import re
 
 import anthropic
+import structlog
 
 from app.core.config import settings
+
+logger = structlog.get_logger()
 
 MODEL = "claude-haiku-4-5-20251001"
 
@@ -32,3 +35,19 @@ def strip_code_fences(text: str) -> str:
     text = re.sub(r"^```(?:json)?\s*\n?", "", text)
     text = re.sub(r"\n?```\s*$", "", text)
     return text.strip()
+
+
+def was_truncated(response, service: str) -> bool:
+    """True when the model ran out of output budget mid-answer.
+
+    A `max_tokens` stop is not the same failure as a malformed reply: the JSON
+    is *valid so far* and simply ends early, so a plain json.loads error tells
+    you nothing about the cause and the fix (raise max_tokens) is invisible.
+    Log it distinctly at the call site so a truncated deliverable is
+    diagnosable from the logs alone (prompt audit H4).
+    """
+    truncated = getattr(response, "stop_reason", None) == "max_tokens"
+    if truncated:
+        logger.warning("claude_response_truncated", service=service,
+                       hint="raise max_tokens for this prompt")
+    return truncated

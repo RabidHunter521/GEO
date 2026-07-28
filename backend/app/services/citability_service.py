@@ -18,7 +18,7 @@ from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.page_audit import PageAudit
 from app.prompts.citability import build_citability_suggestions
-from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
+from app.services.claude_client import MODEL, anthropic_client, strip_code_fences, was_truncated
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 from app.services.url_safety import is_safe_crawl_url, safe_get
@@ -343,6 +343,7 @@ def generate_suggestions(
         response = anthropic_client().messages.create(
             model=MODEL,
             max_tokens=_SUGGESTIONS_MAX_TOKENS,
+            temperature=0,
             messages=[{
                 "role": "user",
                 "content": build_citability_suggestions(client, problems, excerpt),
@@ -352,6 +353,7 @@ def generate_suggestions(
             service="citability_suggestions", model=MODEL, response=response,
             client_id=client.id, db=db,
         )
+        was_truncated(response, "citability_suggestions")
         payload = json.loads(strip_code_fences(response.content[0].text))
         items = payload.get("suggestions", []) if isinstance(payload, dict) else payload
         cleaned: list[dict] = []

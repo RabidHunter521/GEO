@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.constants import PLATFORM_LABELS
 from app.models.client import Client
 from app.prompts.content_roadmap import PLAN_WEEKS, build_article, build_roadmap
-from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences, was_truncated
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 from app.services.win_loss_service import compute_win_loss
@@ -55,6 +55,7 @@ def generate_roadmap(client: Client, db: Session) -> dict:
     response = anthropic_client().messages.create(
         model=MODEL_NARRATIVE,
         max_tokens=_MAX_TOKENS,
+        temperature=0,
         messages=[{"role": "user", "content": prompt}],
     )
     record_llm_call(
@@ -64,6 +65,7 @@ def generate_roadmap(client: Client, db: Session) -> dict:
         client_id=client.id,
         db=db,
     )
+    was_truncated(response, "content_roadmap")
     payload = json.loads(strip_code_fences(response.content[0].text))
     items = payload["roadmap"] if isinstance(payload, dict) else payload
 

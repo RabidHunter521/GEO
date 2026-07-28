@@ -482,6 +482,11 @@ class ReportData:
     robots_verified: bool
     competitors: list[CompetitorSummary] = field(default_factory=list)
     recommendation: str = ""
+    # The narrative prompt is built from ReportData alone, so the client's name
+    # has to travel on it — without this the prompt printed the period label in
+    # the "Business:" slot and the model wrote about a business it could not
+    # name (prompt audit M1).
+    business_name: str = ""
     brand_authority_evidence: str | None = None
     content_quality_evidence: str | None = None
     ai_visitors_current: int | None = None
@@ -1305,6 +1310,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         period_start=now - timedelta(days=30),
         period_end=now,
         period_label=format_period_label(now - timedelta(days=30), now),
+        business_name=client.name,
         overall_score=current_gs.overall_score,
         score_band=score_band,
         score_color=score_color,

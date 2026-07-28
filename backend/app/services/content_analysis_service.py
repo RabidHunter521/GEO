@@ -15,7 +15,7 @@ from app.prompts.content_analysis import (
     build_suggested_content,
     build_topics_entities,
 )
-from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
+from app.services.claude_client import MODEL, anthropic_client, strip_code_fences, was_truncated
 from app.services.content_crawler import CrawlResult, crawl_site
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
@@ -29,11 +29,13 @@ def _topics_entities(client: Client, corpus: str) -> dict:
     response = anthropic_client().messages.create(
         model=MODEL,
         max_tokens=2048,
+        temperature=0,
         messages=[{"role": "user", "content": build_topics_entities(client, corpus)}],
     )
     record_llm_call(
         service="content_analysis_topics", model=MODEL, response=response, client_id=client.id
     )
+    was_truncated(response, "content_analysis_topics")
     raw = strip_code_fences(response.content[0].text)
     data = json.loads(raw)
     topics = data.get("topics", []) if isinstance(data, dict) else []
@@ -62,6 +64,7 @@ def _suggested_content(client: Client, topics: list) -> list:
         response = anthropic_client().messages.create(
             model=MODEL,
             max_tokens=1024,
+            temperature=0,
             messages=[{"role": "user", "content": build_suggested_content(client, missing)}],
         )
         record_llm_call(

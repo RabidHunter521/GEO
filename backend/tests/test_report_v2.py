@@ -540,3 +540,22 @@ def test_traffic_zero_state_only_when_there_is_no_data(db):
         _minimal_data(),   # no traffic at all
     )
     assert "Tracking begins soon" in html
+
+
+# ── M1: the narrative prompt must know whose business it is ───────────────────
+# It said "Business: July 2026 report." — the period label in the slot where the
+# NAME belongs, so the model wrote about an anonymous business it could not name.
+
+def test_change_narrative_prompt_names_the_business():
+    from app.prompts.report import build_change_narrative
+    data = _minimal_data(business_name="Acme Dental", period_label="23 Jun – 22 Jul 2026")
+    prompt = build_change_narrative(data)
+    assert "Acme Dental" in prompt
+    # and must not put the period where the name goes
+    assert "Business: 23 Jun – 22 Jul 2026 report." not in prompt
+
+
+def test_change_narrative_prompt_survives_a_missing_name():
+    from app.prompts.report import build_change_narrative
+    prompt = build_change_narrative(_minimal_data())
+    assert "Business:" in prompt

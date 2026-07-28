@@ -22,7 +22,7 @@ from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.prompts.deliverables import build_comparison_page, build_faq_pack, build_glossary
 from app.services.brand_detection import detect_brand_in_answer
-from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences, was_truncated
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 
@@ -120,6 +120,7 @@ def generate_deliverable(
             service=f"deliverable_{dtype}", model=MODEL_NARRATIVE, response=response,
             client_id=client.id, db=db,
         )
+        was_truncated(response, f"deliverable_{dtype}")
         payload = json.loads(strip_code_fences(response.content[0].text))
         title = sanitize_text(str(payload["title"]).strip())
         body_md = sanitize_text(str(payload["body_md"]).strip())

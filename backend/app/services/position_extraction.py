@@ -37,6 +37,7 @@ Reply with a single number or the word none. Nothing else."""
     response = anthropic_client().messages.create(
         model=MODEL,
         max_tokens=8,
+        temperature=0,
         messages=[{"role": "user", "content": prompt}],
     )
     # db omitted on purpose: this runs in per-platform worker threads, so it must

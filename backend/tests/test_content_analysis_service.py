@@ -54,7 +54,10 @@ def test_analyze_content_assembles_payload():
     )
 
     # Calls run concurrently in threads, so dispatch on prompt content (not order).
-    def create(model, max_tokens, messages):
+    # **kwargs so adding a call parameter (temperature, system, …) cannot make
+    # this mock raise TypeError inside a worker thread, where the failure was
+    # swallowed and surfaced only as an unexplained 0.0 coverage score.
+    def create(model, max_tokens, messages, **kwargs):
         prompt = messages[0]["content"]
         if "Output ONLY valid JSON" in prompt:
             return _text(te_json)

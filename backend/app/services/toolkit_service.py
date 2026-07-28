@@ -2,19 +2,43 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 
+import structlog
+
 from app.models.client import Client
 from app.prompts.toolkit import build_llms_txt, build_llms_full_txt, build_schema_json
 from app.services.claude_client import MODEL as _MODEL
 from app.services.claude_client import anthropic_client as _anthropic_client
 from app.services.claude_client import strip_code_fences as _strip_code_fences
+from app.services.claude_client import was_truncated as _was_truncated
 from app.services.cost_tracker import record_llm_call
+
+logger = structlog.get_logger()
+
+
+def _discover_key_pages(client: Client) -> list[str]:
+    """Real sitemap URLs for the llms.txt link list, best-effort.
+
+    Discovery is a network call against the client's own site; if it fails the
+    file is still generated, just without the Key Pages section. An llms.txt
+    with no links is a missed opportunity — one with invented links is a lie.
+    """
+    try:
+        from app.services.content_crawler import discover_pages
+        return discover_pages(client.website)
+    except Exception:
+        logger.warning("llms_txt_page_discovery_failed", client_id=str(client.id))
+        return []
 
 
 def generate_llms_txt(client: Client) -> str:
     response = _anthropic_client().messages.create(
         model=_MODEL,
         max_tokens=2048,
-        messages=[{"role": "user", "content": build_llms_txt(client)}],
+        temperature=0,
+        messages=[{
+            "role": "user",
+            "content": build_llms_txt(client, page_urls=_discover_key_pages(client)),
+        }],
     )
     record_llm_call(service="toolkit_llms_txt", model=_MODEL, response=response, client_id=client.id)
     # Haiku occasionally wraps output in a ``` fence despite the instruction above;
@@ -26,6 +50,7 @@ def generate_llms_full_txt(client: Client) -> str:
     response = _anthropic_client().messages.create(
         model=_MODEL,
         max_tokens=4096,
+        temperature=0,
         messages=[{"role": "user", "content": build_llms_full_txt(client)}],
     )
     record_llm_call(
@@ -40,11 +65,13 @@ def generate_schema_json(client: Client) -> str:
         response = _anthropic_client().messages.create(
             model=_MODEL,
             max_tokens=2048,
+            temperature=0,
             messages=[{"role": "user", "content": prompt}],
         )
         record_llm_call(
             service="toolkit_schema_json", model=_MODEL, response=response, client_id=client.id
         )
+        _was_truncated(response, "toolkit_schema_json")
         raw = _strip_code_fences(response.content[0].text)
         try:
             json.loads(raw)

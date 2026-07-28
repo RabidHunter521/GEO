@@ -256,3 +256,44 @@ def test_verify_persists_llms_full_flag_without_touching_scores():
     assert fake_client.structured_data_verified is False
     # llms-full alone must NOT stamp verified_at either
     assert fake_tf.verified_at is None
+
+
+# ── M4: llms.txt must carry real page links ───────────────────────────────────
+# The Answer.AI spec is built on link lists; the prompt emitted none, so an AI
+# reading a client's llms.txt learnt what they do and had nowhere to go.
+
+def test_llms_txt_prompt_lists_discovered_urls():
+    from app.models.client import Client
+    from app.prompts.toolkit import build_llms_txt
+    c = Client(name="Acme Dental", website="https://acme.com", industry="Dental clinic")
+    prompt = build_llms_txt(c, page_urls=["https://acme.com", "https://acme.com/services"])
+    assert "## Key Pages" in prompt
+    assert "https://acme.com/services" in prompt
+    # The anti-hallucination instruction is the point — without it the model
+    # cheerfully invents /about and /pricing.
+    assert "never invent" in prompt.lower()
+
+
+def test_llms_txt_prompt_omits_key_pages_when_discovery_found_nothing():
+    from app.models.client import Client
+    from app.prompts.toolkit import build_llms_txt
+    c = Client(name="Acme Dental", website="https://acme.com", industry="Dental clinic")
+    assert "## Key Pages" not in build_llms_txt(c, page_urls=[])
+    assert "## Key Pages" not in build_llms_txt(c)
+
+
+def test_llms_txt_generation_survives_discovery_failure():
+    """A crawl failure must not block the file — it just loses the link list."""
+    from unittest.mock import MagicMock, patch
+    from app.models.client import Client
+    from app.services import toolkit_service
+    c = Client(name="Acme Dental", website="https://acme.com", industry="Dental clinic")
+
+    resp = MagicMock()
+    resp.content = [MagicMock(text="# Acme Dental")]
+    resp.stop_reason = "end_turn"
+    with patch("app.services.content_crawler.discover_pages", side_effect=OSError("dns")), \
+         patch.object(toolkit_service, "_anthropic_client",
+                      return_value=MagicMock(**{"messages.create.return_value": resp})), \
+         patch.object(toolkit_service, "record_llm_call"):
+        assert toolkit_service.generate_llms_txt(c) == "# Acme Dental"

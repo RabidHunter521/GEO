@@ -27,7 +27,7 @@ from app.models.content_analysis import ContentAnalysis
 from app.models.geo_score import GeoScore
 from app.models.scan_query_result import ScanQueryResult
 from app.prompts.action_center import DIMENSIONS, build as build_prompt
-from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences, was_truncated
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 
@@ -94,6 +94,7 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
         response = anthropic_client().messages.create(
             model=MODEL_NARRATIVE,
             max_tokens=1024,
+            temperature=0,
             messages=[{"role": "user", "content": prompt}],
         )
         record_llm_call(
@@ -103,6 +104,7 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
             client_id=client.id,
             db=db,
         )
+        was_truncated(response, "action_center")
         raw = strip_code_fences(response.content[0].text)
         data = json.loads(raw)
         raw_actions = data.get("actions", []) if isinstance(data, dict) else []

@@ -2,9 +2,11 @@
 """Prompt template for the monthly report change narrative."""
 from app.prompts.language import LANGUAGE_RULES
 
+# v5: the prompt finally names the business. "Business:" held the period label,
+# so the model wrote about a client it could not name (prompt audit M1).
 # v4: shared LANGUAGE_RULES — the local list missed "mentioned"/"uncited" and
 # this narrative is printed verbatim in the client PDF (prompt audit H2).
-VERSION = "v4"  # v3: work-delivered counts added to the context block
+VERSION = "v5"  # v3: work-delivered counts added to the context block
 
 
 def build_change_narrative(data) -> str:
@@ -47,7 +49,8 @@ def build_change_narrative(data) -> str:
         "Where specific queries are provided, name them — say which questions the business is now seen for "
         "or lost visibility on. Be specific and factual. Never use internal jargon. "
         f"{LANGUAGE_RULES}\n\n"
-        f"Business: {data.period_label} report.\n"
+        f"Business: {getattr(data, 'business_name', '') or 'this business'}.\n"
+        f"Report period: {data.period_label}.\n"
         f"Overall score: {data.prev_overall_score:.0f} -> {data.overall_score:.0f}.\n"
         f"AI visibility frequency (citability): {data.ai_citability:.0f}%.\n"
         f"Seen by AI in {data.seen_count} of {data.total_count} tracked queries."
