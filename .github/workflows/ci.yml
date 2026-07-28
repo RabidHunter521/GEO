@@ -89,6 +89,27 @@ jobs:
           poetry run alembic upgrade head
           poetry run alembic current
 
+      # RLS is NOT on by default for a new table — each migration has to enable
+      # it explicitly, and forgetting is silent. With Supabase's default ACLs
+      # granting anon full DML on new tables, a table that ships without RLS is
+      # world-readable from day one.
+      - name: Every table must have RLS enabled
+        working-directory: backend
+        env:
+          PGPASSWORD: postgres
+        run: |
+          missing=$(psql -h localhost -U postgres -d seenby_migrations -tAc "
+            SELECT string_agg(c.relname, ', ' ORDER BY c.relname)
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind = 'r'
+              AND c.relname <> 'alembic_version'
+              AND NOT c.relrowsecurity")
+          if [ -n "$missing" ]; then
+            echo "::error::tables created without ROW LEVEL SECURITY: $missing"
+            exit 1
+          fi
+          echo "all tables have RLS enabled"
+
       # A migration you cannot reverse is a migration you cannot roll back
       # during an incident. Every downgrade in this repo is meant to be
       # reversible; this proves it against a real schema.

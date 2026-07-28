@@ -154,6 +154,25 @@ Admin alerts (score drop / competitor overtake / hallucination):
 - Never expose: confidence scores, char offsets, token counts, 
   raw API responses to any client-facing surface
 
+### Database access posture (settled 2026-07-28)
+
+- The app connects to Supabase as `postgres`, which has `bypassrls = true`.
+  There is no Supabase client, anon key, PostgREST call or Supabase Auth
+  anywhere in the codebase.
+- Supabase's `anon` and `authenticated` roles had full DML — including
+  TRUNCATE — on all 27 tables by default. Migration `d3f7a1c58e02` revoked
+  those and the default privileges that re-granted them on every new table.
+  Do not re-grant them without a real reason: RLS does NOT restrict TRUNCATE,
+  so those grants were a data-loss path that RLS could not cover.
+- **RLS is enabled on every table with ZERO policies.** That is deliberate:
+  with no client login there is nothing to write a policy for, and enabled +
+  no policy denies every non-bypassing role. It is defence in depth, not the
+  active control — the active control is that only `postgres` connects.
+  Never describe RLS to a client as protecting their data today.
+- **New tables do NOT get RLS automatically.** Every migration creating a
+  table must `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` inline, as all
+  existing ones do. CI fails the build if any table lacks it.
+
 ## 9. Admin Panel Navigation
 
 Exact structure — do not add pages without updating this:

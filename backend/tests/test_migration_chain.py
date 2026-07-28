@@ -13,7 +13,6 @@ partial indexes and ROW LEVEL SECURITY and cannot run on SQLite.
 import subprocess
 from pathlib import Path
 
-import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 
