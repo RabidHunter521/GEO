@@ -49,7 +49,7 @@ Same prompt asks about "visible author credentials, headings, FAQs, freshness" w
 
 Every call puts persona + rules + data in one user message. Industry standard (and Anthropic guidance): static role/rules in `system`, variable data in `user`. Benefits: better instruction adherence on Haiku, and the static block becomes **prompt-cacheable** (real cost savings on action_center/roadmap which have long rule blocks). Mechanical refactor; bump each prompt version when done.
 
-### H2. Banned-language rules are inconsistent across prompts
+### H2. Banned-language rules are inconsistent across prompts — ✅ FIXED 2026-07-28
 
 - `assessment.py` has `_LANGUAGE_RULES` (good) — but it's private to that file.
 - `action_center.py` bans "citation/ranking position/confidence/token" but **not** "mentioned"/"cited"/"visibility gap".
@@ -58,6 +58,22 @@ Every call puts persona + rules + data in one user message. Industry standard (a
 - `sanitize_bullets`/`sanitize_text` is applied only to assessment bullets.
 
 **Fix:** one shared `LANGUAGE_RULES` constant in `prompts/__init__.py` imported by every client-facing prompt, **and** run `sanitize_text()` on every client-facing LLM output as a belt-and-braces post-process (digest action, quality recommendation, report narrative, roadmap rationale, brief angle, article body).
+
+**What shipped:** the constant lives in `app/prompts/language.py` (not `__init__.py` —
+an empty package init is a poor home for a documented constant). It is imported by
+`digest.py`, `assessment.py`, `deliverables.py`, `action_center.py` and `report.py`;
+the two drifted private copies are gone. Versions bumped: digest v2→v3,
+brand_authority v3→v4, content_quality v2→v3, all three deliverables v1→v2,
+action_center v2→v3, report v3→v4.
+
+Sanitizer added to the three client-facing output paths that lacked it: the digest
+action tip (emailed verbatim), the monthly report change narrative (printed in the
+PDF and share view), and Action Center `action_text`. `content_analysis` quality
+recommendations and roadmap rationale were already sanitized.
+
+Still open from this finding's wish-list: article body and brief angle are not
+sanitized — both are admin-reviewed before publication, so the human gate stands
+in for the automatic one.
 
 ### H3. No temperature control on extraction/scoring calls
 

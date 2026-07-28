@@ -7,16 +7,14 @@ admin-review gate is mandatory, not decorative.
 """
 from app.models.client import Client
 from app.models.competitor import Competitor
+from app.prompts.language import LANGUAGE_RULES
 
-FAQ_PACK_VERSION = "v1"
-COMPARISON_PAGE_VERSION = "v1"
-GLOSSARY_VERSION = "v1"
-
-_LANGUAGE_RULES = (
-    'Never use the words "citation", "cited", "mentioned", "citation rate", '
-    '"ranking position", or "visibility gap" — say "seen by AI" and '
-    '"visibility frequency" instead.'
-)
+# v2 (all three): the local vocabulary rules were replaced by the shared
+# LANGUAGE_RULES, which forbids more terms than this file's copy did —
+# "uncited", "first mentioned" and the internal-metric names were missing here.
+FAQ_PACK_VERSION = "v2"
+COMPARISON_PAGE_VERSION = "v2"
+GLOSSARY_VERSION = "v2"
 
 _ENVELOPE_RULES = """Output ONLY valid JSON, no code fences, exactly:
 {"title": "string", "body_md": "string"}
@@ -54,7 +52,7 @@ this industry.
 - End body_md with a one-line note: "Tip: add this FAQ to your site together with FAQPage \
 schema — the SeenBy toolkit generates it."
 Format body_md as: H1 title, then "## Question" headings each followed by the answer paragraph.
-{_LANGUAGE_RULES}
+{LANGUAGE_RULES}
 {_ENVELOPE_RULES}"""
 
 
@@ -86,7 +84,7 @@ competitor's side, write "Check their website" — NEVER invent competitor facts
 
 Hard rules: never disparage {competitor.name}; no invented facts or statistics for either \
 business; no superlatives about {client.name} that are not in the profile above.
-{_LANGUAGE_RULES}
+{LANGUAGE_RULES}
 {_ENVELOPE_RULES}"""
 
 
@@ -112,5 +110,5 @@ that form directly.
 - Where natural (at most 5 entries), relate the term to how {client.name} handles it — \
 grounded only in the profile.
 - Alphabetical order. H1: "{client.industry} Terms Explained".
-{_LANGUAGE_RULES}
+{LANGUAGE_RULES}
 {_ENVELOPE_RULES}"""

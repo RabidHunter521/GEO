@@ -29,6 +29,7 @@ from app.models.scan_query_result import ScanQueryResult
 from app.prompts.action_center import DIMENSIONS, build as build_prompt
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences
 from app.services.cost_tracker import record_llm_call
+from app.services.language_sanitizer import sanitize_text
 
 logger = structlog.get_logger()
 
@@ -128,7 +129,9 @@ def generate_actions(client: Client, geo_score: GeoScore, db: Session) -> list[d
         )
 
         actions.append({
-            "action_text": action_text,
+            # Second line of defense behind the prompt's §2 rules — action text
+            # reaches client-facing surfaces (prompt audit H2).
+            "action_text": sanitize_text(action_text),
             "dimension": dimension,
             "estimated_impact": estimated_impact,
             "priority": _priority_for_impact(estimated_impact),

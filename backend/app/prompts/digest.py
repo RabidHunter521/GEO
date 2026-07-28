@@ -1,8 +1,12 @@
 # backend/app/prompts/digest.py
 """Prompt template for the weekly digest action tip."""
 from app.models.client import Client
+from app.prompts.language import LANGUAGE_RULES
 
-VERSION = "v2"
+# v3: carries the shared §2 vocabulary rules. This tip is emailed verbatim to
+# the client and was the last client-facing prompt with no language rules at
+# all (prompt audit H2).
+VERSION = "v3"
 
 
 def build_action(client: Client, current: float, prev: float | None) -> str:
@@ -34,5 +38,6 @@ def build_action(client: Client, current: float, prev: float | None) -> str:
         f"Their weakest area right now is {weakest_dim} ({weakest_score:.0f}/100). "
         f"Write exactly one sentence (under 30 words) recommending one specific, concrete action "
         f"targeting {weakest_dim} to improve their AI visibility. "
-        f"Be direct. Do not use 'consider', 'you might', or 'perhaps'."
+        f"Be direct. Do not use 'consider', 'you might', or 'perhaps'. "
+        f"{LANGUAGE_RULES}"
     )

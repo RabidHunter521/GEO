@@ -12,19 +12,18 @@ phrased as "To verify: …" for the admin reviewer.
 """
 from app.models.client import Client
 from app.core.constants import DIMENSION_BRAND_AUTHORITY, DIMENSION_CONTENT_QUALITY
+from app.prompts.language import LANGUAGE_RULES
 
+# v4: swapped the local vocabulary rules for the shared LANGUAGE_RULES, which
+# forbids more terms than this file's copy did.
 # v3: adds a SeenBy-tracked authority-asset evidence block (Phase 4) — the
 # assessment now reasons over the admin-curated directory/review/social
 # checklist, not just an outside web search.
-BRAND_AUTHORITY_VERSION = "v3"
+BRAND_AUTHORITY_VERSION = "v4"
+# v3: shared LANGUAGE_RULES (see above).
 # v2: consumes persisted crawl metrics + same evidence discipline (audit C1/C2).
-CONTENT_QUALITY_VERSION = "v2"
+CONTENT_QUALITY_VERSION = "v3"
 
-_LANGUAGE_RULES = (
-    'Never use the words "citation", "cited", "mentioned", "citation rate", '
-    '"ranking position", or "visibility gap". Use "seen by AI", "visibility '
-    'frequency", and "AI Search Ranking" instead.'
-)
 
 _EVIDENCE_RULES = (
     "Evidence discipline: use the web_search tool to check the signals above "
@@ -76,7 +75,7 @@ Brand Authority measures how strongly AI models recognise this brand as a real, 
 Score 0-100 where 80-100 = a widely-recognised authority, 50-64 = present but thin, 0-34 = almost no public footprint.
 Each bullet is either a public fact you confirmed via search (e.g. "Listed on Google with 40+ reviews at 4.6 stars") or a "To verify: …" item — never an unconfirmed assertion, never an internal metric.
 {_EVIDENCE_RULES}
-{_LANGUAGE_RULES}
+{LANGUAGE_RULES}
 {_JSON_CONTRACT}"""
 
 
@@ -112,7 +111,7 @@ Content Quality measures whether the website's content demonstrates Experience, 
 Score 0-100 where 80-100 = strong, well-structured expert content, 50-64 = adequate but shallow, 0-34 = thin or generic.
 Each bullet is either a fact grounded in the crawl data above or a search result (e.g. "FAQ sections found on 3 of 7 crawled pages") or a "To verify: …" item — never an unconfirmed assertion, never an internal metric.
 {_EVIDENCE_RULES}
-{_LANGUAGE_RULES}
+{LANGUAGE_RULES}
 {_JSON_CONTRACT}"""
 
 

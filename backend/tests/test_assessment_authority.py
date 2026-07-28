@@ -34,9 +34,12 @@ def test_prompt_omits_block_when_no_authority():
     assert "SeenBy-tracked authority assets" not in prompt
 
 
-def test_version_bumped_to_v3():
+# Version lock: this must be edited by hand on every prompt change, so a
+# reworded prompt cannot silently reuse an old version and corrupt the cost
+# rows the registry ties to it. v4 = shared LANGUAGE_RULES.
+def test_brand_authority_version_is_locked():
     from app.prompts.assessment import BRAND_AUTHORITY_VERSION
-    assert BRAND_AUTHORITY_VERSION == "v3"
+    assert BRAND_AUTHORITY_VERSION == "v4"
 
 
 def test_generate_assessment_passes_authority(db):

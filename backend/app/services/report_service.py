@@ -571,7 +571,9 @@ def _generate_change_narrative(
             client_id=client_id,
             db=db,
         )
-        text = response.content[0].text.strip()
+        # Printed verbatim in the client PDF and the share view — sanitize even
+        # though the prompt carries the §2 rules (prompt audit H2).
+        text = _sanitize_text(response.content[0].text.strip())
         return text or _fallback_narrative(data)
     except Exception:
         logger.warning("change_narrative_generation_failed")

@@ -1,7 +1,10 @@
 # backend/app/prompts/report.py
 """Prompt template for the monthly report change narrative."""
+from app.prompts.language import LANGUAGE_RULES
 
-VERSION = "v3"  # v3: work-delivered counts added to the context block
+# v4: shared LANGUAGE_RULES — the local list missed "mentioned"/"uncited" and
+# this narrative is printed verbatim in the client PDF (prompt audit H2).
+VERSION = "v4"  # v3: work-delivered counts added to the context block
 
 
 def build_change_narrative(data) -> str:
@@ -42,8 +45,8 @@ def build_change_narrative(data) -> str:
         "You are an AI visibility analyst writing a brief monthly summary for a client report. "
         "Write 2-3 sentences (plain text, no headings, under 70 words) explaining what changed this month. "
         "Where specific queries are provided, name them — say which questions the business is now seen for "
-        "or lost visibility on. Use 'seen by AI' not 'cited'; 'visibility frequency' not 'citation rate'; "
-        "never use 'ranking', 'confidence score', or internal jargon. Be specific and factual.\n\n"
+        "or lost visibility on. Be specific and factual. Never use internal jargon. "
+        f"{LANGUAGE_RULES}\n\n"
         f"Business: {data.period_label} report.\n"
         f"Overall score: {data.prev_overall_score:.0f} -> {data.overall_score:.0f}.\n"
         f"AI visibility frequency (citability): {data.ai_citability:.0f}%.\n"

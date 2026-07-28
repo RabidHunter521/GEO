@@ -74,6 +74,37 @@ def test_calls_claude_when_score_drops_by_5_or_more():
     assert result == "Add your brand to three new business directories this week."
 
 
+# The digest tip is emailed straight to the client, so the model's wording is
+# a client-facing surface. Prompt rules alone have leaked banned vocabulary
+# twice in this project — the sanitizer is the second line of defense.
+def test_claude_action_output_is_sanitized():
+    from app.services.claude_action import get_digest_action
+    mock_client = _mock_claude("You were cited by ChatGPT — improve your citation rate.")
+    client = _make_client()
+    with patch("app.services.claude_action.anthropic_client", return_value=mock_client), \
+            patch("app.services.claude_action.record_llm_call"):
+        result = get_digest_action(
+            client=client,
+            current_ai_citability=75.0,
+            prev_ai_citability=60.0,
+        )
+    assert "cited" not in result
+    assert "citation rate" not in result
+    assert "seen by AI" in result
+    assert "visibility frequency" in result
+
+
+def test_digest_prompt_carries_the_language_rules():
+    from app.prompts.digest import build_action
+    from app.prompts.language import LANGUAGE_RULES
+    client = _make_client()
+    client.brand_authority_score = 40
+    client.content_quality_score = 50
+    client.technical_foundations_verified = False
+    client.structured_data_verified = False
+    assert LANGUAGE_RULES in build_action(client, 75.0, 60.0)
+
+
 def test_falls_back_to_static_tip_when_claude_raises():
     from app.services.claude_action import get_digest_action
     from app.core.constants import DIGEST_STATIC_TIPS

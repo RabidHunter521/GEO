@@ -5,6 +5,7 @@ from app.models.client import Client
 from app.prompts.digest import build_action
 from app.services.claude_client import MODEL, anthropic_client
 from app.services.cost_tracker import record_llm_call
+from app.services.language_sanitizer import sanitize_text
 from app.services.scoring_service import get_score_band
 
 
@@ -55,4 +56,7 @@ def _generate_claude_action(
         client_id=client.id,
         db=db,
     )
-    return response.content[0].text.strip()
+    # This string is emailed to the client verbatim. The prompt carries the §2
+    # rules, but prompt discipline alone has leaked banned vocabulary before —
+    # sanitize before it leaves the service.
+    return sanitize_text(response.content[0].text.strip())

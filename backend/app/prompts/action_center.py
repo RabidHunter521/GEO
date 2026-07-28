@@ -2,8 +2,11 @@
 """Prompt template for the GEO Action Center."""
 from app.models.client import Client
 from app.core.constants import SCORE_BANDS, SCORE_WEIGHTS
+from app.prompts.language import LANGUAGE_RULES
 
-VERSION = "v2"
+# v3: shared LANGUAGE_RULES — the local list missed "mentioned", "cited" and
+# "visibility gap" (prompt audit H2).
+VERSION = "v3"
 
 DIMENSIONS = (
     "ai_citability",
@@ -54,9 +57,8 @@ Additional context:
 
 Suggest 3-5 specific, practical actions this business could take to improve their AI visibility
 score, prioritizing dimensions that are weakest and have the highest weight. For each action:
-- action_text: one specific, plain-English sentence describing the action. Use phrases like
-  "Your competitors are winning here" instead of "visibility gap", and never use the words
-  "citation", "ranking position", "confidence", or "token".
+- action_text: one specific, plain-English sentence describing the action.
+  {LANGUAGE_RULES}
 - dimension: which one of {", ".join(DIMENSIONS)} this action primarily improves.
 - effort: how long this action typically takes to show results. Use exactly one of:
   "quick-win" (visible change within 2-4 weeks),
