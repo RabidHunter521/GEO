@@ -168,9 +168,13 @@ def _group_a(robots, llms, llms_full, homepage, http_redirect) -> list[dict]:
         checks.append(_result("llms_txt", label, "pass", "Found llms.txt at /llms.txt."))
     else:
         checks.append(_result(
-            "llms_txt", label, "fail",
-            "No llms.txt file found — AI assistants have no summary of the business to read.",
-            "Generate llms.txt with the SeenBy toolkit and upload it to the website root.",
+            "llms_txt",
+            "llms.txt file",
+            "warn",
+            "No llms.txt file found. This optional publisher-supplied summary is not "
+            "required by major AI search platforms.",
+            "Generate and publish llms.txt only if the client wants a maintained, "
+            "machine-readable summary of its key pages.",
         ))
 
     # 4. llms_full_txt — optional file: warn when missing, never fail.
@@ -181,10 +185,13 @@ def _group_a(robots, llms, llms_full, homepage, http_redirect) -> list[dict]:
         checks.append(_result("llms_full_txt", label, "pass", "Found llms-full.txt at /llms-full.txt."))
     else:
         checks.append(_result(
-            "llms_full_txt", label, "warn",
-            "No llms-full.txt found. It's optional, but gives AI assistants a much "
-            "richer picture of the business.",
-            "Generate llms-full.txt with the SeenBy toolkit and upload it next to llms.txt.",
+            "llms_full_txt",
+            "llms-full.txt file",
+            "warn",
+            "No llms-full.txt file found. This optional extended publisher file is "
+            "informational and does not affect Growth Readiness.",
+            "Publish llms-full.txt only when the client can keep the extended content "
+            "accurate and current.",
         ))
 
     # 5. https

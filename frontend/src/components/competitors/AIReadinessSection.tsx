@@ -30,8 +30,9 @@ export function AIReadinessSection({ clientId }: { clientId: string }) {
         <div>
           <h3 className="font-display text-lg font-semibold">AI Crawler Readiness</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Checks llms.txt, AI-bot access in robots.txt, and schema.org markup — for
-            your site and each tracked competitor. Live check, not part of the score.
+            Compares optional publisher files, AI-crawler access, and schema.org markup
+            for your site and tracked competitors. This comparison is informational and
+            does not change Growth Readiness.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleCheck} disabled={pending} className="shrink-0">

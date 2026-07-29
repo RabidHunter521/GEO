@@ -38,7 +38,7 @@ const FILE_META = {
     label: "llms-full.txt",
     filename: "llms-full.txt",
     instruction:
-      "Upload this file to your website root next to llms.txt, so it's accessible at yourdomain.com/llms-full.txt. It's the extended version — optional, but it gives AI assistants a much richer picture of the business. It does not change the score.",
+      "Upload this file to your website root next to llms.txt, so it's accessible at yourdomain.com/llms-full.txt. It is optional and does not affect Growth Readiness.",
     expectedUrl: "/llms-full.txt",
   },
   schema_json: {
@@ -156,8 +156,9 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
             AI Readiness Toolkit
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Generate the three files that make your client visible to AI search engines.
-            Each verified file unlocks score points.
+            Generate and verify optional publisher files, structured data, and crawler
+            access. Only verified crawler access and structured data affect Growth
+            Readiness.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -260,7 +261,7 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
                 <p className="font-medium">llms-full.txt not generated yet</p>
                 <p className="text-sm mt-1 max-w-md mx-auto">
                   The extended companion to llms.txt — services in detail, more Q&amp;As,
-                  policies and key pages. Optional, and doesn&apos;t change the score.
+                  policies and key pages. Optional · no score impact.
                 </p>
                 <Button className="mt-4" onClick={handleGenerateLlmsFull} disabled={isGeneratingFull}>
                   {isGeneratingFull && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -269,6 +270,9 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
               </div>
             ) : (
               <div key={key} className="space-y-4">
+                {(key === "llms_txt" || key === "llms_full_txt") && (
+                  <p className="text-sm text-muted-foreground">Optional · no score impact</p>
+                )}
                 {/* File content area */}
                 <div className="relative rounded-md border bg-muted/20">
                   <div className="absolute top-2 right-2 flex gap-1 z-10">
@@ -335,14 +339,18 @@ export function ToolkitClient({ clientId, initialFiles, clientWebsite }: Props) 
           {/* Score impact panel — shown after any verification attempt */}
           {verification && (
             <div className="rounded-md border px-4 py-3 space-y-2">
-              <p className="text-sm font-semibold">Score impact</p>
+              <p className="text-sm font-semibold">Growth Readiness impact</p>
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Technical Foundations (10 pts)</span>
                   {verification.technical_foundations_updated ? (
-                    <span className="text-score-strong font-medium">&#10003; Unlocked &mdash; llms.txt + robots.txt live</span>
+                    <span className="text-score-strong font-medium">
+                      &#10003; Verified &mdash; supported AI crawlers are allowed
+                    </span>
                   ) : (
-                    <span className="text-muted-foreground">Needs llms.txt + robots.txt live at your domain</span>
+                    <span className="text-muted-foreground">
+                      Review robots.txt AI-crawler access
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center justify-between text-sm">

@@ -33,10 +33,13 @@ def test_rung1_battle_tip_names_query_and_rival():
     assert "Dr. Lim Dental" in tip
 
 
-def test_rung2_toolkit_tip_when_no_battle_and_llms_unverified():
-    c = make_client(technical_foundations_verified=False)
-    tip = select_digest_tip(c, None, 55.0)
-    assert "llms.txt" in tip
+def test_rung2_technical_tip_does_not_promise_visibility_gain():
+    client = make_client(technical_foundations_verified=False)
+    tip = select_digest_tip(client, None, 55.0)
+
+    assert "robots.txt" in tip
+    assert "visibility gain" not in tip.lower()
+    assert "llms.txt" not in tip
 
 
 def test_rung2_schema_tip_when_only_structured_data_unverified():

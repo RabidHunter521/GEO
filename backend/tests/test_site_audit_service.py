@@ -164,6 +164,29 @@ def test_llms_full_missing_warns_never_fails():
     assert c["status"] == "warn"
 
 
+def test_missing_llms_copy_is_optional_and_does_not_claim_visibility():
+    routes = dict(_HEALTHY_ROUTES)
+    routes["/llms.txt"] = SafeResponse(404)
+    check = _by_id(_run(routes))["llms_txt"]
+    combined = f"{check['detail']} {check['fix']}".lower()
+
+    assert check["status"] == "warn"
+    assert "optional" in combined
+    assert "no summary" not in combined
+    assert "visible" not in combined
+
+
+def test_missing_llms_full_copy_does_not_claim_richer_ai_understanding():
+    routes = dict(_HEALTHY_ROUTES)
+    routes["/llms-full.txt"] = SafeResponse(404)
+    check = _by_id(_run(routes))["llms_full_txt"]
+    combined = f"{check['detail']} {check['fix']}".lower()
+
+    assert check["status"] == "warn"
+    assert "optional" in combined
+    assert "richer picture" not in combined
+
+
 def test_http_not_redirecting_warns():
     c = _by_id(_run(_HEALTHY_ROUTES, http_redirects=False))["https"]
     assert c["status"] == "warn"

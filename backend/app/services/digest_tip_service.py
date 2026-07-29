@@ -39,8 +39,8 @@ def select_digest_tip(client: Client, headline_battle, current_ai_citability: fl
     # Rung 2 — unverified toolkit files, named specifically.
     if not client.technical_foundations_verified:
         return (
-            "Your llms.txt isn't verified live yet — publishing it is the "
-            "quickest visibility gain available this week."
+            "Review robots.txt this week so the AI search crawlers you choose to "
+            "support are not accidentally blocked."
         )
     if not client.structured_data_verified:
         return (

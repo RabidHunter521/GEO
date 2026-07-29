@@ -152,7 +152,10 @@ DIGEST_STATIC_TIPS: Final = {
     "excellent": "Keep publishing content featuring your brand — consistent visibility cements AI recognition over time.",
     "good": "Consider adding a frequently asked questions page — AI models surface structured Q&A content readily.",
     "fair": "Claim your business on Google Business Profile and Apple Maps — AI models draw from structured directory data.",
-    "developing": "Your llms.txt file describes your business to AI crawlers. Verify it is live and reflects your core services.",
+    "developing": (
+        "Check that important service pages are crawlable, accurate, and linked "
+        "clearly from your website."
+    ),
     "low": "Add your brand name naturally throughout your website copy — AI models recognize brands through consistent contextual mentions.",
 }
 
