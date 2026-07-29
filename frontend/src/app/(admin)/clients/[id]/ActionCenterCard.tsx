@@ -63,7 +63,7 @@ export function ActionCenterCard({ clientId, initialActions }: Props) {
                     {DIMENSION_LABELS[action.dimension]}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Estimated Impact: +{action.estimated_impact} GEO Score
+                    Estimated readiness impact: +{action.estimated_impact} points
                   </span>
                 </div>
               </div>

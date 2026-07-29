@@ -8,6 +8,7 @@ import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
 import { ActionCenterCard } from "./ActionCenterCard"
 import { GuaranteeCard } from "./GuaranteeCard"
 import { getScoreBand, getScoreColor } from "@/lib/score-utils"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { cn } from "@/lib/utils"
 import type { Client, Platform } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
@@ -90,7 +91,7 @@ export default async function ClientOverviewPage({
         <ScoreRing score={geoScore ? geoScore.overall_score : null} />
         <div className="relative flex-1">
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
-            Overall GEO Score
+            {PRODUCT_LANGUAGE.readiness}
           </p>
           {geoScore ? (
             <>
@@ -175,7 +176,7 @@ export default async function ClientOverviewPage({
       {/* 5-dimension breakdown */}
       <div>
         <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
-          Score Breakdown
+          Readiness Breakdown
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {DIMENSIONS.map((dim) => {

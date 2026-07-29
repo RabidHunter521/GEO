@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.config import settings
-from app.core.constants import PLATFORM_LABELS
+from app.core.constants import PLATFORM_LABELS, SCORE_DISPLAY_LABEL
 
 try:
     import weasyprint  # noqa: F401 — used when generating PDF bytes
@@ -607,23 +607,23 @@ def _fallback_narrative(data: "ReportData") -> str:
         return (
             f"This is your first AI Visibility Report, covering {data.period_label}. "
             f"Your brand was seen by AI in {data.seen_count} of {data.total_count} tracked queries, "
-            f"giving an overall score of {data.overall_score:.0f}. "
+            f"giving you a {SCORE_DISPLAY_LABEL} of {data.overall_score:.0f}. "
             f"We'll track how this changes month over month from here."
         )
     if data.prev_overall_score is None:
-        delta_sentence = "Your overall score is holding steady this month."
+        delta_sentence = f"Your {SCORE_DISPLAY_LABEL} is holding steady this month."
     else:
         diff = data.overall_score - data.prev_overall_score
         if diff > 0.5:
             delta_sentence = (
-                f"Your overall score rose from {data.prev_overall_score:.0f} to {data.overall_score:.0f} this month."
+                f"Your {SCORE_DISPLAY_LABEL} rose from {data.prev_overall_score:.0f} to {data.overall_score:.0f} this month."
             )
         elif diff < -0.5:
             delta_sentence = (
-                f"Your overall score slipped from {data.prev_overall_score:.0f} to {data.overall_score:.0f} this month."
+                f"Your {SCORE_DISPLAY_LABEL} slipped from {data.prev_overall_score:.0f} to {data.overall_score:.0f} this month."
             )
         else:
-            delta_sentence = f"Your overall score held steady at {data.overall_score:.0f} this month."
+            delta_sentence = f"Your {SCORE_DISPLAY_LABEL} held steady at {data.overall_score:.0f} this month."
     return (
         f"{delta_sentence} Your brand was seen by AI in {data.seen_count} of "
         f"{data.total_count} tracked queries during {data.period_label}."
@@ -726,7 +726,7 @@ def _build_gauge_svg(score: float) -> str:
     # large_arc = 0 always: the filled portion never exceeds 180°.
     return (
         f'<svg viewBox="0 0 240 130" width="240" height="130" '
-        f'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="GEO Score gauge">'
+        f'xmlns="http://www.w3.org/2000/svg" role="img" aria-label="{SCORE_DISPLAY_LABEL} gauge">'
         f'<path d="M 20,120 A 100,100 0 0,1 220,120" '
         f'stroke="#1e2d4a" stroke-width="20" fill="none" stroke-linecap="round"/>'
         f'<path d="M 20,120 A 100,100 0 0,1 {ex:.2f},{ey:.2f}" '
@@ -1660,20 +1660,20 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     trend_colors = {"up": "#059669", "down": "#dc2626", "flat": "#6b7280", "first": "#6b7280"}
     trend_color = trend_colors[data.trend]
     if data.trend == "up":
-        trend_msg = f"&#8593; Score improved from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
+        trend_msg = f"&#8593; {SCORE_DISPLAY_LABEL} improved from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
     elif data.trend == "down":
-        trend_msg = f"&#8595; Score decreased from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
+        trend_msg = f"&#8595; {SCORE_DISPLAY_LABEL} decreased from {data.prev_overall_score:.0f} to {data.overall_score:.0f}"
     elif data.trend == "flat":
-        trend_msg = f"&#8594; Score held steady at {data.overall_score:.0f}"
+        trend_msg = f"&#8594; {SCORE_DISPLAY_LABEL} held steady at {data.overall_score:.0f}"
     else:
         trend_msg = "First AI Visibility Report"
 
     # ── Section 1b: Score Trend chart ──────────────────────────────────────
     if len(data.score_history) >= 2:
         trend_section = (
-            f'<h2>Score Trend</h2>'
+            f'<h2>{SCORE_DISPLAY_LABEL} Trend</h2>'
             f'<p style="font-size:9.5pt;color:#64748b;margin:0 0 8px;">'
-            f'Your overall GEO Score across recent scans.</p>'
+            f'Your {SCORE_DISPLAY_LABEL} across recent scans.</p>'
             f'<div class="trend-container">{_build_trend_svg(data.score_history)}</div>'
         )
     else:
@@ -1907,7 +1907,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
   <div class="cover-gauge-wrap">{gauge_svg}</div>
   <div class="cover-score-number">{data.overall_score:.0f}</div>
-  <div class="cover-score-label">GEO Score &middot; {data.score_band.title()}</div>
+  <div class="cover-score-label">{SCORE_DISPLAY_LABEL} &middot; {data.score_band.title()}</div>
 
   {f'<p class="cover-narrative">{safe_narrative}</p>' if safe_narrative else ""}
 
@@ -1917,10 +1917,10 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 </div>
 
 <!-- ── 1: AI VISIBILITY SCORE ────────────────────────────────────── -->
-<h2>AI Visibility Score</h2>
+<h2>{SCORE_DISPLAY_LABEL}</h2>
 <p class="score-trend-line" style="color:{trend_color};">{trend_msg}</p>
 <div class="stat-block">
-  <div class="stat-label">Overall GEO Score</div>
+  <div class="stat-label">{SCORE_DISPLAY_LABEL}</div>
   <div class="stat-value">{data.overall_score:.0f}<span style="font-size:14pt;color:#64748b;font-weight:400;"> / 100</span></div>
   <div class="stat-sub">{data.score_band.title()} band</div>
 </div>
@@ -1930,7 +1930,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 {proof_section}
 
 <!-- ── 3: SCORE BREAKDOWN ─────────────────────────────────────────── -->
-<h2>Score Breakdown</h2>
+<h2>Readiness Breakdown</h2>
 {dim_bars}
 
 <!-- ── 4: AI VISIBILITY FREQUENCY + PLATFORM ─────────────────────── -->
@@ -2116,7 +2116,7 @@ def _build_scorecard_html(
       <td style="width:200px;vertical-align:middle;">
         <div class="sc-score-box">
           <div class="sc-score-value">{data.overall_score:.0f}</div>
-          <div class="sc-score-label">GEO Score &middot; {data.score_band.title()}</div>
+          <div class="sc-score-label">{SCORE_DISPLAY_LABEL} &middot; {data.score_band.title()}</div>
         </div>
       </td>
       <td style="padding-left:28px;vertical-align:middle;">
@@ -2306,15 +2306,15 @@ def _build_report_email_html(client: Client, report: Report, period_label: str) 
           </h2>
           <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">
             Your monthly AI Visibility Report is attached as a PDF. Open it to review
-            your score breakdown, competitor comparison, and recommended actions.
+            your readiness breakdown, competitor comparison, and recommended actions.
           </p>
           <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin-bottom:24px;">
-            <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Overall GEO Score</p>
+            <p style="margin:0 0 4px;font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">{SCORE_DISPLAY_LABEL}</p>
             <p style="margin:0;font-size:28px;font-weight:700;color:#0f172a;">
               {report.overall_score:.0f} / 100
             </p>
             <p style="margin:4px 0 0;font-size:14px;color:#6b7280;">
-              Your AI Visibility Score for {period_label}.
+              Your {SCORE_DISPLAY_LABEL} for {period_label}.
             </p>
           </div>
 {dashboard_button}

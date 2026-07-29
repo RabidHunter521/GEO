@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import structlog
 
 from app.core.config import settings
-from app.core.constants import ALERTS_EMAIL, PLATFORM_LABELS
+from app.core.constants import ALERTS_EMAIL, PLATFORM_LABELS, SCORE_DISPLAY_LABEL
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
@@ -48,14 +48,14 @@ def check_score_drop_alert(
         return
 
     _dispatch_admin_alert(
-        subject=f"Score drop alert: {client.name} — GEO Score dropped to {current_geo_score.overall_score:.0f}",
+        subject=f"Score drop alert: {client.name} — {SCORE_DISPLAY_LABEL} dropped to {current_geo_score.overall_score:.0f}",
         html_body=_build_score_drop_email(
             client,
             current_geo_score.overall_score,
             prev_geo_score.overall_score,
         ),
         telegram_text=(
-            f"⚠️ <b>{html.escape(client.name)}</b>: GEO Score dropped "
+            f"⚠️ <b>{html.escape(client.name)}</b>: {SCORE_DISPLAY_LABEL} dropped "
             f"{prev_geo_score.overall_score:.0f}→{current_geo_score.overall_score:.0f} "
             f"(below threshold {client.score_drop_threshold})."
         ),
@@ -64,7 +64,7 @@ def check_score_drop_alert(
         client_id=client.id,
         event_type="alert_sent",
         note=(
-            f"Score drop alert sent. Overall GEO Score dropped from "
+            f"Score drop alert sent. {SCORE_DISPLAY_LABEL} dropped from "
             f"{prev_geo_score.overall_score:.0f} to {current_geo_score.overall_score:.0f}, "
             f"crossing below threshold of {client.score_drop_threshold}."
         ),
@@ -227,7 +227,7 @@ def _build_score_drop_email(client: Client, current: float, prev: float) -> str:
         </td></tr>
         <tr><td style="padding:32px;">
           <h2 style="margin:0 0 16px;color:#0f172a;">{name}</h2>
-          <p style="color:#374151;">The overall GEO Score has crossed below the alert threshold.</p>
+          <p style="color:#374151;">{SCORE_DISPLAY_LABEL} has crossed below the alert threshold.</p>
           <table style="width:100%;border-collapse:collapse;margin:16px 0;">
             <tr>
               <td style="padding:8px 0;color:#6b7280;font-size:14px;">Previous score</td>

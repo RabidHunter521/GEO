@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 
 interface ChecklistItem {
   id: string
@@ -103,7 +104,7 @@ const DEFAULT_PHASES: ChecklistPhase[] = [
       },
       {
         id: "review-baseline",
-        label: "Confirm the baseline GEO Score across all 5 dimensions looks right",
+        label: `Confirm the baseline ${PRODUCT_LANGUAGE.readiness} across all 5 dimensions`,
       },
       {
         id: "review-toolkit-generate",

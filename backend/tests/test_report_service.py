@@ -103,6 +103,8 @@ def test_build_report_html_contains_overall_score():
     client.name = "Acme Corp"
     html = _build_report_html(client, _make_report_data())
     assert "72" in html
+    assert "Growth Readiness" in html
+    assert "Overall GEO Score" not in html
 
 
 def test_build_report_html_contains_all_required_sections():
@@ -110,8 +112,9 @@ def test_build_report_html_contains_all_required_sections():
     client = MagicMock()
     client.name = "Acme Corp"
     html = _build_report_html(client, _make_report_data())
-    assert "AI Visibility Score" in html
-    assert "Score Breakdown" in html
+    assert "Growth Readiness" in html
+    assert "Readiness Breakdown" in html
+    assert "AI Visibility Score" not in html
     assert "AI Visibility Frequency" in html
     assert "Competitor Comparison" in html
     assert "AI Readiness Toolkit" in html
@@ -129,7 +132,7 @@ def test_report_cover_leads_with_change_narrative():
     html = _build_report_html(client, data)
     # The narrative appears before the first section heading — i.e. on the cover.
     assert data.change_narrative in html
-    assert html.index(data.change_narrative) < html.index("AI Visibility Score")
+    assert html.index(data.change_narrative) < html.index("<h2>Growth Readiness</h2>")
 
 
 # ── one-page Scorecard ──────────────────────────────────────────────────────
@@ -399,7 +402,7 @@ def test_build_report_html_renders_trend_chart_with_history():
         TrendPoint(label="1 May", score=58.0, color="yellow"),
     ]
     html = _build_report_html(client, data)
-    assert "Score Trend" in html
+    assert "Growth Readiness Trend" in html
     assert "<svg" in html
     assert "1 Apr" in html and "1 May" in html
 

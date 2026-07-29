@@ -25,6 +25,7 @@ import {
 import { FileText, Download, Send, Loader2 } from "lucide-react"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import type { Report } from "@/types"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { triggerGenerateReport, triggerSendReport, getReportsAction } from "./actions"
 
 interface Props {
@@ -185,7 +186,7 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
           <TableHeader>
             <TableRow>
               <TableHead>Period</TableHead>
-              <TableHead>GEO Score</TableHead>
+              <TableHead>{PRODUCT_LANGUAGE.readiness}</TableHead>
               <TableHead>Generated</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>

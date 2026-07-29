@@ -36,6 +36,9 @@ def test_score_drop_fires_when_crosses_below_threshold():
     kwargs = mock_send.call_args[1]
     assert "contact@seenby.my" == kwargs["to"]
     assert "Test Brand" in kwargs["subject"]
+    assert "Growth Readiness" in kwargs["subject"]
+    assert "GEO Score" not in kwargs["subject"]
+    assert "Growth Readiness" in kwargs["html_body"]
     db.add.assert_called_once()
     db.commit.assert_called_once()
     added = db.add.call_args[0][0]

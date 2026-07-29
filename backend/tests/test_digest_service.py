@@ -151,6 +151,8 @@ def test_subject_leads_with_seen_count_and_keeps_score():
     assert "5/8" in subject          # leads with the human result
     assert "60" in subject           # CLAUDE.md §7 — score stays in the subject
     assert "Test Brand" in subject
+    assert "Growth Readiness" in subject
+    assert "GEO Score" not in subject
 
 
 def test_email_html_includes_verbatim_proof_win():

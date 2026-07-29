@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import structlog
 
-from app.core.constants import PLATFORM_LABELS
+from app.core.constants import PLATFORM_LABELS, SCORE_DISPLAY_LABEL
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
@@ -91,12 +91,12 @@ def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
     if data.total_count:
         subject = (
             f"{client.name}: seen by AI in {data.seen_count}/{data.total_count} "
-            f"questions this week · GEO Score {data.current_overall_score:.0f}"
+            f"questions this week · {SCORE_DISPLAY_LABEL} {data.current_overall_score:.0f}"
         )
     else:
         subject = (
             f"{client.name}: your AI visibility update · "
-            f"GEO Score {data.current_overall_score:.0f}"
+            f"{SCORE_DISPLAY_LABEL} {data.current_overall_score:.0f}"
         )
     html = _build_email_html(client, data)
     send_email(to=client.contact_email, subject=subject, html_body=html)

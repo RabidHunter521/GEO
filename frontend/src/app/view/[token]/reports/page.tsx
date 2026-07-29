@@ -5,6 +5,7 @@ import { FileText, Download } from "lucide-react"
 import { getViewReports } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { SectionHeading } from "@/components/view/SectionHeading"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 
 function formatPeriod(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }
@@ -62,7 +63,7 @@ export default async function ViewReportsPage({
                 {formatPeriod(latest.period_start, latest.period_end)}
               </p>
               <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                Visibility score <ScoreBadge score={latest.overall_score} />
+                {PRODUCT_LANGUAGE.readiness} <ScoreBadge score={latest.overall_score} />
               </p>
             </div>
           </div>
@@ -96,7 +97,7 @@ export default async function ViewReportsPage({
                     {formatPeriod(r.period_start, r.period_end)}
                   </p>
                   <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                    Visibility score <ScoreBadge score={r.overall_score} className="text-[10px]" />
+                    {PRODUCT_LANGUAGE.readiness} <ScoreBadge score={r.overall_score} className="text-[10px]" />
                   </p>
                 </div>
               </div>
