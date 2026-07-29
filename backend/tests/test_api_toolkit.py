@@ -258,6 +258,55 @@ def test_verify_persists_llms_full_flag_without_touching_scores():
     assert fake_tf.verified_at is None
 
 
+def test_verify_robots_without_llms_unlocks_technical_foundations():
+    app, get_db = _make_app()
+    fake_client = _fake_client()
+    fake_tf = _fake_toolkit(fake_client.id)
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_client
+    mock_db.query.return_value.filter.return_value.first.return_value = fake_tf
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.verify_all") as mock_verify:
+        mock_verify.return_value = {
+            "llms_verified": False,
+            "schema_verified": False,
+            "robots_verified": True,
+            "llms_full_verified": False,
+        }
+        response = TestClient(app).post(
+            f"/api/v1/clients/{fake_client.id}/toolkit/verify"
+        )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert fake_client.technical_foundations_verified is True
+    assert fake_client.structured_data_verified is False
+
+
+def test_verify_llms_without_robots_does_not_unlock_score():
+    app, get_db = _make_app()
+    fake_client = _fake_client()
+    fake_tf = _fake_toolkit(fake_client.id)
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_client
+    mock_db.query.return_value.filter.return_value.first.return_value = fake_tf
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.verify_all") as mock_verify:
+        mock_verify.return_value = {
+            "llms_verified": True,
+            "schema_verified": False,
+            "robots_verified": False,
+            "llms_full_verified": False,
+        }
+        response = TestClient(app).post(
+            f"/api/v1/clients/{fake_client.id}/toolkit/verify"
+        )
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert fake_client.technical_foundations_verified is False
+
+
 # ── M4: llms.txt must carry real page links ───────────────────────────────────
 # The Answer.AI spec is built on link lists; the prompt emitted none, so an AI
 # reading a client's llms.txt learnt what they do and had nowhere to go.

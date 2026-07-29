@@ -1,7 +1,8 @@
 # backend/app/core/constants.py
 from typing import Final
 
-SCORE_VERSION: Final = "v1.3.0"  # v1.3.0: an AI denying knowledge of the brand no longer counts as "Seen by AI" (AI Citability only; weights unchanged)
+SCORE_VERSION: Final = "v1.4.0"
+SCORE_DISPLAY_LABEL: Final = "Growth Readiness"
 
 SCORE_WEIGHTS: Final = {
     "ai_citability":         0.40,

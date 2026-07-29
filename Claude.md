@@ -76,7 +76,9 @@ without updating this file and bumping SCORE_VERSION.
 | Structured Data | 10% | Auto — AI Readiness Toolkit verified |
 
 Manual dimensions must always show label: "Based on public evidence · Reviewed by SeenBy"
-SCORE_VERSION = "v1.3.0" — bump when weights or formula change.
+SCORE_VERSION = "v1.4.0" — Technical Foundations is driven by verified
+robots.txt AI-crawler access; llms.txt and llms-full.txt are informational
+publishing assets and do not drive the score.
 (v1.3.0: AI Citability counts a brand as seen only when an answer mentions it
 for a reason OTHER than denying knowledge of it. Brand-category queries contain
 the brand name, so models echo it back while saying "X does not appear to be a

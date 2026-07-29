@@ -10,6 +10,7 @@ from app.models.activity_log import ActivityLog
 from app.models.toolkit_files import ToolkitFiles
 from app.models.geo_score import GeoScore
 from app.services.toolkit_service import generate_toolkit_files, generate_llms_full_txt
+from app.services.toolkit_dimension_service import derive_toolkit_dimensions
 from app.services.verification_crawler import verify_all
 from app.services.scoring_service import compute_geo_score
 from app.schemas.toolkit import ToolkitFilesResponse, VerificationResult
@@ -107,13 +108,16 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
     tf.robots_verified = results["robots_verified"]
     # Informational only — llms-full never touches dimension scores (spec §6).
     tf.llms_full_verified = results["llms_full_verified"]
-    # verified_at tracks the three score-relevant files only — llms-full is informational.
+    # verified_at records a successful live check of a core toolkit file
+    # (llms.txt, schema, or robots); it does not imply score impact.
     if results["llms_verified"] or results["schema_verified"] or results["robots_verified"]:
         tf.verified_at = datetime.now(UTC)
 
-    # spec: llms.txt + robots.txt must both verify for technical_foundations
-    client.technical_foundations_verified = results["llms_verified"] and results["robots_verified"]
-    client.structured_data_verified = results["schema_verified"]
+    dimension_state = derive_toolkit_dimensions(results)
+    client.technical_foundations_verified = (
+        dimension_state.technical_foundations_verified
+    )
+    client.structured_data_verified = dimension_state.structured_data_verified
 
     verified_map = {
         "llms.txt": results["llms_verified"],
