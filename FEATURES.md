@@ -25,18 +25,22 @@ This is the foundation everything else is built on.
 
 ---
 
-## GEO Score (0–100)
+## Growth Readiness (0–100)
 
-A single score that tells a client, at a glance, how visible they are to AI.
+Growth Readiness (`overall_score` in the current API) is a composite leading
+indicator, not a measure of confirmed traffic, leads, or revenue. See the
+[measurement methodology](docs/methodology.md) for its scope, assumptions, and
+limitations.
 
 - Combines 5 weighted dimensions:
   - **AI Citability (40%)** — automatic, from the scan engine
-  - **Brand Authority (20%)** — assessed by the SeenBy team
-  - **Content Quality (20%)** — assessed by the SeenBy team
-  - **Technical Foundations (10%)** — automatic, verified site setup
-  - **Structured Data (10%)** — automatic, verified site setup
+  - **Brand Authority (20%)** — assisted, administrator-reviewed against public evidence
+  - **Content Quality (20%)** — assisted, administrator-reviewed against public evidence
+  - **Technical Foundations (10%)** — verified `robots.txt` AI-crawler access
+  - **Structured Data (10%)** — verified structured data
 - Scored against clear bands: Excellent, Good, Fair, Developing, Low
-- Tracked over time so clients can see progress month over month
+- Versioned and tracked over time; historical rows retain the score version
+  used when they were computed
 
 ---
 
@@ -79,18 +83,21 @@ A single score that tells a client, at a glance, how visible they are to AI.
 
 ## AI Readiness Toolkit
 
-Automatically generates the technical files AI crawlers look for:
+Generates technical and publisher files, with copy/download controls,
+implementation instructions, and live verification:
 
-- **llms.txt** — following the emerging AI content standard
+- **llms.txt** and **llms-full.txt** — optional publisher-supplied formats
 - **schema.json** — structured data (LocalBusiness, Organization, FAQ) so AI
   systems understand who the business is
 - **robots.txt** — explicitly allows AI crawlers (ChatGPT, Perplexity,
   Claude, Google AI) to access the site
 
 Each file comes with copy/download buttons and plain-English setup
-instructions. A built-in verification check confirms the files are live on
-the client's site, and automatically updates the Technical Foundations and
-Structured Data scores once verified.
+instructions. A built-in verification check confirms whether files are live on
+the client's site. Technical Foundations currently reflects verified
+`robots.txt` AI-crawler access, while verified structured data drives the
+Structured Data dimension. The optional llms files do not independently
+increase Growth Readiness or guarantee AI visibility.
 
 ---
 
@@ -111,6 +118,28 @@ Structured Data scores once verified.
 - Shows percentile ranking — "you're ahead of X% of similar businesses"
 - Only shown when there's enough data in a category to keep individual
   competitors' numbers private
+
+---
+
+## Evidence, delivery, and measurement capabilities
+
+- **Source provenance** is captured for supported platform sources and can be
+  enriched against third-party pages.
+- **Control-query comparison** keeps configured questions unchanged so the UI
+  and reports can compare optimised and left-alone query groups; this is
+  comparison evidence, not automatic proof of causality.
+- **GA4 AI-referral sync** can import recognised AI-platform referral sessions
+  when a client configures a GA4 property.
+- **Accuracy and misinformation review** routes potential factual conflicts to
+  an administrator; potential findings do not reach a client report before
+  confirmation.
+- **Authority and presence tracking** provides a client-specific directory,
+  review-platform, social, knowledge-graph, media, and other-asset checklist
+  with verification workflow.
+- **Page citability audits** perform AI-readability checks for a supplied page
+  and can generate assistive rewrite suggestions.
+- **Review Queue** is an implemented cross-client inbox for administrator work
+  log suggestions and review workflow.
 
 ---
 

@@ -1,7 +1,9 @@
 # SeenBy — Architecture Map (one page)
 
 Read this before exploring the code. It reflects the codebase as of 2026-07-06.
-Rules and invariants live in CLAUDE.md — this file is only the map.
+Rules and invariants live in CLAUDE.md — this file is only the map. The
+client-facing definition, assumptions, and limitations of current measurement
+are in [the methodology](methodology.md).
 
 **Stack:** Next.js 15 (`frontend/`) · FastAPI (`backend/app/`) · PostgreSQL (Supabase in prod) via SQLAlchemy + Alembic · Celery + Redis (`backend/workers/`) · Cloudflare R2 (PDFs) · WeasyPrint · Claude/OpenAI/Gemini/Perplexity APIs.
 
@@ -28,8 +30,8 @@ POST via api/v1/scans.py
       platform_clients/        # chatgpt, perplexity, gemini, claude API callers (circuit_breaker, budget_service, cost_tracker wrap calls)
       brand_detection          # deterministic regex "Seen by AI" — the core metric
       position_extraction      # Claude extracts list rank (additive, never replaces seen/not-seen)
-      provenance capture       # Perplexity citations → scan_query_source rows
-      scoring_service          # 5-dimension GEO score (weights in core/constants.py; SCORE_VERSION)
+      provenance capture       # Perplexity source provenance → scan_query_source rows
+      scoring_service          # 5-dimension Growth Readiness (`overall_score`; weights in core/constants.py; SCORE_VERSION)
   → commit
   → post-commit, best-effort (catch + rollback + swallow, never undo the scan):
       alert_service            # score drop / overtake / hallucination → email + Telegram (SYNCHRONOUS — there is no alert_tasks)
@@ -53,7 +55,18 @@ POST via api/v1/scans.py
 - `report_service.py` (61K) — the entire monthly PDF; also `proof_card_service` (quote cards), `snippet_service`, `headline_battle_service`, `revenue_service` (pipeline RM math — returns nothing without an avg deal value).
 - `win_loss_service` / `gap_matrix_service` / `competitor_intelligence_service` — head-to-head views (neutral categories only: recommendation + local).
 - `assessment_service` / `benchmark_service` — assisted Brand Authority & Content Quality scoring (Claude suggests, admin gates).
-- `toolkit_service` + `verification_crawler` — llms.txt / schema.json / robots.txt generation + live verify (flips the two 10% dimensions to 100).
+- `toolkit_service` + `verification_crawler` — generates and live-verifies
+  `robots.txt`, `schema.json`, and optional `llms.txt` / `llms-full.txt`.
+  Technical Foundations currently reflects verified `robots.txt` AI-crawler
+  access; verified structured data drives Structured Data. The optional llms
+  files do not independently increase Growth Readiness.
+- `provenance_service` / `causality_service` / `ga4_traffic_service` —
+  source provenance enrichment, optimised-versus-control query comparisons,
+  and recognised AI-referral traffic synchronisation from configured GA4.
+- `misinformation_service` / `authority_service` / `citability_service` /
+  `work_log_service` — administrator-reviewed factual-risk workflow,
+  authority asset tracking, page citability audits, and the cross-client
+  Review Queue.
 - `language_sanitizer` — programmatic banned-language defense; the CLAUDE.md §2 table is law on every client-facing string.
 
 ## Frontend layout
