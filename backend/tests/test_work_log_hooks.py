@@ -1,5 +1,7 @@
 """Auto-suggest hooks (spec §3.3). Each writes a `suggested` row post-commit
 and is best-effort — a failure must never undo the triggering operation."""
+from datetime import datetime
+
 from unittest.mock import patch
 
 
@@ -126,17 +128,22 @@ def test_remediation_auto_correction_writes_suggestion_and_dedupes_manual(db):
 
 
 def test_query_flips_write_visibility_suggestions(db):
-    from app.core.time import utcnow
     from app.models.scan import Scan
     from app.models.scan_query_result import ScanQueryResult
     from app.models.work_log_entry import WorkLogEntry
     from app.services import work_log_service
     client = _make_client(db)
-    older = Scan(client_id=client.id, status="completed", completed_at=utcnow())
-    db.add(older)
-    db.commit()
-    newer = Scan(client_id=client.id, status="completed", completed_at=utcnow())
-    db.add(newer)
+    older = Scan(
+        client_id=client.id,
+        status="completed",
+        completed_at=datetime(2026, 7, 1, 10, 0, 0),
+    )
+    newer = Scan(
+        client_id=client.id,
+        status="completed",
+        completed_at=datetime(2026, 7, 8, 10, 0, 0),
+    )
+    db.add_all([older, newer])
     db.commit()
     for scan, detected in ((older, False), (newer, True)):
         db.add(ScanQueryResult(
