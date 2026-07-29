@@ -79,11 +79,12 @@ def _work_log(db, client_id, *, status: str, published_days_ago: int | None = No
 
 
 def _open_action(db, client_id, *, text: str, impact: float = 4.0, priority: str = "medium",
-                 days_ago: int = 0, status: str = "open") -> ActionRecommendation:
+                 days_ago: int = 0, status: str = "open",
+                 dimension: str = "content_quality") -> ActionRecommendation:
     action = ActionRecommendation(
         client_id=client_id,
         action_text=text,
-        dimension="content_quality",
+        dimension=dimension,
         estimated_impact=impact,
         priority=priority,
         status=status,
@@ -336,7 +337,8 @@ def test_delivery_summary_has_no_waiting_for_client_field(db):
 def test_priority_actions_read_existing_open_rows_highest_impact_first(db):
     client = _client(db)
     _open_action(db, client.id, text="Low impact", impact=1.0, priority="low")
-    _open_action(db, client.id, text="High impact", impact=9.0, priority="high")
+    _open_action(db, client.id, text="High impact", impact=9.0, priority="high",
+                 dimension="ai_citability")
     _open_action(db, client.id, text="Already done", impact=10.0, status="done")
 
     actions = build_command_center(client, db).priority_actions
@@ -344,6 +346,39 @@ def test_priority_actions_read_existing_open_rows_highest_impact_first(db):
     assert [a.action_text for a in actions] == ["High impact", "Low impact"]
     assert actions[0].priority == "high"
     assert "9.0" in actions[0].reason
+
+
+def test_action_reason_includes_the_dimension_label(db):
+    """An admin scanning several open actions must be able to tell which of the
+    five Growth Readiness dimensions each one targets from `reason` alone,
+    without inferring it from action_text (CLAUDE.md §4 canonical labels).
+    "AI Citability" is not banned vocabulary — only cited/uncited, mentioned/not
+    mentioned, citation rate etc. are (CLAUDE.md §2), and this endpoint is
+    admin-only (require_api_key)."""
+    client = _client(db)
+    _open_action(db, client.id, text="Fix schema markup", impact=5.0,
+                 dimension="structured_data")
+    _open_action(db, client.id, text="Publish a comparison page", impact=3.0,
+                 dimension="ai_citability")
+
+    actions = build_command_center(client, db).priority_actions
+
+    by_text = {a.action_text: a.reason for a in actions}
+    assert "Structured Data" in by_text["Fix schema markup"]
+    assert "AI Citability" in by_text["Publish a comparison page"]
+
+
+def test_action_reason_falls_back_gracefully_for_unrecognized_dimension(db):
+    """A dimension value outside the known five must not raise — this is a
+    read-only projection over existing rows, so a legacy/bad value should
+    degrade to the raw stored key rather than crashing the dashboard."""
+    client = _client(db)
+    _open_action(db, client.id, text="Mystery action", impact=2.0,
+                 dimension="not_a_real_dimension")
+
+    actions = build_command_center(client, db).priority_actions
+
+    assert "not_a_real_dimension" in actions[0].reason
 
 
 def test_priority_actions_are_capped_at_max_open_actions(db):

@@ -36,6 +36,7 @@ from app.models.geo_score import GeoScore
 from app.models.remediation_item import RemediationItem
 from app.models.scan import Scan
 from app.models.work_log_entry import WorkLogEntry
+from app.prompts.action_center import DIMENSION_LABELS
 from app.schemas.command_center import (
     AttentionSummary,
     CommandCenterAction,
@@ -218,10 +219,17 @@ def _delivery(client: Client, db: Session) -> DeliverySummary:
 
 
 def _action_reason(action: ActionRecommendation) -> str:
+    """Composite-impact string, prefixed with the dimension it targets so an
+    admin scanning several open actions doesn't have to infer it from
+    action_text. `DIMENSION_LABELS` (app/prompts/action_center.py) is the
+    single source of truth for the five dimension display names — an
+    unrecognized/legacy value falls back to the raw stored key rather than
+    raising, since this is a read-only projection over existing rows."""
+    dimension_label = DIMENSION_LABELS.get(action.dimension, action.dimension)
     impact = float(action.estimated_impact or 0.0)
     if impact <= 0:
-        return f"Open action with no estimated {SCORE_DISPLAY_LABEL} impact recorded"
-    return f"Estimated +{impact:.1f} points to {SCORE_DISPLAY_LABEL}"
+        return f"{dimension_label}: open action with no estimated {SCORE_DISPLAY_LABEL} impact recorded"
+    return f"{dimension_label}: estimated +{impact:.1f} points to {SCORE_DISPLAY_LABEL}"
 
 
 def _priority_actions(client: Client, db: Session) -> list[CommandCenterAction]:
