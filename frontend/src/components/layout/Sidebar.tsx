@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import type { ComponentType } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
@@ -28,21 +29,34 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { ADMIN_GLOBAL_NAV, CLIENT_NAV_GROUPS, isNavItemActive } from "@/lib/navigation"
 
-const CLIENT_NAV = [
-  { href: "",             label: "Overview",                icon: LayoutDashboard },
-  { href: "/checklist",   label: "Checklist",               icon: ListChecks },
-  { href: "/scan",        label: "Scan & Visibility",       icon: Search },
-  { href: "/competitors", label: "Competitor Intelligence", icon: BarChart3 },
-  { href: "/toolkit",     label: "AI Readiness Toolkit",   icon: Wrench },
-  { href: "/content-gaps", label: "Content Gaps",          icon: Target },
-  { href: "/content-roadmap", label: "Content Roadmap",    icon: Map },
-  { href: "/content-studio", label: "Content Studio",      icon: PenTool },
-  { href: "/authority",  label: "Authority & Presence", icon: Award },
-  { href: "/reports",     label: "Reports",                icon: FileText },
-  { href: "/activity",    label: "Activity Log",           icon: Activity },
-  { href: "/settings",    label: "Settings",               icon: Settings },
-]
+type IconType = ComponentType<{ className?: string }>
+
+/** Icon for the ungrouped Overview item — not part of navigation.ts, which stays serializable. */
+const OVERVIEW_ICON: IconType = LayoutDashboard
+
+/** Icons for the three global (non-client-scoped) destinations, keyed by href. */
+const GLOBAL_NAV_ICONS: Record<string, IconType> = {
+  "/clients": Users,
+  "/gap-matrix": Table2,
+  "/review-queue": Inbox,
+}
+
+/** Icons for client-scoped sub-routes, keyed by the relative href used in CLIENT_NAV_GROUPS. */
+const CLIENT_NAV_ICONS: Record<string, IconType> = {
+  "/scan": Search,
+  "/competitors": BarChart3,
+  "/toolkit": Wrench,
+  "/authority": Award,
+  "/content-gaps": Target,
+  "/content-roadmap": Map,
+  "/content-studio": PenTool,
+  "/checklist": ListChecks,
+  "/activity": Activity,
+  "/reports": FileText,
+  "/settings": Settings,
+}
 
 function Brand() {
   return (
@@ -77,62 +91,75 @@ function NavLinks({
       <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-primary" />
     ) : null
 
-  const allClientsActive = pathname === "/clients" && !clientId
-  const gapActive = pathname === "/gap-matrix"
-  const reviewActive = pathname === "/review-queue"
-
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-      <Link href="/clients" onClick={onNavigate} className={linkClass(allClientsActive)}>
-        {activeBar(allClientsActive)}
-        <Users className={cn("h-4 w-4 shrink-0", allClientsActive ? "text-primary" : "")} />
-        All Clients
-      </Link>
-      <Link href="/gap-matrix" onClick={onNavigate} className={linkClass(gapActive)}>
-        {activeBar(gapActive)}
-        <Table2 className={cn("h-4 w-4 shrink-0", gapActive ? "text-primary" : "")} />
-        Gap Matrix
-      </Link>
-      <Link href="/review-queue" onClick={onNavigate} className={linkClass(reviewActive)}>
-        {activeBar(reviewActive)}
-        <Inbox className={cn("h-4 w-4 shrink-0", reviewActive ? "text-primary" : "")} />
-        Review Queue
-        {suggestedCount > 0 && (
-          <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-            {suggestedCount}
-          </span>
-        )}
-      </Link>
+      {ADMIN_GLOBAL_NAV.map((item) => {
+        const active =
+          item.href === "/clients" ? pathname === "/clients" && !clientId : pathname === item.href
+        const Icon = GLOBAL_NAV_ICONS[item.href]
+        return (
+          <Link key={item.href} href={item.href} onClick={onNavigate} className={linkClass(active)}>
+            {activeBar(active)}
+            <Icon className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "")} />
+            {item.label}
+            {item.href === "/review-queue" && suggestedCount > 0 && (
+              <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                {suggestedCount}
+              </span>
+            )}
+          </Link>
+        )
+      })}
 
       {clientId && (
         <div className="pt-5">
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
             Client
           </p>
-          {CLIENT_NAV.map((item) => {
-            const href = `/clients/${clientId}${item.href}`
-            const active =
-              item.href === ""
-                ? pathname === `/clients/${clientId}`
-                : pathname.startsWith(href)
-            return (
-              <Link
-                key={item.href}
-                href={href}
-                onClick={onNavigate}
-                className={linkClass(active)}
-              >
-                {activeBar(active)}
-                <item.icon
-                  className={cn(
-                    "h-4 w-4 shrink-0 transition-colors",
-                    active ? "text-primary" : "",
-                  )}
-                />
-                {item.label}
-              </Link>
-            )
-          })}
+          <Link
+            href={`/clients/${clientId}`}
+            onClick={onNavigate}
+            className={linkClass(isNavItemActive(pathname, clientId, ""))}
+          >
+            {activeBar(isNavItemActive(pathname, clientId, ""))}
+            <OVERVIEW_ICON
+              className={cn(
+                "h-4 w-4 shrink-0 transition-colors",
+                isNavItemActive(pathname, clientId, "") ? "text-primary" : "",
+              )}
+            />
+            Overview
+          </Link>
+
+          {CLIENT_NAV_GROUPS.map((group) => (
+            <div key={group.label} className="pt-4">
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                {group.label}
+              </p>
+              {group.items.map((item) => {
+                const href = `/clients/${clientId}${item.href}`
+                const active = isNavItemActive(pathname, clientId, item.href)
+                const Icon = CLIENT_NAV_ICONS[item.href]
+                return (
+                  <Link
+                    key={item.href}
+                    href={href}
+                    onClick={onNavigate}
+                    className={linkClass(active)}
+                  >
+                    {activeBar(active)}
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-colors",
+                        active ? "text-primary" : "",
+                      )}
+                    />
+                    {item.label}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
         </div>
       )}
     </nav>
