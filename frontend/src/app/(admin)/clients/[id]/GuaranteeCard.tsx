@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { createGuaranteeAction, resolveGuaranteeAction } from "@/app/(admin)/clients/actions"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import type { GuaranteeProgress } from "@/types"
 
 const STATE_STYLE: Record<GuaranteeProgress["state"], { label: string; cls: string }> = {
@@ -89,7 +90,9 @@ export function GuaranteeCard({
         <div className="mt-3 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {progress.metric === "ai_citability" ? "AI visibility" : "Overall score"}{" "}
+              {progress.metric === "ai_citability"
+                ? PRODUCT_LANGUAGE.presence
+                : PRODUCT_LANGUAGE.readiness}{" "}
               <span className="font-semibold text-foreground">{progress.baseline_value}</span>
               {" → "}
               <span className="font-semibold text-foreground">{progress.target_value}</span>{" "}

@@ -99,8 +99,8 @@ export default async function ClientOverviewPage({
                 {band ? BAND_LABEL[band.name] : ""}
               </p>
               <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
-                How visible this client is across AI search — ChatGPT,
-                Perplexity, Gemini and Claude.
+                A five-part readiness composite. {PRODUCT_LANGUAGE.presence} records
+                observed recommendations and appearances in answers.
               </p>
             </>
           ) : (

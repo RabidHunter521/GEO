@@ -217,6 +217,14 @@ def test_run_scan_single_platform_failure_does_not_fail_scan():
     assert len(unavailable_logs) == 1
     assert "Claude" in unavailable_logs[0].note
 
+    completed_logs = [
+        o for o in added_objects
+        if isinstance(o, ActivityLog) and o.event_type == "scan_completed"
+    ]
+    assert len(completed_logs) == 1
+    assert "Growth Readiness:" in completed_logs[0].note
+    assert "GEO score" not in completed_logs[0].note
+
 
 def test_run_scan_records_llm_cost_for_each_query():
     """Every scan query's token usage is cost-logged against the client, on the

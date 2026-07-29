@@ -22,7 +22,7 @@ const STATUS_STYLE = {
   weak: {
     label: "Weak topics",
     badge: "border-score-watch/30 bg-score-watch-bg text-score-watch",
-    help: "Mentioned only briefly — worth expanding.",
+    help: "Covered briefly — worth expanding.",
   },
   missing: {
     label: "Missing topics",

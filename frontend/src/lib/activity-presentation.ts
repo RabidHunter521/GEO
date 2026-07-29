@@ -1,3 +1,5 @@
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
+
 export type ActivityTone =
   | "success"
   | "warning"
@@ -32,6 +34,24 @@ const ACTIVITY_PRESENTATION: Record<string, ActivityPresentation> = {
   citation_flip: { label: "Citation source changed", tone: "information" },
 }
 
+const ACTIVITY_NOTE_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\boverall GEO score\b/gi, PRODUCT_LANGUAGE.readiness],
+  [/\bAI visibility score\b/gi, PRODUCT_LANGUAGE.readiness],
+  [/\boverall score\b/gi, PRODUCT_LANGUAGE.readiness],
+  [/\bGEO score\b/gi, PRODUCT_LANGUAGE.readiness],
+  [/\bfirst mentioned\b/gi, "first seen by AI"],
+  [/\bnot mentioned\b/gi, "not seen by AI"],
+  [/\buncited\b/gi, "not seen by AI"],
+  [/\bmentioned\b/gi, "seen by AI"],
+  [/\bcited\b/gi, "seen by AI"],
+  [/\bcitation rate\b/gi, "visibility frequency"],
+  [/\branking position\b/gi, "AI Search Ranking"],
+  [/\bvisibility gap\b/gi, "Your competitors are winning here"],
+  [/\bconfidence score\b/gi, "internal review signal"],
+  [/\bchar offset\b/gi, "internal metadata"],
+  [/\btoken count\b/gi, "internal metadata"],
+]
+
 function humanize(eventType: string): string {
   const words = eventType.replaceAll("_", " ").trim()
   if (!words) return "Activity updated"
@@ -43,4 +63,11 @@ export function presentActivityType(eventType: string): ActivityPresentation {
     label: humanize(eventType),
     tone: "neutral",
   }
+}
+
+export function presentActivityNote(note: string): string {
+  return ACTIVITY_NOTE_REPLACEMENTS.reduce(
+    (presented, [pattern, replacement]) => presented.replace(pattern, replacement),
+    note,
+  )
 }

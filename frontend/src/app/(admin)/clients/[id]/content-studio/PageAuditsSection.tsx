@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { copyToClipboard } from "@/lib/utils"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { getScoreColor } from "@/lib/score-utils"
 import { runPageAuditAction, getPageAuditDetailAction } from "./actions"
 import type { PageAudit, PageAuditListItem } from "@/types"
@@ -110,7 +111,7 @@ export function PageAuditsSection({
       <h3 className="font-display text-lg font-semibold">Page Audits</h3>
       <p className="text-sm text-muted-foreground mt-1">
         Score any page on the client&apos;s site for how easily AI assistants can read
-        and quote it. Informational only — not part of the GEO score.
+        and quote it. Informational only — not part of {PRODUCT_LANGUAGE.readiness}.
       </p>
 
       <div className="mt-4 flex gap-2">

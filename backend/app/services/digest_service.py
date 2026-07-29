@@ -398,12 +398,17 @@ def _build_email_html(client: Client, data: DigestData) -> str:
                     padding:16px 20px;margin-bottom:20px;">
           <p style="margin:0 0 6px;font-size:12px;color:#1d4ed8;font-weight:600;
                     text-transform:uppercase;letter-spacing:0.05em;">
-            What AI visibility is worth
+            Estimated AI-referral pipeline model
           </p>
           <p style="margin:0;font-size:15px;color:#1e3a8a;line-height:1.6;">
-            AI visibility got you an estimated <strong>RM {data.captured_pipeline_rm:,}</strong>
-            in pipeline this month. About <strong>RM {data.at_risk_pipeline_rm:,}</strong>
-            (~{leads:,} potential customers) is still on the table.
+            Configured conversion assumptions estimate
+            <strong>RM {data.captured_pipeline_rm:,}</strong> in pipeline from this
+            month&apos;s observed AI-referral traffic. This is not attributed or
+            confirmed revenue and does not establish that AI visibility caused the
+            visits or pipeline. The same model estimates a further
+            <strong>RM {data.at_risk_pipeline_rm:,}</strong>
+            (~{leads:,} potential customers) as pipeline at risk; this is an
+            estimate, not an observed loss.
           </p>{_breakdown_line(data.ai_breakdown)}
         </div>"""
 

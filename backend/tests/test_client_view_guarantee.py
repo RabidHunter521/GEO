@@ -34,9 +34,9 @@ def _make_client(db):
 
 
 def _guarantee(db, client, *, start_days_ago=45, deadline_in=45, status="active",
-               target=60, resolved=False):
+               target=60, resolved=False, metric="ai_citability"):
     g = Guarantee(
-        client_id=client.id, metric="ai_citability", baseline_value=45,
+        client_id=client.id, metric=metric, baseline_value=45,
         target_value=target,
         start_date=date.today() - timedelta(days=start_days_ago),
         deadline_date=date.today() + timedelta(days=deadline_in),
@@ -86,6 +86,16 @@ def test_at_risk_collapses_to_in_progress(db):
     assert commitment["baseline"] == 45
     assert commitment["target"] == 60
     assert commitment["current"] == 45.0
+
+
+def test_overall_score_commitment_is_labelled_growth_readiness(db):
+    c = _make_client(db)
+    _guarantee(db, c, metric="overall_score")
+    db.commit()
+
+    commitment = _overview(db, c)["commitment"]
+
+    assert commitment["metric_label"] == "Growth Readiness"
 
 
 def test_deadline_passed_hidden_until_resolved(db):

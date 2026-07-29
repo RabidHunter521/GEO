@@ -41,6 +41,7 @@ import {
 import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { isValidWebsite } from "@/lib/utils"
 import { generateAssessment, acceptAssessment } from "@/lib/api"
 
@@ -602,7 +603,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 text-sm">
-                  Alert fires when the AI visibility score drops below this number. Set to 0 to disable.
+                  Alert fires when {PRODUCT_LANGUAGE.readiness} drops below this number. Set to 0 to disable.
                 </PopoverContent>
               </Popover>
             </div>
@@ -916,7 +917,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
         <div>
           <h2 className="font-display text-lg font-semibold tracking-tight">AI Referral Traffic</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Monthly AI-referral visitor count from the client&apos;s analytics. Informational only — does not affect the GEO score.
+            Monthly AI-referral visitor count from the client&apos;s analytics. Informational only — does not affect {PRODUCT_LANGUAGE.readiness}.
           </p>
         </div>
 

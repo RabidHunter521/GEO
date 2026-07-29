@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle, ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { getActivityLog, getWorkLog } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { presentActivityType } from "@/lib/activity-presentation"
+import { presentActivityNote, presentActivityType } from "@/lib/activity-presentation"
 import type { ActivityLogEntry } from "@/types"
 import { WorkLogCard } from "./WorkLogCard"
 
@@ -113,7 +113,9 @@ export default async function ActivityPage({ params, searchParams }: Props) {
                 <p className="text-sm font-medium leading-none">
                   {presentation.label}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">{entry.note}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {presentActivityNote(entry.note)}
+                </p>
               </div>
               <p className="text-xs text-muted-foreground shrink-0 mt-0.5 tabular-nums">
                 {formatDate(entry.created_at)}

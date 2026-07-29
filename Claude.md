@@ -62,10 +62,11 @@ SCORE_BANDS = {
 # Backend:  get_score_color() in app/services/scoring_service.py
 ```
 
-## 4. GEO Score Dimensions
+## 4. Growth Readiness Dimensions
 
-The overall score is computed from 5 dimensions. Never change weights 
-without updating this file and bumping SCORE_VERSION.
+The Growth Readiness composite (`overall_score` in the current API) is
+computed from 5 dimensions. Never change weights without updating this file
+and bumping SCORE_VERSION.
 
 | Dimension | Weight | Source |
 |---|---|---|
@@ -89,7 +90,8 @@ answers; `detect_brand_mention` stays the pure matcher for CRAWLED PAGE TEXT.
 Stance only — a positive but wrong answer still counts, since truthfulness is
 handled separately by `hallucination_flagged`. Weights unchanged. Expect
 existing clients' AI Citability to FALL on their next scan; historical scores
-were computed under v1.2.0 and are not recomputed.)
+are not recomputed. `GeoScore` does not store a per-row formula version, so an
+exact historical formula version cannot be established from the row.)
 (v1.1.0: AI Citability = equal-weighted average of per-platform visibility
 across the client's enabled platforms; unavailable platforms are excluded.)
 (v1.2.0: Brand Authority + Content Quality sourcing changed from bare admin
@@ -134,7 +136,7 @@ Weekly digest (automated):
 - Sender: contact@seenby.my
 - Trigger Claude-generated action ONLY when score changes ±5pts
 - Otherwise send standard tip
-- Subject line must include the client's visibility score
+- Subject line must include the client's Growth Readiness score
 
 Monthly PDF report:
 - Auto-generated via WeasyPrint

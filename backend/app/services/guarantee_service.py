@@ -8,7 +8,11 @@ from datetime import date
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.core.constants import GUARANTEE_GRACE_FRACTION, GUARANTEE_METRICS
+from app.core.constants import (
+    GUARANTEE_GRACE_FRACTION,
+    GUARANTEE_METRICS,
+    SCORE_DISPLAY_LABEL,
+)
 from app.core.time import utcnow
 from app.models.geo_score import GeoScore
 from app.models.guarantee import Guarantee
@@ -142,7 +146,7 @@ def get_client_commitment(client_id: uuid.UUID, db: Session) -> ClientCommitment
     else:
         return None
     return ClientCommitment(
-        metric_label="AI visibility" if g.metric == "ai_citability" else "Overall score",
+        metric_label="AI Presence" if g.metric == "ai_citability" else SCORE_DISPLAY_LABEL,
         baseline=g.baseline_value,
         target=g.target_value,
         current=current,

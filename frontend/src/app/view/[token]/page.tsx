@@ -23,15 +23,16 @@ import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { getScoreBand, getScoreColor, type ScoreColor } from "@/lib/score-utils"
 import { cn, joinWithAnd, parseDateOnly } from "@/lib/utils"
 import type { ClientViewScore } from "@/types"
 
 const DIMENSIONS = [
   {
-    key: "ai_visibility", label: "AI Visibility", weight: "40%", manual: false,
+    key: "ai_visibility", label: "AI Presence", weight: "40%", manual: false,
     description:
-      "Measures how often your brand appears, is seen, or is recommended by AI search engines such as ChatGPT, Gemini, Claude, and Perplexity when users ask relevant questions.",
+      "Measures how often your brand is seen or recommended in observed AI answers across the tracked buyer-query set.",
   },
   {
     key: "brand_authority", label: "Brand Authority", weight: "20%", manual: true,
@@ -164,7 +165,7 @@ export default async function ViewOverviewPage({
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Your AI Visibility Score
+                Your {PRODUCT_LANGUAGE.readiness}
               </p>
               {band && scoreColor && (
                 <span
@@ -183,8 +184,9 @@ export default async function ViewOverviewPage({
                   {headline}
                 </p>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                  How visible you are across AI search
-                  {platformNames ? ` — ${platformNames}` : ""}.
+                  A five-part readiness composite. {PRODUCT_LANGUAGE.presence} records
+                  observed recommendations and appearances in answers
+                  {platformNames ? ` across ${platformNames}` : ""}.
                 </p>
                 <p className="mt-3 text-xs text-muted-foreground">
                   Last updated{" "}

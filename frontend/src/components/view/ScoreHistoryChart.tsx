@@ -2,6 +2,7 @@
 // Inline SVG bar chart of overall score over time — server-rendered,
 // no chart library. Bars are colored by score band.
 import { getScoreBand } from "@/lib/score-utils"
+import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import type { ClientViewScorePoint } from "@/types"
 
 const BAND_TOKEN: Record<string, string> = {
@@ -24,12 +25,12 @@ export function ScoreHistoryChart({ points }: Props) {
 
   return (
     <div className="rounded-lg border bg-card p-4">
-      <p className="text-sm font-medium">Your score over time</p>
+      <p className="text-sm font-medium">Your {PRODUCT_LANGUAGE.readiness} over time</p>
       <svg
         viewBox={`0 0 ${width} ${height + 24}`}
         className="mt-3 w-full"
         role="img"
-        aria-label="Visibility score history"
+        aria-label={`${PRODUCT_LANGUAGE.readiness} history`}
       >
         {points.map((p, i) => {
           const clamped = Math.max(0, Math.min(100, p.overall_score))

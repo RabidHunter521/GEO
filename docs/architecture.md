@@ -1,6 +1,6 @@
 # SeenBy — Architecture Map (one page)
 
-Read this before exploring the code. It reflects the codebase as of 2026-07-06.
+Read this before exploring the code. It reflects the codebase as of 2026-07-29.
 Rules and invariants live in CLAUDE.md — this file is only the map. The
 client-facing definition, assumptions, and limitations of current measurement
 are in [the methodology](methodology.md).

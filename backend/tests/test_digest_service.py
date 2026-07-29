@@ -253,9 +253,13 @@ def test_digest_html_shows_money_pair():
     htmlout = _build_email_html(_digest_client(), _digest_data(
         captured_pipeline_rm=2000, at_risk_pipeline_rm=3000, at_risk_leads=3,
     ))
-    assert "RM 2,000" in htmlout                 # captured
-    assert "RM 3,000" in htmlout                 # at-risk
-    assert "on the table" in htmlout.lower()
+    assert "Configured conversion assumptions estimate" in htmlout
+    assert "RM 2,000" in htmlout
+    assert "The same model estimates a further" in htmlout
+    assert "RM 3,000" in htmlout
+    assert "does not establish that AI visibility caused" in htmlout
+    assert "not an observed loss" in htmlout
+    assert "got you" not in htmlout
 
 
 def test_digest_html_no_money_block_when_unconfigured():

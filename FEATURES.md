@@ -144,7 +144,7 @@ increase Growth Readiness or guarantee AI visibility.
 ## Reporting
 
 **Weekly Digest (automated email)**
-- Sent automatically with the client's current visibility score
+- Sent automatically with the client's current Growth Readiness score
 - Includes an AI-generated tip or recommended action when the score moves by
   5+ points
 
@@ -183,8 +183,8 @@ without ever blocking or slowing down a scan.
 
 - Each client gets a secure, private link (no login required) to view their
   own results
-- Includes their visibility score, scan results, competitor comparison, and
-  delivered reports
+- Includes their Growth Readiness score, AI Presence results, competitor
+  comparison, and delivered reports
 - Read-only and scoped — clients only ever see their own data, in
   client-friendly language (no technical jargon, no raw AI data)
 

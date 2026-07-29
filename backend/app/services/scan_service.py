@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 import structlog
 
-from app.core.constants import ACTIVE_SCAN_STALE_MINUTES, PLATFORM_LABELS, SCAN_PLATFORMS
+from app.core.constants import (
+    ACTIVE_SCAN_STALE_MINUTES,
+    PLATFORM_LABELS,
+    SCAN_PLATFORMS,
+    SCORE_DISPLAY_LABEL,
+)
 from app.models.scan import Scan
 from app.models.client import Client
 from app.models.competitor import Competitor
@@ -324,7 +329,10 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         db.add(ActivityLog(
             client_id=client.id,
             event_type="scan_completed",
-            note=f"Scan completed. AI Citability: {ai_citability:.1f}. Overall GEO score: {overall:.1f}.",
+            note=(
+                f"Scan completed. AI Citability: {ai_citability:.1f}. "
+                f"{SCORE_DISPLAY_LABEL}: {overall:.1f}."
+            ),
         ))
 
         scan.status = "completed"
