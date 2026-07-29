@@ -209,6 +209,16 @@ ACTION_PRIORITY_BANDS: Final = {
 }
 MAX_OPEN_ACTIONS: Final = 5
 
+# --- Admin Command Center (Phase 1) -----------------------------------------
+# Evidence vocabulary (docs/methodology.md §"Evidence levels"): every headline
+# number is labelled with the kind of evidence behind it, so no surface can
+# imply more than the stored rows support.
+EVIDENCE_OBSERVED: Final = "Observed"
+EVIDENCE_REVIEWED: Final = "Reviewed"
+EVIDENCE_UNAVAILABLE: Final = "Unavailable"
+# Rolling window for "work completed" in the command center delivery summary.
+COMMAND_CENTER_DELIVERY_WINDOW_DAYS: Final = 30
+
 # --- Authority & Presence Tracker (Phase 4) ---------------------------------
 # Asset types in display order (also the group order on the /authority page).
 AUTHORITY_ASSET_TYPES: Final = (

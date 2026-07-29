@@ -326,6 +326,7 @@ def test_update_internal_notes():
     ("PATCH", f"/api/v1/clients/{uuid.uuid4()}"),
     ("GET",   f"/api/v1/clients/{uuid.uuid4()}/geo-score/latest"),
     ("GET",   "/api/v1/clients/gap-matrix"),
+    ("GET",   f"/api/v1/clients/{uuid.uuid4()}/command-center"),
 ])
 def test_endpoints_require_auth(method, path):
     from app.main import app
@@ -380,3 +381,97 @@ def test_get_gap_matrix_returns_200_with_matrix():
     assert body["rows"][0]["client_name"] == "Acme"
     assert body["rows"][0]["cells"][0]["competitors_winning"] is True
     assert body["rows"][0]["cells"][0]["top_competitor_name"] == "Rival"
+
+
+def _fake_command_center():
+    from app.schemas.command_center import (
+        AttentionSummary,
+        CommandCenterAction,
+        CommandCenterMetrics,
+        CommandCenterResponse,
+        DeliverySummary,
+        MetricValue,
+        PeriodStory,
+    )
+
+    return CommandCenterResponse(
+        metrics=CommandCenterMetrics(
+            ai_presence=MetricValue(value=45.0, delta=15.0, evidence_label="Observed"),
+            accuracy=MetricValue(value=None, delta=None, evidence_label="Unavailable"),
+            growth_readiness=MetricValue(value=60.0, delta=8.0, evidence_label="Composite (v1.4.0)"),
+            business_impact=MetricValue(value=120.0, delta=40.0, evidence_label="Observed"),
+        ),
+        period_story=PeriodStory(
+            headline="AI Presence improved by 15.0 points",
+            bullets=["Growth Readiness up 8.0 points at 60.0"],
+        ),
+        attention=AttentionSummary(accuracy_risks=1, overdue_actions=0, stale_scan=False),
+        delivery=DeliverySummary(in_progress=1, ready_to_publish=2, completed_last_30d=3),
+        priority_actions=[
+            CommandCenterAction(
+                id=uuid.uuid4(),
+                action_text="Publish the service page",
+                priority="high",
+                reason="Estimated +9.0 points to Growth Readiness",
+            )
+        ],
+    )
+
+
+def test_get_command_center_returns_200_with_full_contract():
+    from unittest.mock import patch
+
+    app, get_db = _make_app()
+    existing = _fake_client("Acme Corp")
+    existing.archived_at = None
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    with patch("app.api.v1.clients.build_command_center", return_value=_fake_command_center()):
+        client = TestClient(app)
+        response = client.get(f"/api/v1/clients/{existing.id}/command-center")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {"metrics", "period_story", "attention", "delivery", "priority_actions"}
+    assert body["metrics"]["ai_presence"] == {
+        "value": 45.0, "delta": 15.0, "evidence_label": "Observed",
+    }
+    assert body["metrics"]["accuracy"]["value"] is None
+    assert body["metrics"]["accuracy"]["evidence_label"] == "Unavailable"
+    assert body["metrics"]["growth_readiness"]["evidence_label"] == "Composite (v1.4.0)"
+    assert body["period_story"]["headline"] == "AI Presence improved by 15.0 points"
+    assert body["attention"] == {"accuracy_risks": 1, "overdue_actions": 0, "stale_scan": False}
+    # Three delivery fields only — nothing stored backs a "waiting for client" state.
+    assert set(body["delivery"]) == {"in_progress", "ready_to_publish", "completed_last_30d"}
+    assert body["priority_actions"][0]["action_text"] == "Publish the service page"
+    assert set(body["priority_actions"][0]) == {"id", "action_text", "priority", "reason"}
+
+
+def test_get_command_center_404_for_unknown_client():
+    app, get_db = _make_app()
+    mock_db = MagicMock()
+    mock_db.get.return_value = None
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.get(f"/api/v1/clients/{uuid.uuid4()}/command-center")
+    app.dependency_overrides.clear()
+    assert response.status_code == 404
+
+
+def test_get_command_center_404_for_archived_client():
+    from datetime import datetime
+
+    app, get_db = _make_app()
+    archived = _fake_client("Gone Co")
+    archived.archived_at = datetime(2026, 1, 1)
+    mock_db = MagicMock()
+    mock_db.get.return_value = archived
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.get(f"/api/v1/clients/{archived.id}/command-center")
+    app.dependency_overrides.clear()
+    assert response.status_code == 404

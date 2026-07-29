@@ -18,6 +18,7 @@ from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, Clien
 from app.schemas.geo_score import GeoScoreResponse
 from app.schemas.benchmark import IndustryBenchmarkResponse
 from app.schemas.assessment import AcceptRequest, AssessmentResponse
+from app.schemas.command_center import CommandCenterResponse
 from app.models.guarantee import Guarantee
 from app.schemas.guarantee import (
     GuaranteeCreate,
@@ -28,6 +29,7 @@ from app.schemas.guarantee import (
 from app.services import guarantee_service
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.client_list_service import build_client_list
+from app.services.command_center_service import build_command_center
 from app.services.gap_matrix_service import compute_gap_matrix
 from app.services.share_link_service import generate_share_token, revoke_share_token
 from app.services import r2_service, assessment_service
@@ -244,6 +246,18 @@ def get_latest_geo_score(client_id: uuid.UUID, db: Session = Depends(get_db)):
         .order_by(desc(GeoScore.computed_at))
         .first()
     )
+
+
+@router.get(
+    "/{client_id}/command-center",
+    response_model=CommandCenterResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_command_center(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return build_command_center(c, db)
 
 
 def _require_dimension(dimension: str) -> None:
