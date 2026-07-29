@@ -602,7 +602,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 text-sm">
-                  Alert fires when the overall GEO score drops below this number. Set to 0 to disable.
+                  Alert fires when the AI visibility score drops below this number. Set to 0 to disable.
                 </PopoverContent>
               </Popover>
             </div>
