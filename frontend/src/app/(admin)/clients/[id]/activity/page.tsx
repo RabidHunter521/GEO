@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle, ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { getActivityLog, getWorkLog } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { presentActivityType } from "@/lib/activity-presentation"
 import type { ActivityLogEntry } from "@/types"
 import { WorkLogCard } from "./WorkLogCard"
 
@@ -11,20 +12,6 @@ interface Props {
 }
 
 const PAGE_SIZE = 100
-
-const EVENT_LABELS: Record<string, string> = {
-  scan_completed: "Scan completed",
-  scan_failed: "Scan failed",
-  toolkit_generated: "Toolkit generated",
-  toolkit_verified: "Toolkit files verified",
-  client_created: "Client onboarded",
-  digest_sent: "Weekly digest sent",
-  report_generated: "Monthly report generated",
-  report_sent: "Monthly report sent",
-  alert_sent: "Alert sent",
-  hallucination_flagged: "Hallucination flagged",
-  content_analyzed: "Content gaps analyzed",
-}
 
 function EventIcon({ type }: { type: string }) {
   const cls = "h-4 w-4 shrink-0 mt-0.5"
@@ -92,9 +79,9 @@ export default async function ActivityPage({ params, searchParams }: Props) {
       <div className="space-y-4">
         <WorkLogCard clientId={id} initialEntries={workLog} />
         <div className="rounded-lg border border-dashed p-14 text-center text-muted-foreground">
-          <p className="font-medium">No activity yet</p>
+          <p className="font-medium">The activity timeline will start with the first scan</p>
           <p className="text-sm mt-1">
-            Activity is recorded when you run scans, generate toolkit files, or verify your implementation.
+            Scans, reviewed findings, delivered work, reports, and verification events will appear here.
           </p>
           <Link
             href={`/clients/${id}/scan`}
@@ -114,23 +101,26 @@ export default async function ActivityPage({ params, searchParams }: Props) {
         Page {page} · showing {entries.length} event{entries.length !== 1 ? "s" : ""}, newest first.
       </p>
       <div className="divide-y rounded-lg border bg-card">
-        {entries.map((entry) => (
-          <div
-            key={entry.id}
-            className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30"
-          >
-            <EventIcon type={entry.event_type} />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-none">
-                {EVENT_LABELS[entry.event_type] ?? entry.event_type}
+        {entries.map((entry) => {
+          const presentation = presentActivityType(entry.event_type)
+          return (
+            <div
+              key={entry.id}
+              className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30"
+            >
+              <EventIcon type={entry.event_type} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium leading-none">
+                  {presentation.label}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">{entry.note}</p>
+              </div>
+              <p className="text-xs text-muted-foreground shrink-0 mt-0.5 tabular-nums">
+                {formatDate(entry.created_at)}
               </p>
-              <p className="text-sm text-muted-foreground mt-1">{entry.note}</p>
             </div>
-            <p className="text-xs text-muted-foreground shrink-0 mt-0.5 tabular-nums">
-              {formatDate(entry.created_at)}
-            </p>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {(page > 1 || hasMore) && (
