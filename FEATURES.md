@@ -13,11 +13,8 @@ Perplexity, Gemini, and Claude (the platforms people actually use to research
 brands today) and checks whether the client's brand shows up in the answer.
 This is the foundation everything else is built on.
 
-- 8 real-world questions per scan, covering 4 categories:
-  - Brand searches (do people find them when searching their own name?)
-  - Comparisons (brand vs. competitors)
-  - Recommendations ("what's the best X in [industry]?")
-  - Local searches ("best X in Kuala Lumpur / Malaysia")
+- Up to 20 queries per enabled platform per scan: five brand queries, up to five comparison queries, five recommendation queries, and five local queries.
+  When a client has fewer competitors, comparison queries are reduced to match.
 - Runs across up to 4 AI platforms per client, each toggleable per client
 - If one platform is temporarily unavailable, the scan still completes using
   the rest — nothing blocks the client's results
@@ -34,13 +31,14 @@ limitations.
 
 - Combines 5 weighted dimensions:
   - **AI Citability (40%)** — automatic, from the scan engine
-  - **Brand Authority (20%)** — assisted, administrator-reviewed against public evidence
-  - **Content Quality (20%)** — assisted, administrator-reviewed against public evidence
+  - **Brand Authority (20%)** — Based on public evidence · Reviewed by SeenBy
+  - **Content Quality (20%)** — Based on public evidence · Reviewed by SeenBy
   - **Technical Foundations (10%)** — verified `robots.txt` AI-crawler access
   - **Structured Data (10%)** — verified structured data
 - Scored against clear bands: Excellent, Good, Fair, Developing, Low
-- Versioned and tracked over time; historical rows retain the score version
-  used when they were computed
+- v1.4.0 labels newly computed Growth Readiness. GeoScore does not persist a
+  per-row score version, so a historical row's exact formula version is not
+  currently available.
 
 ---
 

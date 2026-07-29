@@ -14,7 +14,7 @@ Accuracy and Reputation records potential conflicts between observed model answe
 
 ### Growth Readiness
 
-Growth Readiness is the current composite leading indicator. In version v1.4.0, it combines AI citability (40%), brand authority (20%), content quality (20%), verified robots.txt AI-crawler access (10%), and verified structured data (10%). Brand authority and content quality are assisted suggestions that an administrator reviews against public evidence before they affect the score. Growth Readiness is returned as `overall_score` in the current API; it is not a measure of confirmed traffic, leads, or revenue.
+Growth Readiness is the current composite leading indicator. In version v1.4.0, it combines AI citability (40%), brand authority (20%), content quality (20%), verified robots.txt AI-crawler access (10%), and verified structured data (10%). Brand Authority and Content Quality always use the label “Based on public evidence · Reviewed by SeenBy”. Growth Readiness is returned as `overall_score` in the current API; it is not a measure of confirmed traffic, leads, or revenue.
 
 ### Business Impact
 
@@ -42,7 +42,7 @@ Where a client has an average deal value, SeenBy estimates pipeline from AI-refe
 
 ## Versioning
 
-The current score contract is v1.4.0. Historical score rows retain the score version under which they were computed and are not recomputed when the contract changes. This preserves the record of what each historical score meant at the time it was produced.
+v1.4.0 labels newly computed Growth Readiness. GeoScore does not persist a per-row score version, so a historical row's exact formula version is not currently available. Historical rows retain their originally computed values; they are not recomputed when the current label changes.
 
 ## Limitations
 
