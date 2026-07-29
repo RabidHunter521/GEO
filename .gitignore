@@ -20,6 +20,7 @@ out/
 
 # Tooling caches
 .rtk/
+.worktrees/
 
 # IDE
 .vscode/
