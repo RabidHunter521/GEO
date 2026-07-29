@@ -5,6 +5,7 @@ real ORM rows and reads them back through the service — nothing is mocked, so 
 test passing means the aggregation genuinely reads stored evidence.
 """
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from app.core.constants import (
     COMMAND_CENTER_DELIVERY_WINDOW_DAYS,
@@ -403,3 +404,29 @@ def test_period_story_has_no_bullets_without_data(db):
     story = build_command_center(client, db).period_story
 
     assert story.bullets == []
+
+
+def test_aggregation_never_calls_an_llm(db):
+    """Opening a dashboard must not trigger a paid generation. Recommendations
+    are produced by action_center_service after a scan; this service only reads
+    them."""
+    client = _seeded_client(db)
+
+    with patch(
+        "app.services.claude_client.anthropic_client",
+        side_effect=AssertionError("command center must not call Claude"),
+    ):
+        result = build_command_center(client, db)
+
+    assert result.priority_actions[0].action_text == "Publish the service page"
+
+
+def test_aggregation_writes_nothing(db):
+    """Read-only: no rows created, changed or deleted by building the view."""
+    client = _seeded_client(db)
+
+    build_command_center(client, db)
+
+    assert list(db.new) == []
+    assert list(db.dirty) == []
+    assert list(db.deleted) == []
