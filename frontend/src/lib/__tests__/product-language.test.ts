@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   PRODUCT_LANGUAGE,
   evidenceLabel,
+  formatEvidenceStatement,
   type EvidenceLevel,
 } from "../product-language"
 
@@ -23,4 +24,14 @@ describe("product language", () => {
       expect(evidenceLabel(level)).toBe(expected)
     },
   )
+
+  it("makes estimated values explicit", () => {
+    expect(formatEvidenceStatement("estimated", "RM 16,000", "pipeline"))
+      .toBe("Estimated pipeline: RM 16,000")
+  })
+
+  it("makes observed values explicit", () => {
+    expect(formatEvidenceStatement("observed", "84", "AI referral visits"))
+      .toBe("Observed AI referral visits: 84")
+  })
 })

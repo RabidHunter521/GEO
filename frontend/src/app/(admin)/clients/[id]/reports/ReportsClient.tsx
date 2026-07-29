@@ -173,9 +173,10 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
       {reports.length === 0 && !isGenerating && (
         <div className="rounded-lg border border-dashed p-14 text-center text-muted-foreground">
           <FileText className="h-8 w-8 mx-auto mb-3 opacity-40" />
-          <p className="font-medium">No reports yet</p>
+          <p className="font-medium">No reviewed report has been delivered yet</p>
           <p className="text-sm mt-1">
-            Click &ldquo;Generate Report&rdquo; to create the first monthly report.
+            Generate the first report, review its evidence and estimates, then send it
+            to the client.
           </p>
         </div>
       )}

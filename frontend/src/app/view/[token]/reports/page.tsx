@@ -32,10 +32,12 @@ export default async function ViewReportsPage({
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <FileText className="h-6 w-6" />
           </span>
-          <p className="mt-4 font-display text-lg font-semibold">No reports yet</p>
+          <p className="mt-4 font-display text-lg font-semibold">
+            Your first monthly report is scheduled
+          </p>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Your first monthly visibility report will appear here once it&apos;s
-            been delivered by the SeenBy team.
+            It will appear here after the first reporting period has been reviewed and
+            delivered.
           </p>
         </div>
       </div>

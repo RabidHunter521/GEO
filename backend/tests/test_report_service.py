@@ -490,9 +490,11 @@ def test_build_report_html_renders_pipeline_rm_when_configured():
         avg_deal_value_rm=5000, visitor_to_lead_pct=2, lead_to_customer_pct=20,
     )
     html = _build_report_html(client, data)
-    assert "Estimated Pipeline From AI This Month" in html
+    assert "Estimated pipeline" in html
     assert "RM 100,000" in html
     assert "RM 20,000" in html
+    assert "Estimated from configured conversion assumptions" in html
+    assert "Confirmed revenue" not in html
 
 
 def test_build_report_html_traffic_section_always_present():

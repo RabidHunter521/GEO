@@ -302,6 +302,7 @@ td:first-child { font-weight: 600; }
 .stat-label { font-size: 8pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 4px; }
 .stat-value { font-size: 26pt; font-weight: 700; color: #0f172a; line-height: 1.1; margin-bottom: 4px; }
 .stat-sub   { font-size: 9.5pt; color: #64748b; }
+.impact-method { font-size: 8.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin: 4px 0 10px; }
 
 /* ── Special stat variants ──────────────────────────────────────────── */
 .stat-pipeline {
@@ -1733,7 +1734,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
             f'<div class="stat-block">'
             f'<div class="stat-label">{traffic_label}</div>'
             f'<div class="stat-value">{data.ai_visitors_current:,}</div>'
-            f'<div class="stat-sub">Visitors arriving via ChatGPT, Perplexity, Gemini and Claude'
+            f'<div class="stat-sub">Observed AI referral visits: {data.ai_visitors_current:,}. Visitors arriving via ChatGPT, Perplexity, Gemini and Claude'
             f' &mdash; {change_label}</div>{breakdown_line}</div>'
         )
     else:
@@ -1749,14 +1750,14 @@ def _build_report_html(client: Client, data: ReportData) -> str:
         p = data.pipeline
         pipeline_stat = (
             f'<div class="stat-pipeline">'
-            f'<div class="stat-label">Estimated Pipeline From AI This Month</div>'
+            f'<div class="stat-label">Estimated pipeline</div>'
             f'<div class="stat-value">RM {p.est_pipeline_rm:,}</div>'
+            f'<div class="impact-method">Estimated from configured conversion assumptions</div>'
             f'<div class="stat-sub">'
-            f'&asymp; {p.ai_visitors:,} AI visitors &rarr; ~{p.est_leads:,} leads &rarr;'
-            f' <strong>RM {p.est_pipeline_rm:,}</strong> in pipeline, with an estimated'
-            f' <strong>RM {p.est_won_rm:,}</strong> won at your {p.lead_to_customer_pct}% close rate.'
-            f'<br><span style="color:#94a3b8;">Estimate based on RM {p.avg_deal_value_rm:,}'
-            f' average deal value and a {p.visitor_to_lead_pct}% visitor-to-lead rate.</span>'
+            f'Observed AI referral visits: {p.ai_visitors:,}<br>'
+            f'Estimated leads: {p.est_leads:,}<br>'
+            f'Estimated pipeline: <strong>RM {p.est_pipeline_rm:,}</strong><br>'
+            f'Estimated won business: <strong>RM {p.est_won_rm:,}</strong>'
             f'</div></div>'
         )
     else:

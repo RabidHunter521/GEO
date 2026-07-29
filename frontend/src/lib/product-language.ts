@@ -21,3 +21,11 @@ const EVIDENCE_LABELS: Record<EvidenceLevel, string> = {
 export function evidenceLabel(level: EvidenceLevel): string {
   return EVIDENCE_LABELS[level]
 }
+
+export function formatEvidenceStatement(
+  level: EvidenceLevel,
+  value: string,
+  noun: string,
+): string {
+  return `${evidenceLabel(level)} ${noun}: ${value}`
+}

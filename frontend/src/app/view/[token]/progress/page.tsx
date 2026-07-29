@@ -35,9 +35,12 @@ export default async function ViewProgressPage({
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Sparkles className="h-6 w-6" />
           </span>
-          <p className="mt-4 font-display text-lg font-semibold">Progress</p>
+          <p className="mt-4 font-display text-lg font-semibold">
+            Your first delivery cycle is being prepared
+          </p>
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-            Your delivery timeline will appear here as work is completed.
+            Reviewed actions will appear here after the SeenBy team completes and
+            publishes them.
           </p>
         </div>
       </div>

@@ -5,6 +5,7 @@
 // an honest "tracking value" note rather than inventing revenue.
 import { TrendingUp } from "lucide-react"
 import type { ClientViewTrafficValue } from "@/types"
+import { formatEvidenceStatement } from "@/lib/product-language"
 
 function rm(n: number): string {
   return `RM ${n.toLocaleString("en-MY")}`
@@ -23,25 +24,38 @@ export function AiPipelineValueCard({ value }: { value: ClientViewTrafficValue }
         <span aria-hidden className="h-3.5 w-1 shrink-0 rounded-full bg-primary/70" />
         <TrendingUp className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          What AI Visibility Is Worth
+          Estimated AI Pipeline
         </h2>
       </div>
 
       {hasRevenue ? (
         <>
           <p className="mt-3 font-display text-3xl font-bold tabular-nums text-foreground">
-            {rm(value.est_pipeline_rm as number)}{" "}
-            <span className="ml-2 align-middle text-sm font-medium text-muted-foreground">
-              estimated pipeline this month
-            </span>
+            {rm(value.est_pipeline_rm as number)}
+          </p>
+          <p className="mt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Estimated from configured conversion assumptions
+          </p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {formatEvidenceStatement(
+              "observed",
+              value.ai_visitors.toLocaleString("en-MY"),
+              "AI referral visitors",
+            )}
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
-            ≈ {value.ai_visitors.toLocaleString("en-MY")} visitors arrived from AI
-            search → about {(value.est_leads as number).toLocaleString("en-MY")} leads →{" "}
-            <span className="font-semibold text-foreground">
-              {rm(value.est_won_rm as number)}
-            </span>{" "}
-            in estimated won business.
+            {formatEvidenceStatement(
+              "estimated",
+              (value.est_leads as number).toLocaleString("en-MY"),
+              "leads",
+            )}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {formatEvidenceStatement(
+              "estimated",
+              rm(value.est_won_rm as number),
+              "won business",
+            )}
           </p>
         </>
       ) : (
