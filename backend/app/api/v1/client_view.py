@@ -65,8 +65,10 @@ from app.schemas.client_view import (
     ClientViewTrafficValue,
     ClientViewProgressItem,
     ClientViewWorkLogItem,
+    ClientViewPeriodSummary,
 )
 from app.services.assessment_service import latest_assessment
+from app.services.client_period_summary_service import build_client_period_summary
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.remediation_service import get_remediation_items
@@ -407,6 +409,7 @@ def get_overview(
         is_stale=is_stale,
         causal_trend=causal_trend,
         commitment=commitment,
+        period_summary=build_client_period_summary(client, db),
     )
 
 

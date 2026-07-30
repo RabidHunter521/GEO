@@ -592,6 +592,18 @@ export interface ClientViewProofCard {
   excerpt: string
 }
 
+// Deterministic, plain-English period summary (Task 4). Every string is
+// built server-side from stored values — never render these as HTML, and
+// never add a field here that isn't already independently whitelisted
+// elsewhere on this surface.
+export interface ClientViewPeriodSummary {
+  headline: string
+  wins: string[]
+  risks: string[]
+  work_underway: string[]
+  next_actions: string[]
+}
+
 export interface ClientViewOverview {
   profile: ClientViewProfile
   latest_score: ClientViewScore | null
@@ -614,6 +626,7 @@ export interface ClientViewOverview {
   proof_cards?: ClientViewProofCard[]
   causal_trend?: ClientViewCausalTrend | null
   commitment?: ClientViewCommitment | null
+  period_summary: ClientViewPeriodSummary
 }
 
 export interface ClientViewScanResult {

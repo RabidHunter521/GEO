@@ -378,6 +378,55 @@ def test_competitors_includes_headline_battle(db):
         app.dependency_overrides.update(_saved)
 
 
+def test_overview_includes_period_summary(db):
+    """Overview must carry period_summary with the whitelisted list shape,
+    and no unpublished work-log entry may appear anywhere in it (Task 4)."""
+    from datetime import date
+    from app.models.work_log_entry import WorkLogEntry
+
+    client = _make_client(db, is_prospect=False, name="Period Summary Client")
+    client.share_token = uuid.uuid4().hex
+    db.flush()
+
+    scan = _make_scan(db, client.id)
+    _make_geo_score(db, client.id, scan.id)
+
+    db.add(WorkLogEntry(
+        client_id=client.id, category="content",
+        description="Published a new services page.",
+        source="manual", status="published", entry_date=date.today(),
+    ))
+    db.add(WorkLogEntry(
+        client_id=client.id, category="content",
+        description="SECRET_UNPUBLISHED_SUGGESTION_TEXT",
+        source="auto", status="suggested", entry_date=date.today(),
+    ))
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert "period_summary" in body
+        summary = body["period_summary"]
+        assert set(summary.keys()) == {"headline", "wins", "risks", "work_underway", "next_actions"}
+        assert isinstance(summary["headline"], str) and summary["headline"]
+        for key in ("wins", "risks", "work_underway", "next_actions"):
+            assert len(summary[key]) <= 3
+
+        everything = " ".join(
+            [summary["headline"], *summary["wins"], *summary["risks"],
+             *summary["work_underway"], *summary["next_actions"]]
+        )
+        assert "SECRET_UNPUBLISHED_SUGGESTION_TEXT" not in everything
+        assert "Published a new services page." in " ".join(summary["wins"])
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
 def test_scan_unseen_result_has_null_excerpt(db):
     """ScanQueryResult with brand_detected=False should serialize with null excerpt."""
     client = _make_client(db, is_prospect=False, name="NullExcerptClient")

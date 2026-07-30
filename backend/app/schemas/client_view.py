@@ -130,6 +130,24 @@ class ClientViewCausalTrend(BaseModel):
     left_alone: list[float | None]
 
 
+class ClientViewPeriodSummary(BaseModel):
+    """A deterministic, plain-English summary of the reporting period.
+
+    Every sentence is assembled from stored values by
+    client_period_summary_service.build_client_period_summary — no LLM call,
+    no free text. Each list is capped at 3 items. Sourced only from rows that
+    are already independently client-safe elsewhere on this surface: GeoScore,
+    published WorkLogEntry rows, client-safe RemediationItem rows (never
+    "misinformation"), open ActionRecommendation rows, and redacted proof-card
+    excerpts. Never response_text, never an internal event key.
+    """
+    headline: str
+    wins: list[str] = []
+    risks: list[str] = []
+    work_underway: list[str] = []
+    next_actions: list[str] = []
+
+
 class ClientViewOverview(BaseModel):
     profile: ClientViewProfile
     latest_score: ClientViewScore | None
@@ -171,6 +189,9 @@ class ClientViewOverview(BaseModel):
     # Visibility commitment (guarantee), collapsed per the client-state rule;
     # None hides the card (no guarantee, void, or unresolved deadline_passed).
     commitment: ClientViewCommitment | None = None
+    # Deterministic plain-English period summary — rendered right after the
+    # hero, above the detailed proof/score/remediation sections (Task 4).
+    period_summary: ClientViewPeriodSummary
 
 
 class ClientViewScanResult(BaseModel):

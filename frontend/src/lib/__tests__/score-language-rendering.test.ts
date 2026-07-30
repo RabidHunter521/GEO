@@ -109,6 +109,13 @@ describe("rendered Growth Readiness language", () => {
         deadline: "2026-10-01",
         state: "in_progress",
       },
+      period_summary: {
+        headline: "Growth Readiness held steady at 61.0 this period.",
+        wins: [],
+        risks: [],
+        work_underway: [],
+        next_actions: [],
+      },
     })
 
     const element = await ViewOverviewPage({

@@ -18,6 +18,7 @@ import { CausalTrendChart } from "@/components/clients/CausalTrendChart"
 import { AiTrafficChart } from "@/components/view/AiTrafficChart"
 import { AiPipelineValueCard } from "@/components/view/AiPipelineValueCard"
 import { ClientProgressList } from "@/components/view/ClientProgressList"
+import { PeriodSummary } from "@/components/view/PeriodSummary"
 import { ProofCardList } from "@/components/view/ProofCardList"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
@@ -245,6 +246,20 @@ export default async function ViewOverviewPage({
         </div>
       </section>
 
+      {/* 1.5 Period summary — deterministic, plain-English recap. Renders
+          immediately after the hero; every sentence below is built
+          server-side from stored evidence (client_period_summary_service).
+          The detailed sections below (proof cards, breakdown, remediation)
+          are what "View evidence" links here point back into. */}
+      {!isProspect && (
+        <PeriodSummary
+          summary={overview.period_summary}
+          hasEvidence={Boolean(overview.proof_cards && overview.proof_cards.length > 0)}
+          hasProgress={Boolean(progress && progress.length > 0)}
+          hasActions={Boolean(actions && actions.length > 0)}
+        />
+      )}
+
       {/* 2. What Changed — promoted: the most human, most flattering piece */}
       {!isProspect && overview.change_narrative && (
         <section
@@ -260,9 +275,10 @@ export default async function ViewOverviewPage({
         </section>
       )}
 
-      {/* 2.25 Straight from AI — verbatim proof (clients only) */}
+      {/* 2.25 Straight from AI — verbatim proof (clients only). id targeted
+          by the period summary's "View evidence" link on Wins. */}
       {!isProspect && overview.proof_cards && overview.proof_cards.length > 0 && (
-        <section className="reveal" style={{ animationDelay: "120ms" }}>
+        <section id="proof-cards" className="reveal scroll-mt-4" style={{ animationDelay: "120ms" }}>
           <ProofCardList cards={overview.proof_cards} />
         </section>
       )}
@@ -451,10 +467,13 @@ export default async function ViewOverviewPage({
         </section>
       )}
 
-      {/* 5. What we're working on — condensed issues + top next steps (clients only) */}
+      {/* 5. What we're working on — condensed issues + top next steps (clients
+          only). id targeted by the period summary's "View evidence" link on
+          Next Actions. */}
       {!isProspect && ((issues && issues.length > 0) || (actions && actions.length > 0)) && (
         <section
-          className="reveal rounded-xl border bg-card p-5"
+          id="working-on"
+          className="reveal scroll-mt-4 rounded-xl border bg-card p-5"
           style={{ animationDelay: "270ms" }}
         >
           <SectionHeading
@@ -512,9 +531,11 @@ export default async function ViewOverviewPage({
         </section>
       )}
 
-      {/* 5.5 What we're fixing — remediation loop with status (clients only) */}
+      {/* 5.5 What we're fixing — remediation loop with status (clients only).
+          id targeted by the period summary's "View evidence" link on Risks
+          and Work Underway. */}
       {!isProspect && progress && progress.length > 0 && (
-        <section className="reveal" style={{ animationDelay: "300ms" }}>
+        <section id="progress" className="reveal scroll-mt-4" style={{ animationDelay: "300ms" }}>
           <ClientProgressList items={progress} />
         </section>
       )}
