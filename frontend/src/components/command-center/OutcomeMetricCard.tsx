@@ -2,8 +2,8 @@
 // One headline number from the admin Command Center: label, value, delta,
 // and the evidence behind it. `metric.value` is nullable — render an honest
 // "—" rather than a fabricated 0 when there is nothing stored yet.
-import { TrendingUp, TrendingDown } from "lucide-react"
-import { getScoreColor } from "@/lib/score-utils"
+import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { formatMetricDelta, formatMetricValue, type DeltaDirection } from "@/lib/metric-display"
 import { cn } from "@/lib/utils"
 import type { MetricValue } from "@/types"
 
@@ -11,6 +11,18 @@ const SCORE_COLOR_CLASS: Record<string, string> = {
   green: "text-score-strong",
   yellow: "text-score-watch",
   red: "text-score-low",
+}
+
+const DELTA_COLOR_CLASS: Record<DeltaDirection, string> = {
+  up: "text-score-strong",
+  down: "text-score-watch",
+  flat: "text-muted-foreground/70",
+}
+
+const DELTA_ICON: Record<DeltaDirection, typeof TrendingUp> = {
+  up: TrendingUp,
+  down: TrendingDown,
+  flat: Minus,
 }
 
 interface Props {
@@ -29,7 +41,9 @@ interface Props {
 
 export function OutcomeMetricCard({ label, metric, variant, unit = "", deltaUnit = "" }: Props) {
   const { value, delta, evidence_label } = metric
-  const color = variant === "score" && value !== null ? getScoreColor(value) : null
+  const formattedValue = formatMetricValue(value, variant)
+  const formattedDelta = value === null ? null : formatMetricDelta(delta, variant)
+  const DeltaIcon = formattedDelta ? DELTA_ICON[formattedDelta.direction] : null
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -40,23 +54,22 @@ export function OutcomeMetricCard({ label, metric, variant, unit = "", deltaUnit
         <p
           className={cn(
             "mt-2 font-display text-2xl font-bold tabular-nums",
-            color ? SCORE_COLOR_CLASS[color] : "text-foreground",
+            formattedValue.color ? SCORE_COLOR_CLASS[formattedValue.color] : "text-foreground",
           )}
         >
-          {Math.round(value).toLocaleString()}
+          {formattedValue.display}
           {unit}
         </p>
       )}
-      {value !== null && delta !== null && (
+      {formattedDelta && DeltaIcon && (
         <p
           className={cn(
             "mt-1 flex items-center gap-1 text-xs font-semibold",
-            delta >= 0 ? "text-score-strong" : "text-score-watch",
+            DELTA_COLOR_CLASS[formattedDelta.direction],
           )}
         >
-          {delta >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-          {delta >= 0 ? "+" : ""}
-          {variant === "count" ? Math.round(delta).toLocaleString() : delta.toFixed(1)}
+          <DeltaIcon className="h-3.5 w-3.5" />
+          {formattedDelta.display}
           {deltaUnit ? ` ${deltaUnit}` : ""}
         </p>
       )}
