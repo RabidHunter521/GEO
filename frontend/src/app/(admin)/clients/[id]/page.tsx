@@ -1,10 +1,14 @@
 // frontend/src/app/clients/[id]/page.tsx
 import Link from "next/link"
 import { TrendingUp, TrendingDown, Bot } from "lucide-react"
-import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark, getGuarantee } from "@/lib/api"
+import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark, getGuarantee, getCommandCenter } from "@/lib/api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
+import { OutcomeMetricCard } from "@/components/command-center/OutcomeMetricCard"
+import { PeriodStoryCard } from "@/components/command-center/PeriodStoryCard"
+import { PriorityActionsCard } from "@/components/command-center/PriorityActionsCard"
+import { DeliveryStatusCard } from "@/components/command-center/DeliveryStatusCard"
 import { ActionCenterCard } from "./ActionCenterCard"
 import { GuaranteeCard } from "./GuaranteeCard"
 import { getScoreBand, getScoreColor } from "@/lib/score-utils"
@@ -56,13 +60,14 @@ export default async function ClientOverviewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [client, geoScore, actions, trafficHistory, benchmark, guarantee] = await Promise.all([
+  const [client, geoScore, actions, trafficHistory, benchmark, guarantee, commandCenter] = await Promise.all([
     getClient(id),
     getLatestGeoScore(id),
     getActionRecommendations(id),
     getTrafficHistory(id),
     getIndustryBenchmark(id).catch(() => null),
     getGuarantee(id).catch(() => null),
+    getCommandCenter(id),
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
@@ -84,6 +89,42 @@ export default async function ClientOverviewPage({
 
   return (
     <div className="space-y-6">
+      {/* Command Center — outcomes first, before any raw score detail */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <OutcomeMetricCard
+          label={PRODUCT_LANGUAGE.readiness}
+          metric={commandCenter.metrics.growth_readiness}
+          variant="score"
+          deltaUnit="pts"
+        />
+        <OutcomeMetricCard
+          label={PRODUCT_LANGUAGE.presence}
+          metric={commandCenter.metrics.ai_presence}
+          variant="score"
+          deltaUnit="pts"
+        />
+        <OutcomeMetricCard
+          label={PRODUCT_LANGUAGE.accuracy}
+          metric={commandCenter.metrics.accuracy}
+          variant="score"
+          unit="%"
+          deltaUnit="pts"
+        />
+        <OutcomeMetricCard
+          label={PRODUCT_LANGUAGE.businessImpact}
+          metric={commandCenter.metrics.business_impact}
+          variant="count"
+          deltaUnit="visitors"
+        />
+      </div>
+
+      <PeriodStoryCard story={commandCenter.period_story} />
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <PriorityActionsCard actions={commandCenter.priority_actions} clientId={id} />
+        <DeliveryStatusCard summary={commandCenter.delivery} clientId={id} />
+      </div>
+
       {/* Overall score hero */}
       <div className="relative overflow-hidden flex flex-col gap-6 rounded-xl border bg-card p-6 shadow-brand-lg sm:flex-row sm:items-center">
         {/* Subtle radial glow behind the ring */}

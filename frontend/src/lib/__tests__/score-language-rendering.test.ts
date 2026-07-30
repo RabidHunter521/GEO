@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const adminApi = vi.hoisted(() => ({
   getActionRecommendations: vi.fn(),
   getClient: vi.fn(),
+  getCommandCenter: vi.fn(),
   getGuarantee: vi.fn(),
   getIndustryBenchmark: vi.fn(),
   getLatestGeoScore: vi.fn(),
@@ -55,6 +56,18 @@ describe("rendered Growth Readiness language", () => {
     viewApi.getViewProgress.mockResolvedValue([])
     viewApi.getViewScan.mockResolvedValue({ completed_at: score.computed_at, results: [] })
     adminApi.getActionRecommendations.mockResolvedValue([])
+    adminApi.getCommandCenter.mockResolvedValue({
+      metrics: {
+        ai_presence: { value: null, delta: null, evidence_label: "Unavailable" },
+        accuracy: { value: null, delta: null, evidence_label: "Unavailable" },
+        growth_readiness: { value: null, delta: null, evidence_label: "Unavailable" },
+        business_impact: { value: null, delta: null, evidence_label: "Unavailable" },
+      },
+      period_story: { headline: "", bullets: [] },
+      attention: { accuracy_risks: 0, overdue_actions: 0, stale_scan: false },
+      delivery: { in_progress: 0, ready_to_publish: 0, completed_last_30d: 0 },
+      priority_actions: [],
+    })
     adminApi.getGuarantee.mockResolvedValue(null)
     adminApi.getIndustryBenchmark.mockResolvedValue(null)
     adminApi.getTrafficHistory.mockResolvedValue([])

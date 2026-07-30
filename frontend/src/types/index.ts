@@ -383,6 +383,61 @@ export interface ActionRecommendation {
   generated_at: string
 }
 
+// ── Command Center (admin overview) ──────────────────────────────────────────
+// Mirrors backend/app/schemas/command_center.py field-for-field. Read-only
+// aggregation — no fields beyond what that schema stores.
+
+export interface MetricValue {
+  // null when there is nothing stored to report — never a fabricated 0.
+  value: number | null
+  delta: number | null
+  // Opaque display string ("Observed", "Reviewed", "Composite (v1.4.0)",
+  // "Unavailable", ...). NOT the EvidenceLevel union — render directly.
+  evidence_label: string
+}
+
+export interface CommandCenterMetrics {
+  ai_presence: MetricValue
+  accuracy: MetricValue
+  growth_readiness: MetricValue
+  business_impact: MetricValue
+}
+
+export interface PeriodStory {
+  headline: string
+  bullets: string[]
+}
+
+export interface AttentionSummary {
+  accuracy_risks: number
+  overdue_actions: number
+  stale_scan: boolean
+}
+
+export interface DeliverySummary {
+  // Deliberately three fields — no "waiting for client" state exists yet.
+  in_progress: number
+  ready_to_publish: number
+  completed_last_30d: number
+}
+
+export interface CommandCenterAction {
+  id: string
+  action_text: string
+  priority: "high" | "medium" | "low"
+  // Includes the dimension label as a prefix, e.g. "AI Citability: estimated
+  // +2.0 points to Growth Readiness".
+  reason: string
+}
+
+export interface CommandCenter {
+  metrics: CommandCenterMetrics
+  period_story: PeriodStory
+  attention: AttentionSummary
+  delivery: DeliverySummary
+  priority_actions: CommandCenterAction[]
+}
+
 export interface AiTrafficSnapshot {
   id: string
   client_id: string
