@@ -46,7 +46,7 @@ def upgrade() -> None:
         sa.Column("client_decided_at", sa.DateTime(), nullable=True),
         sa.Column("published_at", sa.DateTime(), nullable=True),
         sa.Column("verified_at", sa.DateTime(), nullable=True),
-        sa.Column("verification_result", sa.String(length=32), nullable=True),
+        sa.Column("verification_result", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.ForeignKeyConstraint(["client_id"], ["clients.id"], ondelete="CASCADE"),

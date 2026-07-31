@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from app.models.outcome_action import OUTCOME_ACTION_STATUSES, OUTCOME_ACTION_TYPES
 
@@ -40,28 +40,21 @@ class OutcomeActionCreate(BaseModel):
     client_safe_summary: str | None = None
 
 
+class OutcomeActionVerificationEvidence(BaseModel):
+    """Internal scan-backed verification evidence persisted as JSON."""
+
+    scan_id: uuid.UUID
+    basis: Literal["visibility_change", "no_change"]
+
+
 class OutcomeActionPatch(BaseModel):
     owner: str | None = None
     due_date: date | None = None
     client_safe_summary: str | None = None
     destination_url: str | None = None
     dismissal_reason: str | None = None
-    verification_result: str | None = None
+    verification_result: OutcomeActionVerificationEvidence | None = None
     approval_decision: Literal["approved"] | None = None
-    approval_evidence: str | None = Field(default=None, min_length=1)
-
-    @model_validator(mode="after")
-    def require_complete_approval_record(self):
-        if (self.approval_decision is None) != (self.approval_evidence is None):
-            raise ValueError("approval_decision and approval_evidence must be provided together")
-        return self
-
-
-class OutcomeActionVerificationEvidence(BaseModel):
-    """Internal verification contract persisted as JSON in `verification_result`."""
-
-    scan_id: uuid.UUID
-    basis: Literal["visibility_change", "no_change"]
 
 
 class OutcomeActionOut(BaseModel):

@@ -65,6 +65,24 @@ def test_outcome_action_round_trip_defaults_and_optional_references(db):
     assert row.approval_token_hash == "sha256:stored-hash-only"
 
 
+def test_outcome_action_persists_structured_verification_evidence(db):
+    client = _make_client(db)
+    action = _make_action(client.id)
+    action.verification_result = {
+        "scan_id": "c2c67ef5-620b-4755-a54d-c24e57ae583a",
+        "basis": "visibility_change",
+    }
+    db.add(action)
+    db.commit()
+
+    from app.models.outcome_action import OutcomeAction
+
+    assert db.query(OutcomeAction).one().verification_result == {
+        "scan_id": "c2c67ef5-620b-4755-a54d-c24e57ae583a",
+        "basis": "visibility_change",
+    }
+
+
 def test_outcome_action_requires_client_and_client_safe_fields(db):
     from app.models.outcome_action import OutcomeAction
 

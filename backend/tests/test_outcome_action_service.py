@@ -1,5 +1,4 @@
 """Outcome Action lifecycle and CRUD service."""
-import json
 from datetime import date
 
 import pytest
@@ -43,7 +42,6 @@ def _record_approval(action, db):
         action,
         OutcomeActionPatch(
             approval_decision="approved",
-            approval_evidence="reviewed by operations",
         ),
         db,
     )
@@ -60,7 +58,7 @@ def _completed_scan(client, db):
 
 
 def _verification_evidence(scan, basis="visibility_change"):
-    return json.dumps({"scan_id": str(scan.id), "basis": basis})
+    return {"scan_id": str(scan.id), "basis": basis}
 
 
 def test_create_action_and_get_action_are_scoped_to_client(db):
@@ -198,6 +196,20 @@ def test_transition_to_published_requires_destination_url_and_sets_timestamp(db)
     assert published.published_at is not None
 
 
+def test_recording_approvals_does_not_use_approval_token_hash(db):
+    from app.services.outcome_action_service import create_action
+
+    client = _make_client(db)
+    first = _record_approval(create_action(client.id, _create_payload("content_gap:first"), db), db)
+    second = _record_approval(create_action(client.id, _create_payload("content_gap:second"), db), db)
+
+    assert first.client_decision == second.client_decision == "approved"
+    assert first.client_decided_at is not None
+    assert second.client_decided_at is not None
+    assert first.approval_token_hash is None
+    assert second.approval_token_hash is None
+
+
 @pytest.mark.parametrize("target, basis", [("verified", "visibility_change"), ("no_change", "no_change")])
 def test_transition_to_verification_outcome_requires_scan_backed_evidence_and_approval(
     db, target, basis
@@ -216,9 +228,9 @@ def test_transition_to_verification_outcome_requires_scan_backed_evidence_and_ap
     with pytest.raises(OutcomeActionValidationError, match="verification_result"):
         transition_action(action, target, db)
 
-    action.verification_result = "verification_scan:2026-08-16"
+    action.verification_result = {"scan_id": "not-a-uuid", "basis": basis}
     db.commit()
-    with pytest.raises(OutcomeActionValidationError, match="JSON"):
+    with pytest.raises(OutcomeActionValidationError, match="scan-backed"):
         transition_action(action, target, db)
 
     scan = _completed_scan(client, db)
@@ -259,7 +271,7 @@ def test_outcome_action_out_excludes_raw_verification_result(db):
 
     client = _make_client(db)
     action = create_action(client.id, _create_payload(), db)
-    action.verification_result = '{"scan_id":"internal","basis":"visibility_change"}'
+    action.verification_result = {"scan_id": "internal", "basis": "visibility_change"}
     db.commit()
 
     assert "verification_result" not in OutcomeActionOut.model_validate(action).model_dump()
