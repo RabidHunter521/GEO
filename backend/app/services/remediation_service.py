@@ -150,6 +150,20 @@ def sync_remediation_items(client_id: uuid.UUID, db: Session) -> None:
                 item_id=str(item.id), error=str(exc),
             )
 
+    try:
+        from app.services import outcome_action_adapter_service
+        items = (
+            db.query(RemediationItem)
+            .filter(RemediationItem.client_id == client_id, RemediationItem.status != "corrected")
+            .all()
+        )
+        for item in items:
+            outcome_action_adapter_service.suggest_from_remediation(item, db)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("outcome_action_remediation_suggest_failed", client_id=str(client_id), error=str(exc))
+
 
 # Active items first (flagged, then in_progress), most recently corrected last.
 _STATUS_ORDER = {"flagged": 0, "in_progress": 1, "corrected": 2}
@@ -210,4 +224,11 @@ def set_remediation_status(item_id: uuid.UUID, status: str, db: Session) -> Reme
             )
         except Exception:
             db.rollback()
+    try:
+        from app.services import outcome_action_adapter_service
+        outcome_action_adapter_service.suggest_from_remediation(item, db)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("outcome_action_remediation_suggest_failed", item_id=str(item.id), error=str(exc))
     return item

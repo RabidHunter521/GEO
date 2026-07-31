@@ -154,8 +154,9 @@ def refresh_actions_for_client(client: Client, geo_score: GeoScore, db: Session)
         action.resolved_at = utcnow()
 
     new_actions = generate_actions(client, geo_score, db)
+    recommendations: list[ActionRecommendation] = []
     for action in new_actions:
-        db.add(ActionRecommendation(
+        recommendation = ActionRecommendation(
             client_id=client.id,
             geo_score_id=geo_score.id,
             action_text=action["action_text"],
@@ -164,7 +165,17 @@ def refresh_actions_for_client(client: Client, geo_score: GeoScore, db: Session)
             priority=action["priority"],
             status="open",
             generated_at=utcnow(),
-        ))
+        )
+        db.add(recommendation)
+        recommendations.append(recommendation)
 
     db.commit()
+    try:
+        from app.services import outcome_action_adapter_service
+        for recommendation in recommendations:
+            outcome_action_adapter_service.suggest_from_recommendation(recommendation, db)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("outcome_action_recommendation_suggest_failed", client_id=str(client.id), error=str(exc))
     logger.info("action_center_refreshed", client_id=str(client.id), action_count=len(new_actions))
