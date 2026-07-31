@@ -234,7 +234,11 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
   const newlyLostKeys = new Set(
     (diff?.newly_unseen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text)),
   )
-  const clientSegments = segmentQueries(clientResults, (r) => ({
+  // Segment counts must agree with the Summary stats card above, which
+  // computes off the flagged-excluded set (see isCounted comment above) —
+  // so this feeds countedResults, not clientResults. The results table below
+  // still renders clientResults so flagged rows stay visible for management.
+  const clientSegments = segmentQueries(countedResults, (r) => ({
     seen: r.brand_detected,
     newlySeen: newlySeenKeys.has(diffKey(r.platform, r.category, r.query_text)),
     newlyLost: newlyLostKeys.has(diffKey(r.platform, r.category, r.query_text)),
