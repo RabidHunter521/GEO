@@ -73,7 +73,7 @@ export function PeriodSummary({ summary, hasEvidence, hasProgress, hasActions }:
 
   return (
     <section className="reveal" style={{ animationDelay: "30ms" }} aria-label="Period summary">
-      <SectionHeading>This Period, In Plain English</SectionHeading>
+      <SectionHeading>In Plain English</SectionHeading>
       <div className="rounded-xl border bg-card p-5">
         <p className="text-sm font-medium leading-relaxed text-foreground">{summary.headline}</p>
         {hasAnyList && (

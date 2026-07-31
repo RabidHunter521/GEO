@@ -133,13 +133,21 @@ class ClientViewCausalTrend(BaseModel):
 class ClientViewPeriodSummary(BaseModel):
     """A deterministic, plain-English summary of the reporting period.
 
-    Every sentence is assembled from stored values by
-    client_period_summary_service.build_client_period_summary — no LLM call,
-    no free text. Each list is capped at 3 items. Sourced only from rows that
-    are already independently client-safe elsewhere on this surface: GeoScore,
-    published WorkLogEntry rows, client-safe RemediationItem rows (never
-    "misinformation"), open ActionRecommendation rows, and redacted proof-card
-    excerpts. Never response_text, never an internal event key.
+    Every sentence STRUCTURE here is assembled server-side by
+    client_period_summary_service.build_client_period_summary — no LLM call
+    happens in that module, and no field here is text the admin typed
+    directly into this surface. Each list is capped at 3 items. Sourced only
+    from rows that are already independently client-safe elsewhere on this
+    surface: GeoScore, published WorkLogEntry rows, client-safe
+    RemediationItem rows (never "misinformation"), open ActionRecommendation
+    rows, and redacted proof-card excerpts. Never response_text, never an
+    internal event key.
+
+    Caveat, not a guarantee this schema can make: `next_actions` interpolates
+    ActionRecommendation.action_text verbatim, and that field IS free text —
+    Claude-generated and auto-published with no admin review
+    (app/services/action_center_service.py). That is pre-existing behavior
+    already surfaced by /actions on this same route; unchanged here.
     """
     headline: str
     wins: list[str] = []

@@ -114,6 +114,50 @@ _REMEDIATION_TYPE_LABELS: dict[str, str] = {
 }
 
 
+def _client_proof_cards(client: Client, db: Session) -> list[ClientViewProofCard]:
+    """Verbatim win/loss proof cards from the latest completed scan's
+    client-owned results. Always [] for a prospect.
+
+    Shared by the /overview `proof_cards` field and the period summary
+    builder (client_period_summary_service.build_client_period_summary) so
+    the two can never quote a different scan or a different card set on a
+    tie — computed once per request, not re-derived (Task 4 review, I4).
+    """
+    if client.is_prospect:
+        return []
+    latest_scan = (
+        db.query(Scan)
+        .filter(Scan.client_id == client.id, Scan.status == "completed")
+        .order_by(desc(Scan.completed_at), desc(Scan.id))
+        .first()
+    )
+    if not latest_scan:
+        return []
+    scan_results = (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == latest_scan.id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.hallucination_flagged.is_(False),
+            ScanQueryResult.is_control.is_(False),
+        )
+        .all()
+    )
+    competitor_names = [
+        c.name
+        for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
+    ]
+    return [
+        ClientViewProofCard(
+            kind=pc.kind,
+            platform_label=_platform_label(pc.platform),
+            category=pc.category,
+            excerpt=pc.excerpt,
+        )
+        for pc in select_proof_cards(scan_results, client.name, competitor_names)
+    ]
+
+
 def _accepted_bullets(db: Session, client_id, dimension: str) -> list[str]:
     """Return evidence_bullets from the latest assessment only when it has been
     accepted or adjusted by an admin. Returns [] otherwise.
@@ -180,7 +224,7 @@ def get_overview(
     history = (
         db.query(GeoScore)
         .filter(GeoScore.client_id == client.id)
-        .order_by(desc(GeoScore.computed_at))
+        .order_by(desc(GeoScore.computed_at), desc(GeoScore.id))
         .limit(SCORE_HISTORY_LIMIT)
         .all()
     )
@@ -294,40 +338,8 @@ def get_overview(
 
     # Verbatim proof cards (non-prospects only) — built from the latest completed
     # scan's client-owned results. Compute-on-read; response_text stays server-side.
-    proof_cards: list[ClientViewProofCard] = []
-    if not client.is_prospect:
-        latest_scan = (
-            db.query(Scan)
-            .filter(Scan.client_id == client.id, Scan.status == "completed")
-            .order_by(desc(Scan.completed_at))
-            .first()
-        )
-        if latest_scan:
-            scan_results = (
-                db.query(ScanQueryResult)
-                .filter(
-                    ScanQueryResult.scan_id == latest_scan.id,
-                    ScanQueryResult.competitor_id.is_(None),
-                    ScanQueryResult.hallucination_flagged.is_(False),
-                    ScanQueryResult.is_control.is_(False),
-                )
-                .all()
-            )
-            competitor_names = [
-                c.name
-                for c in db.query(Competitor)
-                .filter(Competitor.client_id == client.id)
-                .all()
-            ]
-            proof_cards = [
-                ClientViewProofCard(
-                    kind=pc.kind,
-                    platform_label=_platform_label(pc.platform),
-                    category=pc.category,
-                    excerpt=pc.excerpt,
-                )
-                for pc in select_proof_cards(scan_results, client.name, competitor_names)
-            ]
+    # Shared with build_client_period_summary below (see _client_proof_cards).
+    proof_cards = _client_proof_cards(client, db)
 
     # Visibility commitment — collapsed client-safe state, or hidden.
     commitment = None
@@ -409,7 +421,7 @@ def get_overview(
         is_stale=is_stale,
         causal_trend=causal_trend,
         commitment=commitment,
-        period_summary=build_client_period_summary(client, db),
+        period_summary=build_client_period_summary(client, db, history, proof_cards),
     )
 
 

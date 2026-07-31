@@ -167,6 +167,15 @@ def get_remediation_items(
         items = [i for i in items if i.status != "corrected"]
     # flagged/in_progress by first seen (oldest pain first); corrected by most
     # recently resolved (freshest wins on top of the corrected group).
+    #
+    # The query above has no ORDER BY, and a sync's items commonly share one
+    # identical first_seen_at (sync_remediation_items stamps a single `now`
+    # across everything created in one call) — without a final tiebreak the
+    # sort is stable only relative to arbitrary DB row order, so a caller
+    # that slices the result (e.g. the client-period-summary's `[:3]`) could
+    # see a different subset across two calls against identical stored data.
+    # `id` gives the key a total ordering so ties resolve the same way every
+    # time.
     return sorted(
         items,
         key=lambda i: (
@@ -174,6 +183,7 @@ def get_remediation_items(
             (i.resolved_at or i.first_seen_at)
             if i.status == "corrected"
             else i.first_seen_at,
+            i.id,
         ),
         reverse=False,
     )

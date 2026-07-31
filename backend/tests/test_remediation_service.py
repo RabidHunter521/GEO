@@ -163,3 +163,39 @@ def test_get_items_orders_active_before_corrected(db):
 
     active_only = get_remediation_items(client.id, db, include_corrected=False)
     assert all(i.status != "corrected" for i in active_only)
+
+
+def test_get_items_ties_break_by_id_not_arbitrary_row_order(db):
+    """I2: sync_remediation_items stamps one identical `now` across every item
+    created in a single sync (_sync_type), so items from the same sync
+    routinely share first_seen_at exactly. The underlying query has no
+    ORDER BY, so without a final tiebreak the sort is stable only relative to
+    whatever order the DB happened to return rows in — a caller that slices
+    the result (client_period_summary_service's risks/work_underway `[:3]`)
+    could see a different subset of identical stored data across two calls.
+
+    id gives the sort a total ordering. Asserting the result matches
+    "sorted by id" (not "matches insertion order") is the point: insertion
+    order and id order are unrelated (ids are random UUIDs), so this only
+    passes if the code is actually keying off id, not incidentally
+    reproducing insertion order."""
+    client = _client(db)
+    same_time = utcnow()
+    items = [
+        RemediationItem(
+            client_id=client.id, item_type="hallucination", platform="chatgpt",
+            label=f"question {i}", status="flagged", first_seen_at=same_time,
+        )
+        for i in range(5)
+    ]
+    for item in items:
+        db.add(item)
+    db.commit()
+    for item in items:
+        db.refresh(item)
+
+    expected_order = [i.id for i in sorted(items, key=lambda i: i.id)]
+
+    result_order = [i.id for i in get_remediation_items(client.id, db)]
+
+    assert result_order == expected_order

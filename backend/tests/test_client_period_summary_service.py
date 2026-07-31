@@ -11,7 +11,9 @@ call, no free text — and each list is capped at 3 items.
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from app.core.constants import SCORE_DISPLAY_LABEL
+from sqlalchemy import desc
+
+from app.core.constants import PLATFORM_LABELS, SCORE_DISPLAY_LABEL
 from app.core.time import utcnow
 from app.models.action_recommendation import ActionRecommendation
 from app.models.client import Client
@@ -21,7 +23,9 @@ from app.models.remediation_item import RemediationItem
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.models.work_log_entry import WorkLogEntry
+from app.schemas.client_view import ClientViewProofCard
 from app.services.client_period_summary_service import build_client_period_summary
+from app.services.proof_card_service import select_proof_cards
 
 
 # --- fixtures ----------------------------------------------------------------
@@ -113,12 +117,66 @@ def _seeded_client(db) -> Client:
     return client
 
 
+# --- caller-supplied inputs ---------------------------------------------------
+# build_client_period_summary no longer re-derives `history` or `proof_cards`
+# itself (Task 4 review, I4) — the caller (client_view.get_overview) computes
+# both once and passes them in. These helpers mirror that computation exactly
+# (including client_view._client_proof_cards's ordering) so tests exercise the
+# same shape the route actually passes.
+
+
+def _history(db, client_id) -> list[GeoScore]:
+    return (
+        db.query(GeoScore)
+        .filter(GeoScore.client_id == client_id)
+        .order_by(desc(GeoScore.computed_at), desc(GeoScore.id))
+        .all()
+    )
+
+
+def _proof_cards(db, client) -> list[ClientViewProofCard]:
+    latest_scan = (
+        db.query(Scan)
+        .filter(Scan.client_id == client.id, Scan.status == "completed")
+        .order_by(desc(Scan.completed_at), desc(Scan.id))
+        .first()
+    )
+    if not latest_scan:
+        return []
+    scan_results = (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == latest_scan.id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.hallucination_flagged.is_(False),
+            ScanQueryResult.is_control.is_(False),
+        )
+        .all()
+    )
+    competitor_names = [
+        c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
+    ]
+    return [
+        ClientViewProofCard(
+            kind=pc.kind,
+            platform_label=PLATFORM_LABELS.get(pc.platform, pc.platform.title()),
+            category=pc.category,
+            excerpt=pc.excerpt,
+        )
+        for pc in select_proof_cards(scan_results, client.name, competitor_names)
+    ]
+
+
+def _build_summary(db, client):
+    return build_client_period_summary(client, db, _history(db, client.id), _proof_cards(db, client))
+
+
 # --- contract assertions -----------------------------------------------------
 
 def test_build_client_period_summary_reads_stored_evidence(db):
     client = _seeded_client(db)
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     assert SCORE_DISPLAY_LABEL in summary.headline
     assert "60.0" in summary.headline
@@ -148,7 +206,7 @@ def test_summary_never_carries_raw_response_text_or_internal_keys(db):
     winning a given query is the point of that remediation item."""
     client = _seeded_client(db)
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     everything = " ".join(
         [summary.headline, *summary.wins, *summary.risks,
@@ -176,7 +234,7 @@ def test_unpublished_work_log_entries_never_appear(db):
     ))
     db.commit()
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     everything = " ".join(
         [summary.headline, *summary.wins, *summary.risks,
@@ -189,15 +247,23 @@ def test_unpublished_work_log_entries_never_appear(db):
 def test_misinformation_remediation_items_never_appear(db):
     """Misinformation findings are compliance-workflow-only (spec 8 §4) —
     only "hallucination" and "content_gap" remediation types ever reach a
-    client surface."""
+    client surface.
+
+    status="flagged" deliberately — that's the status a real misinformation
+    item is created with (misinformation_service.py) and the one status that
+    WOULD render a sentence in _remediation_sentences if the item_type
+    allowlist there were ever removed. A status not in REMEDIATION_STATUSES
+    (e.g. the old "confirmed") would make this test pass for the wrong
+    reason: it wouldn't hit either branch in _remediation_sentences even
+    without the allowlist, so the allowlist itself would go unexercised."""
     client = _seeded_client(db)
     db.add(RemediationItem(
         client_id=client.id, item_type="misinformation", platform="chatgpt",
-        label="CONFIDENTIAL_COMPLIANCE_FINDING", status="confirmed",
+        label="CONFIDENTIAL_COMPLIANCE_FINDING", status="flagged",
     ))
     db.commit()
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     everything = " ".join(
         [summary.headline, *summary.wins, *summary.risks, *summary.work_underway]
@@ -226,7 +292,7 @@ def test_lists_are_capped_at_three(db):
         ))
     db.commit()
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     assert len(summary.wins) <= 3
     assert len(summary.risks) <= 3
@@ -238,7 +304,7 @@ def test_headline_reports_baseline_with_no_previous_score(db):
     client = _client(db)
     _score(db, client.id, overall=60.0, days_ago=0)
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     assert SCORE_DISPLAY_LABEL in summary.headline
     assert "60.0" in summary.headline
@@ -247,7 +313,7 @@ def test_headline_reports_baseline_with_no_previous_score(db):
 def test_headline_when_no_score_at_all(db):
     client = _client(db)
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     assert summary.headline
     assert summary.wins == []
@@ -261,10 +327,44 @@ def test_headline_reports_a_decline(db):
     _score(db, client.id, overall=60.0, days_ago=14)
     _score(db, client.id, overall=55.0, days_ago=0)
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     assert "5.0" in summary.headline
     assert "55.0" in summary.headline
+
+
+def test_headline_says_this_period_within_the_30_day_window(db):
+    """Two scores 14 days apart genuinely fall within the 30-day window this
+    surface treats as "this period" elsewhere (improvements_last_30d, the
+    monthly report cadence) — the headline may say so."""
+    client = _client(db)
+    _score(db, client.id, overall=52.0, days_ago=14)
+    _score(db, client.id, overall=60.0, days_ago=0)
+
+    summary = _build_summary(db, client)
+
+    assert "this period" in summary.headline.lower()
+
+
+def test_headline_does_not_claim_a_period_when_scans_are_far_apart(db):
+    """I3: a client whose last two scans are five months apart must not read
+    "...this period" — that asserts a uniform window none of the underlying
+    data actually supports (work-log wins are a real 30-day window;
+    remediation risks/work-underway and next_actions are all-time). The
+    headline must instead name the actual comparison date."""
+    client = _client(db)
+    _score(db, client.id, overall=52.0, days_ago=150)
+    _score(db, client.id, overall=60.0, days_ago=0)
+
+    summary = _build_summary(db, client)
+
+    assert "this period" not in summary.headline.lower()
+    assert "8.0" in summary.headline
+    assert "60.0" in summary.headline
+    # Every sentence must be true of the data it's built from: the headline
+    # must name the actual prior scan date it's comparing against.
+    previous_score = _history(db, client.id)[1]
+    assert f"{previous_score.computed_at:%B %d, %Y}" in summary.headline
 
 
 def test_never_calls_an_llm(db):
@@ -274,7 +374,7 @@ def test_never_calls_an_llm(db):
         "app.services.claude_client.anthropic_client",
         side_effect=AssertionError("period summary must not call Claude"),
     ):
-        summary = build_client_period_summary(client, db)
+        summary = _build_summary(db, client)
 
     assert summary.headline
 
@@ -282,7 +382,7 @@ def test_never_calls_an_llm(db):
 def test_build_writes_nothing(db):
     client = _seeded_client(db)
 
-    build_client_period_summary(client, db)
+    _build_summary(db, client)
 
     assert list(db.new) == []
     assert list(db.dirty) == []
@@ -310,7 +410,7 @@ def test_prospect_gets_only_the_headline(db):
     ))
     db.commit()
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     assert summary.headline
     assert summary.wins == []
@@ -332,7 +432,7 @@ def test_another_clients_rows_are_never_counted(db):
     ))
     db.commit()
 
-    summary = build_client_period_summary(client, db)
+    summary = _build_summary(db, client)
 
     everything = " ".join([*summary.wins, *summary.risks])
     assert "not mine" not in everything

@@ -20,12 +20,18 @@ this mirrors):
     off every client surface until Premium gating exists (CLAUDE.md, spec 8
     §4) — this allowlist mirrors app.api.v1.client_view._REMEDIATION_TYPE_LABELS
     and must be kept in sync with it.
+  - `history` (GeoScore rows) and `proof_cards` are passed in by the caller
+    (client_view.get_overview), which already computed both for its own
+    response fields. This function must never re-derive them: doing so let
+    the headline quote a different scan or a different score than the
+    sections rendered directly beneath it whenever a tie in ordering fell
+    differently across the two independent queries (Task 4 review, I4).
+    Sharing one query result makes that structurally impossible, and drops
+    ~4 redundant queries per page load.
   - Proof-card excerpts are the already-redacted, client-safe strings
     proof_card_service produces; raw response_text never appears here.
   - Each returned list is capped at 3 items.
 """
-from datetime import timedelta
-
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -33,14 +39,11 @@ from app.core.constants import PLATFORM_LABELS, SCORE_DISPLAY_LABEL, WORK_LOG_CA
 from app.core.time import utcnow
 from app.models.action_recommendation import ActionRecommendation
 from app.models.client import Client
-from app.models.competitor import Competitor
 from app.models.geo_score import GeoScore
-from app.models.scan import Scan
-from app.models.scan_query_result import ScanQueryResult
-from app.schemas.client_view import ClientViewPeriodSummary
+from app.schemas.client_view import ClientViewPeriodSummary, ClientViewProofCard
 from app.services import work_log_service
-from app.services.proof_card_service import select_proof_cards
 from app.services.remediation_service import get_remediation_items
+from datetime import timedelta
 
 # Client-safe dimension names for next_actions. Deliberately NOT
 # app.prompts.action_center.DIMENSION_LABELS, which is written for an
@@ -68,21 +71,34 @@ _REMEDIATION_TYPE_LABELS: dict[str, str] = {
 _MAX_ITEMS = 3
 _WORK_LOG_WINDOW_DAYS = 30
 
+# The client-facing "period" this surface uses everywhere else
+# (improvements_last_30d on /overview, the monthly PDF report cadence). Two
+# scores within this many days of each other can honestly be described as
+# "this period"; further apart than that, the headline must name the actual
+# comparison date instead of asserting a window the data doesn't support.
+_PERIOD_WINDOW_DAYS = _WORK_LOG_WINDOW_DAYS
+
 
 def _platform_label(platform: str) -> str:
     return PLATFORM_LABELS.get(platform, platform.title())
 
 
-def _latest_scores(client: Client, db: Session) -> tuple[GeoScore | None, GeoScore | None]:
-    """The two newest scores, newest first. id breaks computed_at ties."""
-    rows = (
-        db.query(GeoScore)
-        .filter(GeoScore.client_id == client.id)
-        .order_by(desc(GeoScore.computed_at), desc(GeoScore.id))
-        .limit(2)
-        .all()
-    )
-    return (rows[0] if rows else None, rows[1] if len(rows) > 1 else None)
+def _latest_scores(history: list[GeoScore]) -> tuple[GeoScore | None, GeoScore | None]:
+    """The two newest scores from the caller-supplied history, newest first."""
+    latest = history[0] if history else None
+    previous = history[1] if len(history) > 1 else None
+    return latest, previous
+
+
+def _score_comparison_basis(latest: GeoScore, previous: GeoScore) -> str:
+    """"this period" is only true when the two scores fall within the same
+    30-day window this surface uses everywhere else. When they're further
+    apart, name the actual date instead of asserting a period the data
+    doesn't support (Task 4 review, I3)."""
+    gap_days = (latest.computed_at - previous.computed_at).days
+    if gap_days <= _PERIOD_WINDOW_DAYS:
+        return "this period"
+    return f"since your last check on {previous.computed_at:%B %d, %Y}"
 
 
 def _headline(latest: GeoScore | None, previous: GeoScore | None) -> str:
@@ -90,76 +106,29 @@ def _headline(latest: GeoScore | None, previous: GeoScore | None) -> str:
         return "Your first scan is being prepared."
     if previous is None:
         return f"{SCORE_DISPLAY_LABEL} baseline established at {latest.overall_score:.1f} this period."
+    basis = _score_comparison_basis(latest, previous)
     delta = round(latest.overall_score - previous.overall_score, 1)
     if delta > 0:
-        return f"{SCORE_DISPLAY_LABEL} rose {delta:.1f} points to {latest.overall_score:.1f} this period."
+        return f"{SCORE_DISPLAY_LABEL} rose {delta:.1f} points to {latest.overall_score:.1f} {basis}."
     if delta < 0:
         return (
             f"{SCORE_DISPLAY_LABEL} fell {abs(delta):.1f} points to "
-            f"{latest.overall_score:.1f} this period."
+            f"{latest.overall_score:.1f} {basis}."
         )
-    return f"{SCORE_DISPLAY_LABEL} held steady at {latest.overall_score:.1f} this period."
+    return f"{SCORE_DISPLAY_LABEL} held steady at {latest.overall_score:.1f} {basis}."
 
 
-def _score_win(latest: GeoScore | None, previous: GeoScore | None) -> list[str]:
-    if latest is None or previous is None:
-        return []
-    delta = round(latest.overall_score - previous.overall_score, 1)
-    if delta <= 0:
-        return []
-    return [
-        f"{SCORE_DISPLAY_LABEL} improved by {delta:.1f} points, from "
-        f"{previous.overall_score:.1f} to {latest.overall_score:.1f}."
-    ]
-
-
-def _score_risk(latest: GeoScore | None, previous: GeoScore | None) -> list[str]:
-    if latest is None or previous is None:
-        return []
-    delta = round(latest.overall_score - previous.overall_score, 1)
-    if delta >= 0:
-        return []
-    return [
-        f"{SCORE_DISPLAY_LABEL} fell by {abs(delta):.1f} points, from "
-        f"{previous.overall_score:.1f} to {latest.overall_score:.1f}."
-    ]
-
-
-def _proof_card_sentences(client: Client, db: Session) -> tuple[list[str], list[str]]:
-    """(win sentences, loss sentences) from the latest completed scan's
-    client-owned results — the same source the overview's proof_cards field
-    already uses. Excerpts are the redacted, sentence-bounded strings
-    proof_card_service builds; response_text itself never leaves this
-    function."""
-    latest_scan = (
-        db.query(Scan)
-        .filter(Scan.client_id == client.id, Scan.status == "completed")
-        .order_by(desc(Scan.completed_at))
-        .first()
-    )
-    if not latest_scan:
-        return [], []
-    scan_results = (
-        db.query(ScanQueryResult)
-        .filter(
-            ScanQueryResult.scan_id == latest_scan.id,
-            ScanQueryResult.competitor_id.is_(None),
-            ScanQueryResult.hallucination_flagged.is_(False),
-            ScanQueryResult.is_control.is_(False),
-        )
-        .all()
-    )
-    competitor_names = [
-        c.name for c in db.query(Competitor).filter(Competitor.client_id == client.id).all()
-    ]
-    cards = select_proof_cards(scan_results, client.name, competitor_names)
+def _proof_card_sentences(proof_cards: list[ClientViewProofCard]) -> tuple[list[str], list[str]]:
+    """(win sentences, loss sentences) built from the already-computed,
+    client-safe proof cards the overview's own proof_cards field uses —
+    passed in by the caller, never re-derived (Task 4 review, I4)."""
     wins = [
-        f'{_platform_label(c.platform)} named you directly: "{c.excerpt}"'
-        for c in cards if c.kind == "win"
+        f'{pc.platform_label} named you directly: "{pc.excerpt}"'
+        for pc in proof_cards if pc.kind == "win"
     ]
     losses = [
-        f'{_platform_label(c.platform)} named a competitor instead of you: "{c.excerpt}"'
-        for c in cards if c.kind == "loss"
+        f'{pc.platform_label} named a competitor instead of you: "{pc.excerpt}"'
+        for pc in proof_cards if pc.kind == "loss"
     ]
     return wins, losses
 
@@ -216,9 +185,19 @@ def _next_actions(client: Client, db: Session) -> list[str]:
     return out
 
 
-def build_client_period_summary(client: Client, db: Session) -> ClientViewPeriodSummary:
+def build_client_period_summary(
+    client: Client,
+    db: Session,
+    history: list[GeoScore],
+    proof_cards: list[ClientViewProofCard],
+) -> ClientViewPeriodSummary:
     """Aggregate one client's stored evidence into a deterministic, plain-
     English summary. Read-only; never calls an LLM.
+
+    `history` (newest-first, with a total ordering — ties broken by id) and
+    `proof_cards` must be the exact values the caller already built for its
+    own response fields; see the module docstring for why this function
+    never re-queries them itself.
 
     Prospects get a deliberately limited view (overview + scan only) on
     every other part of this surface — proof cards are always [] for a
@@ -228,18 +207,22 @@ def build_client_period_summary(client: Client, db: Session) -> ClientViewPeriod
     lists, so this summary can't become the one path that leaks premium
     evidence to a not-yet-paying lead.
     """
-    latest, previous = _latest_scores(client, db)
+    latest, previous = _latest_scores(history)
     headline = _headline(latest, previous)
 
     if client.is_prospect:
         return ClientViewPeriodSummary(headline=headline)
 
-    win_cards, loss_cards = _proof_card_sentences(client, db)
+    win_cards, loss_cards = _proof_card_sentences(proof_cards)
     work_log_wins = _work_log_wins(client, db)
     remediation_risks, work_underway = _remediation_sentences(client, db)
 
-    wins = (_score_win(latest, previous) + work_log_wins + win_cards)[:_MAX_ITEMS]
-    risks = (_score_risk(latest, previous) + remediation_risks + loss_cards)[:_MAX_ITEMS]
+    # Score movement is already stated in the headline above — repeating it
+    # here would consume one of only three list slots without adding new
+    # information, pushing actual delivered work or tracked risk detail off
+    # the card (Task 4 review, M1).
+    wins = (work_log_wins + win_cards)[:_MAX_ITEMS]
+    risks = (remediation_risks + loss_cards)[:_MAX_ITEMS]
 
     return ClientViewPeriodSummary(
         headline=headline,
