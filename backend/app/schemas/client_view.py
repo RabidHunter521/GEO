@@ -135,15 +135,18 @@ class ClientViewPeriodSummary(BaseModel):
 
     Every sentence STRUCTURE here is assembled server-side by
     client_period_summary_service.build_client_period_summary — no LLM call
-    happens in that module, and no field here is text the admin typed
-    directly into this surface. Each list is capped at 3 items. Sourced only
+    happens in that module. Each list is capped at 3 items. Sourced only
     from rows that are already independently client-safe elsewhere on this
     surface: GeoScore, published WorkLogEntry rows, client-safe
     RemediationItem rows (never "misinformation"), open ActionRecommendation
     rows, and redacted proof-card excerpts. Never response_text, never an
     internal event key.
 
-    Caveat, not a guarantee this schema can make: `next_actions` interpolates
+    Caveats, not a guarantee this schema can make: `work_underway` (via
+    `_work_log_wins`) interpolates WorkLogEntry.description verbatim, which
+    can be admin-typed free text when source="manual" — already client-visible
+    verbatim on the Progress tab via the same published_entries() call, so
+    this is not new exposure. `next_actions` interpolates
     ActionRecommendation.action_text verbatim, and that field IS free text —
     Claude-generated and auto-published with no admin review
     (app/services/action_center_service.py). That is pre-existing behavior

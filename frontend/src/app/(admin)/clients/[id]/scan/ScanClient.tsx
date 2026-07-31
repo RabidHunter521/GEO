@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import type { Platform, Scan, ScanQueryResult, ScanDiffResponse } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { joinWithAnd } from "@/lib/utils"
-import { segmentQueries } from "@/lib/query-segments"
+import { segmentQueries, chipTotals, diffApplies } from "@/lib/query-segments"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
 
 // A running scan is polled every 3s; stop after this many tries (~15 min) so a
@@ -115,6 +115,12 @@ function QuerySegmentSummary({
 }) {
   const total = newlySeen.length + newlyLost.length + opportunities.length + other.length
   if (total === 0) return null
+  // seen/notSeen are the true totals (each sums the two segments that make
+  // it up) so they always agree with the Summary stats card's plain
+  // filter(brand_detected) count above. newlySeen/newlyLost render as
+  // annotations alongside them, not as separate slices that compete with —
+  // and silently subtract from — the seen/not-seen totals.
+  const { seen, notSeen } = chipTotals({ newlySeen, newlyLost, opportunities, other })
   return (
     <div className="mb-3 rounded-lg border bg-muted/10 p-3">
       <div className="flex flex-wrap gap-2 text-xs">
@@ -129,10 +135,10 @@ function QuerySegmentSummary({
           </span>
         )}
         <span className="rounded-full border bg-muted/30 px-2.5 py-1 font-medium text-muted-foreground">
-          {opportunities.length} not seen by AI
+          {notSeen} not seen by AI
         </span>
         <span className="rounded-full border bg-muted/30 px-2.5 py-1 font-medium text-muted-foreground">
-          {other.length} seen by AI
+          {seen} seen by AI
         </span>
       </div>
       <SegmentGroup label="Newly seen by AI this scan" results={newlySeen} />
@@ -228,11 +234,24 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
   // "Since last scan" diff is client-only (scan_diff_service.py compares
   // competitor_id IS NULL rows), matched by the same (platform, category,
   // query_text) key it uses — a join against real diff data, not inference.
+  //
+  // `diff` is `initialDiff` from the server component, which is never
+  // refreshed by the polling in the effect above (refreshScanAction calls no
+  // revalidatePath). Once `scan` is replaced by a fresher poll, `diff` can
+  // still describe an earlier scan. Query text is stable across scans, so a
+  // stale diff's keys keep matching rows — gate the join to only apply when
+  // the diff was actually computed against the scan on screen; otherwise
+  // fail closed to "no comparison available" rather than joining stale data.
+  const diffMatchesScan = diffApplies(diff?.latest_scan_id, scan?.id)
   const newlySeenKeys = new Set(
-    (diff?.newly_seen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text)),
+    diffMatchesScan
+      ? (diff?.newly_seen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text))
+      : [],
   )
   const newlyLostKeys = new Set(
-    (diff?.newly_unseen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text)),
+    diffMatchesScan
+      ? (diff?.newly_unseen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text))
+      : [],
   )
   // Segment counts must agree with the Summary stats card above, which
   // computes off the flagged-excluded set (see isCounted comment above) —

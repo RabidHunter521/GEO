@@ -492,7 +492,7 @@ def get_scan(
     latest_scan = (
         db.query(Scan)
         .filter(Scan.client_id == client.id, Scan.status == "completed")
-        .order_by(desc(Scan.completed_at))
+        .order_by(desc(Scan.completed_at), desc(Scan.id))
         .first()
     )
     if not latest_scan:

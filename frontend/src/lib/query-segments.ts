@@ -65,3 +65,38 @@ export function segmentQueries<T>(
 
   return segments
 }
+
+// ── Chip totals ──────────────────────────────────────────────────────────
+// A "seen by AI" / "not seen by AI" total shown as a chip must always equal
+// a plain filter(brand_detected)-style count elsewhere on the same screen
+// (e.g. the Summary stats card) — they are two views of the same
+// measurement, never competing counts that can disagree. `other` alone
+// undercounts "seen" because segmentQueries's own priority chain moves
+// currently-seen rows into `newlySeen` when a comparison exists; likewise
+// `opportunities` alone undercounts "not seen" versus `newlyLost`. Sum both
+// contributing segments rather than reading either partition member as if it
+// were the full total.
+export function chipTotals<T>(segments: QuerySegments<T>): { seen: number; notSeen: number } {
+  return {
+    seen: segments.other.length + segments.newlySeen.length,
+    notSeen: segments.opportunities.length + segments.newlyLost.length,
+  }
+}
+
+// ── Diff applicability ──────────────────────────────────────────────────
+// A "since last scan" diff is only meaningful when it was computed against
+// the scan currently on screen. `refreshScanAction` (scan/actions.ts) polls
+// for a fresh Scan without ever calling revalidatePath, so the server
+// component that produced a diff is never re-run — a diff response can
+// linger in scope after a newer scan replaces `scan` in state. Because query
+// text is template-stable across scans, a stale diff's (platform, category,
+// query_text) keys still match plenty of rows in the new scan, so this fails
+// confidently (wrong badges) rather than emptily (no badges) if unguarded.
+// Fails closed: anything other than an exact match on the scan id currently
+// displayed means "no comparison available", never a guess.
+export function diffApplies(
+  diffLatestScanId: string | null | undefined,
+  currentScanId: string | null | undefined,
+): boolean {
+  return Boolean(diffLatestScanId) && diffLatestScanId === currentScanId
+}

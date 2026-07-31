@@ -47,10 +47,14 @@ from app.schemas.command_center import (
     PeriodStory,
 )
 
-# Accuracy is scoped to hallucination items: they are the ones a human reviewed
-# and drove through flagged -> in_progress -> corrected. content_gap items are
-# delivery work, not accuracy findings.
-_ACCURACY_ITEM_TYPE = "hallucination"
+# Accuracy is scoped to the item types a human reviews and drives through
+# flagged -> in_progress -> corrected: hallucinations AND admin-confirmed
+# misinformation findings (misinformation_service.py creates a "misinformation"
+# RemediationItem when an admin confirms a finding). content_gap items are
+# delivery work, not accuracy findings. Plan Task 1 Step 3 requires confirmed
+# open misinformation/remediation counts to be part of this metric — leaving
+# misinformation out gave a false all-clear on the highest-stakes axis.
+_ACCURACY_ITEM_TYPES = ("hallucination", "misinformation")
 # Uncorrected statuses of the remediation lifecycle.
 _OPEN_REMEDIATION_STATUSES = ("flagged", "in_progress")
 
@@ -117,7 +121,7 @@ def _accuracy(client: Client, db: Session) -> float | None:
         db.query(RemediationItem.status, func.count(RemediationItem.id))
         .filter(
             RemediationItem.client_id == client.id,
-            RemediationItem.item_type == _ACCURACY_ITEM_TYPE,
+            RemediationItem.item_type.in_(_ACCURACY_ITEM_TYPES),
         )
         .group_by(RemediationItem.status)
         .all()
@@ -137,7 +141,7 @@ def _attention(client: Client, db: Session) -> AttentionSummary:
         db.query(func.count(RemediationItem.id))
         .filter(
             RemediationItem.client_id == client.id,
-            RemediationItem.item_type == _ACCURACY_ITEM_TYPE,
+            RemediationItem.item_type.in_(_ACCURACY_ITEM_TYPES),
             RemediationItem.status.in_(_OPEN_REMEDIATION_STATUSES),
         )
         .scalar()

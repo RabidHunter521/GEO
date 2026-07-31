@@ -63,6 +63,21 @@ def _hallucination(db, client_id, *, label: str, status: str) -> RemediationItem
     return item
 
 
+def _misinformation(db, client_id, *, label: str, status: str) -> RemediationItem:
+    """Mirrors misinformation_service._sync_remediation_item, which creates
+    item_type="misinformation" rows on admin confirmation of a finding."""
+    item = RemediationItem(
+        client_id=client_id,
+        item_type="misinformation",
+        platform="chatgpt",
+        label=label,
+        status=status,
+    )
+    db.add(item)
+    db.commit()
+    return item
+
+
 def _work_log(db, client_id, *, status: str, published_days_ago: int | None = None) -> WorkLogEntry:
     published_at = None if published_days_ago is None else utcnow() - timedelta(days=published_days_ago)
     entry = WorkLogEntry(
@@ -210,6 +225,27 @@ def test_accuracy_is_corrected_over_all_reviewed_hallucinations(db):
     result = build_command_center(client, db)
 
     assert result.metrics.accuracy.value == 50.0
+
+
+def test_accuracy_counts_confirmed_misinformation_alongside_hallucinations(db):
+    """Regression for the Important 3 fix: confirmed misinformation items
+    (created by misinformation_service.review_finding on admin confirm) must
+    lower Accuracy and raise accuracy_risks, not vanish from both. Before the
+    fix, this exact shape (3 confirmed-open misinformation + 1 corrected
+    hallucination) rendered Accuracy: 100% with accuracy_risks == 0 — a false
+    all-clear on the highest-stakes metric."""
+    client = _client(db)
+    _hallucination(db, client.id, label="q1", status="corrected")
+    _misinformation(db, client.id, label="m1", status="flagged")
+    _misinformation(db, client.id, label="m2", status="flagged")
+    _misinformation(db, client.id, label="m3", status="in_progress")
+
+    result = build_command_center(client, db)
+
+    # Before the fix: 100.0 (1 corrected / 1 total hallucination-only).
+    # After the fix: 25.0 (1 corrected / 4 total across both item types).
+    assert result.metrics.accuracy.value == 25.0
+    assert result.attention.accuracy_risks == 3
 
 
 def test_accuracy_is_none_without_reviewed_hallucinations(db):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { segmentQueries, type QuerySegmentFlags } from "../query-segments"
+import { segmentQueries, chipTotals, diffApplies, type QuerySegmentFlags } from "../query-segments"
 
 interface Row {
   id: string
@@ -156,5 +156,88 @@ describe("segmentQueries — purity", () => {
       return flagsOf(row)
     })
     expect(calls).toBe(rows.length)
+  })
+})
+
+// Regression coverage for the whole-branch review (Important 1): the chips
+// rendered above the results table must always agree with a plain
+// filter(brand_detected)-style "seen" count elsewhere on the same screen
+// (the Summary stats card). Before the fix, `other.length` was rendered
+// unqualified as "seen by AI", which undercounts by exactly the number of
+// currently-seen rows that also happen to be `newlySeen`.
+describe("chipTotals — agrees with a plain seen/not-seen count", () => {
+  it("sums to the same seen count a card computed via plain filter(brand_detected)", () => {
+    // 20 counted queries: 12 currently seen (3 of them newly seen), 8 not
+    // seen (2 of them newly lost) — the worked example from the review.
+    const rows: Row[] = [
+      ...Array.from({ length: 3 }, (_, i) => ({ id: `newly-seen-${i}`, seen: true, newlySeen: true })),
+      ...Array.from({ length: 9 }, (_, i) => ({ id: `other-${i}`, seen: true })),
+      ...Array.from({ length: 2 }, (_, i) => ({ id: `newly-lost-${i}`, seen: false, newlyLost: true })),
+      ...Array.from({ length: 6 }, (_, i) => ({ id: `opportunity-${i}`, seen: false })),
+    ]
+
+    // What a Summary-stats-card-style computation does: a plain filter.
+    const cardSeen = rows.filter((r) => r.seen).length
+    const cardNotSeen = rows.length - cardSeen
+
+    const segments = segmentQueries(rows, flagsOf)
+    const { seen, notSeen } = chipTotals(segments)
+
+    expect(cardSeen).toBe(12)
+    expect(seen).toBe(cardSeen)
+    expect(notSeen).toBe(cardNotSeen)
+  })
+
+  it("still agrees with the plain count when there is no comparison data at all", () => {
+    const rows: Row[] = [
+      { id: "a", seen: true },
+      { id: "b", seen: true },
+      { id: "c", seen: false },
+    ]
+    const cardSeen = rows.filter((r) => r.seen).length
+
+    const { seen, notSeen } = chipTotals(segmentQueries(rows, flagsOf))
+
+    expect(seen).toBe(cardSeen)
+    expect(notSeen).toBe(rows.length - cardSeen)
+  })
+
+  it("sums to the full total exactly once (seen + notSeen == item count)", () => {
+    const rows: Row[] = Array.from({ length: 23 }, (_, i) => ({
+      id: `row-${i}`,
+      seen: i % 2 === 0,
+      newlySeen: i % 5 === 0,
+      newlyLost: i % 9 === 0,
+    }))
+    const { seen, notSeen } = chipTotals(segmentQueries(rows, flagsOf))
+    expect(seen + notSeen).toBe(rows.length)
+  })
+})
+
+// Regression coverage for the whole-branch review (Important 2): a diff
+// computed for a different scan than the one on screen must never be joined
+// onto that scan's results — it must fail closed to "no comparison
+// available".
+describe("diffApplies — fails closed on a stale or missing diff", () => {
+  it("applies when the diff's latest_scan_id matches the scan on screen", () => {
+    expect(diffApplies("scan-2", "scan-2")).toBe(true)
+  })
+
+  it("does not apply when the diff was computed for a different (stale) scan", () => {
+    expect(diffApplies("scan-1", "scan-2")).toBe(false)
+  })
+
+  it("does not apply when there is no diff at all", () => {
+    expect(diffApplies(undefined, "scan-2")).toBe(false)
+    expect(diffApplies(null, "scan-2")).toBe(false)
+  })
+
+  it("does not apply when there is no current scan (e.g. before the first scan loads)", () => {
+    expect(diffApplies("scan-1", undefined)).toBe(false)
+  })
+
+  it("does not apply when both ids are absent", () => {
+    expect(diffApplies(null, null)).toBe(false)
+    expect(diffApplies(undefined, undefined)).toBe(false)
   })
 })

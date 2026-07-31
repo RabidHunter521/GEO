@@ -105,7 +105,7 @@ def _headline(latest: GeoScore | None, previous: GeoScore | None) -> str:
     if latest is None:
         return "Your first scan is being prepared."
     if previous is None:
-        return f"{SCORE_DISPLAY_LABEL} baseline established at {latest.overall_score:.1f} this period."
+        return f"{SCORE_DISPLAY_LABEL} baseline established at {latest.overall_score:.1f}."
     basis = _score_comparison_basis(latest, previous)
     delta = round(latest.overall_score - previous.overall_score, 1)
     if delta > 0:
