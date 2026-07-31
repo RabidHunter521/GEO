@@ -193,6 +193,7 @@ the URL. `/clients/gap-matrix` permanently redirects to `/gap-matrix`.
 /clients/[id]            → client detail
 /clients/[id]/scan       → scan & visibility
 /clients/[id]/competitors→ competitor intelligence
+/clients/[id]/checklist  → onboarding checklist
 /clients/[id]/toolkit    → AI readiness toolkit
 /clients/[id]/content-gaps→ content gaps (topic + entity coverage, content quality assist)
 /clients/[id]/content-roadmap→ 90-day content roadmap (competitor lost-query driven)
@@ -208,9 +209,18 @@ URL; uniform 404 on invalid/revoked/archived; whitelisted schemas only, never
 raw AI responses or internal fields):
 /view/[token]             → client overview (score, dimensions, traffic, history)
 /view/[token]/scan        → scan & visibility results
-/view/[token]/competitors → competitor comparison
+/view/[token]/reputation  → accuracy issues (reviewed hallucinations) + brand
+                            authority / technical foundations summaries
+/view/[token]/content-plan→ content gaps + 90-day content roadmap
+/view/[token]/competitors → competitor comparison (linked from Overview and
+                            Visibility, not a primary tab — route stays live
+                            for existing links)
 /view/[token]/reports     → delivered PDF reports
 /view/[token]/progress    → delivery timeline (published work log only)
+
+The client-facing nav (ViewTabs) shows six destinations: Overview, Visibility
+(/scan), Reputation, Action Plan (/content-plan), Progress, Reports. Below the
+`sm` breakpoint it renders a native `<select>` instead of tabs.
 
 ## 10. Coding Conventions
 

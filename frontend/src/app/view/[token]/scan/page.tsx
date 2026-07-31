@@ -2,9 +2,10 @@
 // Read-only scan results: what AI was asked, whether the client was seen, and a
 // curated, competitor-redacted excerpt of the answer. Raw AI responses are
 // never available on this surface.
+import Link from "next/link"
 import { notFound } from "next/navigation"
-import { Radar } from "lucide-react"
-import { getViewScan } from "@/lib/view-api"
+import { ArrowRight, Radar } from "lucide-react"
+import { getViewScan, getViewOverview } from "@/lib/view-api"
 import { VisibilityBadge } from "@/components/view/VisibilityBadge"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
@@ -23,8 +24,9 @@ export default async function ViewScanPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const scan = await getViewScan(token)
+  const [scan, overview] = await Promise.all([getViewScan(token), getViewOverview(token)])
   if (!scan) notFound()
+  const isProspect = overview?.profile.is_prospect ?? true
 
   if (scan.results.length === 0) {
     return (
@@ -90,6 +92,15 @@ export default async function ViewScanPage({
             )}
             .
           </p>
+          {!isProspect && (
+            <Link
+              href={`/view/${token}/competitors`}
+              className="mt-3 inline-flex items-center gap-1 text-sm text-primary underline-offset-4 hover:underline"
+            >
+              See how you compare to competitors
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
       </section>
 

@@ -358,7 +358,21 @@ export default async function ViewOverviewPage({
 
       {overview.platforms.length > 0 && (
         <section className="reveal" style={{ animationDelay: "210ms" }}>
-          <SectionHeading>Seen by AI — by Platform</SectionHeading>
+          <SectionHeading
+            action={
+              !isProspect ? (
+                <Link
+                  href={`/view/${token}/competitors`}
+                  className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                >
+                  See how you compare to competitors
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              ) : undefined
+            }
+          >
+            Seen by AI — by Platform
+          </SectionHeading>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {overview.platforms.map((p) => {
               const unavailable = p.visibility_frequency === null
