@@ -20,6 +20,25 @@ const CONTENT_PLAN_TAB = { segment: "/content-plan", label: "Action Plan" } as c
 const PROGRESS_TAB = { segment: "/progress", label: "Progress" } as const
 const REPORTS_TAB = { segment: "/reports", label: "Reports" } as const
 
+// Labels for known routes that live outside the six primary destinations but
+// are still reachable (e.g. linked from Overview/Visibility). Used only to
+// label the synthetic "you are here" option in the mobile <select> — a
+// fragile string transform of the path segment would be harder to reason
+// about than a small explicit map for the handful of routes this applies to.
+const NON_TAB_ROUTE_LABELS: Record<string, string> = {
+  competitors: "Competitors",
+}
+
+function labelForUnknownPath(pathname: string, base: string): string {
+  const relative = pathname.startsWith(base) ? pathname.slice(base.length) : pathname
+  const firstSegment = relative.split("/").filter(Boolean)[0]
+  if (!firstSegment) return "Current page"
+  return (
+    NON_TAB_ROUTE_LABELS[firstSegment] ??
+    firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1).replace(/-/g, " ")
+  )
+}
+
 interface Props {
   token: string
   showContentPlan?: boolean
@@ -75,9 +94,11 @@ export function ViewTabs({ token, showContentPlan, showProgress, isProspect }: P
     return tab.segment === "" ? pathname === base : pathname.startsWith(href)
   }
   // Undefined when the client is on a page outside the six destinations
-  // (e.g. /competitors) — the select falls back to its first option in that
-  // case, same as an unmatched native <select> always does.
+  // (e.g. /competitors). The select must never claim one of the six is
+  // active in that case — it renders a disabled synthetic option labelled
+  // for the actual current page instead. See the <select> below.
   const activeTab = tabs.find(isActive)
+  const onUnknownPath = !activeTab && pathname !== base
 
   return (
     <div className="relative">
@@ -90,10 +111,15 @@ export function ViewTabs({ token, showContentPlan, showProgress, isProspect }: P
         </label>
         <select
           id="view-section-select"
-          value={activeTab ? `${base}${activeTab.segment}` : `${base}${tabs[0].segment}`}
+          value={activeTab ? `${base}${activeTab.segment}` : onUnknownPath ? pathname : `${base}${tabs[0].segment}`}
           onChange={(e) => router.push(e.target.value)}
           className="h-11 w-full rounded-md border border-input bg-card px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
+          {onUnknownPath && (
+            <option value={pathname} disabled>
+              {labelForUnknownPath(pathname, base)}
+            </option>
+          )}
           {tabs.map((tab) => (
             <option key={tab.label} value={`${base}${tab.segment}`}>
               {tab.label}
