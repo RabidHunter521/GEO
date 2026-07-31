@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import type { Platform, Scan, ScanQueryResult, ScanDiffResponse } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { joinWithAnd } from "@/lib/utils"
+import { segmentQueries } from "@/lib/query-segments"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
 
 // A running scan is polled every 3s; stop after this many tries (~15 min) so a
@@ -28,6 +29,117 @@ const CATEGORY_LABELS: Record<string, string> = {
   comparison: "Comparison",
   recommendation: "Recommendation",
   local: "Local",
+}
+
+// First rows shown per segment before the reader has to open "Show all".
+const PREVIEW_COUNT = 5
+
+// Matches the (platform, category, query_text) key scan_diff_service.py uses
+// to compare the two most recent scans — join, not inference.
+function diffKey(platform: string, category: string, queryText: string): string {
+  return [platform, category, queryText].join("|||")
+}
+
+// Compact single-line preview above the full results table — the table below
+// remains the complete, unfiltered evidence for these results.
+function QueryPreviewRow({ result }: { result: ScanQueryResult }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2 text-sm">
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="text-xs font-medium shrink-0">
+          {PLATFORM_LABELS[result.platform] ?? result.platform}
+        </span>
+        <Badge variant="outline" className="text-xs font-normal shrink-0">
+          {CATEGORY_LABELS[result.category] ?? result.category}
+        </Badge>
+        <span className="truncate text-muted-foreground">{result.query_text}</span>
+      </span>
+      {result.brand_detected ? (
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-score-strong">
+          <CheckCircle className="h-3 w-3" />
+          Seen
+        </span>
+      ) : (
+        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+          <XCircle className="h-3 w-3" />
+          Not seen
+        </span>
+      )}
+    </div>
+  )
+}
+
+function SegmentGroup({ label, results }: { label: string; results: ScanQueryResult[] }) {
+  if (results.length === 0) return null
+  const preview = results.slice(0, PREVIEW_COUNT)
+  const rest = results.slice(PREVIEW_COUNT)
+  return (
+    <div className="mt-2 first:mt-0">
+      <p className="text-xs font-semibold text-muted-foreground">
+        {label} ({results.length})
+      </p>
+      <div className="mt-1.5 space-y-1.5">
+        {preview.map((r) => (
+          <QueryPreviewRow key={r.id} result={r} />
+        ))}
+      </div>
+      {rest.length > 0 && (
+        <details className="mt-1.5">
+          <summary className="list-none marker:hidden cursor-pointer text-xs font-medium text-primary hover:underline">
+            Show all {results.length}
+          </summary>
+          <div className="mt-1.5 space-y-1.5">
+            {rest.map((r) => (
+              <QueryPreviewRow key={r.id} result={r} />
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
+// Progressive disclosure above a ResultsTable: honest segment counts plus a
+// short preview per non-empty segment. Segments come from segmentQueries —
+// this component never re-derives seen/newly-seen/newly-lost itself.
+function QuerySegmentSummary({
+  newlySeen,
+  newlyLost,
+  opportunities,
+  other,
+}: {
+  newlySeen: ScanQueryResult[]
+  newlyLost: ScanQueryResult[]
+  opportunities: ScanQueryResult[]
+  other: ScanQueryResult[]
+}) {
+  const total = newlySeen.length + newlyLost.length + opportunities.length + other.length
+  if (total === 0) return null
+  return (
+    <div className="mb-3 rounded-lg border bg-muted/10 p-3">
+      <div className="flex flex-wrap gap-2 text-xs">
+        {newlySeen.length > 0 && (
+          <span className="rounded-full border border-score-strong/30 bg-score-strong-bg px-2.5 py-1 font-medium text-score-strong">
+            {newlySeen.length} newly seen by AI this scan
+          </span>
+        )}
+        {newlyLost.length > 0 && (
+          <span className="rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 font-medium text-score-watch">
+            {newlyLost.length} newly lost since last scan
+          </span>
+        )}
+        <span className="rounded-full border bg-muted/30 px-2.5 py-1 font-medium text-muted-foreground">
+          {opportunities.length} not seen by AI
+        </span>
+        <span className="rounded-full border bg-muted/30 px-2.5 py-1 font-medium text-muted-foreground">
+          {other.length} seen by AI
+        </span>
+      </div>
+      <SegmentGroup label="Newly seen by AI this scan" results={newlySeen} />
+      <SegmentGroup label="Newly lost since last scan" results={newlyLost} />
+      <SegmentGroup label="Not seen by AI" results={opportunities} />
+    </div>
+  )
 }
 
 export function ScanClient({ clientId, clientName, initialScan, initialDiff, enabledPlatforms }: Props) {
@@ -112,6 +224,21 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
   const competitorGroups = groupByCompetitor(
     scan?.results.filter((r) => r.competitor_id !== null && matchesFilter(r)) ?? [],
   )
+
+  // "Since last scan" diff is client-only (scan_diff_service.py compares
+  // competitor_id IS NULL rows), matched by the same (platform, category,
+  // query_text) key it uses — a join against real diff data, not inference.
+  const newlySeenKeys = new Set(
+    (diff?.newly_seen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text)),
+  )
+  const newlyLostKeys = new Set(
+    (diff?.newly_unseen ?? []).map((q) => diffKey(q.platform, q.category, q.query_text)),
+  )
+  const clientSegments = segmentQueries(clientResults, (r) => ({
+    seen: r.brand_detected,
+    newlySeen: newlySeenKeys.has(diffKey(r.platform, r.category, r.query_text)),
+    newlyLost: newlyLostKeys.has(diffKey(r.platform, r.category, r.query_text)),
+  }))
 
   return (
     <div className="space-y-6">
@@ -266,6 +393,12 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
             <h3 className="text-sm font-semibold mb-3">
               Your Brand — {clientResults.length} queries
             </h3>
+            <QuerySegmentSummary
+              newlySeen={clientSegments.newlySeen}
+              newlyLost={clientSegments.newlyLost}
+              opportunities={clientSegments.opportunities}
+              other={clientSegments.other}
+            />
             <ResultsTable
               results={clientResults}
               flaggingId={flaggingId}
@@ -276,19 +409,31 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
             />
           </section>
 
-          {competitorGroups.map(({ competitorName, results }) => (
-            <section key={competitorName}>
-              <h3 className="text-sm font-semibold mb-3">
-                Competitor: {competitorName} — {results.length} queries
-              </h3>
-              <ResultsTable
-                results={results}
-                flaggingId={flaggingId}
-                flaggedIds={flaggedIds}
-                onFlag={handleFlag}
-              />
-            </section>
-          ))}
+          {competitorGroups.map(({ competitorName, results }) => {
+            // No cross-scan diff exists for competitor rows (the diff service
+            // only compares the client's own results), so newlySeen/newlyLost
+            // are always empty here — honest zero, not fabricated.
+            const segments = segmentQueries(results, (r) => ({ seen: r.brand_detected }))
+            return (
+              <section key={competitorName}>
+                <h3 className="text-sm font-semibold mb-3">
+                  Competitor: {competitorName} — {results.length} queries
+                </h3>
+                <QuerySegmentSummary
+                  newlySeen={segments.newlySeen}
+                  newlyLost={segments.newlyLost}
+                  opportunities={segments.opportunities}
+                  other={segments.other}
+                />
+                <ResultsTable
+                  results={results}
+                  flaggingId={flaggingId}
+                  flaggedIds={flaggedIds}
+                  onFlag={handleFlag}
+                />
+              </section>
+            )
+          })}
         </div>
       )}
     </div>

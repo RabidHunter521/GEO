@@ -8,6 +8,8 @@ import { getViewCompetitors, getViewCompetitorTrends } from "@/lib/view-api"
 import { VisibilityBadge } from "@/components/view/VisibilityBadge"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { VisibilityTrendChart } from "@/components/competitors/VisibilityTrendChart"
+import { segmentQueries } from "@/lib/query-segments"
+import type { ClientViewCompetitorQuery } from "@/types"
 
 function FrequencyBar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(100, value))
@@ -17,6 +19,71 @@ function FrequencyBar({ value }: { value: number }) {
         className="h-full rounded-full bg-primary transition-all"
         style={{ width: `${pct}%` }}
       />
+    </div>
+  )
+}
+
+// First rows shown per segment before the reader has to open "Show all".
+const PREVIEW_COUNT = 5
+
+function CompetitorQueryRow({ q }: { q: ClientViewCompetitorQuery }) {
+  return (
+    <li className="flex items-center justify-between gap-3 text-sm">
+      <span className="flex min-w-0 items-center gap-2">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 px-2 py-0.5 text-[10px] font-medium">
+          <PlatformIcon label={q.platform_label} className="h-3 w-3" />
+          {q.platform_label}
+        </span>
+        <span className="truncate text-muted-foreground">&ldquo;{q.query_text}&rdquo;</span>
+      </span>
+      <VisibilityBadge seen={q.seen_by_ai} className="text-[10px]" />
+    </li>
+  )
+}
+
+// Progressive disclosure for a competitor's query list: counts first, then a
+// short preview per segment, with the remainder reachable behind "Show all".
+function CompetitorQueriesSummary({ queries }: { queries: ClientViewCompetitorQuery[] }) {
+  if (queries.length === 0) return null
+  const segments = segmentQueries(queries, (q) => ({ seen: q.seen_by_ai }))
+
+  const renderSegment = (label: string, rows: ClientViewCompetitorQuery[]) => {
+    if (rows.length === 0) return null
+    const preview = rows.slice(0, PREVIEW_COUNT)
+    const rest = rows.slice(PREVIEW_COUNT)
+    return (
+      <div className="mt-2 first:mt-0" key={label}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label} ({rows.length})
+        </p>
+        <ul className="mt-1.5 space-y-1.5">
+          {preview.map((q, i) => (
+            <CompetitorQueryRow key={`${label}-${i}`} q={q} />
+          ))}
+        </ul>
+        {rest.length > 0 && (
+          <details className="mt-1">
+            <summary className="list-none marker:hidden cursor-pointer text-xs font-medium text-primary hover:underline">
+              Show all {rows.length}
+            </summary>
+            <ul className="mt-1.5 space-y-1.5">
+              {rest.map((q, i) => (
+                <CompetitorQueryRow key={`${label}-more-${i}`} q={q} />
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs text-muted-foreground">
+        Seen by AI on {segments.other.length} of {queries.length} questions
+      </p>
+      {renderSegment("Where this competitor is seen by AI", segments.other)}
+      {renderSegment("Where this competitor is not seen by AI", segments.opportunities)}
     </div>
   )
 }
@@ -212,27 +279,7 @@ export default async function ViewCompetitorsPage({
                 {c.winning_platform_labels.join(", ")}
               </p>
             )}
-            {c.queries.length > 0 && (
-              <ul className="mt-3 space-y-1.5">
-                {c.queries.map((q, i) => (
-                  <li
-                    key={`${c.name}-${i}`}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 px-2 py-0.5 text-[10px] font-medium">
-                        <PlatformIcon label={q.platform_label} className="h-3 w-3" />
-                        {q.platform_label}
-                      </span>
-                      <span className="truncate text-muted-foreground">
-                        &ldquo;{q.query_text}&rdquo;
-                      </span>
-                    </span>
-                    <VisibilityBadge seen={q.seen_by_ai} className="text-[10px]" />
-                  </li>
-                ))}
-              </ul>
-            )}
+            <CompetitorQueriesSummary queries={c.queries} />
           </div>
         ))}
       </section>
