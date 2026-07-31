@@ -142,7 +142,7 @@ class ClientViewPeriodSummary(BaseModel):
     rows, and redacted proof-card excerpts. Never response_text, never an
     internal event key.
 
-    Caveats, not a guarantee this schema can make: `work_underway` (via
+    Caveats, not a guarantee this schema can make: `wins` (via
     `_work_log_wins`) interpolates WorkLogEntry.description verbatim, which
     can be admin-typed free text when source="manual" — already client-visible
     verbatim on the Progress tab via the same published_entries() call, so

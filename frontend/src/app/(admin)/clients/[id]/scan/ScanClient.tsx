@@ -143,7 +143,7 @@ function QuerySegmentSummary({
       </div>
       <SegmentGroup label="Newly seen by AI this scan" results={newlySeen} />
       <SegmentGroup label="Newly lost since last scan" results={newlyLost} />
-      <SegmentGroup label="Not seen by AI" results={opportunities} />
+      <SegmentGroup label="Still not seen by AI" results={opportunities} />
     </div>
   )
 }
