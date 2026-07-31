@@ -72,6 +72,7 @@ class OutcomeAction(Base):
     destination_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     client_safe_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     approval_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    approval_evidence_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     approval_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     client_decision: Mapped[str | None] = mapped_column(String(32), nullable=True)
     client_comment: Mapped[str | None] = mapped_column(Text, nullable=True)

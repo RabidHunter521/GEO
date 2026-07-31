@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.outcome_action import OUTCOME_ACTION_STATUSES, OUTCOME_ACTION_TYPES
 
@@ -55,6 +55,15 @@ class OutcomeActionPatch(BaseModel):
     dismissal_reason: str | None = None
     verification_result: OutcomeActionVerificationEvidence | None = None
     approval_decision: Literal["approved"] | None = None
+    approval_evidence: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def require_approval_evidence(self):
+        if self.approval_decision is not None and self.approval_evidence is None:
+            raise ValueError("approval_evidence is required with approval_decision")
+        if self.approval_decision is None and self.approval_evidence is not None:
+            raise ValueError("approval_decision is required with approval_evidence")
+        return self
 
 
 class OutcomeActionOut(BaseModel):

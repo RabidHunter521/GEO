@@ -1,4 +1,5 @@
 """Outcome Action lifecycle and CRUD service."""
+import hashlib
 from datetime import date
 
 import pytest
@@ -42,6 +43,7 @@ def _record_approval(action, db):
         action,
         OutcomeActionPatch(
             approval_decision="approved",
+            approval_evidence="reviewed by operations",
         ),
         db,
     )
@@ -196,7 +198,7 @@ def test_transition_to_published_requires_destination_url_and_sets_timestamp(db)
     assert published.published_at is not None
 
 
-def test_recording_approvals_does_not_use_approval_token_hash(db):
+def test_recording_approvals_stores_non_unique_evidence_hash_not_token_hash(db):
     from app.services.outcome_action_service import create_action
 
     client = _make_client(db)
@@ -206,8 +208,45 @@ def test_recording_approvals_does_not_use_approval_token_hash(db):
     assert first.client_decision == second.client_decision == "approved"
     assert first.client_decided_at is not None
     assert second.client_decided_at is not None
+    expected_hash = hashlib.sha256(b"reviewed by operations").hexdigest()
+    assert first.approval_evidence_hash == second.approval_evidence_hash == expected_hash
     assert first.approval_token_hash is None
     assert second.approval_token_hash is None
+
+
+def test_approval_decision_requires_write_only_evidence():
+    from app.schemas.outcome_action import OutcomeActionPatch
+
+    with pytest.raises(ValidationError, match="approval_evidence"):
+        OutcomeActionPatch(approval_decision="approved")
+
+
+def test_patch_action_serializes_uuid_verification_evidence_for_json_storage(db):
+    from app.schemas.outcome_action import (
+        OutcomeActionPatch,
+        OutcomeActionVerificationEvidence,
+    )
+    from app.services.outcome_action_service import create_action, patch_action
+
+    client = _make_client(db)
+    action = create_action(client.id, _create_payload(), db)
+    scan = _completed_scan(client, db)
+
+    patched = patch_action(
+        action,
+        OutcomeActionPatch(
+            verification_result=OutcomeActionVerificationEvidence(
+                scan_id=scan.id,
+                basis="visibility_change",
+            )
+        ),
+        db,
+    )
+
+    assert patched.verification_result == {
+        "scan_id": str(scan.id),
+        "basis": "visibility_change",
+    }
 
 
 @pytest.mark.parametrize("target, basis", [("verified", "visibility_change"), ("no_change", "no_change")])

@@ -1,4 +1,5 @@
 """CRUD and server-side lifecycle validation for Outcome Actions."""
+import hashlib
 import uuid
 
 from sqlalchemy.exc import IntegrityError
@@ -86,11 +87,15 @@ def patch_action(action: OutcomeAction, payload: OutcomeActionPatch, db: Session
     updates = payload.model_dump(exclude_unset=True)
     dismissal_reason = updates.pop("dismissal_reason", None)
     approval_decision = updates.pop("approval_decision", None)
+    approval_evidence = updates.pop("approval_evidence", None)
+    if payload.verification_result is not None:
+        updates["verification_result"] = payload.verification_result.model_dump(mode="json")
     if dismissal_reason is not None:
         action.client_comment = dismissal_reason
     if approval_decision is not None:
         action.client_decision = approval_decision
         action.client_decided_at = utcnow()
+        action.approval_evidence_hash = hashlib.sha256(approval_evidence.encode()).hexdigest()
     for field, value in updates.items():
         setattr(action, field, value)
     db.commit()
@@ -127,6 +132,7 @@ def _require_approval(action: OutcomeAction) -> None:
     if not (
         action.client_decision == "approved"
         and action.client_decided_at is not None
+        and action.approval_evidence_hash
     ):
         raise OutcomeActionValidationError(
             "recorded approval evidence is required before publication or verification completion"
