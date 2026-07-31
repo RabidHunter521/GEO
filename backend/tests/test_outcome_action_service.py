@@ -1,7 +1,9 @@
 """Outcome Action lifecycle and CRUD service."""
+import json
 from datetime import date
 
 import pytest
+from pydantic import ValidationError
 
 
 def _make_client(db, name="Acme Dental"):
@@ -33,6 +35,34 @@ def _create_payload(source_ref="content_gap:emergency-dental"):
     )
 
 
+def _record_approval(action, db):
+    from app.schemas.outcome_action import OutcomeActionPatch
+    from app.services.outcome_action_service import patch_action
+
+    return patch_action(
+        action,
+        OutcomeActionPatch(
+            approval_decision="approved",
+            approval_evidence="reviewed by operations",
+        ),
+        db,
+    )
+
+
+def _completed_scan(client, db):
+    from app.core.time import utcnow
+    from app.models.scan import Scan
+
+    scan = Scan(client_id=client.id, status="completed", completed_at=utcnow())
+    db.add(scan)
+    db.commit()
+    return scan
+
+
+def _verification_evidence(scan, basis="visibility_change"):
+    return json.dumps({"scan_id": str(scan.id), "basis": basis})
+
+
 def test_create_action_and_get_action_are_scoped_to_client(db):
     from app.services.outcome_action_service import create_action, get_action
 
@@ -57,6 +87,21 @@ def test_create_action_reuses_existing_client_source_reference(db):
 
     assert second.id == first.id
     assert db.query(type(first)).count() == 1
+
+
+def test_create_action_requires_source_reference():
+    from app.schemas.outcome_action import OutcomeActionCreate
+
+    with pytest.raises(ValidationError, match="source_ref"):
+        OutcomeActionCreate(
+            source_kind="content_gap",
+            source_ref=None,
+            title="Publish emergency dental page",
+            rationale="High-intent emergency searches are currently won by competitors.",
+            action_type="content",
+            priority="high",
+            confidence="repeated",
+        )
 
 
 def test_list_actions_filters_by_client(db):
@@ -144,13 +189,19 @@ def test_transition_to_published_requires_destination_url_and_sets_timestamp(db)
 
     action.destination_url = "https://acmedental.example.com/emergency"
     db.commit()
+    with pytest.raises(OutcomeActionValidationError, match="approval"):
+        transition_action(action, "published", db)
+
+    _record_approval(action, db)
     published = transition_action(action, "published", db)
 
     assert published.published_at is not None
 
 
-@pytest.mark.parametrize("target", ["verified", "no_change"])
-def test_transition_to_verification_outcome_requires_result_and_sets_timestamp(db, target):
+@pytest.mark.parametrize("target, basis", [("verified", "visibility_change"), ("no_change", "no_change")])
+def test_transition_to_verification_outcome_requires_scan_backed_evidence_and_approval(
+    db, target, basis
+):
     from app.services.outcome_action_service import (
         OutcomeActionValidationError,
         create_action,
@@ -167,6 +218,48 @@ def test_transition_to_verification_outcome_requires_result_and_sets_timestamp(d
 
     action.verification_result = "verification_scan:2026-08-16"
     db.commit()
+    with pytest.raises(OutcomeActionValidationError, match="JSON"):
+        transition_action(action, target, db)
+
+    scan = _completed_scan(client, db)
+    action.verification_result = _verification_evidence(scan, basis)
+    db.commit()
+    with pytest.raises(OutcomeActionValidationError, match="approval"):
+        transition_action(action, target, db)
+
+    _record_approval(action, db)
     transitioned = transition_action(action, target, db)
 
     assert transitioned.verified_at is not None
+    assert transitioned.scan_id == scan.id
+
+
+def test_transition_rejects_evidence_from_another_clients_scan(db):
+    from app.services.outcome_action_service import (
+        OutcomeActionValidationError,
+        create_action,
+        transition_action,
+    )
+
+    client = _make_client(db)
+    other_client = _make_client(db, "Other Dental")
+    action = create_action(client.id, _create_payload(), db)
+    action.status = "waiting_verification"
+    action.verification_result = _verification_evidence(_completed_scan(other_client, db))
+    db.commit()
+    _record_approval(action, db)
+
+    with pytest.raises(OutcomeActionValidationError, match="client"):
+        transition_action(action, "verified", db)
+
+
+def test_outcome_action_out_excludes_raw_verification_result(db):
+    from app.schemas.outcome_action import OutcomeActionOut
+    from app.services.outcome_action_service import create_action
+
+    client = _make_client(db)
+    action = create_action(client.id, _create_payload(), db)
+    action.verification_result = '{"scan_id":"internal","basis":"visibility_change"}'
+    db.commit()
+
+    assert "verification_result" not in OutcomeActionOut.model_validate(action).model_dump()
