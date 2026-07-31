@@ -1060,15 +1060,24 @@ export type OutcomeActionStatus =
 export interface OutcomeAction {
   id: string
   client_id: string
+  scan_id: string | null
+  work_log_entry_id: string | null
+  content_deliverable_id: string | null
+  source_kind: string
+  source_ref: string | null
   title: string
+  rationale: string
   action_type: OutcomeActionType
   priority: string
+  priority_score: number | null
+  priority_reasons: { version?: string; reasons?: string[]; inputs?: Record<string, number> } | null
   confidence: string
   status: OutcomeActionStatus
   owner: string | null
   due_date: string | null
   destination_url: string | null
   client_safe_summary: string | null
+  verification_result: { scan_id: string; basis: "visibility_change" | "no_change" } | null
   published_at: string | null
   verified_at: string | null
   created_at: string

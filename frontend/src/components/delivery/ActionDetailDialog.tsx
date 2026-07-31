@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { ExternalLink } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -46,6 +47,7 @@ export function ActionDetailDialog({
   const currentAction = action
   const updateDraft = (key: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [key]: value }))
   const transitionTargets = validNextStatuses(currentAction.status)
+  const priorityReasons = Array.isArray(action.priority_reasons?.reasons) ? action.priority_reasons.reasons : []
 
   async function save() {
     setPending(true); setError(null)
@@ -99,10 +101,11 @@ export function ActionDetailDialog({
           <div className="space-y-1 sm:col-span-2"><Label htmlFor="summary">Reviewed summary</Label><Textarea id="summary" value={draft.client_safe_summary} onChange={(e) => updateDraft("client_safe_summary", e.target.value)} /></div>
         </div>
         <div className="grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-3">
-          <p><span className="block text-xs text-muted-foreground">Source evidence</span>Not available in client-safe response</p>
-          <p><span className="block text-xs text-muted-foreground">Rationale</span>Not available in client-safe response</p>
-          <p><span className="block text-xs text-muted-foreground">Priority reasons</span>Not available in client-safe response</p>
-          <p><span className="block text-xs text-muted-foreground">Verification result</span>{action.verified_at ? `Recorded ${new Date(action.verified_at).toLocaleDateString("en-MY")}` : "Not recorded"}</p>
+          <p><span className="block text-xs text-muted-foreground">Source evidence</span>{action.source_kind.replaceAll("_", " ")}{action.source_ref ? `: ${action.source_ref}` : ""}</p>
+          <p><span className="block text-xs text-muted-foreground">Rationale</span>{action.rationale}</p>
+          <p><span className="block text-xs text-muted-foreground">Priority reasons</span>{priorityReasons.length ? priorityReasons.join("; ") : "No scored reasons recorded."}</p>
+          <p><span className="block text-xs text-muted-foreground">Verification result</span>{action.verification_result ? `${action.verification_result.basis.replaceAll("_", " ")} scan ${action.verification_result.scan_id}` : action.verified_at ? `Recorded ${new Date(action.verified_at).toLocaleDateString("en-MY")}` : "Not recorded"}</p>
+          {action.content_deliverable_id && <Link className="inline-flex items-center gap-1 text-primary hover:underline" href={`/clients/${action.client_id}/content-studio`}>Open deliverable <ExternalLink className="h-3 w-3" /></Link>}
           {action.destination_url && <a className="inline-flex items-center gap-1 text-primary hover:underline" href={action.destination_url} target="_blank" rel="noreferrer">Open destination <ExternalLink className="h-3 w-3" /></a>}
         </div>
         {(transitionTargets.includes("published") || transitionTargets.includes("verified") || transitionTargets.includes("no_change")) && (

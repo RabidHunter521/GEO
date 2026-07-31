@@ -358,7 +358,7 @@ def test_transition_rejects_evidence_from_another_clients_scan(db):
         transition_action(action, "verified", db)
 
 
-def test_outcome_action_out_excludes_raw_verification_result(db):
+def test_outcome_action_out_exposes_admin_verification_result(db):
     from app.schemas.outcome_action import OutcomeActionOut
     from app.services.outcome_action_service import create_action
 
@@ -367,4 +367,6 @@ def test_outcome_action_out_excludes_raw_verification_result(db):
     action.verification_result = {"scan_id": "internal", "basis": "visibility_change"}
     db.commit()
 
-    assert "verification_result" not in OutcomeActionOut.model_validate(action).model_dump()
+    dumped = OutcomeActionOut.model_validate(action).model_dump()
+    assert dumped["verification_result"] == {"scan_id": "internal", "basis": "visibility_change"}
+    assert "approval_evidence_hash" not in dumped

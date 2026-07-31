@@ -78,14 +78,21 @@ def test_routes_require_authentication(client, db):
     assert client.get("/api/v1/outcome-actions/review-queue").status_code == 401
 
 
-def test_create_and_get_action_return_client_safe_fields(client, db, auth_headers):
+def test_create_and_get_action_return_admin_decision_context_without_approval_evidence(
+    client, db, auth_headers
+):
     account = _make_client(db)
     created = _create_action(client, account.id, auth_headers)
 
     assert created["client_id"] == str(account.id)
     assert created["priority"] != "low"  # priority is server-owned
-    assert "rationale" not in created
-    assert "source_ref" not in created
+    assert created["rationale"] == "Competitors currently win high-intent emergency searches."
+    assert created["source_kind"] == "content_gap"
+    assert created["source_ref"] == "content-gap:emergency"
+    assert isinstance(created["priority_reasons"]["reasons"], list)
+    assert created["verification_result"] is None
+    assert "approval_evidence" not in created
+    assert "approval_evidence_hash" not in created
 
     fetched = client.get(
         f"/api/v1/clients/{account.id}/outcome-actions/{created['id']}", headers=auth_headers

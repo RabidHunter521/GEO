@@ -356,6 +356,26 @@ export function getOutcomeActions(
   return apiFetch<OutcomeActionListResponse>(`/api/v1/clients/${clientId}/outcome-actions${query}`)
 }
 
+export async function getAllOutcomeActions(
+  clientId: string,
+  options?: { status?: OutcomeActionStatus; due_from?: string; due_to?: string },
+): Promise<OutcomeAction[]> {
+  const pageSize = 100
+  const actions: OutcomeAction[] = []
+  let page = 1
+  let total = Number.POSITIVE_INFINITY
+
+  while (actions.length < total) {
+    const response = await getOutcomeActions(clientId, { ...options, page, page_size: pageSize })
+    actions.push(...response.actions)
+    total = response.total
+    if (response.actions.length === 0) break
+    page += 1
+  }
+
+  return actions
+}
+
 export function getOutcomeAction(clientId: string, actionId: string): Promise<OutcomeAction> {
   return apiFetch<OutcomeAction>(`/api/v1/clients/${clientId}/outcome-actions/${actionId}`)
 }

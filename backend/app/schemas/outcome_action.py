@@ -94,19 +94,28 @@ class OutcomeActionPatch(BaseModel):
 
 
 class OutcomeActionOut(BaseModel):
-    """Client-safe action representation, excluding specialist-source details."""
+    """Admin action representation with decision context but no raw approval evidence."""
 
     id: uuid.UUID
     client_id: uuid.UUID
+    scan_id: uuid.UUID | None
+    work_log_entry_id: uuid.UUID | None
+    content_deliverable_id: uuid.UUID | None
+    source_kind: str
+    source_ref: str | None
     title: str
+    rationale: str
     action_type: OutcomeActionType
     priority: str
+    priority_score: int | None
+    priority_reasons: dict | list | None
     confidence: str
     status: OutcomeActionStatus
     owner: str | None
     due_date: date | None
     destination_url: str | None
     client_safe_summary: str | None
+    verification_result: dict | None
     published_at: datetime | None
     verified_at: datetime | None
     created_at: datetime

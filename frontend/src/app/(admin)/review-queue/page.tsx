@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { getClients, getOutcomeActions } from "@/lib/api"
+import { getAllOutcomeActions, getClients } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { OutcomeAction } from "@/types"
@@ -14,7 +14,7 @@ const queueSections: { title: string; matches: (action: OutcomeAction, today: st
 
 export default async function ReviewQueuePage() {
   const clients = await getClients()
-  const lists = await Promise.all(clients.map(async (client) => ({ client, response: await getOutcomeActions(client.id, { page_size: 100 }).catch(() => ({ actions: [], total: 0 })) })))
+  const lists = await Promise.all(clients.map(async (client) => ({ client, actions: await getAllOutcomeActions(client.id) })))
   const today = new Date().toISOString().slice(0, 10)
 
   return (
@@ -24,7 +24,7 @@ export default async function ReviewQueuePage() {
         <p className="mt-1.5 text-sm text-muted-foreground">Outcome actions that need an operating decision.</p>
       </div>
       {queueSections.map((section) => {
-        const items = lists.flatMap(({ client, response }) => response.actions.filter((action) => section.matches(action, today)).map((action) => ({ action, client })))
+        const items = lists.flatMap(({ client, actions }) => actions.filter((action) => section.matches(action, today)).map((action) => ({ action, client })))
         return (
           <section key={section.title}>
             <div className="mb-2 flex items-center justify-between border-b pb-2"><h2 className="text-sm font-semibold">{section.title}</h2><Badge variant="secondary">{items.length}</Badge></div>
