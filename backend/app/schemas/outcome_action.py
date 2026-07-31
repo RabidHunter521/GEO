@@ -22,6 +22,17 @@ OutcomeActionStatus = Literal[
 assert set(OutcomeActionType.__args__) == set(OUTCOME_ACTION_TYPES)
 assert set(OutcomeActionStatus.__args__) == set(OUTCOME_ACTION_STATUSES)
 
+SCORING_INPUT_FIELDS = (
+    "commercial_intent",
+    "visibility_gap",
+    "competitor_advantage",
+    "reputation_risk",
+    "demand",
+    "expected_influence",
+    "confidence_score",
+    "effort",
+)
+
 
 class OutcomeActionCreate(BaseModel):
     source_kind: str
@@ -38,6 +49,14 @@ class OutcomeActionCreate(BaseModel):
     due_date: date | None = None
     destination_url: str | None = None
     client_safe_summary: str | None = None
+    commercial_intent: float | None = Field(default=None, exclude=True)
+    visibility_gap: float | None = Field(default=None, exclude=True)
+    competitor_advantage: float | None = Field(default=None, exclude=True)
+    reputation_risk: float | None = Field(default=None, exclude=True)
+    demand: float | None = Field(default=None, exclude=True)
+    expected_influence: float | None = Field(default=None, exclude=True)
+    confidence_score: float | None = Field(default=None, exclude=True)
+    effort: float | None = Field(default=None, exclude=True)
 
 
 class OutcomeActionVerificationEvidence(BaseModel):
@@ -56,6 +75,14 @@ class OutcomeActionPatch(BaseModel):
     verification_result: OutcomeActionVerificationEvidence | None = None
     approval_decision: Literal["approved"] | None = None
     approval_evidence: str | None = Field(default=None, min_length=1)
+    commercial_intent: float | None = Field(default=None, exclude=True)
+    visibility_gap: float | None = Field(default=None, exclude=True)
+    competitor_advantage: float | None = Field(default=None, exclude=True)
+    reputation_risk: float | None = Field(default=None, exclude=True)
+    demand: float | None = Field(default=None, exclude=True)
+    expected_influence: float | None = Field(default=None, exclude=True)
+    confidence_score: float | None = Field(default=None, exclude=True)
+    effort: float | None = Field(default=None, exclude=True)
 
     @model_validator(mode="after")
     def require_approval_evidence(self):

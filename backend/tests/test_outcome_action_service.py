@@ -20,7 +20,7 @@ def _make_client(db, name="Acme Dental"):
     return client
 
 
-def _create_payload(source_ref="content_gap:emergency-dental"):
+def _create_payload(source_ref="content_gap:emergency-dental", **scoring_inputs):
     from app.schemas.outcome_action import OutcomeActionCreate
 
     return OutcomeActionCreate(
@@ -32,6 +32,7 @@ def _create_payload(source_ref="content_gap:emergency-dental"):
         priority="high",
         confidence="repeated",
         client_safe_summary="Create a page for emergency dental searches.",
+        **scoring_inputs,
     )
 
 
@@ -87,6 +88,59 @@ def test_create_action_reuses_existing_client_source_reference(db):
 
     assert second.id == first.id
     assert db.query(type(first)).count() == 1
+
+
+def test_create_action_persists_server_owned_priority_score_and_reasons(db):
+    from app.services.outcome_action_service import create_action
+
+    client = _make_client(db)
+    action = create_action(
+        client.id,
+        _create_payload(
+            commercial_intent=1.0,
+            visibility_gap=1.0,
+            competitor_advantage=0.8,
+            reputation_risk=0.0,
+            demand=0.6,
+            expected_influence=0.7,
+            confidence_score=0.8,
+            effort=0.4,
+        ),
+        db,
+    )
+
+    assert action.priority == "medium"
+    assert action.priority_score == 58
+    assert action.priority_reasons["version"] == "v1"
+    assert "high commercial intent" in action.priority_reasons["reasons"]
+    assert len(action.priority_reasons["reasons"]) <= 3
+
+
+def test_patch_action_recalculates_priority_when_scoring_inputs_change(db):
+    from app.schemas.outcome_action import OutcomeActionPatch
+    from app.services.outcome_action_service import create_action, patch_action
+
+    client = _make_client(db)
+    action = create_action(
+        client.id,
+        _create_payload(
+            commercial_intent=1.0,
+            visibility_gap=1.0,
+            competitor_advantage=0.8,
+            reputation_risk=0.0,
+            demand=0.6,
+            expected_influence=0.7,
+            confidence_score=0.8,
+            effort=0.4,
+        ),
+        db,
+    )
+
+    patched = patch_action(action, OutcomeActionPatch(reputation_risk=1.0), db)
+
+    assert patched.priority == "high"
+    assert patched.priority_score == 76
+    assert patched.priority_reasons["inputs"]["reputation_risk"] == 1.0
 
 
 def test_create_action_requires_source_reference():

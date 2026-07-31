@@ -12,6 +12,13 @@ from app.schemas.outcome_action import (
     OutcomeActionCreate,
     OutcomeActionPatch,
     OutcomeActionVerificationEvidence,
+    SCORING_INPUT_FIELDS,
+)
+from app.services.outcome_priority_service import (
+    PRIORITY_CALCULATION_VERSION,
+    PriorityInputs,
+    normalize_priority_inputs,
+    score_priority,
 )
 
 
@@ -42,7 +49,9 @@ def create_action(client_id: uuid.UUID, payload: OutcomeActionCreate, db: Sessio
     if existing is not None:
         return existing
 
-    action = OutcomeAction(client_id=client_id, **payload.model_dump())
+    action_values = payload.model_dump()
+    action_values.update(_priority_fields(_priority_inputs_from_payload(payload)))
+    action = OutcomeAction(client_id=client_id, **action_values)
     db.add(action)
     try:
         db.commit()
@@ -88,6 +97,7 @@ def patch_action(action: OutcomeAction, payload: OutcomeActionPatch, db: Session
     dismissal_reason = updates.pop("dismissal_reason", None)
     approval_decision = updates.pop("approval_decision", None)
     approval_evidence = updates.pop("approval_evidence", None)
+    changed_scoring_fields = set(payload.model_fields_set).intersection(SCORING_INPUT_FIELDS)
     if payload.verification_result is not None:
         updates["verification_result"] = payload.verification_result.model_dump(mode="json")
     if dismissal_reason is not None:
@@ -98,9 +108,68 @@ def patch_action(action: OutcomeAction, payload: OutcomeActionPatch, db: Session
         action.approval_evidence_hash = hashlib.sha256(approval_evidence.encode()).hexdigest()
     for field, value in updates.items():
         setattr(action, field, value)
+    if changed_scoring_fields:
+        action_fields = _priority_fields(
+            _priority_inputs_from_payload(payload, _stored_priority_inputs(action))
+        )
+        for field, value in action_fields.items():
+            setattr(action, field, value)
     db.commit()
     db.refresh(action)
     return action
+
+
+def _priority_inputs_from_payload(
+    payload: OutcomeActionCreate | OutcomeActionPatch,
+    existing: dict[str, float] | None = None,
+) -> PriorityInputs:
+    values = existing.copy() if existing else {}
+    for field in SCORING_INPUT_FIELDS:
+        if isinstance(payload, OutcomeActionPatch) and field not in payload.model_fields_set:
+            continue
+        values[field] = getattr(payload, field)
+    return PriorityInputs(
+        commercial_intent=values.get("commercial_intent"),
+        visibility_gap=values.get("visibility_gap"),
+        competitor_advantage=values.get("competitor_advantage"),
+        reputation_risk=values.get("reputation_risk"),
+        demand=values.get("demand"),
+        expected_influence=values.get("expected_influence"),
+        confidence=values.get("confidence_score"),
+        effort=values.get("effort"),
+    )
+
+
+def _stored_priority_inputs(action: OutcomeAction) -> dict[str, float]:
+    payload = action.priority_reasons
+    if not isinstance(payload, dict):
+        return {}
+    inputs = payload.get("inputs")
+    return inputs if isinstance(inputs, dict) else {}
+
+
+def _priority_fields(inputs: PriorityInputs) -> dict[str, object]:
+    normalized = normalize_priority_inputs(inputs)
+    result = score_priority(normalized)
+    stored_inputs = {
+        "commercial_intent": normalized.commercial_intent,
+        "visibility_gap": normalized.visibility_gap,
+        "competitor_advantage": normalized.competitor_advantage,
+        "reputation_risk": normalized.reputation_risk,
+        "demand": normalized.demand,
+        "expected_influence": normalized.expected_influence,
+        "confidence_score": normalized.confidence,
+        "effort": normalized.effort,
+    }
+    return {
+        "priority": result.band,
+        "priority_score": result.score,
+        "priority_reasons": {
+            "version": PRIORITY_CALCULATION_VERSION,
+            "reasons": list(result.reasons),
+            "inputs": stored_inputs,
+        },
+    }
 
 
 def transition_action(action: OutcomeAction, target_status: str, db: Session) -> OutcomeAction:
