@@ -9,6 +9,7 @@ from app.models.authority_asset import AuthorityAsset
 from app.models.content_deliverable import ContentDeliverable
 from app.models.outcome_action import OutcomeAction
 from app.models.remediation_item import RemediationItem
+from app.services.authority_service import _INTERNAL_ONLY_ASSET_KEYS
 from app.services.language_sanitizer import sanitize_text
 
 
@@ -96,7 +97,9 @@ def suggest_from_remediation(item: RemediationItem, db: Session) -> OutcomeActio
     )
 
 
-def suggest_from_authority(asset: AuthorityAsset, db: Session) -> OutcomeAction:
+def suggest_from_authority(asset: AuthorityAsset, db: Session) -> OutcomeAction | None:
+    if asset.asset_key in _INTERNAL_ONLY_ASSET_KEYS:
+        return None
     return suggest_once(
         client_id=asset.client_id,
         source_kind="authority",

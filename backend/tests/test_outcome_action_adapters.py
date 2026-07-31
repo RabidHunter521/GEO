@@ -87,6 +87,22 @@ def test_authority_adapter_is_idempotent(db):
     assert action.status == "recommended"
 
 
+def test_authority_adapter_skips_internal_only_assets(db):
+    client = _make_client(db)
+    asset = AuthorityAsset(
+        client_id=client.id,
+        asset_key="schema_sameas",
+        name="sameAs links in site schema",
+        asset_type="other",
+        status="live",
+    )
+    db.add(asset)
+    db.commit()
+
+    assert adapters.suggest_from_authority(asset, db) is None
+    assert _actions_for(client.id, db) == []
+
+
 def test_link_deliverable_is_idempotent_and_updates_existing_action(db):
     client = _make_client(db)
     deliverable = ContentDeliverable(
