@@ -1045,3 +1045,81 @@ export interface ClientViewWorkLogItem {
   category_label: string
   entry_date: string
 }
+
+// --- Outcome Actions (Phase 2 delivery operating system) ---
+export type OutcomeActionType =
+  | "content" | "technical" | "structured_data" | "fact_correction"
+  | "accuracy_review" | "authority" | "local_presence"
+  | "competitor_response" | "measurement"
+
+export type OutcomeActionStatus =
+  | "detected" | "recommended" | "approved_internal" | "in_progress"
+  | "waiting_client" | "ready_to_publish" | "published"
+  | "waiting_verification" | "verified" | "no_change" | "superseded" | "dismissed"
+
+export interface OutcomeAction {
+  id: string
+  client_id: string
+  title: string
+  action_type: OutcomeActionType
+  priority: string
+  confidence: string
+  status: OutcomeActionStatus
+  owner: string | null
+  due_date: string | null
+  destination_url: string | null
+  client_safe_summary: string | null
+  published_at: string | null
+  verified_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OutcomeActionListResponse {
+  actions: OutcomeAction[]
+  total: number
+}
+
+export interface OutcomeActionCreate {
+  source_kind: string
+  source_ref: string
+  title: string
+  rationale: string
+  action_type: OutcomeActionType
+  priority: string
+  confidence: string
+  scan_id?: string | null
+  work_log_entry_id?: string | null
+  content_deliverable_id?: string | null
+  owner?: string | null
+  due_date?: string | null
+  destination_url?: string | null
+  client_safe_summary?: string | null
+  commercial_intent?: number | null
+  visibility_gap?: number | null
+  competitor_advantage?: number | null
+  reputation_risk?: number | null
+  demand?: number | null
+  expected_influence?: number | null
+  confidence_score?: number | null
+  effort?: number | null
+}
+
+export interface OutcomeActionPatch {
+  owner?: string | null
+  due_date?: string | null
+  client_safe_summary?: string | null
+  destination_url?: string | null
+  dismissal_reason?: string | null
+  verification_result?: { scan_id: string; basis: "visibility_change" | "no_change" } | null
+  approval_decision?: "approved" | null
+  approval_evidence?: string | null
+  commercial_intent?: number | null
+  visibility_gap?: number | null
+  competitor_advantage?: number | null
+  reputation_risk?: number | null
+  demand?: number | null
+  expected_influence?: number | null
+  confidence_score?: number | null
+  effort?: number | null
+}

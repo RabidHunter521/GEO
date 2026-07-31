@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -339,6 +339,55 @@ export async function getSuggestedWorkLog(): Promise<WorkLogSuggestion[]> {
 export async function getSuggestedWorkLogCount(): Promise<number> {
   const res = await apiFetch<{ count: number }>("/api/v1/work-log/suggested/count")
   return res.count
+}
+
+// â”€â”€ Outcome Actions â”€â”€
+export function getOutcomeActions(
+  clientId: string,
+  options?: { status?: OutcomeActionStatus; due_from?: string; due_to?: string; page?: number; page_size?: number },
+): Promise<OutcomeActionListResponse> {
+  const params = new URLSearchParams()
+  if (options?.status) params.set("status", options.status)
+  if (options?.due_from) params.set("due_from", options.due_from)
+  if (options?.due_to) params.set("due_to", options.due_to)
+  if (options?.page) params.set("page", String(options.page))
+  if (options?.page_size) params.set("page_size", String(options.page_size))
+  const query = params.size ? `?${params}` : ""
+  return apiFetch<OutcomeActionListResponse>(`/api/v1/clients/${clientId}/outcome-actions${query}`)
+}
+
+export function getOutcomeAction(clientId: string, actionId: string): Promise<OutcomeAction> {
+  return apiFetch<OutcomeAction>(`/api/v1/clients/${clientId}/outcome-actions/${actionId}`)
+}
+
+export function createOutcomeAction(clientId: string, body: OutcomeActionCreate): Promise<OutcomeAction> {
+  return apiFetch<OutcomeAction>(`/api/v1/clients/${clientId}/outcome-actions`, {
+    method: "POST", body: JSON.stringify(body),
+  })
+}
+
+export function patchOutcomeAction(
+  clientId: string, actionId: string, body: OutcomeActionPatch,
+): Promise<OutcomeAction> {
+  return apiFetch<OutcomeAction>(`/api/v1/clients/${clientId}/outcome-actions/${actionId}`, {
+    method: "PATCH", body: JSON.stringify(body),
+  })
+}
+
+export function transitionOutcomeAction(
+  clientId: string, actionId: string, status: OutcomeActionStatus,
+): Promise<OutcomeAction> {
+  return apiFetch<OutcomeAction>(`/api/v1/clients/${clientId}/outcome-actions/${actionId}/transition`, {
+    method: "POST", body: JSON.stringify({ status }),
+  })
+}
+
+export function getOutcomeActionReviewQueue(options?: { page?: number; page_size?: number }): Promise<OutcomeActionListResponse> {
+  const params = new URLSearchParams()
+  if (options?.page) params.set("page", String(options.page))
+  if (options?.page_size) params.set("page_size", String(options.page_size))
+  const query = params.size ? `?${params}` : ""
+  return apiFetch<OutcomeActionListResponse>(`/api/v1/outcome-actions/review-queue${query}`)
 }
 
 // ── Toolkit ───────────────────────────────────────────────────────────────────
