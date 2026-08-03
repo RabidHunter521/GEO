@@ -55,6 +55,8 @@ def _out(finding: MisinformationFinding, db: Session) -> MisinformationFindingRe
         category_label=MISINFORMATION_CATEGORY_LABELS.get(finding.category, "Incorrect statement"),
         rule_key=finding.rule_key,
         rule_text=COMPLIANCE_RULES.get(finding.rule_key) if finding.rule_key else None,
+        truth_fact_id=finding.truth_fact_id,
+        truth_fact_version_id=finding.truth_fact_version_id,
         severity=finding.severity,
         explanation=finding.explanation,
         status=finding.status,
@@ -98,7 +100,7 @@ def review(
     """Confirm (spawns a tracked corrective item) or dismiss a finding."""
     _require_client(client_id, db)
     _require_finding(client_id, finding_id, db)
-    finding = review_finding(finding_id, body.action, db, note=body.note)
+    finding = review_finding(finding_id, body.action, db, note=body.note, severity=body.severity)
     if finding is None:
         raise HTTPException(
             status_code=409,

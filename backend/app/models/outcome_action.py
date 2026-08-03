@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,12 +39,28 @@ class OutcomeAction(Base):
             sqlite_where=text("approval_token_hash IS NOT NULL"),
         ),
         Index("ix_outcome_actions_client_status", "client_id", "status"),
+        Index("ix_outcome_actions_client_location_status", "client_id", "location_id", "status"),
         Index("ix_outcome_actions_due_date", "due_date"),
+        ForeignKeyConstraint(
+            ["location_id", "client_id"],
+            ["business_locations.id", "business_locations.client_id"],
+            name="fk_outcome_actions_location_client",
+            ondelete="SET NULL (location_id)",
+        ).ddl_if(dialect="postgresql"),
+        ForeignKeyConstraint(
+            ["location_id", "client_id"],
+            ["business_locations.id", "business_locations.client_id"],
+            name="fk_outcome_actions_location_client",
+            ondelete="SET NULL",
+        ).ddl_if(dialect="sqlite"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False
+    )
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
     )
     scan_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("scans.id", ondelete="SET NULL"), nullable=True

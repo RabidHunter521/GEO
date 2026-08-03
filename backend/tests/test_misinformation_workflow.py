@@ -1,5 +1,7 @@
 """Review workflow: suggested → confirmed/dismissed → corrected →
 candidate_fixed → verified_fixed, plus the remediation spawn on confirm."""
+from datetime import timedelta
+
 import pytest
 
 from app.core.time import utcnow
@@ -8,13 +10,16 @@ from app.models.misinformation_finding import MisinformationFinding
 from app.models.remediation_item import RemediationItem
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.models.truth_fact import TruthFact, TruthFactVersion
 from app.services.misinformation_service import (
     check_candidate_fixed,
     get_findings,
     mark_corrected,
     resolve_finding,
     review_finding,
+    store_truth_conflict_candidates,
 )
+from app.services.truth_comparison_service import TruthConflictCandidate
 
 RESPONSE = "Klinik A guarantees full recovery for every patient."
 
@@ -62,6 +67,93 @@ def test_confirm_stamps_review_and_spawns_remediation(db):
     # The tracked detail names the problem, never the raw AI response.
     assert "guarantee" in (item.detail or "").lower()
     assert RESPONSE not in (item.detail or "")
+
+
+def test_truth_conflicts_stay_suggested_until_a_reviewer_confirms_and_sets_severity(db):
+    client, _, result, _ = _setup(db)
+    fact = TruthFact(client_id=client.id, fact_type="business", fact_key="outcome_policy")
+    db.add(fact)
+    db.flush()
+    version = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json={"value": "No guarantees", "display_value": "No guarantees"},
+        status="approved",
+        effective_from=utcnow() - timedelta(days=1),
+        approved_at=utcnow() - timedelta(days=1),
+        approved_by="admin",
+    )
+    db.add(version)
+    db.commit()
+    candidate = TruthConflictCandidate(
+        answer_quote="guarantees full recovery",
+        claim_value="guarantees full recovery",
+        truth_fact_id=fact.id,
+        truth_fact_version_id=version.id,
+        fact_type="business",
+        fact_key="outcome_policy",
+        approved_value="No guarantees",
+        source_url="https://klinik-a.example/policies",
+        comparator="text",
+    )
+
+    stored = store_truth_conflict_candidates(client.id, result.id, [candidate], db)
+
+    assert stored == 1
+    finding = db.query(MisinformationFinding).filter_by(truth_fact_version_id=version.id).one()
+    assert finding.status == "suggested"
+    assert finding.category == "factual_error"
+    assert finding.severity == "low"
+    assert finding.truth_fact_id == fact.id
+    assert finding.truth_fact_version_id == version.id
+
+    reviewed = review_finding(finding.id, "confirm", db, severity="high")
+
+    assert reviewed is not None
+    assert reviewed.status == "confirmed"
+    assert reviewed.severity == "high"
+
+
+@pytest.mark.parametrize(
+    ("status", "effective_from"),
+    [
+        ("draft", None),
+        ("approved", utcnow() + timedelta(days=1)),
+    ],
+)
+def test_truth_conflict_candidate_requires_an_approved_version_effective_at_scan(
+    db, status, effective_from
+):
+    client, scan, result, _ = _setup(db)
+    fact = TruthFact(client_id=client.id, fact_type="business", fact_key=f"policy_{status}")
+    db.add(fact)
+    db.flush()
+    version = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json={"value": "No guarantees", "display_value": "No guarantees"},
+        status=status,
+        effective_from=effective_from,
+        approved_at=utcnow() if status == "approved" else None,
+        approved_by="admin" if status == "approved" else None,
+    )
+    db.add(version)
+    db.commit()
+    candidate = TruthConflictCandidate(
+        answer_quote="guarantees full recovery",
+        claim_value="guarantees full recovery",
+        truth_fact_id=fact.id,
+        truth_fact_version_id=version.id,
+        fact_type="business",
+        fact_key=fact.fact_key,
+        approved_value="No guarantees",
+        source_url="https://klinik-a.example/policies",
+        comparator="text",
+    )
+
+    stored = store_truth_conflict_candidates(client.id, result.id, [candidate], db)
+
+    assert scan.completed_at is not None
+    assert stored == 0
+    assert db.query(MisinformationFinding).filter_by(truth_fact_version_id=version.id).count() == 0
 
 
 def test_confirm_is_refused_once_the_finding_left_review(db):

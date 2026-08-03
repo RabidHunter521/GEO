@@ -43,6 +43,7 @@ export const CLIENT_NAV_GROUPS = [
     items: [
       { href: "/toolkit", label: "Technical Foundations" },
       { href: "/authority", label: "Authority" },
+      { href: "/reputation/truth", label: "Business Truth" },
     ],
   },
   {

@@ -19,7 +19,7 @@
 - Brand-wide facts use `location_id = NULL`; location facts use a client-owned location ID.
 - Never delete a fact version referenced by evidence.
 - Every new table receives RLS and anon grant revocation.
-- Migration revision: `b9e5a3d2c8f0`, down revision: `a8d4f2c1b7e9`.
+- Migration revision: `b9e5a3d2c8f0`, down revision: `b9e1f2a3c4d5`.
 - Use `rtk`, TDD, reversible migrations, and focused commits.
 
 ---
@@ -449,7 +449,7 @@ rtk git commit -m "feat: show approved truth and accuracy health"
 ```powershell
 cd backend
 rtk alembic upgrade head
-rtk alembic downgrade a8d4f2c1b7e9
+rtk alembic downgrade b9e1f2a3c4d5
 rtk alembic upgrade head
 ```
 

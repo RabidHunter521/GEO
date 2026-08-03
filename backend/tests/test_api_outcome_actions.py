@@ -1,5 +1,4 @@
 """Authenticated Outcome Action API contract."""
-from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -157,6 +156,42 @@ def test_list_filters_by_status_due_date_and_paginates(client, db, auth_headers)
         headers=auth_headers,
         params={"page_size": 101},
     ).status_code == 422
+
+
+def test_location_filtered_list_delegates_to_the_outcome_action_service(
+    client, db, auth_headers, monkeypatch
+):
+    from app.models.business_location import BusinessLocation
+    from app.services import outcome_action_service
+
+    account = _make_client(db)
+    location = BusinessLocation(client_id=account.id, name="Orchard", slug="orchard")
+    db.add(location)
+    db.commit()
+    created = _create_action(client, account.id, auth_headers, location_id=str(location.id))
+    calls = []
+    original_list_actions = outcome_action_service.list_actions
+
+    def record_list_actions(client_id, db_session, **kwargs):
+        calls.append((client_id, kwargs))
+        return original_list_actions(client_id, db_session, **kwargs)
+
+    monkeypatch.setattr(outcome_action_service, "list_actions", record_list_actions)
+
+    response = client.get(
+        f"/api/v1/clients/{account.id}/outcome-actions",
+        headers=auth_headers,
+        params={"location_id": str(location.id)},
+    )
+
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()["actions"]] == [created["id"]]
+    assert calls == [
+        (
+            account.id,
+            {"status": None, "location_id": location.id, "due_from": None, "due_to": None},
+        )
+    ]
 
 
 def test_patch_and_invalid_transition_are_validated_server_side(client, db, auth_headers):

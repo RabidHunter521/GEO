@@ -120,6 +120,18 @@ def test_review_confirm_then_corrected_then_resolve(client, db, auth_headers):
     assert res.status_code == 200 and res.json()["status"] == "verified_fixed"
 
 
+def test_reviewer_can_change_candidate_severity(client, db, auth_headers):
+    c, f = _seed(db)
+
+    res = client.post(
+        f"/api/v1/clients/{c.id}/misinformation/{f.id}/review",
+        json={"action": "confirm", "severity": "low"}, headers=auth_headers,
+    )
+
+    assert res.status_code == 200
+    assert res.json()["severity"] == "low"
+
+
 def test_review_rejects_unknown_action(client, db, auth_headers):
     c, f = _seed(db)
     res = client.post(

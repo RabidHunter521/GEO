@@ -726,6 +726,30 @@ export interface ClientViewIssueGroup {
   issues: string[]
 }
 
+// Truth-health data is exposed only through the share-token view. These are
+// deliberately not the admin Truth Vault types: no draft values, identifiers,
+// evidence URLs, reviewer notes, approval identities, or source metadata.
+export interface ClientViewLocationSummary {
+  name: string
+  city: string | null
+  hours_summary: string | null
+  service_categories: string[]
+}
+
+export interface ClientViewReviewedConflictSummary {
+  summary: string
+  status_label: "Open" | "Corrected" | "Resolved"
+}
+
+export interface ClientViewTruthHealth {
+  locations: ClientViewLocationSummary[]
+  fact_freshness: string | null
+  reviewed_open_issue_count: number
+  corrected_count: number
+  open_issues: ClientViewReviewedConflictSummary[]
+  resolved_issues: ClientViewReviewedConflictSummary[]
+}
+
 // --- Deliverables surfaced read-only on the client view ---
 
 export interface ClientViewRoadmapItem {
@@ -1161,4 +1185,96 @@ export interface OutcomeActionPatch {
   expected_influence?: number | null
   confidence_score?: number | null
   effort?: number | null
+}
+
+// --- Business locations and Truth Vault (admin only) ---
+export interface OpeningPeriod {
+  open: string
+  close: string
+}
+
+export interface BusinessLocation {
+  id: string
+  client_id: string
+  name: string
+  slug: string
+  is_primary: boolean
+  active: boolean
+  website: string | null
+  address_line_1: string | null
+  address_line_2: string | null
+  city: string | null
+  state: string | null
+  postcode: string | null
+  country: string | null
+  phone: string | null
+  latitude: number | null
+  longitude: number | null
+  service_area_json: unknown[] | Record<string, unknown> | null
+  hours_json: Record<string, OpeningPeriod[]> | null
+  booking_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface BusinessLocationInput {
+  name?: string
+  is_primary?: boolean
+  website?: string | null
+  address_line_1?: string | null
+  address_line_2?: string | null
+  city?: string | null
+  state?: string | null
+  postcode?: string | null
+  country?: string | null
+  phone?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  service_area_json?: unknown[] | Record<string, unknown> | null
+  hours_json?: Record<string, OpeningPeriod[]> | null
+  booking_url?: string | null
+}
+
+export interface TruthValue {
+  value: string | number | boolean | unknown[] | Record<string, unknown> | null
+  display_value: string
+}
+
+export type TruthFactVersionStatus = "draft" | "approved" | "retired"
+export type TruthFactScope = "brand" | "location"
+
+// Reviewer notes are intentionally not represented here. They are a private
+// draft-workflow input, not a serializable contract for admin page consumers.
+export interface TruthFactVersion {
+  id: string
+  truth_fact_id: string
+  value: TruthValue
+  status: TruthFactVersionStatus
+  source_url: string | null
+  effective_from: string | null
+  effective_to: string | null
+  approved_at: string | null
+  approved_by: string | null
+  created_at: string
+}
+
+export interface TruthFact {
+  id: string
+  client_id: string
+  location_id: string | null
+  fact_type: string
+  fact_key: string
+  created_at: string
+  versions: TruthFactVersion[]
+}
+
+export interface TruthFactListResponse {
+  facts: TruthFact[]
+  total: number
+}
+
+export interface TruthFactDraftInput {
+  value: TruthValue
+  source_url?: string | null
+  effective_from: string
 }

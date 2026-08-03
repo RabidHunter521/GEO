@@ -36,6 +36,14 @@ class MisinformationFinding(Base):
     scan_query_result_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("scan_query_results.id", ondelete="CASCADE"), nullable=False
     )
+    # Optional Truth Vault evidence for deterministic factual-conflict candidates.
+    # No cascade is deliberate: fact history referenced by scan evidence is retained.
+    truth_fact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("truth_facts.id"), nullable=True, index=True
+    )
+    truth_fact_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("truth_fact_versions.id"), nullable=True, index=True
+    )
     # Verbatim substring of the source response — the evidence, never paraphrased.
     quote: Mapped[str] = mapped_column(Text, nullable=False)
     # wrong_service | factual_error | prohibited_claim | outdated_info

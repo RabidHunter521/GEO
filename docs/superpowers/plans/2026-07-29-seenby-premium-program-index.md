@@ -51,6 +51,7 @@ This is the default release order. Phase 1 design and Phase 2 schema work may be
 ```text
 current head d3f7a1c58e02
   -> a8d4f2c1b7e9  Phase 2: outcome_actions
+  -> b9e1f2a3c4d5  Phase 2: preserve outcome action evidence
   -> b9e5a3d2c8f0  Phase 3: locations and truth vault
   -> c0f6b4e3d9a1  Phase 4: pack selection and version
   -> d1a7c5f4e0b2  Phase 5: measurement and business proof
