@@ -149,4 +149,11 @@ def generate_deliverable(
     ))
     db.commit()
     db.refresh(deliverable)
+    try:
+        from app.services import outcome_action_adapter_service
+        outcome_action_adapter_service.link_deliverable(deliverable, db)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.warning("outcome_action_deliverable_link_failed", deliverable_id=str(deliverable.id), error=str(exc))
     return deliverable

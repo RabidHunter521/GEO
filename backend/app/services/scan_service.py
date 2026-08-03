@@ -415,6 +415,13 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             db.rollback()
             logger.error("work_log_flip_suggestions_failed", scan_id=str(scan_id), error=str(exc))
 
+        try:
+            from app.services.outcome_verification_service import verify_waiting_actions
+            verify_waiting_actions(scan.id, client.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("outcome_action_verification_failed", scan_id=str(scan_id), error=str(exc))
+
         # Misinformation compliance pass — stores admin-review candidates whose
         # quotes are verbatim in this scan's responses. Best-effort like every
         # other post-commit step; the service also swallows its own errors.

@@ -3,8 +3,8 @@
 // client-safe "what we've done for you" surface (spec §3.5); suggested and
 // dismissed entries never reach this page (filtered server-side).
 import { notFound } from "next/navigation"
-import { Sparkles } from "lucide-react"
-import { getViewWorkLog } from "@/lib/view-api"
+import { ExternalLink, ShieldCheck, Sparkles } from "lucide-react"
+import { getViewCompletedWork, getViewWorkLog } from "@/lib/view-api"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import type { ClientViewWorkLogItem } from "@/types"
 import { parseDateOnly } from "@/lib/utils"
@@ -21,10 +21,13 @@ export default async function ViewProgressPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const entries = await getViewWorkLog(token)
-  if (!entries) notFound()
+  const [entries, completedWork] = await Promise.all([
+    getViewWorkLog(token),
+    getViewCompletedWork(token),
+  ])
+  if (!entries || !completedWork) notFound()
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && completedWork.length === 0) {
     return (
       <div className="reveal relative overflow-hidden rounded-2xl border bg-card bg-hero-wash p-8 text-center shadow-brand-lg">
         <span
@@ -58,15 +61,76 @@ export default async function ViewProgressPage({
       <section className="reveal" style={{ animationDelay: "0ms" }}>
         <SectionHeading>Progress</SectionHeading>
         <p className="text-sm text-muted-foreground">
-          {entries.length} improvement{entries.length === 1 ? "" : "s"} delivered.
+          {entries.length + completedWork.length} improvement
+          {entries.length + completedWork.length === 1 ? "" : "s"} delivered.
         </p>
       </section>
+
+      {completedWork.length > 0 && (
+        <section className="reveal space-y-4" style={{ animationDelay: "40ms" }}>
+          <div>
+            <h2 className="font-display text-lg font-semibold">Verified Proof</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Actions checked against follow-up AI visibility scans.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {completedWork.map((item, idx) => (
+              <article
+                key={`${item.title}-${idx}`}
+                className="card-lift rounded-xl border bg-card p-5"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-score-strong-bg text-score-strong">
+                    <ShieldCheck className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-[12rem] flex-1 font-display text-sm font-semibold">
+                        {item.title}
+                      </h3>
+                      <span className="rounded-full bg-score-strong-bg px-2.5 py-0.5 text-xs font-medium text-score-strong">
+                        {item.status_label}
+                      </span>
+                    </div>
+                    {item.client_safe_summary && (
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        {item.client_safe_summary}
+                      </p>
+                    )}
+                    {item.verification_claim && (
+                      <p className="mt-3 rounded-lg border border-score-strong/20 bg-score-strong-bg px-3 py-2 text-xs leading-relaxed text-score-strong">
+                        {item.verification_claim}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      {item.completed_month && <span>Checked {item.completed_month}</span>}
+                      {item.destination_url && (
+                        <a
+                          href={item.destination_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          View destination
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {[...groups.entries()].map(([month, items], i) => (
         <section
           key={month}
           className="reveal card-lift rounded-xl border bg-card p-5"
-          style={{ animationDelay: `${60 + i * 30}ms` }}
+          style={{ animationDelay: `${80 + i * 30}ms` }}
         >
           <h3 className="font-display text-sm font-semibold">{month}</h3>
           <ul className="mt-3 space-y-3">

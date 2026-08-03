@@ -20,6 +20,7 @@ from app.core.constants import (
 )
 from app.core.time import utcnow
 from app.models.client import Client
+from app.models.outcome_action import OutcomeAction
 from app.models.work_log_entry import WorkLogEntry
 from app.services.language_sanitizer import sanitize_text
 
@@ -255,6 +256,26 @@ def suggested_count(db: Session) -> int:
         .filter(WorkLogEntry.status == "suggested", Client.archived_at.is_(None))
         .count()
     )
+
+
+def suggest_verified_outcome_action(action: OutcomeAction, db: Session) -> WorkLogEntry | None:
+    """Suggest client-safe proof only for scan-verified delivery actions."""
+    if action.status != "verified":
+        return None
+    description = action.client_safe_summary or action.title
+    entry = suggest(
+        action.client_id,
+        "visibility",
+        description,
+        f"outcome_action:{action.id}",
+        db,
+        entry_date=(action.verified_at or utcnow()).date(),
+    )
+    if entry is not None and action.work_log_entry_id != entry.id:
+        action.work_log_entry_id = entry.id
+        db.commit()
+        db.refresh(action)
+    return entry
 
 
 _MAX_FLIP_SUGGESTIONS = 5

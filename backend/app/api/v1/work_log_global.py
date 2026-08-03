@@ -21,6 +21,11 @@ router = APIRouter(prefix="/work-log", tags=["work-log-global"])
     response_model=list[WorkLogSuggestionOut],
     dependencies=[Depends(require_api_key)],
 )
+@router.get(
+    "/review-queue",
+    response_model=list[WorkLogSuggestionOut],
+    dependencies=[Depends(require_api_key)],
+)
 def list_suggested(db: Session = Depends(get_db)):
     out: list[WorkLogSuggestionOut] = []
     for entry, client in work_log_service.suggested_across_clients(db):

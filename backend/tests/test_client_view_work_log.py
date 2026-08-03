@@ -109,3 +109,146 @@ def test_public_work_log_is_capped(db):
     assert capped[0].description == "Delivered item 4"
 
     assert len(work_log_service.published_entries(client.id, db)) == 5
+
+
+def test_action_plan_exposes_only_client_safe_whitelisted_fields(client, db):
+    from datetime import date
+    from app.models.outcome_action import OutcomeAction
+
+    c = _client_with_token(db)
+    action = OutcomeAction(
+        client_id=c.id,
+        source_kind="content_gap",
+        source_ref="scan_query_result:private",
+        title="Publish emergency dental page",
+        rationale="Internal rationale must not leak.",
+        action_type="content",
+        priority="high",
+        priority_score=91,
+        priority_reasons={"reasons": ["private formula"]},
+        confidence="repeated",
+        owner="Maya",
+        due_date=date(2026, 8, 15),
+        status="in_progress",
+        destination_url="https://acme.example.com/emergency",
+        client_safe_summary="We are preparing a page for emergency dental searches.",
+        verification_result={"basis": "query_presence", "scan_id": "private"},
+        approval_token_hash="private-token-hash",
+    )
+    db.add(action)
+    db.commit()
+
+    r = client.get(f"/api/v1/view/{c.share_token}/action-plan")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert set(body[0]) == {
+        "title",
+        "status_label",
+        "due_month",
+        "client_safe_summary",
+        "destination_url",
+    }
+    dumped = str(body)
+    assert "Internal rationale" not in dumped
+    assert "private" not in dumped
+    assert "Maya" not in dumped
+    assert "priority" not in dumped
+    assert body[0]["due_month"] == "August 2026"
+
+
+def test_action_plan_prospect_404(client, db):
+    from app.models.outcome_action import OutcomeAction
+
+    c = _client_with_token(db)
+    c.is_prospect = True
+    db.add(
+        OutcomeAction(
+            client_id=c.id,
+            source_kind="content_gap",
+            source_ref="scan_query_result:private",
+            title="Publish emergency dental page",
+            rationale="Internal rationale must not leak.",
+            action_type="content",
+            priority="high",
+            confidence="repeated",
+            status="in_progress",
+            client_safe_summary="We are preparing a page.",
+        )
+    )
+    db.commit()
+
+    r = client.get(f"/api/v1/view/{c.share_token}/action-plan")
+
+    assert r.status_code == 404
+
+
+def test_completed_work_exposes_verification_claim_without_raw_evidence(client, db):
+    from datetime import date
+    from app.models.outcome_action import OutcomeAction
+
+    c = _client_with_token(db)
+    verified = OutcomeAction(
+        client_id=c.id,
+        source_kind="content_gap",
+        source_ref="scan_query_result:private",
+        title="Emergency dental page is live",
+        rationale="Internal rationale must not leak.",
+        action_type="content",
+        priority="high",
+        priority_score=91,
+        priority_reasons={"reasons": ["private formula"]},
+        confidence="repeated",
+        owner="Maya",
+        due_date=date(2026, 8, 15),
+        status="verified",
+        destination_url="https://acme.example.com/emergency",
+        client_safe_summary="We published a page for emergency dental searches.",
+        verification_result={
+            "basis": "query_presence",
+            "before_seen": False,
+            "after_seen": True,
+            "scan_id": "private-scan",
+            "claim": "Observed after publication; causality not established",
+        },
+        approval_token_hash="private-token-hash",
+    )
+    no_change = OutcomeAction(
+        client_id=c.id,
+        source_kind="content_gap",
+        source_ref="scan_query_result:no-change",
+        title="No-change action",
+        rationale="Internal rationale must not leak.",
+        action_type="content",
+        priority="medium",
+        confidence="repeated",
+        status="no_change",
+        client_safe_summary="No public success claim here.",
+    )
+    db.add_all([verified, no_change])
+    db.commit()
+
+    r = client.get(f"/api/v1/view/{c.share_token}/completed-work")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    assert set(body[0]) == {
+        "title",
+        "status_label",
+        "due_month",
+        "completed_month",
+        "client_safe_summary",
+        "destination_url",
+        "verification_claim",
+    }
+    dumped = str(body)
+    assert "private-scan" not in dumped
+    assert "before_seen" not in dumped
+    assert "after_seen" not in dumped
+    assert "Internal rationale" not in dumped
+    assert "Maya" not in dumped
+    assert "priority" not in dumped
+    assert body[0]["status_label"] == "Verified"
+    assert body[0]["verification_claim"] == "Observed after publication; causality not established"

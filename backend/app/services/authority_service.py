@@ -182,6 +182,13 @@ def update_asset(asset: AuthorityAsset, patch: dict, db: Session) -> AuthorityAs
             )
         except Exception:  # never let a suggestion undo a saved status change
             db.rollback()
+        try:
+            from app.services import outcome_action_adapter_service
+            outcome_action_adapter_service.suggest_from_authority(asset, db)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            logger.warning("outcome_action_authority_suggest_failed", asset_id=str(asset.id), error=str(exc))
     return asset
 
 
@@ -303,6 +310,13 @@ def verify_asset(asset: AuthorityAsset, client: Client, db: Session) -> tuple[Au
             )
         except Exception:
             db.rollback()
+        try:
+            from app.services import outcome_action_adapter_service
+            outcome_action_adapter_service.suggest_from_authority(asset, db)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            logger.warning("outcome_action_authority_suggest_failed", asset_id=str(asset.id), error=str(exc))
     return asset, note
 
 

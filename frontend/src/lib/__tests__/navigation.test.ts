@@ -24,6 +24,7 @@ describe("navigation contract", () => {
       "/content-gaps",
       "/content-roadmap",
       "/content-studio",
+      "/delivery",
       "/checklist",
       "/activity",
       "/reports",

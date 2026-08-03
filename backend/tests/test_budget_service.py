@@ -3,12 +3,32 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+from app.models.client import Client
 from app.models.llm_call_log import LlmCallLog
 from app.services import budget_service
 from app.core.time import utcnow
 
 
+def _client(db, client_id):
+    client = db.get(Client, client_id)
+    if client is not None:
+        return client
+
+    client = Client(
+        id=client_id,
+        name="Acme",
+        website="https://acme.com",
+        industry="software",
+    )
+    db.add(client)
+    db.commit()
+    return client
+
+
 def _log(db, client_id, cost, days_ago=0):
+    if client_id is not None:
+        _client(db, client_id)
+
     row = LlmCallLog(
         client_id=client_id,
         service="scan_gemini",

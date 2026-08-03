@@ -56,6 +56,7 @@ export const CLIENT_NAV_GROUPS = [
   {
     label: "Delivery",
     items: [
+      { href: "/delivery", label: "Delivery" },
       { href: "/checklist", label: "Action Plan" },
       { href: "/activity", label: "Delivery & Progress" },
     ],

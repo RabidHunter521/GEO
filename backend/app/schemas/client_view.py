@@ -110,6 +110,26 @@ class ClientViewWorkLogItem(BaseModel):
     entry_date: date
 
 
+class ClientViewActionPlanItem(BaseModel):
+    """Client-safe delivery action summary."""
+    title: str
+    status_label: str
+    due_month: str | None = None
+    client_safe_summary: str | None = None
+    destination_url: str | None = None
+
+
+class ClientViewCompletedWorkItem(BaseModel):
+    """Client-safe verified action proof."""
+    title: str
+    status_label: str
+    due_month: str | None = None
+    completed_month: str | None = None
+    client_safe_summary: str | None = None
+    destination_url: str | None = None
+    verification_claim: str | None = None
+
+
 class ClientViewCommitment(BaseModel):
     """Whitelisted commitment block. state is COLLAPSED for clients:
     "achieved" | "in_progress" | "missed" — internal pace states

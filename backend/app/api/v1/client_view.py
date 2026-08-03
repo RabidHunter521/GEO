@@ -6,7 +6,9 @@ return a uniform 404 so responses never reveal which state applies. Every
 endpoint is read-only and serializes through the client_view whitelist
 schemas; raw AI responses and internal fields never reach this surface.
 """
-from datetime import timedelta
+import ipaddress
+from datetime import date, datetime, timedelta
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from sqlalchemy.orm import Session
@@ -31,6 +33,7 @@ from app.models.toolkit_files import ToolkitFiles
 from app.models.content_roadmap import ContentRoadmap
 from app.models.content_analysis import ContentAnalysis
 from app.models.activity_log import ActivityLog
+from app.models.outcome_action import OutcomeAction
 from app.models.remediation_item import RemediationItem
 from app.schemas.client_view import (
     ClientViewBenchmark,
@@ -65,7 +68,8 @@ from app.schemas.client_view import (
     ClientViewTrafficValue,
     ClientViewProgressItem,
     ClientViewWorkLogItem,
-    ClientViewPeriodSummary,
+    ClientViewActionPlanItem,
+    ClientViewCompletedWorkItem,
 )
 from app.services.assessment_service import latest_assessment
 from app.services.client_period_summary_service import build_client_period_summary
@@ -111,6 +115,28 @@ def _view_platforms(platform_breakdown: dict | None) -> list[ClientViewPlatform]
 _REMEDIATION_TYPE_LABELS: dict[str, str] = {
     "hallucination": "Inaccurate AI answer",
     "content_gap": "Competitor winning",
+}
+
+_ACTION_STATUS_LABELS: dict[str, str] = {
+    "detected": "Detected",
+    "recommended": "Recommended",
+    "approved_internal": "Approved",
+    "in_progress": "In progress",
+    "waiting_client": "Waiting for approval",
+    "ready_to_publish": "Ready to publish",
+    "published": "Published",
+    "waiting_verification": "Checking results",
+    "verified": "Verified",
+    "no_change": "No verified change",
+}
+
+_PUBLIC_ACTION_PLAN_STATUSES = {
+    "approved_internal",
+    "in_progress",
+    "waiting_client",
+    "ready_to_publish",
+    "published",
+    "waiting_verification",
 }
 
 
@@ -167,6 +193,36 @@ def _accepted_bullets(db: Session, client_id, dimension: str) -> list[str]:
     if row is not None and row.status in ("accepted", "adjusted"):
         return list(row.evidence_bullets)
     return []
+
+
+def _safe_public_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        return None
+    hostname = parsed.hostname.lower()
+    if hostname == "localhost" or hostname.endswith(".local"):
+        return None
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return value
+    if address.is_private or address.is_loopback or address.is_link_local:
+        return None
+    return value
+
+
+def _month_label(value: date | datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.strftime("%B %Y")
+
+
+def _verification_claim(action: OutcomeAction) -> str | None:
+    result = action.verification_result if isinstance(action.verification_result, dict) else {}
+    claim = result.get("claim")
+    return claim if isinstance(claim, str) and claim.strip() else None
 
 
 def require_share_client(
@@ -272,6 +328,15 @@ def get_overview(
         .first()
         is not None
     )
+    has_action_plan = (
+        db.query(OutcomeAction.id)
+        .filter(
+            OutcomeAction.client_id == client.id,
+            OutcomeAction.status.in_(_PUBLIC_ACTION_PLAN_STATUSES),
+        )
+        .first()
+        is not None
+    )
 
     # Latest-month AI-referral pipeline value (the one money number). traffic is
     # ordered period-ascending, so the last element is the most recent month.
@@ -320,6 +385,12 @@ def get_overview(
     _since_date = (utcnow() - timedelta(days=30)).date()
     improvements_last_30d = work_log_service.published_count_since(client.id, db, _since_date)
     has_work_log = work_log_service.has_published(client.id, db)
+    has_verified_work = (
+        db.query(OutcomeAction.id)
+        .filter(OutcomeAction.client_id == client.id, OutcomeAction.status == "verified")
+        .first()
+        is not None
+    )
 
     # Proof of work: how many tracked issues we've corrected this calendar month.
     month_start = utcnow().replace(
@@ -409,10 +480,10 @@ def get_overview(
             latest_report.period_end.strftime("%B %Y") if latest_report else None
         ),
         has_our_work=has_toolkit or has_activity,
-        has_content_plan=has_roadmap or has_gaps,
+        has_content_plan=has_roadmap or has_gaps or has_action_plan,
         traffic_value=traffic_value,
         has_progress=has_progress,
-        has_work_log=has_work_log,
+        has_work_log=has_work_log or has_verified_work,
         improvements_last_30d=improvements_last_30d,
         fixed_this_month=fixed_this_month,
         proof_cards=proof_cards,
@@ -481,6 +552,59 @@ def get_work_log(
         for e in work_log_service.published_entries(
             client.id, db, limit=_MAX_PUBLIC_WORK_LOG_ROWS
         )
+    ]
+
+
+@router.get("/action-plan", response_model=list[ClientViewActionPlanItem])
+def get_action_plan(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    actions = (
+        db.query(OutcomeAction)
+        .filter(
+            OutcomeAction.client_id == client.id,
+            OutcomeAction.status.in_(_PUBLIC_ACTION_PLAN_STATUSES),
+        )
+        .order_by(OutcomeAction.due_date.is_(None), OutcomeAction.due_date, desc(OutcomeAction.created_at))
+        .all()
+    )
+    return [
+        ClientViewActionPlanItem(
+            title=action.title,
+            status_label=_ACTION_STATUS_LABELS.get(
+                action.status, action.status.replace("_", " ").title()
+            ),
+            due_month=_month_label(action.due_date),
+            client_safe_summary=action.client_safe_summary,
+            destination_url=_safe_public_url(action.destination_url),
+        )
+        for action in actions
+    ]
+
+
+@router.get("/completed-work", response_model=list[ClientViewCompletedWorkItem])
+def get_completed_work(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    actions = (
+        db.query(OutcomeAction)
+        .filter(OutcomeAction.client_id == client.id, OutcomeAction.status == "verified")
+        .order_by(desc(OutcomeAction.verified_at), desc(OutcomeAction.updated_at))
+        .all()
+    )
+    return [
+        ClientViewCompletedWorkItem(
+            title=action.title,
+            status_label=_ACTION_STATUS_LABELS.get(action.status, "Verified"),
+            due_month=_month_label(action.due_date),
+            completed_month=_month_label(action.verified_at),
+            client_safe_summary=action.client_safe_summary,
+            destination_url=_safe_public_url(action.destination_url),
+            verification_claim=_verification_claim(action),
+        )
+        for action in actions
     ]
 
 

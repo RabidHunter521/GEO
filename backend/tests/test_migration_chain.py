@@ -18,6 +18,7 @@ from alembic.script import ScriptDirectory
 
 BACKEND = Path(__file__).resolve().parents[1]
 VERSIONS = BACKEND / "alembic" / "versions"
+OUTCOME_ACTION_EVIDENCE_REVISION = "b9e1f2a3c4d5"
 
 
 def _script_dir() -> ScriptDirectory:
@@ -96,3 +97,10 @@ def test_no_duplicate_revision_ids():
     ids = [r.revision for r in script.walk_revisions()]
     dupes = {i for i in ids if ids.count(i) > 1}
     assert not dupes, f"duplicate revision ids: {sorted(dupes)}"
+
+
+def test_outcome_action_evidence_migration_follows_initial_table_revision():
+    script = _script_dir()
+    revision = script.get_revision(OUTCOME_ACTION_EVIDENCE_REVISION)
+    assert revision is not None
+    assert revision.down_revision == "a8d4f2c1b7e9"
