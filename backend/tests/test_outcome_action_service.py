@@ -358,6 +358,46 @@ def test_transition_rejects_evidence_from_another_clients_scan(db):
         transition_action(action, "verified", db)
 
 
+def test_transition_rejects_unmatched_query_presence_evidence(db):
+    from datetime import timedelta
+
+    from app.core.time import utcnow
+    from app.models.scan_query_result import ScanQueryResult
+    from app.services.outcome_action_service import (
+        OutcomeActionValidationError,
+        create_action,
+        transition_action,
+    )
+
+    client = _make_client(db)
+    action = create_action(client.id, _create_payload(source_ref="scan_query_result:not-a-uuid"), db)
+    action.status = "waiting_verification"
+    action.published_at = utcnow() - timedelta(days=1)
+    _record_approval(action, db)
+    scan = _completed_scan(client, db)
+    db.add(
+        ScanQueryResult(
+            scan_id=scan.id,
+            platform="chatgpt",
+            category="recommendation",
+            query_text="unrelated query",
+            response_text="Acme Dental is visible.",
+            brand_detected=True,
+        )
+    )
+    action.verification_result = {
+        "basis": "query_presence",
+        "before_seen": False,
+        "after_seen": True,
+        "scan_id": str(scan.id),
+        "claim": "Observed after publication; causality not established",
+    }
+    db.commit()
+
+    with pytest.raises(OutcomeActionValidationError, match="query"):
+        transition_action(action, "verified", db)
+
+
 def test_outcome_action_out_exposes_admin_verification_result(db):
     from app.schemas.outcome_action import OutcomeActionOut
     from app.services.outcome_action_service import create_action

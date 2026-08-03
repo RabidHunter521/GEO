@@ -158,6 +158,32 @@ def test_action_plan_exposes_only_client_safe_whitelisted_fields(client, db):
     assert body[0]["due_month"] == "August 2026"
 
 
+def test_action_plan_prospect_404(client, db):
+    from app.models.outcome_action import OutcomeAction
+
+    c = _client_with_token(db)
+    c.is_prospect = True
+    db.add(
+        OutcomeAction(
+            client_id=c.id,
+            source_kind="content_gap",
+            source_ref="scan_query_result:private",
+            title="Publish emergency dental page",
+            rationale="Internal rationale must not leak.",
+            action_type="content",
+            priority="high",
+            confidence="repeated",
+            status="in_progress",
+            client_safe_summary="We are preparing a page.",
+        )
+    )
+    db.commit()
+
+    r = client.get(f"/api/v1/view/{c.share_token}/action-plan")
+
+    assert r.status_code == 404
+
+
 def test_completed_work_exposes_verification_claim_without_raw_evidence(client, db):
     from datetime import date
     from app.models.outcome_action import OutcomeAction

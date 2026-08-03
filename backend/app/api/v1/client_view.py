@@ -557,7 +557,7 @@ def get_work_log(
 
 @router.get("/action-plan", response_model=list[ClientViewActionPlanItem])
 def get_action_plan(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     actions = (

@@ -3,11 +3,17 @@ import hashlib
 import uuid
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
+from app.models.action_recommendation import ActionRecommendation
+from app.models.content_deliverable import ContentDeliverable
+from app.models.geo_score import GeoScore
 from app.models.outcome_action import OutcomeAction
+from app.models.remediation_item import RemediationItem
 from app.models.scan import Scan
+from app.models.scan_query_result import ScanQueryResult
 from app.schemas.outcome_action import (
     OutcomeActionCreate,
     OutcomeActionPatch,
@@ -238,6 +244,176 @@ def _validate_verification_evidence(
         raise OutcomeActionValidationError("verification evidence must reference a completed scan")
     if scan.client_id != action.client_id:
         raise OutcomeActionValidationError("verification evidence scan must belong to the action client")
-    if evidence.basis != "query_presence" and action.scan_id is not None and action.scan_id != scan.id:
+    if evidence.basis == "query_presence":
+        _validate_query_presence_evidence(action, evidence, scan, target_status, db)
+    elif action.scan_id is not None and action.scan_id != scan.id:
         raise OutcomeActionValidationError("verification evidence scan must match the action scan")
     action.scan_id = scan.id
+
+
+def _validate_query_presence_evidence(
+    action: OutcomeAction,
+    evidence: OutcomeActionVerificationEvidence,
+    scan: Scan,
+    target_status: str,
+    db: Session,
+) -> None:
+    if action.published_at is None:
+        raise OutcomeActionValidationError("query presence verification requires publication")
+    if scan.completed_at is None or scan.completed_at <= action.published_at:
+        raise OutcomeActionValidationError("query presence verification requires a post-publication scan")
+    source_result = source_query_result_for_action(action, db)
+    if source_result is None:
+        raise OutcomeActionValidationError("query presence verification requires source query evidence")
+    source_scan = db.get(Scan, source_result.scan_id)
+    if source_scan is None or source_scan.completed_at is None or source_scan.completed_at >= action.published_at:
+        raise OutcomeActionValidationError("query presence source scan must predate publication")
+    if source_result.brand_detected:
+        raise OutcomeActionValidationError("query presence source query must start unseen")
+    after_result = matching_query_result(scan.id, source_result, db)
+    expected_seen = target_status == "verified"
+    if after_result is None or bool(after_result.brand_detected) != expected_seen:
+        raise OutcomeActionValidationError("query presence verification requires matching query evidence")
+
+
+def source_query_result_for_action(action: OutcomeAction, db: Session) -> ScanQueryResult | None:
+    """Resolve stable pre-publication query evidence for an Outcome Action."""
+    if action.published_at is None:
+        return None
+    source_ref = action.source_ref or ""
+    prefix, _, raw_id = source_ref.partition(":")
+    direct = _scan_query_result_by_ref(prefix, raw_id, db)
+    if direct is not None:
+        return _eligible_source_result(action, direct, db)
+    if prefix == "remediation":
+        return _source_from_remediation(action, raw_id, db)
+    if prefix == "deliverable":
+        return _source_from_deliverable(action, raw_id, db)
+    if prefix == "recommendation":
+        return _source_from_recommendation(action, raw_id, db)
+    return None
+
+
+def _scan_query_result_by_ref(prefix: str, raw_id: str, db: Session) -> ScanQueryResult | None:
+    if prefix not in {"scan_query_result", "scan_query_results"} or not raw_id:
+        return None
+    try:
+        result_id = uuid.UUID(raw_id)
+    except ValueError:
+        return None
+    return db.get(ScanQueryResult, result_id)
+
+
+def _eligible_source_result(
+    action: OutcomeAction, result: ScanQueryResult | None, db: Session
+) -> ScanQueryResult | None:
+    if result is None or result.competitor_id is not None or result.is_control or result.brand_detected:
+        return None
+    source_scan = db.get(Scan, result.scan_id)
+    if (
+        source_scan is None
+        or source_scan.client_id != action.client_id
+        or source_scan.status != "completed"
+        or source_scan.completed_at is None
+        or action.published_at is None
+        or source_scan.completed_at >= action.published_at
+    ):
+        return None
+    return result
+
+
+def _source_from_remediation(action: OutcomeAction, raw_id: str, db: Session) -> ScanQueryResult | None:
+    try:
+        item_id = uuid.UUID(raw_id)
+    except ValueError:
+        return None
+    item = db.get(RemediationItem, item_id)
+    if item is None or item.client_id != action.client_id or not item.platform or not item.label:
+        return None
+    return (
+        db.query(ScanQueryResult)
+        .join(Scan, Scan.id == ScanQueryResult.scan_id)
+        .filter(
+            Scan.client_id == action.client_id,
+            Scan.status == "completed",
+            Scan.completed_at < action.published_at,
+            ScanQueryResult.platform == item.platform,
+            ScanQueryResult.query_text == item.label,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+            ScanQueryResult.brand_detected.is_(False),
+        )
+        .order_by(desc(Scan.completed_at), desc(ScanQueryResult.created_at))
+        .first()
+    )
+
+
+def _source_from_deliverable(action: OutcomeAction, raw_id: str, db: Session) -> ScanQueryResult | None:
+    try:
+        deliverable_id = uuid.UUID(raw_id)
+    except ValueError:
+        return None
+    deliverable = db.get(ContentDeliverable, deliverable_id)
+    if deliverable is None or deliverable.client_id != action.client_id:
+        return None
+    result_ids = deliverable.source_context.get("result_ids", []) if isinstance(deliverable.source_context, dict) else []
+    for raw_result_id in result_ids:
+        try:
+            result = db.get(ScanQueryResult, uuid.UUID(str(raw_result_id)))
+        except ValueError:
+            continue
+        eligible = _eligible_source_result(action, result, db)
+        if eligible is not None:
+            return eligible
+    return None
+
+
+def _source_from_recommendation(action: OutcomeAction, raw_id: str, db: Session) -> ScanQueryResult | None:
+    try:
+        recommendation_id = uuid.UUID(raw_id)
+    except ValueError:
+        return None
+    recommendation = db.get(ActionRecommendation, recommendation_id)
+    if (
+        recommendation is None
+        or recommendation.client_id != action.client_id
+        or recommendation.geo_score_id is None
+        or recommendation.dimension != "ai_citability"
+    ):
+        return None
+    geo_score = db.get(GeoScore, recommendation.geo_score_id)
+    if geo_score is None or geo_score.scan_id is None:
+        return None
+    return (
+        db.query(ScanQueryResult)
+        .join(Scan, Scan.id == ScanQueryResult.scan_id)
+        .filter(
+            Scan.id == geo_score.scan_id,
+            Scan.client_id == action.client_id,
+            Scan.status == "completed",
+            Scan.completed_at < action.published_at,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+            ScanQueryResult.brand_detected.is_(False),
+        )
+        .order_by(ScanQueryResult.category, ScanQueryResult.created_at)
+        .first()
+    )
+
+
+def matching_query_result(
+    scan_id: uuid.UUID, source_result: ScanQueryResult, db: Session
+) -> ScanQueryResult | None:
+    return (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.platform == source_result.platform,
+            ScanQueryResult.category == source_result.category,
+            ScanQueryResult.query_text == source_result.query_text,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+        )
+        .order_by(desc(ScanQueryResult.created_at), desc(ScanQueryResult.id))
+        .first()
+    )

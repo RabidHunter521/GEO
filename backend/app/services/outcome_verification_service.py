@@ -9,7 +9,11 @@ from sqlalchemy.orm import Session
 from app.models.outcome_action import OutcomeAction
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
-from app.services.outcome_action_service import transition_action
+from app.services.outcome_action_service import (
+    matching_query_result,
+    source_query_result_for_action,
+    transition_action,
+)
 from app.services import work_log_service
 
 
@@ -57,24 +61,21 @@ def verify_waiting_actions(
         .all()
     )
     for action in actions:
-        source_result = _source_query_result(action, db)
+        source_result = source_query_result_for_action(action, db)
         if source_result is None:
             summary.skipped_missing_identity += 1
-            continue
-        if source_result.scan_id == scan.id:
-            summary.skipped_missing_query += 1
             continue
         if not _is_after_publication(scan, action):
             summary.rejected_scan += 1
             continue
 
-        after_result = _matching_result(scan.id, source_result, db)
+        after_result = matching_query_result(scan.id, source_result, db)
         if after_result is None:
             summary.skipped_missing_query += 1
             continue
 
         target_status = "verified" if after_result.brand_detected else "no_change"
-        action.verification_result = _verification_evidence(scan, after_result)
+        action.verification_result = _verification_evidence(scan, source_result, after_result)
         if action.status == "published":
             action.status = "waiting_verification"
         transition_action(action, target_status, db)
@@ -89,49 +90,6 @@ def verify_waiting_actions(
     return summary
 
 
-def _source_query_result(action: OutcomeAction, db: Session) -> ScanQueryResult | None:
-    source_id = _source_scan_query_result_id(action.source_ref)
-    if source_id is None:
-        return None
-    result = db.get(ScanQueryResult, source_id)
-    if result is None:
-        return None
-    source_scan = db.get(Scan, result.scan_id)
-    if source_scan is None or source_scan.client_id != action.client_id:
-        return None
-    return result
-
-
-def _source_scan_query_result_id(source_ref: str | None) -> uuid.UUID | None:
-    if not source_ref:
-        return None
-    prefix, _, raw_id = source_ref.partition(":")
-    if prefix not in {"scan_query_result", "scan_query_results"} or not raw_id:
-        return None
-    try:
-        return uuid.UUID(raw_id)
-    except ValueError:
-        return None
-
-
-def _matching_result(
-    scan_id: uuid.UUID, source_result: ScanQueryResult, db: Session
-) -> ScanQueryResult | None:
-    return (
-        db.query(ScanQueryResult)
-        .filter(
-            ScanQueryResult.scan_id == scan_id,
-            ScanQueryResult.platform == source_result.platform,
-            ScanQueryResult.category == source_result.category,
-            ScanQueryResult.query_text == source_result.query_text,
-            ScanQueryResult.competitor_id.is_(None),
-            ScanQueryResult.is_control.is_(False),
-        )
-        .order_by(desc(ScanQueryResult.created_at), desc(ScanQueryResult.id))
-        .first()
-    )
-
-
 def _is_after_publication(scan: Scan, action: OutcomeAction) -> bool:
     if action.published_at is None:
         return False
@@ -139,10 +97,12 @@ def _is_after_publication(scan: Scan, action: OutcomeAction) -> bool:
     return completed_at is not None and completed_at > action.published_at
 
 
-def _verification_evidence(scan: Scan, result: ScanQueryResult) -> dict[str, object]:
+def _verification_evidence(
+    scan: Scan, source_result: ScanQueryResult, result: ScanQueryResult
+) -> dict[str, object]:
     return {
         "basis": "query_presence",
-        "before_seen": False,
+        "before_seen": bool(source_result.brand_detected),
         "after_seen": bool(result.brand_detected),
         "scan_id": str(scan.id),
         "claim": VERIFICATION_CLAIM,

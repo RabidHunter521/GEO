@@ -50,7 +50,14 @@ def _result(db, scan, *, query_text="best emergency dentist in KL", brand_detect
 def _waiting_action(db, client, source_result, *, source_ref=None, title="Publish emergency page"):
     from app.core.time import utcnow
     from app.models.outcome_action import OutcomeAction
+    from app.models.scan import Scan
 
+    source_scan = db.get(Scan, source_result.scan_id)
+    published_at = (
+        source_scan.completed_at + timedelta(hours=1)
+        if source_scan is not None and source_scan.completed_at is not None
+        else utcnow() - timedelta(days=1)
+    )
     action = OutcomeAction(
         client_id=client.id,
         scan_id=source_result.scan_id,
@@ -64,9 +71,9 @@ def _waiting_action(db, client, source_result, *, source_ref=None, title="Publis
         status="waiting_verification",
         destination_url="https://acme.example.com/emergency",
         client_safe_summary="We published a page for emergency dental searches.",
-        published_at=utcnow() - timedelta(days=1),
+        published_at=published_at,
         client_decision="approved",
-        client_decided_at=utcnow() - timedelta(days=2),
+        client_decided_at=published_at - timedelta(hours=1),
         approval_evidence_hash="reviewed-hash",
     )
     db.add(action)
@@ -143,6 +150,167 @@ def test_missing_comparable_query_leaves_action_waiting_verification(db):
     assert summary.skipped_missing_query == 1
     assert action.status == "waiting_verification"
     assert action.verification_result is None
+
+
+def test_source_query_already_seen_does_not_create_verified_claim(db):
+    from app.services.outcome_verification_service import verify_waiting_actions
+
+    client = _make_client(db)
+    before_scan = _scan(db, client)
+    source_result = _result(db, before_scan, brand_detected=True)
+    action = _waiting_action(db, client, source_result)
+    after_scan = _scan(db, client, completed_at=action.published_at + timedelta(hours=2))
+    _result(db, after_scan, brand_detected=True)
+
+    summary = verify_waiting_actions(after_scan.id, client.id, db)
+
+    db.refresh(action)
+    assert summary.skipped_missing_identity == 1
+    assert action.status == "waiting_verification"
+    assert action.verification_result is None
+
+
+def test_source_scan_must_precede_publication(db):
+    from app.services.outcome_verification_service import verify_waiting_actions
+
+    client = _make_client(db)
+    before_scan = _scan(db, client)
+    source_result = _result(db, before_scan, brand_detected=False)
+    action = _waiting_action(db, client, source_result)
+    before_scan.completed_at = action.published_at + timedelta(minutes=5)
+    db.commit()
+    after_scan = _scan(db, client, completed_at=action.published_at + timedelta(hours=2))
+    _result(db, after_scan, brand_detected=True)
+
+    summary = verify_waiting_actions(after_scan.id, client.id, db)
+
+    db.refresh(action)
+    assert summary.skipped_missing_identity == 1
+    assert action.status == "waiting_verification"
+    assert action.verification_result is None
+
+
+def test_remediation_adapter_source_verifies_by_platform_and_label(db):
+    from app.models.remediation_item import RemediationItem
+    from app.services import outcome_action_adapter_service
+    from app.services.outcome_verification_service import verify_waiting_actions
+
+    client = _make_client(db)
+    before_scan = _scan(db, client)
+    _result(db, before_scan, query_text="best emergency dentist in KL", brand_detected=False)
+    item = RemediationItem(
+        client_id=client.id,
+        item_type="content_gap",
+        platform="chatgpt",
+        label="best emergency dentist in KL",
+        detail="Rival Dental",
+    )
+    db.add(item)
+    db.commit()
+    action = outcome_action_adapter_service.suggest_from_remediation(item, db)
+    action.status = "waiting_verification"
+    action.published_at = before_scan.completed_at + timedelta(hours=1)
+    action.destination_url = "https://acme.example.com/emergency"
+    action.client_safe_summary = "We published a page for emergency dental searches."
+    action.client_decision = "approved"
+    action.client_decided_at = before_scan.completed_at
+    action.approval_evidence_hash = "reviewed-hash"
+    db.commit()
+    after_scan = _scan(db, client, completed_at=action.published_at + timedelta(hours=2))
+    _result(db, after_scan, query_text=item.label, brand_detected=True)
+
+    summary = verify_waiting_actions(after_scan.id, client.id, db)
+
+    db.refresh(action)
+    assert summary.verified == 1
+    assert action.status == "verified"
+
+
+def test_recommendation_adapter_source_verifies_from_geo_score_lost_query(db):
+    from app.models.action_recommendation import ActionRecommendation
+    from app.models.geo_score import GeoScore
+    from app.services import outcome_action_adapter_service
+    from app.services.outcome_verification_service import verify_waiting_actions
+
+    client = _make_client(db)
+    before_scan = _scan(db, client)
+    _result(db, before_scan, query_text="best emergency dentist in KL", brand_detected=False)
+    geo_score = GeoScore(
+        client_id=client.id,
+        scan_id=before_scan.id,
+        ai_citability=20,
+        brand_authority=60,
+        content_quality=70,
+        technical_foundations=80,
+        structured_data=90,
+        overall_score=64,
+    )
+    db.add(geo_score)
+    db.commit()
+    recommendation = ActionRecommendation(
+        client_id=client.id,
+        geo_score_id=geo_score.id,
+        action_text="Improve emergency dental visibility",
+        dimension="ai_citability",
+        estimated_impact=6.0,
+        priority="high",
+    )
+    db.add(recommendation)
+    db.commit()
+    action = outcome_action_adapter_service.suggest_from_recommendation(recommendation, db)
+    action.status = "waiting_verification"
+    action.published_at = before_scan.completed_at + timedelta(hours=1)
+    action.destination_url = "https://acme.example.com/emergency"
+    action.client_safe_summary = "We improved emergency dental visibility."
+    action.client_decision = "approved"
+    action.client_decided_at = before_scan.completed_at
+    action.approval_evidence_hash = "reviewed-hash"
+    db.commit()
+    after_scan = _scan(db, client, completed_at=action.published_at + timedelta(hours=2))
+    _result(db, after_scan, query_text="best emergency dentist in KL", brand_detected=True)
+
+    summary = verify_waiting_actions(after_scan.id, client.id, db)
+
+    db.refresh(action)
+    assert summary.verified == 1
+    assert action.status == "verified"
+
+
+def test_deliverable_adapter_source_verifies_from_source_context_result_ids(db):
+    from app.models.content_deliverable import ContentDeliverable
+    from app.services import outcome_action_adapter_service
+    from app.services.outcome_verification_service import verify_waiting_actions
+
+    client = _make_client(db)
+    before_scan = _scan(db, client)
+    source_result = _result(db, before_scan, brand_detected=False)
+    deliverable = ContentDeliverable(
+        client_id=client.id,
+        type="faq_pack",
+        title="Emergency dental FAQ",
+        body_md="# FAQ",
+        source_context={"result_ids": [str(source_result.id)]},
+        status="reviewed",
+    )
+    db.add(deliverable)
+    db.commit()
+    action = outcome_action_adapter_service.link_deliverable(deliverable, db)
+    action.status = "waiting_verification"
+    action.published_at = before_scan.completed_at + timedelta(hours=1)
+    action.destination_url = "https://acme.example.com/emergency"
+    action.client_safe_summary = "We published an emergency dental FAQ."
+    action.client_decision = "approved"
+    action.client_decided_at = before_scan.completed_at
+    action.approval_evidence_hash = "reviewed-hash"
+    db.commit()
+    after_scan = _scan(db, client, completed_at=action.published_at + timedelta(hours=2))
+    _result(db, after_scan, brand_detected=True)
+
+    summary = verify_waiting_actions(after_scan.id, client.id, db)
+
+    db.refresh(action)
+    assert summary.verified == 1
+    assert action.status == "verified"
 
 
 def test_scan_from_another_client_is_rejected_and_ignored(db):
