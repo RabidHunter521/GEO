@@ -43,6 +43,7 @@ export default async function ViewReputationPage({
   const hasTruth = truthHealth.locations.length > 0
     || truthHealth.reviewed_open_issue_count > 0
     || truthHealth.corrected_count > 0
+    || truthHealth.resolved_issues.length > 0
 
   // Honesty over completeness (Phase 0's governing rule): with nothing
   // reviewed yet, say so plainly rather than rendering an empty module that

@@ -60,4 +60,27 @@ describe("public reputation truth health", () => {
     expect(markup).not.toContain("Draft")
     expect(markup).not.toContain("candidate")
   })
+
+  it("renders a reviewer-verified resolution even when no other reputation data exists", async () => {
+    viewApi.getViewTruthHealth.mockResolvedValue({
+      locations: [],
+      fact_freshness: null,
+      reviewed_open_issue_count: 0,
+      corrected_count: 0,
+      open_issues: [],
+      resolved_issues: [{
+        summary: "A reviewed AI answer conflicts with verified business information.",
+        status_label: "Resolved",
+      }],
+    })
+
+    const element = await ViewReputationPage({
+      params: Promise.resolve({ token: "share-token" }),
+    })
+    const markup = renderToStaticMarkup(element)
+
+    expect(markup).toContain("Resolved issues")
+    expect(markup).toContain("Resolved.")
+    expect(markup).not.toContain("No reputation issues flagged yet")
+  })
 })
