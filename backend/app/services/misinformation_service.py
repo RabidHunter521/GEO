@@ -33,6 +33,7 @@ from app.models.scan_query_result import ScanQueryResult
 from app.prompts.misinformation import build_detection
 from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
 from app.services.cost_tracker import record_llm_call
+from app.services.truth_comparison_service import TruthConflictCandidate
 
 logger = structlog.get_logger()
 
@@ -339,12 +340,18 @@ _REVIEWABLE_STATUSES = ("suggested", "dismissed")
 
 
 def review_finding(
-    finding_id: uuid.UUID, action: str, db: Session, note: str | None = None
+    finding_id: uuid.UUID,
+    action: str,
+    db: Session,
+    note: str | None = None,
+    severity: str | None = None,
 ) -> MisinformationFinding | None:
     """Admin gate. `action` is "confirm" or "dismiss". Returns None when the
     finding does not exist or has already moved past review."""
     if action not in ("confirm", "dismiss"):
         raise ValueError('action must be "confirm" or "dismiss"')
+    if severity is not None and severity not in MISINFORMATION_SEVERITIES:
+        raise ValueError("severity must be high, medium, or low")
     finding = db.get(MisinformationFinding, finding_id)
     if finding is None or finding.status not in _REVIEWABLE_STATUSES:
         return None
@@ -352,11 +359,75 @@ def review_finding(
     finding.reviewed_at = utcnow()
     if note:
         finding.admin_note = note
+    if severity is not None:
+        finding.severity = severity
     if action == "confirm":
         _spawn_remediation(finding, db)
     db.commit()
     db.refresh(finding)
     return finding
+
+
+def store_truth_conflict_candidates(
+    client_id: uuid.UUID,
+    scan_query_result_id: uuid.UUID,
+    candidates: list["TruthConflictCandidate"],
+    db: Session,
+) -> int:
+    """Persist deterministic fact conflicts as admin-review candidates only.
+
+    The comparison service supplies IDs and normalized evidence, but this
+    boundary still validates client ownership and the verbatim quote firewall
+    before storing anything.  A candidate can never self-confirm or classify a
+    legal/professional violation.
+    """
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+    result = db.get(ScanQueryResult, scan_query_result_id)
+    if result is None or db.get(Scan, result.scan_id) is None:
+        return 0
+    scan = db.get(Scan, result.scan_id)
+    if scan is None or scan.client_id != client_id:
+        return 0
+
+    stored = 0
+    for candidate in candidates:
+        if not isinstance(candidate, TruthConflictCandidate):
+            continue
+        fact = db.get(TruthFact, candidate.truth_fact_id)
+        version = db.get(TruthFactVersion, candidate.truth_fact_version_id)
+        if (
+            fact is None
+            or version is None
+            or fact.client_id != client_id
+            or version.truth_fact_id != fact.id
+            or not quote_in_response(candidate.answer_quote, result.response_text)
+        ):
+            continue
+        exists = db.query(MisinformationFinding.id).filter(
+            MisinformationFinding.scan_query_result_id == scan_query_result_id,
+            MisinformationFinding.truth_fact_version_id == version.id,
+            MisinformationFinding.quote == candidate.answer_quote,
+        ).first()
+        if exists is not None:
+            continue
+        db.add(MisinformationFinding(
+            client_id=client_id,
+            scan_query_result_id=scan_query_result_id,
+            truth_fact_id=fact.id,
+            truth_fact_version_id=version.id,
+            quote=candidate.answer_quote,
+            category="factual_error",
+            severity="low",
+            explanation=(
+                f"AI statement conflicts with approved {candidate.fact_type}/{candidate.fact_key} "
+                f"using the {candidate.comparator} comparator."
+            ),
+            status="suggested",
+        ))
+        stored += 1
+    if stored:
+        db.commit()
+    return stored
 
 
 def mark_corrected(finding_id: uuid.UUID, db: Session) -> MisinformationFinding | None:

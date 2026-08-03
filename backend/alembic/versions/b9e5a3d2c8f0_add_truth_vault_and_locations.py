@@ -278,6 +278,36 @@ def upgrade() -> None:
         ["client_id", "location_id", "status"],
     )
 
+    # Deterministic factual-conflict candidates retain the exact approved fact
+    # version they were compared with.  No cascade is intentional: evidence
+    # prevents deletion of the history it cites.
+    op.add_column("misinformation_findings", sa.Column("truth_fact_id", sa.UUID(), nullable=True))
+    op.add_column(
+        "misinformation_findings", sa.Column("truth_fact_version_id", sa.UUID(), nullable=True)
+    )
+    op.create_foreign_key(
+        "fk_misinformation_findings_truth_fact",
+        "misinformation_findings",
+        "truth_facts",
+        ["truth_fact_id"],
+        ["id"],
+    )
+    op.create_foreign_key(
+        "fk_misinformation_findings_truth_fact_version",
+        "misinformation_findings",
+        "truth_fact_versions",
+        ["truth_fact_version_id"],
+        ["id"],
+    )
+    op.create_index(
+        "ix_misinformation_findings_truth_fact_id", "misinformation_findings", ["truth_fact_id"]
+    )
+    op.create_index(
+        "ix_misinformation_findings_truth_fact_version_id",
+        "misinformation_findings",
+        ["truth_fact_version_id"],
+    )
+
     for table_name in ("business_locations", "truth_facts", "truth_fact_versions"):
         op.execute(f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY;")
         op.execute(f"REVOKE ALL ON TABLE {table_name} FROM anon;")
@@ -350,6 +380,21 @@ def downgrade() -> None:
     op.drop_index("ix_outcome_actions_client_location_status", table_name="outcome_actions")
     op.drop_constraint("fk_outcome_actions_location_client", "outcome_actions", type_="foreignkey")
     op.drop_column("outcome_actions", "location_id")
+
+    op.drop_index("ix_misinformation_findings_truth_fact_version_id", table_name="misinformation_findings")
+    op.drop_index("ix_misinformation_findings_truth_fact_id", table_name="misinformation_findings")
+    op.drop_constraint(
+        "fk_misinformation_findings_truth_fact_version",
+        "misinformation_findings",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        "fk_misinformation_findings_truth_fact",
+        "misinformation_findings",
+        type_="foreignkey",
+    )
+    op.drop_column("misinformation_findings", "truth_fact_version_id")
+    op.drop_column("misinformation_findings", "truth_fact_id")
 
     for table_name in ("truth_fact_versions", "truth_facts", "business_locations"):
         op.execute(f"ALTER TABLE {table_name} DISABLE ROW LEVEL SECURITY;")

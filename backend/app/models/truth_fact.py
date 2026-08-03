@@ -14,7 +14,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.time import utcnow
 from app.models.base import Base
@@ -67,6 +67,7 @@ class TruthFact(Base):
     fact_type: Mapped[str] = mapped_column(String(64), nullable=False)
     fact_key: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    versions: Mapped[list["TruthFactVersion"]] = relationship(back_populates="truth_fact")
 
 
 class TruthFactVersion(Base):
@@ -107,6 +108,7 @@ class TruthFactVersion(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+    truth_fact: Mapped[TruthFact] = relationship(back_populates="versions")
 
 
 event.listen(
