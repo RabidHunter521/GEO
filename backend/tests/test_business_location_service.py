@@ -2,6 +2,8 @@
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import event
+from sqlalchemy.dialects import postgresql
 
 
 def _make_client(db, name="Acme Dental"):
@@ -94,6 +96,31 @@ def test_deactivation_is_soft_and_rejects_the_only_active_location(db):
     assert db.get(type(secondary), secondary.id) is not None
     with pytest.raises(BusinessLocationValidationError, match="only active"):
         deactivate_location(primary, db)
+
+
+def test_deactivation_locks_all_active_client_locations_before_counting(db):
+    from app.services.business_location_service import create_location, deactivate_location
+
+    account = _make_client(db)
+    create_location(account.id, _payload("Orchard", is_primary=True), db)
+    secondary = create_location(account.id, _payload("Tampines"), db)
+    statements = []
+
+    def capture_statement(_conn, clauseelement, *_args):
+        statements.append(str(clauseelement.compile(dialect=postgresql.dialect())))
+
+    event.listen(db.bind, "before_execute", capture_statement)
+    try:
+        deactivate_location(secondary, db)
+    finally:
+        event.remove(db.bind, "before_execute", capture_statement)
+
+    assert any(
+        "FROM business_locations" in statement
+        and "business_locations.active IS true" in statement
+        and "FOR UPDATE" in statement
+        for statement in statements
+    )
 
 
 def test_location_schema_rejects_invalid_geography_country_and_hours():

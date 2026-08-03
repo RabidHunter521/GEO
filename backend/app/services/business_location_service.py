@@ -76,20 +76,27 @@ def patch_location(
 
 
 def deactivate_location(location: BusinessLocation, db: Session) -> BusinessLocation:
-    if not location.active:
-        return location
-    active_count = (
+    # Lock the full active set before counting it. A second concurrent
+    # deactivation waits, then observes the first update and cannot remove the
+    # remaining active location.
+    active_locations = (
         db.query(BusinessLocation)
         .filter(BusinessLocation.client_id == location.client_id, BusinessLocation.active.is_(True))
-        .count()
+        .order_by(BusinessLocation.id)
+        .with_for_update()
+        .all()
     )
-    if active_count <= 1:
+    locked_location = next((item for item in active_locations if item.id == location.id), None)
+    if locked_location is None:
+        db.refresh(location)
+        return location
+    if len(active_locations) <= 1:
         raise BusinessLocationValidationError("Cannot deactivate the only active location")
-    location.active = False
-    location.is_primary = False
+    locked_location.active = False
+    locked_location.is_primary = False
     db.commit()
-    db.refresh(location)
-    return location
+    db.refresh(locked_location)
+    return locked_location
 
 
 def _clear_primary(
