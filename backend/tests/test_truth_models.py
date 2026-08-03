@@ -145,7 +145,7 @@ def test_truth_facts_keep_brand_and_location_identities_and_version_history(db):
 
 def test_client_deletion_cascades_to_locations_and_truth(db):
     from app.models.business_location import BusinessLocation
-    from app.models.truth_fact import TruthFact, TruthFactVersion
+    from app.models.truth_fact import TruthFact
 
     client = _make_client(db)
     location = _make_location(client.id, name="Orchard", slug="orchard", is_primary=True)
@@ -159,7 +159,6 @@ def test_client_deletion_cascades_to_locations_and_truth(db):
     )
     db.add(fact)
     db.flush()
-    db.add(TruthFactVersion(truth_fact_id=fact.id, value_json="+65 1234 5678", status="draft"))
     db.commit()
 
     db.delete(client)
@@ -167,4 +166,62 @@ def test_client_deletion_cascades_to_locations_and_truth(db):
 
     assert db.query(BusinessLocation).count() == 0
     assert db.query(TruthFact).count() == 0
-    assert db.query(TruthFactVersion).count() == 0
+
+
+def test_truth_fact_rejects_a_location_owned_by_another_client(db):
+    from app.models.truth_fact import TruthFact
+
+    first_client = _make_client(db, "Acme Dental")
+    second_client = _make_client(db, "Bright Smiles")
+    second_clients_location = _make_location(
+        second_client.id, name="Tampines", slug="tampines", is_primary=True
+    )
+    db.add(second_clients_location)
+    db.commit()
+
+    db.add(
+        TruthFact(
+            client_id=first_client.id,
+            location_id=second_clients_location.id,
+            fact_type="business",
+            fact_key="phone",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+
+def test_truth_fact_versions_reject_update_and_delete_and_block_fact_deletion(db):
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+
+    client = _make_client(db)
+    fact = TruthFact(client_id=client.id, fact_type="business", fact_key="phone")
+    db.add(fact)
+    db.flush()
+    version = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json="+65 1234 5678",
+        status="approved",
+    )
+    db.add(version)
+    db.commit()
+
+    version.reviewer_note = "Changed after approval"
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+    version = db.query(TruthFactVersion).one()
+    db.delete(version)
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+    fact = db.query(TruthFact).one()
+    db.delete(fact)
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+    assert db.query(TruthFactVersion).one().value_json == "+65 1234 5678"

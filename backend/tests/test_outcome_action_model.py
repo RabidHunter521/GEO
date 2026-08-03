@@ -166,3 +166,25 @@ def test_deleting_location_unscopes_outcome_action_without_deleting_it(db):
     persisted_action = db.query(OutcomeAction).one()
     assert persisted_action.client_id == client.id
     assert persisted_action.location_id is None
+
+
+def test_outcome_action_rejects_a_location_owned_by_another_client(db):
+    from app.models.business_location import BusinessLocation
+
+    first_client = _make_client(db)
+    second_client = _make_client(db)
+    second_clients_location = BusinessLocation(
+        client_id=second_client.id,
+        name="Tampines",
+        slug="tampines",
+        is_primary=True,
+    )
+    db.add(second_clients_location)
+    db.flush()
+
+    action = _make_action(first_client.id)
+    action.location_id = second_clients_location.id
+    db.add(action)
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()

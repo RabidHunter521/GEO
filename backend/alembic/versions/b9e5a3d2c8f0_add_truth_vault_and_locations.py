@@ -43,6 +43,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.ForeignKeyConstraint(["client_id"], ["clients.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("id", "client_id", name="uq_business_locations_id_client"),
     )
     op.create_index(
         "uq_business_locations_client_slug", "business_locations", ["client_id", "slug"], unique=True
@@ -65,7 +66,12 @@ def upgrade() -> None:
         sa.Column("fact_key", sa.String(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
         sa.ForeignKeyConstraint(["client_id"], ["clients.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["location_id"], ["business_locations.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["location_id", "client_id"],
+            ["business_locations.id", "business_locations.client_id"],
+            name="fk_truth_facts_location_client",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -101,7 +107,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "status IN ('draft', 'approved', 'retired')", name="ck_truth_fact_versions_status"
         ),
-        sa.ForeignKeyConstraint(["truth_fact_id"], ["truth_facts.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["truth_fact_id"], ["truth_facts.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -122,12 +128,12 @@ def upgrade() -> None:
 
     op.add_column("outcome_actions", sa.Column("location_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
-        "fk_outcome_actions_location_id",
+        "fk_outcome_actions_location_client",
         "outcome_actions",
         "business_locations",
-        ["location_id"],
-        ["id"],
-        ondelete="SET NULL",
+        ["location_id", "client_id"],
+        ["id", "client_id"],
+        ondelete="SET NULL (location_id)",
     )
     op.create_index(
         "ix_outcome_actions_client_location_status",
@@ -138,11 +144,31 @@ def upgrade() -> None:
     for table_name in ("business_locations", "truth_facts", "truth_fact_versions"):
         op.execute(f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY;")
         op.execute(f"REVOKE ALL ON TABLE {table_name} FROM anon;")
+    op.execute(
+        """
+        CREATE FUNCTION prevent_truth_fact_version_mutation()
+        RETURNS trigger AS $$
+        BEGIN
+            RAISE EXCEPTION 'truth fact versions are append-only';
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute(
+        """
+        CREATE TRIGGER trg_truth_fact_versions_append_only
+        BEFORE UPDATE OR DELETE ON truth_fact_versions
+        FOR EACH ROW EXECUTE FUNCTION prevent_truth_fact_version_mutation();
+        """
+    )
 
 
 def downgrade() -> None:
+    op.execute("DROP TRIGGER trg_truth_fact_versions_append_only ON truth_fact_versions")
+    op.execute("DROP FUNCTION prevent_truth_fact_version_mutation()")
+
     op.drop_index("ix_outcome_actions_client_location_status", table_name="outcome_actions")
-    op.drop_constraint("fk_outcome_actions_location_id", "outcome_actions", type_="foreignkey")
+    op.drop_constraint("fk_outcome_actions_location_client", "outcome_actions", type_="foreignkey")
     op.drop_column("outcome_actions", "location_id")
 
     for table_name in ("truth_fact_versions", "truth_facts", "business_locations"):

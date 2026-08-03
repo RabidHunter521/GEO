@@ -1,7 +1,18 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import (
+    CheckConstraint,
+    DDL,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    Text,
+    event,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,6 +49,12 @@ class TruthFact(Base):
         ),
         Index("ix_truth_facts_client_fact_type", "client_id", "fact_type"),
         Index("ix_truth_facts_location", "location_id"),
+        ForeignKeyConstraint(
+            ["location_id", "client_id"],
+            ["business_locations.id", "business_locations.client_id"],
+            name="fk_truth_facts_location_client",
+            ondelete="CASCADE",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -45,7 +62,7 @@ class TruthFact(Base):
         UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False
     )
     location_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("business_locations.id", ondelete="CASCADE"), nullable=True
+        UUID(as_uuid=True), nullable=True
     )
     fact_type: Mapped[str] = mapped_column(String(64), nullable=False)
     fact_key: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -74,7 +91,7 @@ class TruthFactVersion(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     truth_fact_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("truth_facts.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("truth_facts.id"), nullable=False
     )
     value_json: Mapped[dict | list | str | int | float | bool | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft", server_default="draft")
@@ -85,3 +102,22 @@ class TruthFactVersion(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     approved_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
+
+
+for _trigger_name, _operation in (
+    ("trg_truth_fact_versions_append_only_update", "UPDATE"),
+    ("trg_truth_fact_versions_append_only_delete", "DELETE"),
+):
+    event.listen(
+        TruthFactVersion.__table__,
+        "after_create",
+        DDL(
+            f"""
+            CREATE TRIGGER {_trigger_name}
+            BEFORE {_operation} ON truth_fact_versions
+            FOR EACH ROW BEGIN
+                SELECT RAISE(ABORT, 'truth fact versions are append-only');
+            END;
+            """
+        ).execute_if(dialect="sqlite"),
+    )

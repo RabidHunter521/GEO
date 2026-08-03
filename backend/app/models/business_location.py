@@ -1,7 +1,19 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text, text
+from sqlalchemy import (
+    Boolean,
+    DDL,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    event,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,6 +27,7 @@ class BusinessLocation(Base):
     __tablename__ = "business_locations"
     __table_args__ = (
         Index("uq_business_locations_client_slug", "client_id", "slug", unique=True),
+        UniqueConstraint("id", "client_id", name="uq_business_locations_id_client"),
         Index(
             "uq_business_locations_primary_client",
             "client_id",
@@ -54,3 +67,21 @@ class BusinessLocation(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=utcnow, onupdate=utcnow
     )
+
+
+# SQLite cannot express PostgreSQL's `ON DELETE SET NULL (location_id)` for a
+# composite ownership FK. Clear only the nullable scope column before the FK
+# action runs, preserving the action's required client_id in test databases.
+event.listen(
+    BusinessLocation.__table__,
+    "after_create",
+    DDL(
+        """
+        CREATE TRIGGER trg_business_locations_unset_outcome_action_location
+        BEFORE DELETE ON business_locations
+        FOR EACH ROW BEGIN
+            UPDATE outcome_actions SET location_id = NULL WHERE location_id = OLD.id;
+        END;
+        """
+    ).execute_if(dialect="sqlite"),
+)
