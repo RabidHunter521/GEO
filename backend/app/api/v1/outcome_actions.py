@@ -53,6 +53,18 @@ def _list_response(query, page: int, page_size: int) -> OutcomeActionListRespons
     )
 
 
+def _paginated_actions_response(
+    actions: list[OutcomeAction], page: int, page_size: int
+) -> OutcomeActionListResponse:
+    start = (page - 1) * page_size
+    return OutcomeActionListResponse(
+        actions=[
+            OutcomeActionOut.model_validate(action) for action in actions[start : start + page_size]
+        ],
+        total=len(actions),
+    )
+
+
 @router.get(
     "/clients/{client_id}/outcome-actions",
     response_model=OutcomeActionListResponse,
@@ -71,20 +83,18 @@ def list_outcome_actions(
     _get_active_client_or_404(client_id, db)
     if status is not None and status not in OUTCOME_ACTION_STATUSES:
         raise HTTPException(status_code=422, detail="Unknown status.")
-    query = db.query(OutcomeAction).filter(OutcomeAction.client_id == client_id)
-    if status is not None:
-        query = query.filter(OutcomeAction.status == status)
-    if location_id is not None:
-        try:
-            outcome_action_service.validate_location_assignment(client_id, location_id, db)
-        except OutcomeActionLocationNotFound as exc:
-            raise HTTPException(status_code=404, detail="Location not found") from exc
-        query = query.filter(OutcomeAction.location_id == location_id)
-    if due_from is not None:
-        query = query.filter(OutcomeAction.due_date >= due_from)
-    if due_to is not None:
-        query = query.filter(OutcomeAction.due_date <= due_to)
-    return _list_response(query.order_by(OutcomeAction.created_at.desc()), page, page_size)
+    try:
+        actions = outcome_action_service.list_actions(
+            client_id,
+            db,
+            status=status,
+            location_id=location_id,
+            due_from=due_from,
+            due_to=due_to,
+        )
+    except OutcomeActionLocationNotFound as exc:
+        raise HTTPException(status_code=404, detail="Location not found") from exc
+    return _paginated_actions_response(actions, page, page_size)
 
 
 @router.post(

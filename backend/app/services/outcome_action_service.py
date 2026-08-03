@@ -1,6 +1,7 @@
 """CRUD and server-side lifecycle validation for Outcome Actions."""
 import hashlib
 import uuid
+from datetime import date
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import desc
@@ -88,7 +89,12 @@ def _get_by_source_ref(client_id: uuid.UUID, source_ref: str, db: Session) -> Ou
 
 
 def list_actions(
-    client_id: uuid.UUID, db: Session, status: str | None = None, location_id: uuid.UUID | None = None
+    client_id: uuid.UUID,
+    db: Session,
+    status: str | None = None,
+    location_id: uuid.UUID | None = None,
+    due_from: date | None = None,
+    due_to: date | None = None,
 ) -> list[OutcomeAction]:
     if location_id is not None:
         validate_location_assignment(client_id, location_id, db)
@@ -97,6 +103,10 @@ def list_actions(
         query = query.filter(OutcomeAction.status == status)
     if location_id is not None:
         query = query.filter(OutcomeAction.location_id == location_id)
+    if due_from is not None:
+        query = query.filter(OutcomeAction.due_date >= due_from)
+    if due_to is not None:
+        query = query.filter(OutcomeAction.due_date <= due_to)
     return query.order_by(OutcomeAction.created_at.desc()).all()
 
 
