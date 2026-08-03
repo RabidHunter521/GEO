@@ -2,8 +2,9 @@
 
 import uuid
 from datetime import datetime
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TruthValue(BaseModel):
@@ -28,6 +29,16 @@ class TruthFactVersionDraft(BaseModel):
     effective_from: datetime
 
     model_config = {"extra": "forbid"}
+
+    @field_validator("source_url")
+    @classmethod
+    def source_url_must_be_http_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("source_url must be an absolute HTTP(S) URL")
+        return value
 
 
 class TruthFactApprove(BaseModel):
@@ -68,3 +79,8 @@ class TruthFactOut(BaseModel):
     versions: list[TruthFactVersionOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
+
+
+class TruthFactListResponse(BaseModel):
+    facts: list[TruthFactOut]
+    total: int

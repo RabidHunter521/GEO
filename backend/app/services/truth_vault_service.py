@@ -33,6 +33,74 @@ def create_fact(client_id: uuid.UUID, payload: TruthFactCreate, db: Session) -> 
     return fact
 
 
+def get_fact(client_id: uuid.UUID, fact_id: uuid.UUID, db: Session) -> TruthFact | None:
+    return (
+        db.query(TruthFact)
+        .filter(TruthFact.client_id == client_id, TruthFact.id == fact_id)
+        .one_or_none()
+    )
+
+
+def list_facts(
+    client_id: uuid.UUID,
+    db: Session,
+    *,
+    location_id: uuid.UUID | None,
+    mode: str,
+    page: int,
+    page_size: int,
+) -> tuple[list[tuple[TruthFact, list[TruthFactVersion]]], int]:
+    facts_query = db.query(TruthFact).filter(TruthFact.client_id == client_id)
+    if location_id is None:
+        facts_query = facts_query.filter(TruthFact.location_id.is_(None))
+    else:
+        _validate_location(client_id, location_id, db)
+        facts_query = facts_query.filter(TruthFact.location_id == location_id)
+
+    if mode == "current":
+        effective_at = utcnow()
+        rows = (
+            facts_query.with_entities(TruthFact, TruthFactVersion)
+            .join(TruthFactVersion, TruthFactVersion.truth_fact_id == TruthFact.id)
+            .filter(
+                TruthFactVersion.status == "approved",
+                TruthFactVersion.effective_from <= effective_at,
+                (TruthFactVersion.effective_to.is_(None))
+                | (TruthFactVersion.effective_to >= effective_at),
+            )
+            .order_by(TruthFact.fact_type, TruthFact.fact_key, TruthFact.id)
+            .all()
+        )
+        total = len(rows)
+        start = (page - 1) * page_size
+        return [(fact, [version]) for fact, version in rows[start : start + page_size]], total
+
+    facts = facts_query.order_by(TruthFact.fact_type, TruthFact.fact_key, TruthFact.id).all()
+    total = len(facts)
+    start = (page - 1) * page_size
+    page_facts = facts[start : start + page_size]
+    versions_by_fact = {fact.id: [] for fact in page_facts}
+    if versions_by_fact:
+        versions = (
+            db.query(TruthFactVersion)
+            .filter(TruthFactVersion.truth_fact_id.in_(versions_by_fact))
+            .order_by(TruthFactVersion.created_at.desc(), TruthFactVersion.id.desc())
+            .all()
+        )
+        for version in versions:
+            versions_by_fact[version.truth_fact_id].append(version)
+    return [(fact, versions_by_fact[fact.id]) for fact in page_facts], total
+
+
+def fact_versions(fact: TruthFact, db: Session) -> list[TruthFactVersion]:
+    return (
+        db.query(TruthFactVersion)
+        .filter(TruthFactVersion.truth_fact_id == fact.id)
+        .order_by(TruthFactVersion.created_at.desc(), TruthFactVersion.id.desc())
+        .all()
+    )
+
+
 def draft_version(
     fact: TruthFact, payload: TruthFactVersionDraft, db: Session
 ) -> TruthFactVersion:
