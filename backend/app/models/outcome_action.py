@@ -39,12 +39,16 @@ class OutcomeAction(Base):
             sqlite_where=text("approval_token_hash IS NOT NULL"),
         ),
         Index("ix_outcome_actions_client_status", "client_id", "status"),
+        Index("ix_outcome_actions_client_location_status", "client_id", "location_id", "status"),
         Index("ix_outcome_actions_due_date", "due_date"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False
+    )
+    location_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("business_locations.id", ondelete="SET NULL"), nullable=True
     )
     scan_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("scans.id", ondelete="SET NULL"), nullable=True

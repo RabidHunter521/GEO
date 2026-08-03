@@ -139,3 +139,30 @@ def test_outcome_action_is_deleted_with_its_client(db):
     from app.models.outcome_action import OutcomeAction
 
     assert db.query(OutcomeAction).count() == 0
+
+
+def test_deleting_location_unscopes_outcome_action_without_deleting_it(db):
+    from app.models.business_location import BusinessLocation
+    from app.models.outcome_action import OutcomeAction
+
+    client = _make_client(db)
+    location = BusinessLocation(
+        client_id=client.id,
+        name="Orchard",
+        slug="orchard",
+        is_primary=True,
+    )
+    db.add(location)
+    db.flush()
+
+    action = _make_action(client.id)
+    action.location_id = location.id
+    db.add(action)
+    db.commit()
+
+    db.delete(location)
+    db.commit()
+
+    persisted_action = db.query(OutcomeAction).one()
+    assert persisted_action.client_id == client.id
+    assert persisted_action.location_id is None
