@@ -21,6 +21,7 @@ describe("navigation contract", () => {
       "/competitors",
       "/toolkit",
       "/authority",
+      "/reputation/truth",
       "/content-gaps",
       "/content-roadmap",
       "/content-studio",

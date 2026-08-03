@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -408,6 +408,76 @@ export function getOutcomeActionReviewQueue(options?: { page?: number; page_size
   if (options?.page_size) params.set("page_size", String(options.page_size))
   const query = params.size ? `?${params}` : ""
   return apiFetch<OutcomeActionListResponse>(`/api/v1/outcome-actions/review-queue${query}`)
+}
+
+// â”€â”€ Business locations and Truth Vault (admin only) â”€â”€
+
+export function getBusinessLocations(clientId: string, active = true): Promise<BusinessLocation[]> {
+  return apiFetch<BusinessLocation[]>(`/api/v1/clients/${clientId}/locations?active=${active}`)
+}
+
+export function createBusinessLocation(
+  clientId: string, body: Required<Pick<BusinessLocationInput, "name">> & BusinessLocationInput,
+): Promise<BusinessLocation> {
+  return apiFetch<BusinessLocation>(`/api/v1/clients/${clientId}/locations`, {
+    method: "POST", body: JSON.stringify(body),
+  })
+}
+
+export function patchBusinessLocation(
+  clientId: string, locationId: string, body: BusinessLocationInput,
+): Promise<BusinessLocation> {
+  return apiFetch<BusinessLocation>(`/api/v1/clients/${clientId}/locations/${locationId}`, {
+    method: "PATCH", body: JSON.stringify(body),
+  })
+}
+
+export function deactivateBusinessLocation(clientId: string, locationId: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/clients/${clientId}/locations/${locationId}`, { method: "DELETE" })
+}
+
+export function getTruthFacts(
+  clientId: string,
+  options?: { location_id?: string; mode?: "current" | "history"; page?: number; page_size?: number },
+): Promise<TruthFactListResponse> {
+  const params = new URLSearchParams()
+  if (options?.location_id) params.set("location_id", options.location_id)
+  if (options?.mode) params.set("mode", options.mode)
+  if (options?.page) params.set("page", String(options.page))
+  if (options?.page_size) params.set("page_size", String(options.page_size))
+  const query = params.size ? `?${params}` : ""
+  return apiFetch<TruthFactListResponse>(`/api/v1/clients/${clientId}/truth-facts${query}`)
+}
+
+export function createTruthFact(
+  clientId: string, body: Pick<TruthFact, "fact_type" | "fact_key" | "location_id">,
+): Promise<TruthFact> {
+  return apiFetch<TruthFact>(`/api/v1/clients/${clientId}/truth-facts`, {
+    method: "POST", body: JSON.stringify(body),
+  })
+}
+
+export function draftTruthFactVersion(
+  clientId: string, factId: string, body: TruthFactDraftInput,
+): Promise<TruthFactVersion> {
+  return apiFetch<TruthFactVersion>(`/api/v1/clients/${clientId}/truth-facts/${factId}/versions`, {
+    method: "POST", body: JSON.stringify(body),
+  })
+}
+
+export function approveTruthFactVersion(
+  clientId: string, factId: string, versionId: string, approvedBy: string,
+): Promise<TruthFactVersion> {
+  return apiFetch<TruthFactVersion>(
+    `/api/v1/clients/${clientId}/truth-facts/${factId}/approve/${versionId}`,
+    { method: "POST", body: JSON.stringify({ approved_by: approvedBy }) },
+  )
+}
+
+export function retireTruthFact(clientId: string, factId: string, effectiveAt: string): Promise<TruthFactVersion> {
+  return apiFetch<TruthFactVersion>(`/api/v1/clients/${clientId}/truth-facts/${factId}/retire`, {
+    method: "POST", body: JSON.stringify({ effective_at: effectiveAt }),
+  })
 }
 
 // ── Toolkit ───────────────────────────────────────────────────────────────────
