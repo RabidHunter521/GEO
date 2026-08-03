@@ -63,7 +63,10 @@ class OutcomeActionVerificationEvidence(BaseModel):
     """Internal scan-backed verification evidence persisted as JSON."""
 
     scan_id: uuid.UUID
-    basis: Literal["visibility_change", "no_change"]
+    basis: Literal["visibility_change", "no_change", "query_presence"]
+    before_seen: bool | None = None
+    after_seen: bool | None = None
+    claim: str | None = None
 
 
 class OutcomeActionPatch(BaseModel):

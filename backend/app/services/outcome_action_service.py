@@ -99,7 +99,9 @@ def patch_action(action: OutcomeAction, payload: OutcomeActionPatch, db: Session
     approval_evidence = updates.pop("approval_evidence", None)
     changed_scoring_fields = set(payload.model_fields_set).intersection(SCORING_INPUT_FIELDS)
     if payload.verification_result is not None:
-        updates["verification_result"] = payload.verification_result.model_dump(mode="json")
+        updates["verification_result"] = payload.verification_result.model_dump(
+            mode="json", exclude_none=True
+        )
     if dismissal_reason is not None:
         action.client_comment = dismissal_reason
     if approval_decision is not None:
@@ -222,7 +224,12 @@ def _validate_verification_evidence(
             "verification_result must be scan-backed verification evidence"
         ) from exc
     expected_basis = "visibility_change" if target_status == "verified" else "no_change"
-    if evidence.basis != expected_basis:
+    query_presence_matches_target = (
+        evidence.basis == "query_presence"
+        and evidence.before_seen is False
+        and evidence.after_seen == (target_status == "verified")
+    )
+    if evidence.basis != expected_basis and not query_presence_matches_target:
         raise OutcomeActionValidationError(
             f"verification evidence basis must be {expected_basis} for {target_status}"
         )
@@ -231,6 +238,6 @@ def _validate_verification_evidence(
         raise OutcomeActionValidationError("verification evidence must reference a completed scan")
     if scan.client_id != action.client_id:
         raise OutcomeActionValidationError("verification evidence scan must belong to the action client")
-    if action.scan_id is not None and action.scan_id != scan.id:
+    if evidence.basis != "query_presence" and action.scan_id is not None and action.scan_id != scan.id:
         raise OutcomeActionValidationError("verification evidence scan must match the action scan")
     action.scan_id = scan.id

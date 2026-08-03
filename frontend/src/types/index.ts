@@ -1046,6 +1046,24 @@ export interface ClientViewWorkLogItem {
   entry_date: string
 }
 
+export interface ClientViewActionPlanItem {
+  title: string
+  status_label: string
+  due_month: string | null
+  client_safe_summary: string | null
+  destination_url: string | null
+}
+
+export interface ClientViewCompletedWorkItem {
+  title: string
+  status_label: string
+  due_month: string | null
+  completed_month: string | null
+  client_safe_summary: string | null
+  destination_url: string | null
+  verification_claim: string | null
+}
+
 // --- Outcome Actions (Phase 2 delivery operating system) ---
 export type OutcomeActionType =
   | "content" | "technical" | "structured_data" | "fact_correction"
@@ -1077,7 +1095,13 @@ export interface OutcomeAction {
   due_date: string | null
   destination_url: string | null
   client_safe_summary: string | null
-  verification_result: { scan_id: string; basis: "visibility_change" | "no_change" } | null
+  verification_result: {
+    scan_id: string
+    basis: "visibility_change" | "no_change" | "query_presence"
+    before_seen?: boolean | null
+    after_seen?: boolean | null
+    claim?: string | null
+  } | null
   published_at: string | null
   verified_at: string | null
   created_at: string
@@ -1120,7 +1144,13 @@ export interface OutcomeActionPatch {
   client_safe_summary?: string | null
   destination_url?: string | null
   dismissal_reason?: string | null
-  verification_result?: { scan_id: string; basis: "visibility_change" | "no_change" } | null
+  verification_result?: {
+    scan_id: string
+    basis: "visibility_change" | "no_change" | "query_presence"
+    before_seen?: boolean | null
+    after_seen?: boolean | null
+    claim?: string | null
+  } | null
   approval_decision?: "approved" | null
   approval_evidence?: string | null
   commercial_intent?: number | null

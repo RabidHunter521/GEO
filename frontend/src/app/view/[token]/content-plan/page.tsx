@@ -1,8 +1,8 @@
 // frontend/src/app/view/[token]/content-plan/page.tsx
 // Read-only content strategy: where the gaps are (the "why"), then the
 // 90-day roadmap built from competitor-won queries (the "what's next").
-import { Lightbulb } from "lucide-react"
-import { getViewContentGaps, getViewRoadmap } from "@/lib/view-api"
+import { ExternalLink, Lightbulb, ListChecks } from "lucide-react"
+import { getViewActionPlan, getViewContentGaps, getViewRoadmap } from "@/lib/view-api"
 import { ClientRoadmapList } from "@/components/view/ClientRoadmapList"
 
 const TOPIC_STATUS: Record<string, { label: string; cls: string }> = {
@@ -17,9 +17,10 @@ export default async function ViewContentPlanPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const [gaps, roadmap] = await Promise.all([
+  const [gaps, roadmap, actionPlan] = await Promise.all([
     getViewContentGaps(token),
     getViewRoadmap(token),
+    getViewActionPlan(token),
   ])
 
   // Treat as "has content" only when there's something to render — a gaps
@@ -30,8 +31,9 @@ export default async function ViewContentPlanPage({
       gaps.entities.length > 0 ||
       !!gaps.quality_recommendation)
   const hasRoadmap = !!roadmap && roadmap.items.length > 0
+  const hasActionPlan = !!actionPlan && actionPlan.length > 0
 
-  if (!hasGaps && !hasRoadmap) {
+  if (!hasGaps && !hasRoadmap && !hasActionPlan) {
     return (
       <div className="reveal relative overflow-hidden rounded-2xl border bg-card bg-hero-wash p-8 text-center shadow-brand-lg">
         <span
@@ -119,6 +121,61 @@ export default async function ViewContentPlanPage({
               </p>
             </div>
           )}
+        </section>
+      )}
+
+      {hasActionPlan && actionPlan && (
+        <section className="reveal space-y-4" style={{ animationDelay: "40ms" }}>
+          <div>
+            <h2 className="font-display text-lg font-semibold">Action Plan</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Current work moving from delivery into verified AI visibility proof.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {actionPlan.map((item, idx) => (
+              <article
+                key={`${item.title}-${idx}`}
+                className="card-lift rounded-xl border bg-card p-5"
+              >
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <ListChecks className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-[12rem] flex-1 font-display text-sm font-semibold">
+                        {item.title}
+                      </h3>
+                      <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+                        {item.status_label}
+                      </span>
+                    </div>
+                    {item.client_safe_summary && (
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                        {item.client_safe_summary}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      {item.due_month && <span>Due {item.due_month}</span>}
+                      {item.destination_url && (
+                        <a
+                          href={item.destination_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                        >
+                          View destination
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
       )}
 
