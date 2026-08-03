@@ -37,7 +37,7 @@ describe("public reputation truth health", () => {
       }],
       resolved_issues: [{
         summary: "A reviewed AI answer conflicts with verified business information.",
-        status_label: "Corrected",
+        status_label: "Resolved",
       }],
     })
   })
@@ -55,7 +55,8 @@ describe("public reputation truth health", () => {
     expect(markup).toContain('aria-label="Location selector"')
     expect(markup).toContain("Dental implants")
     expect(markup).toContain("reviewed issue open")
-    expect(markup).toContain("corrected")
+    expect(markup).toContain("corrective action awaiting proof")
+    expect(markup).toContain("Resolved issues")
     expect(markup).not.toContain("Draft")
     expect(markup).not.toContain("candidate")
   })

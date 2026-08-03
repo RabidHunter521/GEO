@@ -8,8 +8,9 @@ The response is a strict public whitelist:
 - active location name, city, rendered opening-hours summary, and approved
   `service_categories` only;
 - most-recent current-fact approval/effective timestamp as freshness;
-- generic summaries and counts for human-reviewed, fact-backed conflicts in
-  `confirmed`, `corrected`, or `verified_fixed` states.
+- generic summaries and counts for human-reviewed, fact-backed conflicts.
+  `corrected` is counted as corrective work awaiting proof; only
+  `verified_fixed` appears in the public resolved-issues list.
 
 It structurally excludes drafts, raw fact values other than service categories,
 fact/version identifiers, source URLs and source metadata, reviewer notes,

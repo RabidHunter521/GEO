@@ -104,7 +104,9 @@ export default async function ViewReputationPage({
           <div className="rounded-xl border bg-card p-4">
             <p className="text-2xl font-semibold tabular-nums">{truthHealth.corrected_count}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {truthHealth.corrected_count === 1 ? "corrected" : "corrected issues"}
+              {truthHealth.corrected_count === 1
+                ? "corrective action awaiting proof"
+                : "corrective actions awaiting proof"}
             </p>
           </div>
         </div>

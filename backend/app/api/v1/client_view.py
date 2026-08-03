@@ -637,10 +637,10 @@ def get_truth_health(
     resolved_issues = [
         ClientViewReviewedConflictSummary(
             summary=_REVIEWED_TRUTH_CONFLICT_SUMMARY,
-            status_label="Corrected" if status == "corrected" else "Resolved",
+            status_label="Resolved",
         )
         for (status,) in reviewed_rows
-        if status in ("corrected", "verified_fixed")
+        if status == "verified_fixed"
     ]
 
     return ClientViewTruthHealth(
@@ -655,7 +655,7 @@ def get_truth_health(
         ],
         fact_freshness=max(freshness_values, default=None),
         reviewed_open_issue_count=len(open_issues),
-        corrected_count=len(resolved_issues),
+        corrected_count=sum(status == "corrected" for (status,) in reviewed_rows),
         open_issues=open_issues,
         resolved_issues=resolved_issues,
     )

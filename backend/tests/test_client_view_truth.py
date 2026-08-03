@@ -140,6 +140,7 @@ def test_truth_health_exposes_only_current_approved_location_summary_and_reviewe
     db.flush()
     _finding(db, account, result, category_fact, status="confirmed", secret="OPEN_SECRET")
     _finding(db, account, result, category_fact, status="corrected", secret="CORRECTED_SECRET")
+    _finding(db, account, result, category_fact, status="verified_fixed", secret="RESOLVED_SECRET")
     _finding(db, account, result, category_fact, status="suggested", secret="DRAFT_CONFLICT_SECRET")
     db.commit()
 
@@ -170,7 +171,7 @@ def test_truth_health_exposes_only_current_approved_location_summary_and_reviewe
     }]
     assert body["resolved_issues"] == [{
         "summary": "A reviewed AI answer conflicts with verified business information.",
-        "status_label": "Corrected",
+        "status_label": "Resolved",
     }]
 
     serialized = str(body)
@@ -184,6 +185,7 @@ def test_truth_health_exposes_only_current_approved_location_summary_and_reviewe
         "Private city",
         "OPEN_SECRET",
         "CORRECTED_SECRET",
+        "RESOLVED_SECRET",
         "DRAFT_CONFLICT_SECRET",
         "Internal reasoning",
         "Admin note",
