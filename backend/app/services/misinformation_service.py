@@ -386,7 +386,8 @@ def store_truth_conflict_candidates(
     if result is None or db.get(Scan, result.scan_id) is None:
         return 0
     scan = db.get(Scan, result.scan_id)
-    if scan is None or scan.client_id != client_id:
+    observed_at = scan.completed_at if scan is not None else None
+    if scan is None or scan.client_id != client_id or observed_at is None:
         return 0
 
     stored = 0
@@ -400,6 +401,10 @@ def store_truth_conflict_candidates(
             or version is None
             or fact.client_id != client_id
             or version.truth_fact_id != fact.id
+            or version.status != "approved"
+            or version.effective_from is None
+            or version.effective_from > observed_at
+            or (version.effective_to is not None and version.effective_to < observed_at)
             or not quote_in_response(candidate.answer_quote, result.response_text)
         ):
             continue

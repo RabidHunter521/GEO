@@ -152,7 +152,9 @@ def _coerce_fact(
 def _is_effective_approved_fact(
     fact: TruthFact, version: TruthFactVersion, claim: TruthClaim
 ) -> bool:
-    if version.status != "approved":
+    # A scan timestamp is mandatory: comparing with whatever is current now
+    # would let future or expired versions rewrite historical scan evidence.
+    if claim.observed_at is None or version.status != "approved":
         return False
     if _normal_text(fact.fact_type) != _normal_text(claim.fact_type):
         return False
@@ -160,8 +162,6 @@ def _is_effective_approved_fact(
         return False
     if fact.location_id != claim.location_id:
         return False
-    if claim.observed_at is None:
-        return True
     return (
         version.effective_from is not None
         and version.effective_from <= claim.observed_at

@@ -1,5 +1,7 @@
 """Review workflow: suggested → confirmed/dismissed → corrected →
 candidate_fixed → verified_fixed, plus the remediation spawn on confirm."""
+from datetime import timedelta
+
 import pytest
 
 from app.core.time import utcnow
@@ -75,7 +77,10 @@ def test_truth_conflicts_stay_suggested_until_a_reviewer_confirms_and_sets_sever
     version = TruthFactVersion(
         truth_fact_id=fact.id,
         value_json={"value": "No guarantees", "display_value": "No guarantees"},
-        status="draft",
+        status="approved",
+        effective_from=utcnow() - timedelta(days=1),
+        approved_at=utcnow() - timedelta(days=1),
+        approved_by="admin",
     )
     db.add(version)
     db.commit()
@@ -106,6 +111,49 @@ def test_truth_conflicts_stay_suggested_until_a_reviewer_confirms_and_sets_sever
     assert reviewed is not None
     assert reviewed.status == "confirmed"
     assert reviewed.severity == "high"
+
+
+@pytest.mark.parametrize(
+    ("status", "effective_from"),
+    [
+        ("draft", None),
+        ("approved", utcnow() + timedelta(days=1)),
+    ],
+)
+def test_truth_conflict_candidate_requires_an_approved_version_effective_at_scan(
+    db, status, effective_from
+):
+    client, scan, result, _ = _setup(db)
+    fact = TruthFact(client_id=client.id, fact_type="business", fact_key=f"policy_{status}")
+    db.add(fact)
+    db.flush()
+    version = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json={"value": "No guarantees", "display_value": "No guarantees"},
+        status=status,
+        effective_from=effective_from,
+        approved_at=utcnow() if status == "approved" else None,
+        approved_by="admin" if status == "approved" else None,
+    )
+    db.add(version)
+    db.commit()
+    candidate = TruthConflictCandidate(
+        answer_quote="guarantees full recovery",
+        claim_value="guarantees full recovery",
+        truth_fact_id=fact.id,
+        truth_fact_version_id=version.id,
+        fact_type="business",
+        fact_key=fact.fact_key,
+        approved_value="No guarantees",
+        source_url="https://klinik-a.example/policies",
+        comparator="text",
+    )
+
+    stored = store_truth_conflict_candidates(client.id, result.id, [candidate], db)
+
+    assert scan.completed_at is not None
+    assert stored == 0
+    assert db.query(MisinformationFinding).filter_by(truth_fact_version_id=version.id).count() == 0
 
 
 def test_confirm_is_refused_once_the_finding_left_review(db):

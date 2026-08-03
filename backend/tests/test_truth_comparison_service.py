@@ -111,7 +111,9 @@ def test_conflicting_value_returns_unconfirmed_candidate_with_truth_evidence(db)
 
     fact, version = _approved_fact(db, fact_key="phone", value="+65 1234 5678")
 
-    candidates = compare_claims_to_truth([_claim("phone", "+65 9999 0000")], [version])
+    candidates = compare_claims_to_truth(
+        [_claim("phone", "+65 9999 0000", observed_at=utcnow())], [version]
+    )
 
     assert len(candidates) == 1
     candidate = candidates[0]
@@ -130,11 +132,21 @@ def test_claimed_list_item_missing_from_approved_list_is_a_conflict(db):
     _, version = _approved_fact(db, fact_key="services", value=["cleanings", "whitening"])
 
     candidates = compare_claims_to_truth(
-        [_claim("services", ["cleanings", "jaw surgery"])], [version]
+        [_claim("services", ["cleanings", "jaw surgery"], observed_at=utcnow())], [version]
     )
 
     assert len(candidates) == 1
     assert candidates[0].comparator == "list_containment"
+
+
+def test_claim_without_an_observation_time_is_not_compared_to_a_fact(db):
+    from app.services.truth_comparison_service import compare_claims_to_truth
+
+    _, version = _approved_fact(db, fact_key="phone", value="+65 1234 5678")
+
+    candidates = compare_claims_to_truth([_claim("phone", "+65 9999 0000")], [version])
+
+    assert candidates == []
 
 
 def test_fact_outside_the_claim_observation_time_is_excluded(db):
