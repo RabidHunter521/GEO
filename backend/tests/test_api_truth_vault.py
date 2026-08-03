@@ -174,12 +174,17 @@ def test_truth_fact_lifecycle_validates_urls_and_hides_cross_client_resources(
     other_location = _make_location(db, other.id)
     fact = _create_fact(client, account.id, auth_headers)
 
-    invalid_url = client.post(
-        f"/api/v1/clients/{account.id}/truth-facts/{fact['id']}/versions",
-        headers=auth_headers,
-        json=_version_payload(source_url="not a URL"),
-    )
-    assert invalid_url.status_code == 422
+    for invalid_source_url in (
+        "not a URL",
+        "https://acme.example:99999/contact",
+        "https://acme\n.example/contact",
+    ):
+        invalid_url = client.post(
+            f"/api/v1/clients/{account.id}/truth-facts/{fact['id']}/versions",
+            headers=auth_headers,
+            json=_version_payload(source_url=invalid_source_url),
+        )
+        assert invalid_url.status_code == 422
     assert client.post(
         f"/api/v1/clients/{account.id}/truth-facts",
         headers=auth_headers,
@@ -209,6 +214,21 @@ def test_truth_fact_lifecycle_validates_urls_and_hides_cross_client_resources(
     )
     assert retired.status_code == 200
     assert retired.json()["effective_to"] == "2026-02-01T08:59:59.999999"
+
+
+@pytest.mark.parametrize("source_url", ["http://acme.example/contact", "https://acme.example/contact"])
+def test_truth_fact_versions_accept_valid_http_source_urls(client, db, auth_headers, source_url):
+    account = _make_client(db)
+    fact = _create_fact(client, account.id, auth_headers)
+
+    response = client.post(
+        f"/api/v1/clients/{account.id}/truth-facts/{fact['id']}/versions",
+        headers=auth_headers,
+        json=_version_payload(source_url=source_url),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["source_url"] == source_url
 
 
 def test_truth_facts_paginate_and_reject_unknown_list_modes(client, db, auth_headers):
