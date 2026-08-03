@@ -70,7 +70,12 @@ class TruthFact(Base):
 
 
 class TruthFactVersion(Base):
-    """An auditable value and validity period for a truth fact."""
+    """An auditable value and validity period for a truth fact.
+
+    Stored values are immutable. The database permits only two lifecycle
+    updates: approval of a draft and the one-way closure of an open approved
+    period, whether caused by a successor approval or deliberate retirement.
+    """
 
     __tablename__ = "truth_fact_versions"
     __table_args__ = (

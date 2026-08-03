@@ -199,6 +199,8 @@ def test_truth_fact_versions_reject_update_and_delete_and_block_fact_deletion(db
     fact = TruthFact(client_id=client.id, fact_type="business", fact_key="phone")
     db.add(fact)
     db.flush()
+    db.add(fact)
+    db.flush()
     version = TruthFactVersion(
         truth_fact_id=fact.id,
         value_json="+65 1234 5678",
@@ -276,6 +278,44 @@ def test_truth_fact_versions_allow_only_approval_and_closure_lifecycle_updates(d
     invalid_draft.status = "approved"
     invalid_draft.approved_at = first_effective_at
     invalid_draft.approved_by = "reviewer@example.com"
+    with pytest.raises(IntegrityError, match="append-only"):
+        db.commit()
+    db.rollback()
+
+
+def test_truth_fact_versions_allow_direct_retirement_but_reject_reopening_or_mutation(db):
+    """A deliberate retirement closes history once; it never reopens or rewrites it."""
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+
+    client = _make_client(db)
+    fact = TruthFact(client_id=client.id, fact_type="business", fact_key="booking_url")
+    effective_from = datetime(2026, 1, 1, 9, 0, 0)
+    retirement_at = datetime(2026, 2, 1, 9, 0, 0)
+    db.add(fact)
+    db.flush()
+    version = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json="https://acme.example/book",
+        status="approved",
+        source_url="https://acme.example/contact",
+        effective_from=effective_from,
+        approved_at=effective_from,
+        approved_by="reviewer@example.com",
+    )
+    db.add(version)
+    db.commit()
+
+    version.effective_to = retirement_at - timedelta(microseconds=1)
+    db.commit()
+    assert version.effective_to == datetime(2026, 2, 1, 8, 59, 59, 999999)
+
+    version.effective_to = None
+    with pytest.raises(IntegrityError, match="append-only"):
+        db.commit()
+    db.rollback()
+
+    version = db.query(TruthFactVersion).one()
+    version.value_json = "https://acme.example/changed"
     with pytest.raises(IntegrityError, match="append-only"):
         db.commit()
     db.rollback()

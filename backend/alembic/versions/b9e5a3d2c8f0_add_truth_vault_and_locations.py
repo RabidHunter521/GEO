@@ -149,6 +149,8 @@ def upgrade() -> None:
         CREATE FUNCTION prevent_truth_fact_version_mutation()
         RETURNS trigger AS $$
         BEGIN
+            -- An open approved interval may close for either a successor
+            -- approval or a deliberate retirement. It can never reopen.
             IF TG_OP = 'UPDATE'
                AND OLD.status = 'draft'
                AND NEW.status = 'approved'
