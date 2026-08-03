@@ -45,8 +45,14 @@ class OutcomeAction(Base):
             ["location_id", "client_id"],
             ["business_locations.id", "business_locations.client_id"],
             name="fk_outcome_actions_location_client",
+            ondelete="SET NULL (location_id)",
+        ).ddl_if(dialect="postgresql"),
+        ForeignKeyConstraint(
+            ["location_id", "client_id"],
+            ["business_locations.id", "business_locations.client_id"],
+            name="fk_outcome_actions_location_client",
             ondelete="SET NULL",
-        ),
+        ).ddl_if(dialect="sqlite"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

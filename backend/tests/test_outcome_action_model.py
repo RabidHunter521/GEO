@@ -1,8 +1,15 @@
 """OutcomeAction persistence."""
 from datetime import date
+from importlib.util import module_from_spec, spec_from_file_location
+from io import StringIO
+from pathlib import Path
 
 import pytest
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.dialects import postgresql, sqlite
+from sqlalchemy.schema import CreateTable
 
 
 def _make_client(db):
@@ -188,3 +195,31 @@ def test_outcome_action_rejects_a_location_owned_by_another_client(db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_location_scope_fk_uses_column_specific_set_null_in_postgres_ddl():
+    from app.models.outcome_action import OutcomeAction
+
+    postgres_model_ddl = str(
+        CreateTable(OutcomeAction.__table__).compile(dialect=postgresql.dialect())
+    )
+    sqlite_model_ddl = str(CreateTable(OutcomeAction.__table__).compile(dialect=sqlite.dialect()))
+
+    migration_path = Path(__file__).parents[1] / "alembic" / "versions" / (
+        "b9e5a3d2c8f0_add_truth_vault_and_locations.py"
+    )
+    spec = spec_from_file_location("truth_location_migration", migration_path)
+    assert spec is not None and spec.loader is not None
+    migration = module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    output = StringIO()
+    migration.op = Operations(
+        MigrationContext.configure(dialect_name="postgresql", opts={"as_sql": True, "output_buffer": output})
+    )
+    migration.upgrade()
+
+    expected = "ON DELETE SET NULL (location_id)"
+    assert expected in postgres_model_ddl
+    assert expected in output.getvalue()
+    assert expected not in sqlite_model_ddl
+    assert "ON DELETE SET NULL" in sqlite_model_ddl
