@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from datetime import datetime
 import uuid
 
-from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from app.models.outcome_action import OutcomeAction

@@ -206,8 +206,17 @@ def test_history_returns_oldest_to_newest_capped_at_limit(db):
 
     base = datetime(2026, 1, 1)
     for i in range(15):
+        scan_id = uuid.uuid4()
+        db.add(
+            Scan(
+                id=scan_id,
+                client_id=client.id,
+                status="completed",
+                completed_at=base + timedelta(days=i),
+            )
+        )
         snap = ps.ShareOfSourceSnapshot(
-            client_id=client.id, scan_id=uuid.uuid4(),
+            client_id=client.id, scan_id=scan_id,
             computed_at=base + timedelta(days=i),
             total_third_party_sources=i, client_share_pct=float(i),
         )
