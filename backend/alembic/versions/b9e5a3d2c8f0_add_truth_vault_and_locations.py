@@ -126,6 +126,135 @@ def upgrade() -> None:
         ["truth_fact_id", "effective_from", "effective_to"],
     )
 
+    # Keep the legacy Client columns as the current API contract, while making
+    # every populated value available through the append-only Truth Vault from
+    # the first deployment of these tables. md5() is built into PostgreSQL, so
+    # deterministic UUIDs keep this upgrade self-contained (no extension
+    # dependency) and harmless if it is retried before Alembic records it.
+    op.execute(
+        """
+        INSERT INTO business_locations (
+            id, client_id, name, slug, is_primary, website, city, state, country, phone, active
+        )
+        SELECT
+            md5('truth-backfill-location:' || clients.id::text)::uuid,
+            clients.id,
+            COALESCE(NULLIF(BTRIM(clients.name), ''), 'Primary location'),
+            'primary-' || clients.id::text,
+            TRUE,
+            NULLIF(BTRIM(clients.website), ''),
+            NULLIF(BTRIM(clients.city), ''),
+            NULLIF(BTRIM(clients.state), ''),
+            NULLIF(BTRIM(clients.country), ''),
+            NULLIF(BTRIM(clients.phone), ''),
+            TRUE
+        FROM clients
+        ON CONFLICT DO NOTHING;
+        """
+    )
+    op.execute(
+        """
+        WITH backfill_values AS (
+            SELECT clients.id AS client_id, NULL::uuid AS location_id, 'business' AS fact_type,
+                   mapped.fact_key, mapped.value
+            FROM clients
+            CROSS JOIN LATERAL (
+                VALUES
+                    ('official_name', NULLIF(BTRIM(clients.name), '')),
+                    ('website', NULLIF(BTRIM(clients.website), '')),
+                    ('industry', NULLIF(BTRIM(clients.industry), '')),
+                    ('description', NULLIF(BTRIM(clients.description), '')),
+                    ('phone', NULLIF(BTRIM(clients.phone), ''))
+            ) AS mapped(fact_key, value)
+            WHERE mapped.value IS NOT NULL
+
+            UNION ALL
+
+            SELECT clients.id, locations.id, 'location', mapped.fact_key, mapped.value
+            FROM clients
+            JOIN business_locations AS locations
+              ON locations.client_id = clients.id AND locations.is_primary IS TRUE
+            CROSS JOIN LATERAL (
+                VALUES
+                    ('city', NULLIF(BTRIM(clients.city), '')),
+                    ('state', NULLIF(BTRIM(clients.state), '')),
+                    ('country', NULLIF(BTRIM(clients.country), ''))
+            ) AS mapped(fact_key, value)
+            WHERE mapped.value IS NOT NULL
+        )
+        INSERT INTO truth_facts (id, client_id, location_id, fact_type, fact_key)
+        SELECT
+            md5(
+                'truth-backfill-fact:' || client_id::text || ':' ||
+                COALESCE(location_id::text, 'brand') || ':' || fact_type || ':' || fact_key
+            )::uuid,
+            client_id,
+            location_id,
+            fact_type,
+            fact_key
+        FROM backfill_values
+        ON CONFLICT DO NOTHING;
+        """
+    )
+    op.execute(
+        """
+        WITH backfill_values AS (
+            SELECT clients.id AS client_id, NULL::uuid AS location_id, 'business' AS fact_type,
+                   mapped.fact_key, mapped.value, COALESCE(clients.created_at, NOW()) AS effective_from
+            FROM clients
+            CROSS JOIN LATERAL (
+                VALUES
+                    ('official_name', NULLIF(BTRIM(clients.name), '')),
+                    ('website', NULLIF(BTRIM(clients.website), '')),
+                    ('industry', NULLIF(BTRIM(clients.industry), '')),
+                    ('description', NULLIF(BTRIM(clients.description), '')),
+                    ('phone', NULLIF(BTRIM(clients.phone), ''))
+            ) AS mapped(fact_key, value)
+            WHERE mapped.value IS NOT NULL
+
+            UNION ALL
+
+            SELECT clients.id, locations.id, 'location', mapped.fact_key, mapped.value,
+                   COALESCE(clients.created_at, NOW())
+            FROM clients
+            JOIN business_locations AS locations
+              ON locations.client_id = clients.id AND locations.is_primary IS TRUE
+            CROSS JOIN LATERAL (
+                VALUES
+                    ('city', NULLIF(BTRIM(clients.city), '')),
+                    ('state', NULLIF(BTRIM(clients.state), '')),
+                    ('country', NULLIF(BTRIM(clients.country), ''))
+            ) AS mapped(fact_key, value)
+            WHERE mapped.value IS NOT NULL
+        )
+        INSERT INTO truth_fact_versions (
+            id, truth_fact_id, value_json, status, source_url,
+            effective_from, approved_at, approved_by
+        )
+        SELECT
+            md5('truth-backfill-version:' || facts.id::text)::uuid,
+            facts.id,
+            jsonb_build_object('value', backfill_values.value, 'display_value', backfill_values.value),
+            'approved',
+            'client-record://backfill',
+            backfill_values.effective_from,
+            NOW(),
+            'system:migration'
+        FROM backfill_values
+        JOIN truth_facts AS facts
+          ON facts.client_id = backfill_values.client_id
+         AND facts.fact_type = backfill_values.fact_type
+         AND facts.fact_key = backfill_values.fact_key
+         AND facts.location_id IS NOT DISTINCT FROM backfill_values.location_id
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM truth_fact_versions AS versions
+            WHERE versions.truth_fact_id = facts.id
+        )
+        ON CONFLICT DO NOTHING;
+        """
+    )
+
     op.add_column("outcome_actions", sa.Column("location_id", sa.UUID(), nullable=True))
     op.create_foreign_key(
         "fk_outcome_actions_location_client",
