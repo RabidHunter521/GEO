@@ -449,6 +449,28 @@ export function getTruthFacts(
   return apiFetch<TruthFactListResponse>(`/api/v1/clients/${clientId}/truth-facts${query}`)
 }
 
+// History responses are paginated at 100 rows by the API. The Truth Vault
+// administration page needs the complete scope so every existing fact remains
+// reviewable, not just the first page.
+export async function getAllTruthFacts(
+  clientId: string,
+  options?: Omit<NonNullable<Parameters<typeof getTruthFacts>[1]>, "page" | "page_size">,
+): Promise<TruthFact[]> {
+  const facts: TruthFact[] = []
+  let page = 1
+  let total = Number.POSITIVE_INFINITY
+
+  while (facts.length < total) {
+    const result = await getTruthFacts(clientId, { ...options, page, page_size: 100 })
+    facts.push(...result.facts)
+    total = result.total
+    if (result.facts.length === 0) break
+    page += 1
+  }
+
+  return facts
+}
+
 export function createTruthFact(
   clientId: string, body: Pick<TruthFact, "fact_type" | "fact_key" | "location_id">,
 ): Promise<TruthFact> {

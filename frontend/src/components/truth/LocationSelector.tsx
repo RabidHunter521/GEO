@@ -15,6 +15,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import type { BusinessLocation, BusinessLocationInput } from "@/types"
+import { primaryReplacementCandidates } from "@/lib/truth-vault"
 
 type FormData = Required<Pick<BusinessLocationInput, "name">> & BusinessLocationInput
 
@@ -63,13 +64,22 @@ export function LocationSelector({
   pending?: boolean
   onCreate: (input: FormData) => Promise<void>
   onUpdate: (locationId: string, input: FormData) => Promise<void>
-  onDeactivate: (location: BusinessLocation) => Promise<void>
+  onDeactivate: (location: BusinessLocation, replacementId: string | null) => Promise<void>
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [editing, setEditing] = useState<BusinessLocation | "new" | null>(null)
   const [deactivating, setDeactivating] = useState<BusinessLocation | null>(null)
+  const [replacementId, setReplacementId] = useState("")
+
+  function beginDeactivation(location: BusinessLocation) {
+    const replacement = location.is_primary
+      ? primaryReplacementCandidates(locations, location.id)[0]
+      : undefined
+    setReplacementId(replacement?.id ?? "")
+    setDeactivating(location)
+  }
 
   function select(locationId: string | null) {
     const params = new URLSearchParams(searchParams.toString())
@@ -130,7 +140,7 @@ export function LocationSelector({
           setEditing(null)
         }}
         onDeactivate={editing && editing !== "new" ? async () => {
-          setDeactivating(editing)
+          beginDeactivation(editing)
           setEditing(null)
         } : undefined}
       />
@@ -140,17 +150,36 @@ export function LocationSelector({
           <AlertDialogHeader>
             <AlertDialogTitle>Deactivate location?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deactivating?.name} will be removed from active fact administration. Its historical facts remain intact.
+              {deactivating?.is_primary
+                ? "Choose and confirm a replacement primary location before deactivating this one."
+                : `${deactivating?.name} will be removed from active fact administration. Its historical facts remain intact.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deactivating?.is_primary && (
+            <div className="space-y-1.5">
+              <Label htmlFor="primary-replacement">New primary location</Label>
+              <select
+                id="primary-replacement"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={replacementId}
+                onChange={(event) => setReplacementId(event.target.value)}
+              >
+                <option value="" disabled>Select a replacement</option>
+                {primaryReplacementCandidates(locations, deactivating.id).map((location) => (
+                  <option key={location.id} value={location.id}>{location.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              disabled={pending}
+              disabled={pending || (deactivating?.is_primary === true && !replacementId)}
               onClick={async (event) => {
                 event.preventDefault()
                 if (!deactivating) return
-                await onDeactivate(deactivating)
+                if (deactivating.is_primary && !replacementId) return
+                await onDeactivate(deactivating, deactivating.is_primary ? replacementId : null)
                 setDeactivating(null)
               }}
             >
@@ -225,9 +254,14 @@ function LocationDialog({
             <Field label="Country code" hint="Two-letter code, e.g. MY" value={input.country ?? ""} onChange={(value) => update("country", value)} />
           </div>
           <label className="flex items-center gap-2 text-sm font-medium">
-            <Checkbox checked={input.is_primary} onCheckedChange={(checked) => update("is_primary", checked === true)} />
+            <Checkbox
+              checked={input.is_primary}
+              disabled={location?.is_primary === true}
+              onCheckedChange={(checked) => update("is_primary", checked === true)}
+            />
             Make this the primary location
           </label>
+          {location?.is_primary && <p className="text-xs text-muted-foreground">Assign another active location as primary before changing this one.</p>}
           <DialogFooter className="gap-2 sm:gap-0">
             {onDeactivate && <Button type="button" variant="destructive" className="sm:mr-auto" disabled={disabled} onClick={onDeactivate}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Deactivate</Button>}
             <Button type="button" variant="outline" disabled={disabled} onClick={() => onOpenChange(false)}>Cancel</Button>

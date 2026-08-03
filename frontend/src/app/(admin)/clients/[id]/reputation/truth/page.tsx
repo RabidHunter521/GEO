@@ -1,4 +1,4 @@
-import { getBusinessLocations, getTruthFacts } from "@/lib/api"
+import { getAllTruthFacts, getBusinessLocations } from "@/lib/api"
 import { TruthVaultClient } from "./TruthVaultClient"
 
 export default async function TruthVaultPage({
@@ -14,17 +14,16 @@ export default async function TruthVaultPage({
   // hand-crafted location query as Brand-wide instead of silently presenting
   // inactive-location facts under the wrong scope label.
   const selectedLocationId = location && locations.some((item) => item.id === location) ? location : null
-  const result = await getTruthFacts(id, {
+  const facts = await getAllTruthFacts(id, {
     location_id: selectedLocationId ?? undefined,
     mode: "history",
-    page_size: 100,
   })
 
   return <TruthVaultClient
     key={selectedLocationId ?? "brand"}
     clientId={id}
     locations={locations}
-    facts={result.facts}
+    facts={facts}
     selectedLocationId={selectedLocationId}
   />
 }

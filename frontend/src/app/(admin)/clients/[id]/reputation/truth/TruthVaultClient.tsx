@@ -66,9 +66,20 @@ export function TruthVaultClient({
     ))
   }
 
-  async function deactivateLocation(location: BusinessLocation) {
-    await mutation(() => deactivateLocationAction(clientId, location.id))
-    setLocations((current) => current.filter((item) => item.id !== location.id))
+  async function deactivateLocation(location: BusinessLocation, replacementId: string | null) {
+    const replacement = replacementId
+      ? locations.find((item) => item.id === replacementId && item.active && item.id !== location.id)
+      : undefined
+    if (location.is_primary && !replacement) {
+      throw new Error("Select another active location as the new primary before deactivating this location.")
+    }
+    await mutation(async () => {
+      if (replacement) await updateLocationAction(clientId, replacement.id, { is_primary: true })
+      await deactivateLocationAction(clientId, location.id)
+    })
+    setLocations((current) => current
+      .filter((item) => item.id !== location.id)
+      .map((item) => ({ ...item, is_primary: replacement ? item.id === replacement.id : item.is_primary })))
     if (selectedLocationId === location.id) router.push(`/clients/${clientId}/reputation/truth`)
   }
 
