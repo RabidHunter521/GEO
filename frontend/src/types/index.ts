@@ -726,6 +726,30 @@ export interface ClientViewIssueGroup {
   issues: string[]
 }
 
+// Truth-health data is exposed only through the share-token view. These are
+// deliberately not the admin Truth Vault types: no draft values, identifiers,
+// evidence URLs, reviewer notes, approval identities, or source metadata.
+export interface ClientViewLocationSummary {
+  name: string
+  city: string | null
+  hours_summary: string | null
+  service_categories: string[]
+}
+
+export interface ClientViewReviewedConflictSummary {
+  summary: string
+  status_label: "Open" | "Corrected" | "Resolved"
+}
+
+export interface ClientViewTruthHealth {
+  locations: ClientViewLocationSummary[]
+  fact_freshness: string | null
+  reviewed_open_issue_count: number
+  corrected_count: number
+  open_issues: ClientViewReviewedConflictSummary[]
+  resolved_issues: ClientViewReviewedConflictSummary[]
+}
+
 // --- Deliverables surfaced read-only on the client view ---
 
 export interface ClientViewRoadmapItem {

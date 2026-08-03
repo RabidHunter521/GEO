@@ -299,6 +299,33 @@ class ClientViewIssueGroup(BaseModel):
     issues: list[str]
 
 
+class ClientViewLocationSummary(BaseModel):
+    """Public location data deliberately limited to client-safe business details."""
+
+    name: str
+    city: str | None = None
+    hours_summary: str | None = None
+    service_categories: list[str] = []
+
+
+class ClientViewReviewedConflictSummary(BaseModel):
+    """A reviewed truth conflict without its AI quote, evidence, or reviewer data."""
+
+    summary: str
+    status_label: str
+
+
+class ClientViewTruthHealth(BaseModel):
+    """Strict-whitelist health summary for approved business truth only."""
+
+    locations: list[ClientViewLocationSummary] = []
+    fact_freshness: datetime | None = None
+    reviewed_open_issue_count: int
+    corrected_count: int
+    open_issues: list[ClientViewReviewedConflictSummary] = []
+    resolved_issues: list[ClientViewReviewedConflictSummary] = []
+
+
 class ClientViewTrendSeries(BaseModel):
     name: str
     is_you: bool

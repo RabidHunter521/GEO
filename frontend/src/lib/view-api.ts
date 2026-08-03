@@ -17,6 +17,7 @@ import type {
   ClientViewWorkLogItem,
   ClientViewActionPlanItem,
   ClientViewCompletedWorkItem,
+  ClientViewTruthHealth,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -82,4 +83,8 @@ export function getViewActionPlan(token: string): Promise<ClientViewActionPlanIt
 
 export function getViewCompletedWork(token: string): Promise<ClientViewCompletedWorkItem[] | null> {
   return viewFetch<ClientViewCompletedWorkItem[]>(token, "/completed-work")
+}
+
+export function getViewTruthHealth(token: string): Promise<ClientViewTruthHealth | null> {
+  return viewFetch<ClientViewTruthHealth>(token, "/truth-health")
 }

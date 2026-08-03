@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 
 from app.core.constants import (
     PLATFORM_LABELS,
@@ -35,6 +35,9 @@ from app.models.content_analysis import ContentAnalysis
 from app.models.activity_log import ActivityLog
 from app.models.outcome_action import OutcomeAction
 from app.models.remediation_item import RemediationItem
+from app.models.business_location import BusinessLocation
+from app.models.misinformation_finding import MisinformationFinding
+from app.models.truth_fact import TruthFact, TruthFactVersion
 from app.schemas.client_view import (
     ClientViewBenchmark,
     ClientViewCausalTrend,
@@ -57,6 +60,9 @@ from app.schemas.client_view import (
     ClientViewReport,
     ClientViewAction,
     ClientViewIssueGroup,
+    ClientViewLocationSummary,
+    ClientViewReviewedConflictSummary,
+    ClientViewTruthHealth,
     ClientViewToolkit,
     ClientViewRoadmap,
     ClientViewRoadmapItem,
@@ -217,6 +223,60 @@ def _month_label(value: date | datetime | None) -> str | None:
     if value is None:
         return None
     return value.strftime("%B %Y")
+
+
+_WEEKDAY_SHORT_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_WEEKDAY_KEYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+_REVIEWED_TRUTH_CONFLICT_SUMMARY = (
+    "A reviewed AI answer conflicts with verified business information."
+)
+
+
+def _hours_summary(hours_json: dict | None) -> str | None:
+    """Render validated opening hours into a compact client-safe sentence.
+
+    Stored JSON is never passed through directly.  If legacy data is malformed,
+    omit the summary rather than surfacing arbitrary internal JSON.
+    """
+    if not isinstance(hours_json, dict) or set(hours_json) != set(_WEEKDAY_KEYS):
+        return None
+
+    daily: list[str] = []
+    for key in _WEEKDAY_KEYS:
+        periods = hours_json.get(key)
+        if not isinstance(periods, list):
+            return None
+        rendered_periods: list[str] = []
+        for period in periods:
+            if not isinstance(period, dict):
+                return None
+            opening, closing = period.get("open"), period.get("close")
+            if not isinstance(opening, str) or not isinstance(closing, str):
+                return None
+            rendered_periods.append(f"{opening}–{closing}")
+        daily.append(", ".join(rendered_periods) if rendered_periods else "Closed")
+
+    groups: list[tuple[int, int, str]] = []
+    start = 0
+    for index in range(1, len(daily) + 1):
+        if index == len(daily) or daily[index] != daily[start]:
+            groups.append((start, index - 1, daily[start]))
+            start = index
+    return "; ".join(
+        f"{_WEEKDAY_SHORT_NAMES[start]}: {value}"
+        if start == end
+        else f"{_WEEKDAY_SHORT_NAMES[start]}–{_WEEKDAY_SHORT_NAMES[end]}: {value}"
+        for start, end, value in groups
+    )
+
+
+def _service_categories(value_json: object) -> list[str]:
+    """Accept only the intended, display-safe category values from a fact."""
+    if not isinstance(value_json, dict):
+        return []
+    value = value_json.get("value")
+    values = value if isinstance(value, list) else [value]
+    return [item.strip() for item in values if isinstance(item, str) and item.strip()]
 
 
 def _verification_claim(action: OutcomeAction) -> str | None:
@@ -493,6 +553,111 @@ def get_overview(
         causal_trend=causal_trend,
         commitment=commitment,
         period_summary=build_client_period_summary(client, db, history, proof_cards),
+    )
+
+
+@router.get("/truth-health", response_model=ClientViewTruthHealth)
+def get_truth_health(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    """Approved business facts and human-reviewed factual conflicts only.
+
+    This is intentionally built from dedicated public schemas, not the Truth
+    Vault admin response.  In particular, no fact or version identifiers,
+    drafts, audit data, sources, reviewer data, raw AI quotes, severity, or
+    internal conflict reasoning can cross this route boundary.
+    """
+    locations = (
+        db.query(BusinessLocation)
+        .filter(BusinessLocation.client_id == client.id, BusinessLocation.active.is_(True))
+        .order_by(BusinessLocation.is_primary.desc(), BusinessLocation.name, BusinessLocation.id)
+        .all()
+    )
+    location_ids = [location.id for location in locations]
+    effective_at = utcnow()
+    approved_rows = (
+        db.query(TruthFact, TruthFactVersion)
+        .join(TruthFactVersion, TruthFactVersion.truth_fact_id == TruthFact.id)
+        .filter(
+            TruthFact.client_id == client.id,
+            TruthFactVersion.status == "approved",
+            TruthFactVersion.effective_from <= effective_at,
+            or_(
+                TruthFactVersion.effective_to.is_(None),
+                TruthFactVersion.effective_to >= effective_at,
+            ),
+            or_(
+                TruthFact.location_id.is_(None),
+                TruthFact.location_id.in_(location_ids) if location_ids else False,
+            ),
+        )
+        .order_by(TruthFact.location_id, TruthFact.fact_type, TruthFact.fact_key)
+        .all()
+    )
+
+    brand_categories: list[str] = []
+    location_categories: dict[object, list[str]] = {}
+    freshness_values: list[datetime] = []
+    for fact, version in approved_rows:
+        if version.approved_at is not None:
+            freshness_values.append(version.approved_at)
+        elif version.effective_from is not None:
+            freshness_values.append(version.effective_from)
+        if fact.fact_key != "service_categories":
+            continue
+        categories = _service_categories(version.value_json)
+        if fact.location_id is None:
+            brand_categories.extend(categories)
+        else:
+            location_categories.setdefault(fact.location_id, []).extend(categories)
+
+    def categories_for(location_id) -> list[str]:
+        # Preserve the owner-entered order while dropping duplicates across
+        # brand and location scopes. This has no fallback to draft values.
+        return list(dict.fromkeys([*brand_categories, *location_categories.get(location_id, [])]))
+
+    reviewed_rows = (
+        db.query(MisinformationFinding.status)
+        .filter(
+            MisinformationFinding.client_id == client.id,
+            MisinformationFinding.truth_fact_id.isnot(None),
+            MisinformationFinding.status.in_(("confirmed", "corrected", "verified_fixed")),
+        )
+        .all()
+    )
+    open_issues = [
+        ClientViewReviewedConflictSummary(
+            summary=_REVIEWED_TRUTH_CONFLICT_SUMMARY,
+            status_label="Open",
+        )
+        for (status,) in reviewed_rows
+        if status == "confirmed"
+    ]
+    resolved_issues = [
+        ClientViewReviewedConflictSummary(
+            summary=_REVIEWED_TRUTH_CONFLICT_SUMMARY,
+            status_label="Corrected" if status == "corrected" else "Resolved",
+        )
+        for (status,) in reviewed_rows
+        if status in ("corrected", "verified_fixed")
+    ]
+
+    return ClientViewTruthHealth(
+        locations=[
+            ClientViewLocationSummary(
+                name=location.name,
+                city=location.city,
+                hours_summary=_hours_summary(location.hours_json),
+                service_categories=categories_for(location.id),
+            )
+            for location in locations
+        ],
+        fact_freshness=max(freshness_values, default=None),
+        reviewed_open_issue_count=len(open_issues),
+        corrected_count=len(resolved_issues),
+        open_issues=open_issues,
+        resolved_issues=resolved_issues,
     )
 
 
