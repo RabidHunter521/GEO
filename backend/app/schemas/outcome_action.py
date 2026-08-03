@@ -42,6 +42,7 @@ class OutcomeActionCreate(BaseModel):
     action_type: OutcomeActionType
     priority: str
     confidence: str
+    location_id: uuid.UUID | None = None
     scan_id: uuid.UUID | None = None
     work_log_entry_id: uuid.UUID | None = None
     content_deliverable_id: uuid.UUID | None = None
@@ -70,6 +71,7 @@ class OutcomeActionVerificationEvidence(BaseModel):
 
 
 class OutcomeActionPatch(BaseModel):
+    location_id: uuid.UUID | None = None
     owner: str | None = None
     due_date: date | None = None
     client_safe_summary: str | None = None
@@ -101,6 +103,7 @@ class OutcomeActionOut(BaseModel):
 
     id: uuid.UUID
     client_id: uuid.UUID
+    location_id: uuid.UUID | None
     scan_id: uuid.UUID | None
     work_log_entry_id: uuid.UUID | None
     content_deliverable_id: uuid.UUID | None

@@ -78,6 +78,39 @@ def test_create_action_and_get_action_are_scoped_to_client(db):
     assert get_action(other_client.id, action.id, db) is None
 
 
+def test_action_location_assignment_and_list_filter_are_limited_to_its_client(db):
+    from app.models.business_location import BusinessLocation
+    from app.schemas.outcome_action import OutcomeActionPatch
+    from app.services.outcome_action_service import (
+        OutcomeActionLocationNotFound,
+        create_action,
+        list_actions,
+        patch_action,
+    )
+
+    client = _make_client(db)
+    other_client = _make_client(db, "Other Dental")
+    location = BusinessLocation(client_id=client.id, name="Orchard", slug="orchard")
+    foreign_location = BusinessLocation(
+        client_id=other_client.id, name="Tampines", slug="tampines"
+    )
+    db.add_all([location, foreign_location])
+    db.commit()
+
+    action = create_action(client.id, _create_payload(location_id=location.id), db)
+
+    assert action.location_id == location.id
+    assert list_actions(client.id, db, location_id=location.id) == [action]
+    with pytest.raises(OutcomeActionLocationNotFound):
+        create_action(client.id, _create_payload(location_id=foreign_location.id), db)
+    with pytest.raises(OutcomeActionLocationNotFound):
+        create_action(client.id, _create_payload("content_gap:foreign", location_id=foreign_location.id), db)
+    with pytest.raises(OutcomeActionLocationNotFound):
+        patch_action(action, OutcomeActionPatch(location_id=foreign_location.id), db)
+    with pytest.raises(OutcomeActionLocationNotFound):
+        list_actions(client.id, db, location_id=foreign_location.id)
+
+
 def test_create_action_reuses_existing_client_source_reference(db):
     from app.services.outcome_action_service import create_action
 

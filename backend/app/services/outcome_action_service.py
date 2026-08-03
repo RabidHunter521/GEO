@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.time import utcnow
 from app.models.action_recommendation import ActionRecommendation
 from app.models.content_deliverable import ContentDeliverable
+from app.models.business_location import BusinessLocation
 from app.models.geo_score import GeoScore
 from app.models.outcome_action import OutcomeAction
 from app.models.remediation_item import RemediationItem
@@ -49,8 +50,14 @@ class OutcomeActionValidationError(ValueError):
     """Raised when a lifecycle transition lacks required supporting evidence."""
 
 
+class OutcomeActionLocationNotFound(ValueError):
+    """Raised when an action location is absent or belongs to another client."""
+
+
 def create_action(client_id: uuid.UUID, payload: OutcomeActionCreate, db: Session) -> OutcomeAction:
     """Create one action per client/source reference, preserving specialist records."""
+    if payload.location_id is not None:
+        validate_location_assignment(client_id, payload.location_id, db)
     existing = _get_by_source_ref(client_id, payload.source_ref, db)
     if existing is not None:
         return existing
@@ -81,11 +88,15 @@ def _get_by_source_ref(client_id: uuid.UUID, source_ref: str, db: Session) -> Ou
 
 
 def list_actions(
-    client_id: uuid.UUID, db: Session, status: str | None = None
+    client_id: uuid.UUID, db: Session, status: str | None = None, location_id: uuid.UUID | None = None
 ) -> list[OutcomeAction]:
+    if location_id is not None:
+        validate_location_assignment(client_id, location_id, db)
     query = db.query(OutcomeAction).filter(OutcomeAction.client_id == client_id)
     if status is not None:
         query = query.filter(OutcomeAction.status == status)
+    if location_id is not None:
+        query = query.filter(OutcomeAction.location_id == location_id)
     return query.order_by(OutcomeAction.created_at.desc()).all()
 
 
@@ -104,6 +115,8 @@ def patch_action(action: OutcomeAction, payload: OutcomeActionPatch, db: Session
     approval_decision = updates.pop("approval_decision", None)
     approval_evidence = updates.pop("approval_evidence", None)
     changed_scoring_fields = set(payload.model_fields_set).intersection(SCORING_INPUT_FIELDS)
+    if payload.location_id is not None:
+        validate_location_assignment(action.client_id, payload.location_id, db)
     if payload.verification_result is not None:
         updates["verification_result"] = payload.verification_result.model_dump(
             mode="json", exclude_none=True
@@ -125,6 +138,16 @@ def patch_action(action: OutcomeAction, payload: OutcomeActionPatch, db: Session
     db.commit()
     db.refresh(action)
     return action
+
+
+def validate_location_assignment(client_id: uuid.UUID, location_id: uuid.UUID, db: Session) -> None:
+    location = (
+        db.query(BusinessLocation)
+        .filter(BusinessLocation.id == location_id, BusinessLocation.client_id == client_id)
+        .first()
+    )
+    if location is None:
+        raise OutcomeActionLocationNotFound("Location not found for this client")
 
 
 def _priority_inputs_from_payload(
