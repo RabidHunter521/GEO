@@ -75,7 +75,12 @@ def patch_location(
     return location
 
 
-def deactivate_location(location: BusinessLocation, db: Session) -> BusinessLocation:
+def deactivate_location(
+    location: BusinessLocation,
+    db: Session,
+    *,
+    replacement_location_id: uuid.UUID | None = None,
+) -> BusinessLocation:
     # Lock the full active set before counting it. A second concurrent
     # deactivation waits, then observes the first update and cannot remove the
     # remaining active location.
@@ -92,6 +97,27 @@ def deactivate_location(location: BusinessLocation, db: Session) -> BusinessLoca
         return location
     if len(active_locations) <= 1:
         raise BusinessLocationValidationError("Cannot deactivate the only active location")
+    if locked_location.is_primary:
+        if replacement_location_id is None:
+            raise BusinessLocationValidationError(
+                "A replacement active location is required to deactivate the primary location"
+            )
+        replacement = next(
+            (item for item in active_locations if item.id == replacement_location_id and item.id != locked_location.id),
+            None,
+        )
+        if replacement is None:
+            raise BusinessLocationValidationError(
+                "Replacement location must be another active location for this client"
+            )
+        # These rows are all locked above and commit together: no caller can
+        # observe a successful primary deactivation without its replacement.
+        locked_location.is_primary = False
+        # Partial unique indexes are immediate in SQLite. Flush the old-primary
+        # clear inside this still-uncommitted transaction before promotion so
+        # both SQLite and PostgreSQL keep the one-primary invariant.
+        db.flush()
+        replacement.is_primary = True
     locked_location.active = False
     locked_location.is_primary = False
     db.commit()

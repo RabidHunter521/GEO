@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { getAllTruthFacts } from "../api"
+import { deactivateBusinessLocation, getAllTruthFacts } from "../api"
 import { primaryReplacementCandidates } from "../truth-vault"
 import type { BusinessLocation } from "@/types"
 
@@ -38,5 +38,24 @@ describe("primaryReplacementCandidates", () => {
 
     expect(primaryReplacementCandidates(locations, "primary").map((location) => location.id))
       .toEqual(["replacement"])
+  })
+})
+
+describe("deactivateBusinessLocation", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it("sends the chosen replacement with a primary-location deactivation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await deactivateBusinessLocation("client-1", "primary-1", "replacement-1")
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:8000/api/v1/clients/client-1/locations/primary-1",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ replacement_location_id: "replacement-1" }),
+      }),
+    )
   })
 })

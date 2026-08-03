@@ -98,6 +98,33 @@ def test_deactivation_is_soft_and_rejects_the_only_active_location(db):
         deactivate_location(primary, db)
 
 
+def test_deactivating_a_primary_requires_and_atomically_promotes_an_active_replacement(db):
+    from app.services.business_location_service import (
+        BusinessLocationValidationError,
+        create_location,
+        deactivate_location,
+    )
+
+    account = _make_client(db)
+    primary = create_location(account.id, _payload("Orchard", is_primary=True), db)
+    replacement = create_location(account.id, _payload("Tampines"), db)
+    inactive = create_location(account.id, _payload("Punggol"), db)
+    deactivate_location(inactive, db)
+
+    with pytest.raises(BusinessLocationValidationError, match="replacement"):
+        deactivate_location(primary, db)
+    with pytest.raises(BusinessLocationValidationError, match="Replacement location"):
+        deactivate_location(primary, db, replacement_location_id=inactive.id)
+
+    deactivated = deactivate_location(primary, db, replacement_location_id=replacement.id)
+    db.refresh(replacement)
+
+    assert deactivated.active is False
+    assert deactivated.is_primary is False
+    assert replacement.active is True
+    assert replacement.is_primary is True
+
+
 def test_deactivation_locks_all_active_client_locations_before_counting(db):
     from app.services.business_location_service import create_location, deactivate_location
 

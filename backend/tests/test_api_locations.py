@@ -93,10 +93,20 @@ def test_create_list_get_patch_and_deactivate_location(client, db, auth_headers)
     deleted = client.delete(
         f"/api/v1/clients/{account.id}/locations/{created['id']}", headers=auth_headers
     )
+    assert deleted.status_code == 422
+
+    replacement = client.get(f"/api/v1/clients/{account.id}/locations", headers=auth_headers).json()[1]
+    deleted = client.request(
+        "DELETE",
+        f"/api/v1/clients/{account.id}/locations/{created['id']}",
+        headers=auth_headers,
+        json={"replacement_location_id": replacement["id"]},
+    )
     assert deleted.status_code == 204
     active = client.get(f"/api/v1/clients/{account.id}/locations", headers=auth_headers)
     assert active.status_code == 200
     assert [row["name"] for row in active.json()] == ["Tampines Clinic"]
+    assert active.json()[0]["is_primary"] is True
     inactive = client.get(
         f"/api/v1/clients/{account.id}/locations", headers=auth_headers, params={"active": False}
     )

@@ -31,8 +31,10 @@ export async function updateLocationAction(
   return location
 }
 
-export async function deactivateLocationAction(clientId: string, locationId: string): Promise<void> {
-  await deactivateBusinessLocation(clientId, locationId)
+export async function deactivateLocationAction(
+  clientId: string, locationId: string, replacementLocationId: string | null,
+): Promise<void> {
+  await deactivateBusinessLocation(clientId, locationId, replacementLocationId ?? undefined)
   revalidatePath(path(clientId))
 }
 

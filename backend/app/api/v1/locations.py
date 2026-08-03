@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.models.client import Client
 from app.schemas.business_location import (
     BusinessLocationCreate,
+    BusinessLocationDeactivate,
     BusinessLocationOut,
     BusinessLocationPatch,
 )
@@ -94,12 +95,17 @@ def patch_client_location(
     dependencies=[Depends(require_api_key)],
 )
 def deactivate_client_location(
-    client_id: uuid.UUID, location_id: uuid.UUID, db: Session = Depends(get_db)
+    client_id: uuid.UUID,
+    location_id: uuid.UUID,
+    body: BusinessLocationDeactivate | None = None,
+    db: Session = Depends(get_db),
 ):
     _get_active_client_or_404(client_id, db)
     try:
         business_location_service.deactivate_location(
-            _get_location_or_404(client_id, location_id, db), db
+            _get_location_or_404(client_id, location_id, db),
+            db,
+            replacement_location_id=body.replacement_location_id if body else None,
         )
     except BusinessLocationValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

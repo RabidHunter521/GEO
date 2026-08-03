@@ -432,8 +432,13 @@ export function patchBusinessLocation(
   })
 }
 
-export function deactivateBusinessLocation(clientId: string, locationId: string): Promise<void> {
-  return apiFetch<void>(`/api/v1/clients/${clientId}/locations/${locationId}`, { method: "DELETE" })
+export function deactivateBusinessLocation(
+  clientId: string, locationId: string, replacementLocationId?: string,
+): Promise<void> {
+  return apiFetch<void>(`/api/v1/clients/${clientId}/locations/${locationId}`, {
+    method: "DELETE",
+    body: replacementLocationId ? JSON.stringify({ replacement_location_id: replacementLocationId }) : undefined,
+  })
 }
 
 export function getTruthFacts(

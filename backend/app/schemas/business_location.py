@@ -57,6 +57,12 @@ class BusinessLocationPatch(BusinessLocationFields):
     is_primary: bool | None = None
 
 
+class BusinessLocationDeactivate(BaseModel):
+    replacement_location_id: uuid.UUID | None = None
+
+    model_config = {"extra": "forbid"}
+
+
 class BusinessLocationOut(BusinessLocationFields):
     id: uuid.UUID
     client_id: uuid.UUID

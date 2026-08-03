@@ -73,10 +73,7 @@ export function TruthVaultClient({
     if (location.is_primary && !replacement) {
       throw new Error("Select another active location as the new primary before deactivating this location.")
     }
-    await mutation(async () => {
-      if (replacement) await updateLocationAction(clientId, replacement.id, { is_primary: true })
-      await deactivateLocationAction(clientId, location.id)
-    })
+    await mutation(() => deactivateLocationAction(clientId, location.id, replacement?.id ?? null))
     setLocations((current) => current
       .filter((item) => item.id !== location.id)
       .map((item) => ({ ...item, is_primary: replacement ? item.id === replacement.id : item.is_primary })))
