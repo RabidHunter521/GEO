@@ -104,20 +104,69 @@ class TruthFactVersion(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
 
-for _trigger_name, _operation in (
-    ("trg_truth_fact_versions_append_only_update", "UPDATE"),
-    ("trg_truth_fact_versions_append_only_delete", "DELETE"),
-):
-    event.listen(
-        TruthFactVersion.__table__,
-        "after_create",
-        DDL(
-            f"""
-            CREATE TRIGGER {_trigger_name}
-            BEFORE {_operation} ON truth_fact_versions
-            FOR EACH ROW BEGIN
-                SELECT RAISE(ABORT, 'truth fact versions are append-only');
-            END;
-            """
-        ).execute_if(dialect="sqlite"),
-    )
+event.listen(
+    TruthFactVersion.__table__,
+    "after_create",
+    DDL(
+        """
+        CREATE TRIGGER trg_truth_fact_versions_append_only_update
+        BEFORE UPDATE ON truth_fact_versions
+        FOR EACH ROW
+        WHEN NOT (
+            (
+                OLD.status = 'draft'
+                AND NEW.status = 'approved'
+                AND OLD.approved_at IS NULL
+                AND OLD.approved_by IS NULL
+                AND NEW.approved_at IS NOT NULL
+                AND NEW.approved_by IS NOT NULL
+                AND NEW.effective_from IS NOT NULL
+                AND OLD.effective_to IS NULL
+                AND NEW.effective_to IS NULL
+                AND NEW.id IS OLD.id
+                AND NEW.truth_fact_id IS OLD.truth_fact_id
+                AND NEW.value_json IS OLD.value_json
+                AND NEW.source_url IS OLD.source_url
+                AND NEW.reviewer_note IS OLD.reviewer_note
+                AND NEW.effective_from IS OLD.effective_from
+                AND NEW.created_at IS OLD.created_at
+            )
+            OR
+            (
+                OLD.status = 'approved'
+                AND NEW.status = 'approved'
+                AND OLD.effective_from IS NOT NULL
+                AND OLD.effective_to IS NULL
+                AND NEW.effective_to IS NOT NULL
+                AND NEW.effective_to >= OLD.effective_from
+                AND NEW.id IS OLD.id
+                AND NEW.truth_fact_id IS OLD.truth_fact_id
+                AND NEW.value_json IS OLD.value_json
+                AND NEW.source_url IS OLD.source_url
+                AND NEW.reviewer_note IS OLD.reviewer_note
+                AND NEW.effective_from IS OLD.effective_from
+                AND NEW.approved_at IS OLD.approved_at
+                AND NEW.approved_by IS OLD.approved_by
+                AND NEW.created_at IS OLD.created_at
+            )
+        )
+        BEGIN
+            SELECT RAISE(ABORT, 'truth fact versions are append-only');
+        END;
+        """
+    ).execute_if(dialect="sqlite"),
+)
+
+event.listen(
+    TruthFactVersion.__table__,
+    "after_create",
+    DDL(
+        """
+        CREATE TRIGGER trg_truth_fact_versions_append_only_delete
+        BEFORE DELETE ON truth_fact_versions
+        FOR EACH ROW BEGIN
+            SELECT RAISE(ABORT, 'truth fact versions are append-only');
+        END;
+        """
+    ).execute_if(dialect="sqlite"),
+)

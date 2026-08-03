@@ -149,6 +149,47 @@ def upgrade() -> None:
         CREATE FUNCTION prevent_truth_fact_version_mutation()
         RETURNS trigger AS $$
         BEGIN
+            IF TG_OP = 'UPDATE'
+               AND OLD.status = 'draft'
+               AND NEW.status = 'approved'
+               AND OLD.approved_at IS NULL
+               AND OLD.approved_by IS NULL
+               AND NEW.approved_at IS NOT NULL
+               AND NEW.approved_by IS NOT NULL
+               AND NEW.effective_from IS NOT NULL
+               AND OLD.effective_to IS NULL
+               AND NEW.effective_to IS NULL
+               AND NEW.id IS NOT DISTINCT FROM OLD.id
+               AND NEW.truth_fact_id IS NOT DISTINCT FROM OLD.truth_fact_id
+               AND NEW.value_json IS NOT DISTINCT FROM OLD.value_json
+               AND NEW.source_url IS NOT DISTINCT FROM OLD.source_url
+               AND NEW.reviewer_note IS NOT DISTINCT FROM OLD.reviewer_note
+               AND NEW.effective_from IS NOT DISTINCT FROM OLD.effective_from
+               AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at
+            THEN
+                RETURN NEW;
+            END IF;
+
+            IF TG_OP = 'UPDATE'
+               AND OLD.status = 'approved'
+               AND NEW.status = 'approved'
+               AND OLD.effective_from IS NOT NULL
+               AND OLD.effective_to IS NULL
+               AND NEW.effective_to IS NOT NULL
+               AND NEW.effective_to >= OLD.effective_from
+               AND NEW.id IS NOT DISTINCT FROM OLD.id
+               AND NEW.truth_fact_id IS NOT DISTINCT FROM OLD.truth_fact_id
+               AND NEW.value_json IS NOT DISTINCT FROM OLD.value_json
+               AND NEW.source_url IS NOT DISTINCT FROM OLD.source_url
+               AND NEW.reviewer_note IS NOT DISTINCT FROM OLD.reviewer_note
+               AND NEW.effective_from IS NOT DISTINCT FROM OLD.effective_from
+               AND NEW.approved_at IS NOT DISTINCT FROM OLD.approved_at
+               AND NEW.approved_by IS NOT DISTINCT FROM OLD.approved_by
+               AND NEW.created_at IS NOT DISTINCT FROM OLD.created_at
+            THEN
+                RETURN NEW;
+            END IF;
+
             RAISE EXCEPTION 'truth fact versions are append-only';
         END;
         $$ LANGUAGE plpgsql;

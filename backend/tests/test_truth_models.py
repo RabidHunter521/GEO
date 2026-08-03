@@ -225,3 +225,57 @@ def test_truth_fact_versions_reject_update_and_delete_and_block_fact_deletion(db
     db.rollback()
 
     assert db.query(TruthFactVersion).one().value_json == "+65 1234 5678"
+
+
+def test_truth_fact_versions_allow_only_approval_and_closure_lifecycle_updates(db):
+    """Changing factual content must fail, while the two audited lifecycle edges persist."""
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+
+    client = _make_client(db)
+    fact = TruthFact(client_id=client.id, fact_type="business", fact_key="phone")
+    first_effective_at = datetime(2026, 1, 1, 9, 0, 0)
+    replacement_effective_at = datetime(2026, 2, 1, 9, 0, 0)
+    db.add(fact)
+    db.flush()
+    draft = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json="+65 1234 5678",
+        status="draft",
+        source_url="https://acme.example/contact",
+        effective_from=first_effective_at,
+    )
+    db.add(draft)
+    db.commit()
+
+    draft.status = "approved"
+    draft.approved_at = first_effective_at
+    draft.approved_by = "reviewer@example.com"
+    db.commit()
+
+    draft.effective_to = replacement_effective_at - timedelta(microseconds=1)
+    db.commit()
+
+    draft.source_url = "https://acme.example/changed"
+    with pytest.raises(IntegrityError, match="append-only"):
+        db.commit()
+    db.rollback()
+
+    draft = db.query(TruthFactVersion).one()
+    draft.status = "retired"
+    with pytest.raises(IntegrityError, match="append-only"):
+        db.commit()
+    db.rollback()
+
+    invalid_draft = TruthFactVersion(
+        truth_fact_id=fact.id,
+        value_json="+65 9999 9999",
+        status="draft",
+    )
+    db.add(invalid_draft)
+    db.commit()
+    invalid_draft.status = "approved"
+    invalid_draft.approved_at = first_effective_at
+    invalid_draft.approved_by = "reviewer@example.com"
+    with pytest.raises(IntegrityError, match="append-only"):
+        db.commit()
+    db.rollback()
