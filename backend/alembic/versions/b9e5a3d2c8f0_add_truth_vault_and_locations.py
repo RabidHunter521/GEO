@@ -139,14 +139,22 @@ def upgrade() -> None:
         SELECT
             md5('truth-backfill-location:' || clients.id::text)::uuid,
             clients.id,
-            COALESCE(NULLIF(BTRIM(clients.name), ''), 'Primary location'),
+            COALESCE(
+                NULLIF(regexp_replace(clients.name, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
+                'Primary location'
+            ),
             'primary-' || clients.id::text,
             TRUE,
-            NULLIF(BTRIM(clients.website), ''),
-            NULLIF(BTRIM(clients.city), ''),
-            NULLIF(BTRIM(clients.state), ''),
-            NULLIF(BTRIM(clients.country), ''),
-            NULLIF(BTRIM(clients.phone), ''),
+            NULLIF(regexp_replace(clients.website, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
+            NULLIF(regexp_replace(clients.city, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
+            NULLIF(regexp_replace(clients.state, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
+            CASE
+                WHEN NULLIF(regexp_replace(clients.country, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')
+                     ~ '^[A-Za-z]{2}$'
+                THEN UPPER(NULLIF(regexp_replace(clients.country, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''))
+                ELSE NULL
+            END,
+            NULLIF(regexp_replace(clients.phone, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''),
             TRUE
         FROM clients
         ON CONFLICT DO NOTHING;
@@ -160,11 +168,11 @@ def upgrade() -> None:
             FROM clients
             CROSS JOIN LATERAL (
                 VALUES
-                    ('official_name', NULLIF(BTRIM(clients.name), '')),
-                    ('website', NULLIF(BTRIM(clients.website), '')),
-                    ('industry', NULLIF(BTRIM(clients.industry), '')),
-                    ('description', NULLIF(BTRIM(clients.description), '')),
-                    ('phone', NULLIF(BTRIM(clients.phone), ''))
+                    ('official_name', NULLIF(regexp_replace(clients.name, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('website', NULLIF(regexp_replace(clients.website, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('industry', NULLIF(regexp_replace(clients.industry, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('description', NULLIF(regexp_replace(clients.description, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('phone', NULLIF(regexp_replace(clients.phone, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''))
             ) AS mapped(fact_key, value)
             WHERE mapped.value IS NOT NULL
 
@@ -176,9 +184,9 @@ def upgrade() -> None:
               ON locations.client_id = clients.id AND locations.is_primary IS TRUE
             CROSS JOIN LATERAL (
                 VALUES
-                    ('city', NULLIF(BTRIM(clients.city), '')),
-                    ('state', NULLIF(BTRIM(clients.state), '')),
-                    ('country', NULLIF(BTRIM(clients.country), ''))
+                    ('city', NULLIF(regexp_replace(clients.city, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('state', NULLIF(regexp_replace(clients.state, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('country', NULLIF(regexp_replace(clients.country, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''))
             ) AS mapped(fact_key, value)
             WHERE mapped.value IS NOT NULL
         )
@@ -204,11 +212,11 @@ def upgrade() -> None:
             FROM clients
             CROSS JOIN LATERAL (
                 VALUES
-                    ('official_name', NULLIF(BTRIM(clients.name), '')),
-                    ('website', NULLIF(BTRIM(clients.website), '')),
-                    ('industry', NULLIF(BTRIM(clients.industry), '')),
-                    ('description', NULLIF(BTRIM(clients.description), '')),
-                    ('phone', NULLIF(BTRIM(clients.phone), ''))
+                    ('official_name', NULLIF(regexp_replace(clients.name, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('website', NULLIF(regexp_replace(clients.website, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('industry', NULLIF(regexp_replace(clients.industry, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('description', NULLIF(regexp_replace(clients.description, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('phone', NULLIF(regexp_replace(clients.phone, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''))
             ) AS mapped(fact_key, value)
             WHERE mapped.value IS NOT NULL
 
@@ -221,9 +229,9 @@ def upgrade() -> None:
               ON locations.client_id = clients.id AND locations.is_primary IS TRUE
             CROSS JOIN LATERAL (
                 VALUES
-                    ('city', NULLIF(BTRIM(clients.city), '')),
-                    ('state', NULLIF(BTRIM(clients.state), '')),
-                    ('country', NULLIF(BTRIM(clients.country), ''))
+                    ('city', NULLIF(regexp_replace(clients.city, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('state', NULLIF(regexp_replace(clients.state, '^[[:space:]]+|[[:space:]]+$', '', 'g'), '')),
+                    ('country', NULLIF(regexp_replace(clients.country, '^[[:space:]]+|[[:space:]]+$', '', 'g'), ''))
             ) AS mapped(fact_key, value)
             WHERE mapped.value IS NOT NULL
         )

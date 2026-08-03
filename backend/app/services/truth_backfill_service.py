@@ -91,7 +91,7 @@ def _primary_location(client: Client, db: Session) -> tuple[BusinessLocation, bo
         website=_clean_value(client.website),
         city=_clean_value(client.city),
         state=_clean_value(client.state),
-        country=_clean_value(client.country),
+        country=_location_country(_clean_value(client.country)),
         phone=_clean_value(client.phone),
     )
     db.add(location)
@@ -152,3 +152,10 @@ def _clean_value(value: str | None) -> str | None:
         return None
     value = value.strip()
     return value or None
+
+
+def _location_country(value: str | None) -> str | None:
+    """Return an ISO-2-shaped location country without losing legacy truth data."""
+    if value is None or len(value) != 2 or not value.isascii() or not value.isalpha():
+        return None
+    return value.upper()

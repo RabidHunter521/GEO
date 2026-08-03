@@ -99,3 +99,88 @@ def test_backfill_skips_blank_client_values(db):
         {"value": "https://acme.example", "display_value": "https://acme.example"},
         {"value": "Dental clinic", "display_value": "Dental clinic"},
     ]
+
+
+def test_backfill_preserves_full_country_name_in_truth_but_not_iso2_location_column(db):
+    """Changing the ISO-2 guard would make legacy full names break the location insert."""
+    from app.models.business_location import BusinessLocation
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+    from app.services.truth_backfill_service import backfill_client_truth
+
+    client = _make_client(db, country=" Malaysia ")
+
+    backfill_client_truth(client.id, db)
+
+    location = db.query(BusinessLocation).filter_by(client_id=client.id, is_primary=True).one()
+    country_version = (
+        db.query(TruthFactVersion)
+        .join(TruthFact)
+        .filter(
+            TruthFact.client_id == client.id,
+            TruthFact.fact_type == "location",
+            TruthFact.fact_key == "country",
+        )
+        .one()
+    )
+
+    assert location.country is None
+    assert country_version.value_json == {"value": "Malaysia", "display_value": "Malaysia"}
+
+
+def test_backfill_normalizes_lowercase_iso2_country_for_location_and_keeps_truth_value(db):
+    """Removing ISO-2 normalization would store a lowercase location country code."""
+    from app.models.business_location import BusinessLocation
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+    from app.services.truth_backfill_service import backfill_client_truth
+
+    client = _make_client(db, country="my")
+
+    backfill_client_truth(client.id, db)
+
+    location = db.query(BusinessLocation).filter_by(client_id=client.id, is_primary=True).one()
+    country_version = (
+        db.query(TruthFactVersion)
+        .join(TruthFact)
+        .filter(
+            TruthFact.client_id == client.id,
+            TruthFact.fact_type == "location",
+            TruthFact.fact_key == "country",
+        )
+        .one()
+    )
+
+    assert location.country == "MY"
+    assert country_version.value_json == {"value": "my", "display_value": "my"}
+
+
+def test_backfill_treats_tabs_and_newlines_as_blank_values(db):
+    """Replacing strip-based blank handling would create facts for tab/newline-only values."""
+    from app.models.business_location import BusinessLocation
+    from app.models.truth_fact import TruthFact
+    from app.services.truth_backfill_service import backfill_client_truth
+
+    client = _make_client(
+        db,
+        name="\t\n",
+        website="\n",
+        industry="\t",
+        description="\r\n",
+        phone="\t",
+        city="\n\t",
+        state="\r",
+        country="\n",
+    )
+
+    result = backfill_client_truth(client.id, db)
+
+    location = db.query(BusinessLocation).filter_by(client_id=client.id, is_primary=True).one()
+    assert result.facts_created == 0
+    assert db.query(TruthFact).filter_by(client_id=client.id).count() == 0
+    assert (location.name, location.website, location.city, location.state, location.country, location.phone) == (
+        "Primary location",
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
