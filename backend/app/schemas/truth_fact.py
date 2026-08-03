@@ -1,6 +1,7 @@
 """Strict admin payloads for the versioned Business Truth Vault."""
 
 import uuid
+import unicodedata
 from datetime import datetime
 
 from pydantic import BaseModel, Field, HttpUrl, TypeAdapter, ValidationError, field_validator
@@ -38,7 +39,7 @@ class TruthFactVersionDraft(BaseModel):
             validated_url = TypeAdapter(HttpUrl).validate_python(value)
         except ValidationError as exc:
             raise ValueError("source_url must be an absolute HTTP(S) URL") from exc
-        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+        if any(unicodedata.category(character) == "Cc" for character in value):
             raise ValueError("source_url must be an absolute HTTP(S) URL")
         return str(validated_url)
 
