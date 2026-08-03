@@ -1,4 +1,6 @@
 import type { Metadata } from "next"
+import { randomUUID } from "crypto"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { CheckCircle2, ExternalLink, MessageSquareText, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,6 +14,7 @@ export const metadata: Metadata = {
 }
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
+const RECEIPT_COOKIE = "seenby_action_approval_receipt"
 
 type ApprovalPayload = {
   business_name: string
@@ -58,7 +61,16 @@ async function submitDecision(
   if (!res.ok) {
     redirect(`/view/action-approval/${encodeURIComponent(token)}?error=submit`)
   }
-  redirect(`/view/action-approval/${encodeURIComponent(token)}?decided=${decision}`)
+  const receipt = randomUUID()
+  const cookieStore = await cookies()
+  cookieStore.set(RECEIPT_COOKIE, `${token}|${decision}|${receipt}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 300,
+    path: `/view/action-approval/${token}`,
+  })
+  redirect(`/view/action-approval/${encodeURIComponent(token)}?decided=${decision}&receipt=${receipt}`)
 }
 
 function formatExpiry(value: string) {
@@ -98,15 +110,21 @@ export default async function ActionApprovalPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>
-  searchParams?: Promise<{ decided?: string; error?: string; inactive?: string }>
+  searchParams?: Promise<{ decided?: string; error?: string; inactive?: string; receipt?: string }>
 }) {
   const { token } = await params
   const query = searchParams ? await searchParams : {}
-  if (query.decided === "approve" || query.decided === "request_changes") {
-    return <Confirmation decision={query.decided} />
-  }
   if (query.inactive) {
     return <LinkInactive />
+  }
+  const receiptCookie = (await cookies()).get(RECEIPT_COOKIE)?.value
+  const hasValidReceipt = Boolean(
+    query.receipt
+      && (query.decided === "approve" || query.decided === "request_changes")
+      && receiptCookie === `${token}|${query.decided}|${query.receipt}`,
+  )
+  if (hasValidReceipt) {
+    return <Confirmation decision={query.decided!} />
   }
 
   const approval = await getApproval(token)

@@ -124,6 +124,38 @@ def test_record_approve_is_single_use_and_satisfies_publication_gate(db):
     assert published.published_at is not None
 
 
+def test_record_client_decision_rejects_token_consumed_by_another_writer(db, monkeypatch):
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.outcome_action import OutcomeAction
+    from app.services import action_approval_service
+    from app.services.action_approval_service import ApprovalTokenUnavailable, create_approval_link
+
+    action = _make_action(db)
+    token = create_approval_link(action, db)
+    other_session = sessionmaker(bind=db.get_bind())()
+    stale_action = other_session.get(OutcomeAction, action.id)
+    assert stale_action.approval_token_hash == action.approval_token_hash
+
+    action.approval_token_hash = None
+    action.approval_expires_at = None
+    db.commit()
+
+    monkeypatch.setattr(
+        action_approval_service,
+        "resolve_approval_token",
+        lambda _token, _db: stale_action,
+    )
+
+    try:
+        with pytest.raises(ApprovalTokenUnavailable):
+            action_approval_service.record_client_decision(
+                token, "approve", "Late duplicate.", other_session
+            )
+    finally:
+        other_session.close()
+
+
 def test_record_request_changes_keeps_comment_without_approval_evidence(db):
     from app.services.action_approval_service import create_approval_link, record_client_decision
     from app.services.outcome_action_service import OutcomeActionValidationError, transition_action

@@ -98,6 +98,17 @@ def test_get_public_approval_returns_whitelisted_fields_without_admin_auth(clien
     assert str(action.id) not in leaked
 
 
+@pytest.mark.parametrize("destination_url", ["javascript:alert(1)", "/admin/clients/123", "ftp://example.com/file"])
+def test_get_public_approval_omits_unsafe_destination_urls(client, db, destination_url):
+    action = _make_action(db, destination_url=destination_url)
+    token = _approval_token(action, db)
+
+    response = client.get(f"/api/v1/action-approvals/{token}")
+
+    assert response.status_code == 200
+    assert response.json()["destination_url"] is None
+
+
 def test_post_approve_records_decision_without_admin_auth(client, db):
     action = _make_action(db)
     token = _approval_token(action, db)

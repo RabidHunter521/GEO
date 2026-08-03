@@ -1,4 +1,7 @@
 """Public tokenized client approval endpoints."""
+import ipaddress
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -24,6 +27,24 @@ def _approval_not_found() -> HTTPException:
     return HTTPException(status_code=404, detail="Approval link not found")
 
 
+def _safe_public_url(value: str | None) -> str | None:
+    if not value:
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        return None
+    hostname = parsed.hostname.lower()
+    if hostname == "localhost" or hostname.endswith(".local"):
+        return None
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return value
+    if address.is_private or address.is_loopback or address.is_link_local:
+        return None
+    return value
+
+
 def _public_payload(token: str, db: Session) -> ActionApprovalPublic:
     action = resolve_approval_token(token, db)
     if action is None:
@@ -36,7 +57,7 @@ def _public_payload(token: str, db: Session) -> ActionApprovalPublic:
         action_title=action.title,
         client_safe_summary=action.client_safe_summary,
         deliverable_url=None,
-        destination_url=action.destination_url,
+        destination_url=_safe_public_url(action.destination_url),
         expires_at=action.approval_expires_at,
     )
 
