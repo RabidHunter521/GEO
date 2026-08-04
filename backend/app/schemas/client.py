@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.constants import SCAN_PLATFORMS, DEFAULT_SCAN_CADENCE_DAYS
+from app.core.constants import SCAN_PLATFORMS, DEFAULT_SCAN_CADENCE_DAYS, INDUSTRY_PACK_KEYS
 
 # Lightweight email check — full RFC validation needs the email-validator
 # package, which we deliberately avoid adding for an admin-entered field.
@@ -49,6 +49,29 @@ class ClientUpdate(BaseModel):
     internal_notes: str | None = None
     # GA4 property id (digits) for AI-referral traffic sync; None = manual mode.
     ga4_property_id: str | None = Field(default=None, max_length=32)
+    # Industry intelligence pack. `industry_pack_version` is deliberately ABSENT:
+    # pack definitions are code-versioned, so the server stamps the version and an
+    # admin can never type one.
+    industry_pack: str | None = None
+    industry_subcategory: str | None = Field(default=None, max_length=64)
+    # Control field, NOT a column. Switching an already-chosen pack changes which
+    # queries a client is scanned on and resets benchmark comparability, so the
+    # route refuses an unconfirmed switch. The route must pop this before its
+    # setattr loop (clients.py writes every parsed field to the row).
+    confirm_pack_change: bool = False
+
+    @field_validator("industry_pack")
+    @classmethod
+    def validate_industry_pack(cls, value: str | None) -> str | None:
+        # None stays reachable — it means "no pack reviewed yet", the state every
+        # pre-Phase-4 client is in.
+        if value is None:
+            return None
+        if value not in INDUSTRY_PACK_KEYS:
+            raise ValueError(
+                f"Unknown industry pack: {value}. Supported: {', '.join(INDUSTRY_PACK_KEYS)}"
+            )
+        return value
 
     @field_validator("enabled_platforms")
     @classmethod
@@ -97,6 +120,9 @@ class ClientResponse(BaseModel):
     archived_at: datetime | None = None
     is_prospect: bool = False
     internal_notes: str | None = None
+    industry_pack: str | None = None
+    industry_subcategory: str | None = None
+    industry_pack_version: str | None = None
 
     model_config = {"from_attributes": True}
 

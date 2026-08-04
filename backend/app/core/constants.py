@@ -329,3 +329,12 @@ COMPLIANCE_RULES: Final = {
 # brand-mentioned row (up to ~80 on a 4-platform client). Hallucination-flagged
 # rows are always examined first, then brand-mentioned rows, up to this cap.
 MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
+
+# --- Industry Intelligence Packs (Phase 4) ------------------------------------
+# The packs a client's scanning, risk routing, and report language can be
+# specialized by. Deliberately lives here rather than in app/industry_packs/ so
+# the schema layer never imports the registry (same shape as SCAN_PLATFORMS);
+# the registry asserts its own keys against this tuple, so a pack added in code
+# without updating this list fails a test instead of becoming unselectable.
+# No PostgreSQL enum by design — adding a pack must not require a migration.
+INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services")

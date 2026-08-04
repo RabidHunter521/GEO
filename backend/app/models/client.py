@@ -71,3 +71,15 @@ class Client(Base):
     is_prospect: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Industry intelligence pack (Phase 4). Only the SELECTION lives here —
+    # every pack-specific business fact stays in the shared Truth Vault, so the
+    # packs specialize one horizontal core instead of forking it. NULL = no pack
+    # reviewed yet; such clients keep the legacy QUERY_TEMPLATES path.
+    # Validated against INDUSTRY_PACK_KEYS in the schema layer, not a PG enum,
+    # so adding a pack never needs a migration.
+    industry_pack: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    industry_subcategory: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Server-stamped from the pack registry, never admin-entered: pack
+    # definitions are code-versioned, and this records which version's queries
+    # and risk rules produced a client's stored evidence.
+    industry_pack_version: Mapped[str | None] = mapped_column(String(16), nullable=True)

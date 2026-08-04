@@ -115,7 +115,37 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    for field, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+
+    # `confirm_pack_change` gates the mutation and is not a column — pop it
+    # before the setattr loop below, which writes every remaining parsed field
+    # straight onto the row.
+    confirmed = bool(updates.pop("confirm_pack_change", False))
+    # Switching an already-chosen pack changes which queries the client is
+    # scanned on and resets benchmark comparability, so it may not happen
+    # implicitly. Choosing a pack for the FIRST time invalidates nothing and
+    # passes straight through, as does re-submitting the current pack (a
+    # settings form that posts every field must not trip this).
+    if "industry_pack" in updates and c.industry_pack is not None:
+        requested = updates["industry_pack"]
+        if requested != c.industry_pack and not confirmed:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "requires_confirmation": True,
+                    "current_pack": c.industry_pack,
+                    "current_subcategory": c.industry_subcategory,
+                    "requested_pack": requested,
+                    "message": (
+                        "Changing the industry pack regenerates this client's scan "
+                        "queries and resets benchmark comparability. Approved Truth "
+                        "Vault facts are preserved. Resend with confirm_pack_change "
+                        "to proceed."
+                    ),
+                },
+            )
+
+    for field, value in updates.items():
         setattr(c, field, value)
 
     # A manual dimension score must never appear "naked" to the client — if a

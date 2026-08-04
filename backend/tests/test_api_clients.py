@@ -46,6 +46,9 @@ def _fake_client(name="Acme Corp"):
     m.archived_at = None
     m.is_prospect = False
     m.internal_notes = None
+    m.industry_pack = None
+    m.industry_subcategory = None
+    m.industry_pack_version = None
     return m
 
 
@@ -200,6 +203,173 @@ def test_update_client_persists_phone():
     assert get_response.status_code == 200
     # Proves ClientResponse no longer strips phone on read.
     assert get_response.json()["phone"] == "+60 12-345 6789"
+
+
+def test_update_client_persists_industry_pack():
+    """Same end-to-end guarantee `phone` needed: PATCH parsing must apply the
+    field to the row, and the response schema must not strip it on read."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    patch_response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "healthcare", "industry_subcategory": "dental"},
+    )
+    assert patch_response.status_code == 200
+    assert patch_response.json()["industry_pack"] == "healthcare"
+    assert patch_response.json()["industry_subcategory"] == "dental"
+    # Proves the route's setattr loop applied them to the row rather than
+    # Pydantic silently dropping unknown fields.
+    assert existing.industry_pack == "healthcare"
+    assert existing.industry_subcategory == "dental"
+
+    get_response = client.get(f"/api/v1/clients/{existing.id}")
+    app.dependency_overrides.clear()
+    assert get_response.status_code == 200
+    assert get_response.json()["industry_pack"] == "healthcare"
+
+
+def test_update_client_never_writes_the_confirmation_control_field():
+    """`confirm_pack_change` gates the mutation; the route blind-setattrs every
+    parsed field, so it must be popped before that loop."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "fnb", "confirm_pack_change": True},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    # MagicMock would happily accept the attribute, so assert it was never set.
+    assert "confirm_pack_change" not in existing.__dict__
+    assert "confirm_pack_change" not in response.json()
+
+
+def test_update_client_rejects_unknown_industry_pack():
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "retail"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+    assert existing.industry_pack is None
+
+
+def test_setting_industry_pack_the_first_time_needs_no_confirmation():
+    """None -> healthcare is a first selection, not a change; nothing is invalidated."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = None
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "healthcare"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.industry_pack == "healthcare"
+
+
+def test_changing_an_existing_industry_pack_requires_confirmation():
+    """Switching packs invalidates generated queries and benchmark comparability,
+    so an unconfirmed change must return the impact preview and persist nothing."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = "healthcare"
+    existing.industry_subcategory = "dental"
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "fnb"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 409
+    detail = response.json()["detail"]
+    assert detail["current_pack"] == "healthcare"
+    assert detail["requested_pack"] == "fnb"
+    assert detail["requires_confirmation"] is True
+    # Nothing may be written, and nothing may be committed, on a refused change.
+    assert existing.industry_pack == "healthcare"
+    assert existing.industry_subcategory == "dental"
+    mock_db.commit.assert_not_called()
+
+
+def test_confirmed_industry_pack_change_persists():
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = "healthcare"
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "fnb", "confirm_pack_change": True},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.industry_pack == "fnb"
+
+
+def test_repeating_the_same_industry_pack_is_not_a_change():
+    """A settings form that resubmits every field must not trip the gate."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = "healthcare"
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "healthcare", "industry_subcategory": "specialist"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.industry_subcategory == "specialist"
 
 
 def test_update_client_allows_zero_score_drop_threshold():
