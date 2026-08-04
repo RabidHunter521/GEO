@@ -365,3 +365,142 @@ def test_approved_facts_carry_their_location_scope(db):
     by_type = {f.fact_type: f for f in approved_facts_for(client, db)}
     assert by_type["treatment"].location_id is None
     assert by_type["facility"].location_id == branch.id
+
+
+# --- cross-pack wiring ------------------------------------------------------
+#
+# _FACT_SOURCES is a hand-written map from placeholder to (fact_type, fact_key).
+# A wrong entry does not raise: the placeholder simply never fills, its template
+# is silently dropped, and the client is quietly scanned on fewer questions than
+# the pack promises. Same failure class as a risk rule targeting a fact nothing
+# declares, so it gets the same structural guard.
+
+def test_every_fact_source_mapping_matches_a_declared_field():
+    from app.industry_packs import registry
+    from app.services.pack_query_service import _FACT_SOURCES
+
+    declared = {(f.fact_type, f.key) for p in registry.all_packs() for f in p.truth_fields}
+    dead = [
+        (placeholder, pair)
+        for placeholder, pairs in _FACT_SOURCES.items()
+        for pair in pairs
+        if pair not in declared
+    ]
+    assert not dead, f"_FACT_SOURCES points at facts no pack declares: {dead}"
+
+
+def test_every_fact_backed_placeholder_has_a_source_mapping():
+    from app.industry_packs import registry
+    from app.industry_packs.base import placeholders_in
+    from app.services.pack_query_service import _FACT_SOURCES
+
+    from_client = {"brand", "competitor", "industry", "city", "location", "area"}
+    missing = [
+        (pack.key, template.id, placeholder)
+        for pack in registry.all_packs()
+        for template in pack.query_templates
+        for placeholder in placeholders_in(template.template)
+        if placeholder not in from_client and placeholder not in _FACT_SOURCES
+    ]
+    assert not missing, f"templates use placeholders nothing can fill: {missing}"
+
+
+def test_no_template_is_permanently_unfillable_for_its_own_pack():
+    """A template whose pack declares no source for its placeholder can never
+    run — it would look like query coverage while producing nothing, ever."""
+    from app.industry_packs import registry
+    from app.industry_packs.base import placeholders_in
+    from app.services.pack_query_service import _FACT_SOURCES
+
+    problems = []
+    for pack in registry.all_packs():
+        fields = {(f.fact_type, f.key) for f in pack.truth_fields}
+        for template in pack.query_templates:
+            for placeholder in placeholders_in(template.template):
+                sources = _FACT_SOURCES.get(placeholder)
+                if sources and not any(pair in fields for pair in sources):
+                    problems.append(f"{pack.key}.{template.id} needs {placeholder}")
+    assert not problems, f"templates that can never fill: {problems}"
+
+
+# --- the run_scan seam ------------------------------------------------------
+#
+# Every test above exercises a unit. This exercises the JOIN between them: that
+# run_scan actually resolves the client's pack, loads its active locations and
+# approved facts, and hands the PACK's queries to the platform worker. Each unit
+# passing does not prove the seam is wired, and the seam is the whole feature.
+
+def _scan_fixture(db, industry_pack=None):
+    from datetime import datetime
+
+    from app.models.client import Client
+    from app.models.scan import Scan
+
+    client = Client(
+        name="Klinik Sihat", website="https://k.my", industry="dental clinic",
+        city="Kuala Lumpur", state="Selangor", industry_pack=industry_pack,
+        enabled_platforms=["gemini"],
+    )
+    db.add(client)
+    db.flush()
+    scan = Scan(client_id=client.id, status="pending", triggered_at=datetime(2026, 1, 1))
+    db.add(scan)
+    db.commit()
+    return client, scan
+
+
+def _captured_queries(db, scan, monkeypatch):
+    """Run run_scan far enough to capture what the platform worker receives."""
+    from app.services import scan_service
+
+    captured = {}
+
+    def _fake_platform_queries(platform, pc, scan_, client_, competitors, controls, client_queries):
+        captured["queries"] = client_queries
+        return [], []
+
+    monkeypatch.setattr(scan_service, "_run_platform_queries", _fake_platform_queries)
+    monkeypatch.setattr(scan_service, "get_platform_client", lambda p: object())
+    try:
+        scan_service.run_scan(scan.id, db)
+    except Exception:
+        # Scoring/alerting after the fan-out is out of scope here; the capture
+        # has already happened by then.
+        pass
+    return captured.get("queries", [])
+
+
+def test_run_scan_hands_pack_queries_to_the_platform_worker(db, monkeypatch):
+    from app.models.truth_fact import TruthFact, TruthFactVersion
+    from datetime import datetime
+
+    client, scan = _scan_fixture(db, industry_pack="healthcare")
+    fact = TruthFact(client_id=client.id, fact_type="treatment", fact_key="offered")
+    db.add(fact)
+    db.flush()
+    db.add(TruthFactVersion(
+        truth_fact_id=fact.id, value_json=["dental implants"], status="approved",
+        effective_from=datetime(2020, 1, 1), approved_at=datetime(2020, 1, 1),
+        approved_by="admin",
+    ))
+    db.commit()
+
+    queries = _captured_queries(db, scan, monkeypatch)
+    texts = [q["query_text"] for q in queries]
+
+    assert texts, "run_scan built no client queries at all"
+    # the approved fact reached a real query — proof the whole chain is wired
+    assert any("dental implants" in t for t in texts), texts
+    # and it is the PACK's phrasing, not the legacy template set
+    assert not any(t.startswith("Tell me about") for t in texts), texts
+    assert all("{" not in t for t in texts)
+
+
+def test_run_scan_keeps_unpacked_clients_on_the_legacy_templates(db, monkeypatch):
+    """The regression that would matter most: an existing client's measurement
+    must not change because Phase 4 shipped."""
+    client, scan = _scan_fixture(db, industry_pack=None)
+
+    texts = [q["query_text"] for q in _captured_queries(db, scan, monkeypatch)]
+
+    assert any(t.startswith("Tell me about") for t in texts), texts
