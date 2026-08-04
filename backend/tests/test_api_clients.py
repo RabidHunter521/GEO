@@ -350,10 +350,14 @@ def test_confirmed_industry_pack_change_persists():
     assert existing.industry_pack == "fnb"
 
 
-def test_pack_change_clears_the_stale_subcategory_and_version():
+def test_pack_change_clears_the_stale_subcategory_and_restamps_the_version():
     """Subcategories are pack-specific — "dental" is meaningless under F&B — and
     the version records which pack's rules produced the stored evidence. Leaving
-    either behind describes a pack the client no longer has."""
+    either behind describes a pack the client no longer has.
+
+    The version is RE-STAMPED from the new pack's registry entry rather than
+    cleared: this test asserted None while no packs were registered, which
+    silently became wrong the moment the F&B pack landed."""
     app, get_db = _make_app()
     existing = _fake_client("Pack Co")
     existing.industry_pack = "healthcare"
@@ -375,7 +379,9 @@ def test_pack_change_clears_the_stale_subcategory_and_version():
     assert response.status_code == 200
     assert existing.industry_pack == "fnb"
     assert existing.industry_subcategory is None
-    assert existing.industry_pack_version is None
+    from app.industry_packs import registry
+
+    assert existing.industry_pack_version == registry.get_pack("fnb").version
 
 
 def test_pack_change_keeps_a_subcategory_sent_in_the_same_request():
