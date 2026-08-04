@@ -5,6 +5,7 @@ from app.models.outcome_action import (
 )
 from app.models.business_location import BusinessLocation
 from app.models.truth_fact import TruthFact, TruthFactVersion, TRUTH_FACT_VERSION_STATUSES
+from app.models.tracked_query import TrackedQuery
 
 __all__ = [
     "OUTCOME_ACTION_STATUSES",
@@ -14,4 +15,5 @@ __all__ = [
     "TruthFact",
     "TruthFactVersion",
     "TRUTH_FACT_VERSION_STATUSES",
+    "TrackedQuery",
 ]
