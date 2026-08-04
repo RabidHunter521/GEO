@@ -213,9 +213,17 @@ def test_switching_packs_restamps_rather_than_clearing(monkeypatch):
 
 
 def test_unregistered_pack_stamps_null_instead_of_500(monkeypatch):
-    """Tasks 3-5 have not landed for every key; the admin API must degrade."""
+    """The admin API must degrade for a pack whose module has not landed.
+
+    All three packs are registered now, so the absent pack is SIMULATED by
+    removing it — testing the behaviour rather than relying on the accident of
+    a real pack being missing (which is what these two tests originally did,
+    and which silently broke the moment Task 5 registered the last pack).
+    """
+    from app.industry_packs import registry
     from tests.test_api_clients import _make_app
 
+    monkeypatch.delitem(registry._PACKS, "local_services")
     app, get_db = _make_app()
     row = _api_client_row(industry_pack=None, industry_pack_version=None)
 
@@ -271,8 +279,10 @@ def test_subcategory_is_validated_against_the_merged_pack(monkeypatch):
 
 def test_subcategory_is_not_rejected_when_the_pack_is_unregistered(monkeypatch):
     """An empty subcategory list means "cannot validate", not "reject all"."""
+    from app.industry_packs import registry
     from tests.test_api_clients import _make_app
 
+    monkeypatch.delitem(registry._PACKS, "local_services")
     app, get_db = _make_app()
     row = _api_client_row(industry_pack="local_services", industry_subcategory=None)
 
@@ -280,3 +290,19 @@ def test_subcategory_is_not_rejected_when_the_pack_is_unregistered(monkeypatch):
 
     assert response.status_code == 200
     assert row.industry_subcategory == "plumbing"
+
+
+def test_a_real_subcategory_is_accepted_for_every_registered_pack():
+    """Complements the simulated-absence tests above: with all three packs
+    landed, each pack's own first subcategory must actually validate."""
+    from app.industry_packs import registry
+    from tests.test_api_clients import _make_app
+
+    for pack in registry.all_packs():
+        app, get_db = _make_app()
+        row = _api_client_row(industry_pack=pack.key, industry_subcategory=None)
+        response = _patch_client(
+            app, get_db, row, {"industry_subcategory": pack.subcategories[0]}
+        )
+        assert response.status_code == 200, pack.key
+        assert row.industry_subcategory == pack.subcategories[0]

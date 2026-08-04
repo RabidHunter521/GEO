@@ -7,5 +7,6 @@ must eventually equal `INDUSTRY_PACK_KEYS`.
 from app.industry_packs import base, registry  # noqa: F401
 from app.industry_packs import healthcare  # noqa: F401  (registers on import)
 from app.industry_packs import fnb  # noqa: F401  (registers on import)
+from app.industry_packs import local_services  # noqa: F401  (registers on import)
 
-__all__ = ["base", "registry", "healthcare", "fnb"]
+__all__ = ["base", "registry", "healthcare", "fnb", "local_services"]
