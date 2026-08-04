@@ -78,12 +78,20 @@ _PROHIBITED_CLAIM_TERMS = (
 
 @dataclass(frozen=True)
 class TruthFieldDefinition:
-    """A business fact this pack cares about, stored in the shared Truth Vault."""
+    """A business fact this pack cares about, stored in the shared Truth Vault.
+
+    `fact_type` and `key` are the TruthFact model's `fact_type`/`fact_key`
+    verbatim, which is what lets a pack's declared fields, its risk rules, and
+    real Truth Vault rows all address the same thing. Uniqueness is on the pair:
+    different types may legitimately reuse a key (`practitioner.name` and
+    `facility.name`).
+    """
 
     key: str
     label: str
     value_type: Literal["text", "boolean", "number", "url", "list", "hours"]
     scope: Literal["brand", "location", "either"]
+    fact_type: str = "business"
     # Risk-sensitive facts require a source URL and reviewer approval before any
     # surface may repeat them.
     risk_sensitive: bool = False
@@ -162,7 +170,8 @@ def validate_pack(pack: IndustryPack) -> None:
     _reject_duplicates(pack.subcategories, f"pack {pack.key}: duplicate subcategory")
 
     _reject_duplicates(
-        [f.key for f in pack.truth_fields], f"pack {pack.key}: duplicate truth field"
+        [(f.fact_type, f.key) for f in pack.truth_fields],
+        f"pack {pack.key}: duplicate truth field",
     )
     _reject_duplicates(
         [t.id for t in pack.query_templates], f"pack {pack.key}: duplicate query template"
@@ -187,8 +196,10 @@ def validate_pack(pack: IndustryPack) -> None:
     for template in pack.query_templates:
         _validate_template(pack.key, template)
 
+    declared_types = {f.fact_type for f in pack.truth_fields}
+    declared_pairs = {(f.fact_type, f.key) for f in pack.truth_fields}
     for rule in pack.risk_rules:
-        _validate_risk_rule(pack.key, rule)
+        _validate_risk_rule(pack.key, rule, declared_types, declared_pairs)
 
 
 def _validate_template(pack_key: str, template: QueryTemplate) -> None:
@@ -223,7 +234,25 @@ def _validate_template(pack_key: str, template: QueryTemplate) -> None:
         )
 
 
-def _validate_risk_rule(pack_key: str, rule: RiskRule) -> None:
+def _validate_risk_rule(
+    pack_key: str,
+    rule: RiskRule,
+    declared_types: set[str],
+    declared_pairs: set[tuple[str, str]],
+) -> None:
+    # A rule addressing a fact the pack never declares can never match anything,
+    # so it would look like coverage while providing none. Typos in a fact_key
+    # are exactly this failure and are invisible at runtime.
+    if rule.fact_type not in declared_types:
+        raise ValueError(
+            f"pack {pack_key}: risk rule {rule.id!r} targets fact_type "
+            f"{rule.fact_type!r}, which no truth field declares"
+        )
+    if rule.fact_key is not None and (rule.fact_type, rule.fact_key) not in declared_pairs:
+        raise ValueError(
+            f"pack {pack_key}: risk rule {rule.id!r} targets "
+            f"{rule.fact_type}.{rule.fact_key}, which no truth field declares"
+        )
     if rule.severity not in RISK_SEVERITIES:
         raise ValueError(
             f"pack {pack_key}: risk rule {rule.id!r} has unsupported severity {rule.severity!r}"

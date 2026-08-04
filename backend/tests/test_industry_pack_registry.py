@@ -26,10 +26,11 @@ from app.industry_packs.base import (
 from app.industry_packs import registry
 
 
-def _field(key="practitioner_name", **kw) -> TruthFieldDefinition:
+def _field(key="qualification", **kw) -> TruthFieldDefinition:
     return dataclasses.replace(
         TruthFieldDefinition(
-            key=key, label="Practitioner name", value_type="text", scope="location"
+            key=key, label="Qualification", value_type="text",
+            scope="location", fact_type="practitioner",
         ),
         **kw,
     )
@@ -117,6 +118,33 @@ def test_pack_version_must_be_semver(version):
 def test_truth_field_keys_must_be_unique():
     with pytest.raises(ValueError, match="duplicate truth field"):
         validate_pack(_pack(truth_fields=(_field(), _field())))
+
+
+def test_the_same_key_under_different_fact_types_is_allowed():
+    """practitioner.name and facility.name are different facts."""
+    pack = _pack(
+        truth_fields=(
+            _field(key="name", fact_type="practitioner"),
+            _field(key="name", fact_type="facility"),
+        ),
+        risk_rules=(_rule(fact_type="practitioner", fact_key="name"),),
+    )
+    assert validate_pack(pack) is None
+
+
+def test_risk_rule_must_target_a_declared_fact_type():
+    with pytest.raises(ValueError, match="which no truth field declares"):
+        validate_pack(_pack(risk_rules=(_rule(fact_type="menu", fact_key=None),)))
+
+
+def test_risk_rule_must_target_a_declared_fact_key():
+    """A typo'd fact_key silently never matches, looking like coverage."""
+    with pytest.raises(ValueError, match="which no truth field declares"):
+        validate_pack(_pack(risk_rules=(_rule(fact_key="qualifcation"),)))
+
+
+def test_risk_rule_may_match_any_key_of_a_declared_type():
+    assert validate_pack(_pack(risk_rules=(_rule(fact_key=None),))) is None
 
 
 def test_risk_rule_ids_must_be_unique():
