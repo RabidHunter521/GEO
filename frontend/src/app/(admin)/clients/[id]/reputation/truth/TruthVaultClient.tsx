@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { FactEditor } from "@/components/truth/FactEditor"
 import { LocationSelector } from "@/components/truth/LocationSelector"
+import { factTypesFor, fieldsForFactType } from "@/lib/industry-packs"
 import type {
   BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput,
 } from "@/types"
@@ -26,14 +27,34 @@ function groupFor(fact: TruthFact) {
   return GROUPS.find((group) => group.matches.includes(fact.fact_type.toLowerCase() as never)) ?? GROUPS[0]
 }
 
+/** "practitioner" -> "Practitioner", "local_service" -> "Local service". */
+function factTypeLabel(factType: string): string {
+  const spaced = factType.replaceAll("_", " ")
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
 export function TruthVaultClient({
   clientId, locations: initialLocations, facts: initialFacts, selectedLocationId,
+  packKey = null,
 }: {
   clientId: string
   locations: BusinessLocation[]
   facts: TruthFact[]
   selectedLocationId: string | null
+  /** The client's industry pack, when one has been reviewed. */
+  packKey?: string | null
 }) {
+  // Pack-driven groups, one FactEditor per fact type the pack declares.
+  const packGroups = factTypesFor(packKey).map((factType) => ({
+    factType,
+    title: factTypeLabel(factType),
+    fields: fieldsForFactType(packKey, factType),
+  }))
+  const packFactTypes = new Set(packGroups.map((group) => group.factType))
+  const orphanedFacts = packGroups.length > 0
+    ? initialFacts.filter((fact) => !packFactTypes.has(fact.fact_type))
+    : []
+
   const router = useRouter()
   const [locations, setLocations] = useState(initialLocations)
   const [facts, setFacts] = useState(initialFacts)
@@ -127,21 +148,49 @@ export function TruthVaultClient({
 
       {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
+      {/* A client with an industry pack gets that pack's fact groups, so the
+          form asks for what the pack actually tracks. Without a pack the
+          original generic groups are unchanged. */}
       <div className="grid gap-4 xl:grid-cols-2">
-        {GROUPS.map((group) => (
-          <FactEditor
-            key={group.title}
-            title={group.title}
-            factType={group.factType}
-            facts={facts.filter((fact) => groupFor(fact).title === group.title)}
-            locationId={selectedLocationId}
-            pending={pending}
-            onCreateFact={createFact}
-            onDraftVersion={draftVersion}
-            onApproveVersion={approveVersion}
-          />
-        ))}
+        {packGroups.length > 0
+          ? packGroups.map((group) => (
+              <FactEditor
+                key={group.factType}
+                title={group.title}
+                factType={group.factType}
+                facts={facts.filter((fact) => fact.fact_type === group.factType)}
+                locationId={selectedLocationId}
+                pending={pending}
+                packFields={group.fields}
+                onCreateFact={createFact}
+                onDraftVersion={draftVersion}
+                onApproveVersion={approveVersion}
+              />
+            ))
+          : GROUPS.map((group) => (
+              <FactEditor
+                key={group.title}
+                title={group.title}
+                factType={group.factType}
+                facts={facts.filter((fact) => groupFor(fact).title === group.title)}
+                locationId={selectedLocationId}
+                pending={pending}
+                onCreateFact={createFact}
+                onDraftVersion={draftVersion}
+                onApproveVersion={approveVersion}
+              />
+            ))}
       </div>
+
+      {/* Facts recorded under a previous pack are preserved, so surface them
+          rather than letting reviewed work silently disappear from the page. */}
+      {packGroups.length > 0 && orphanedFacts.length > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {orphanedFacts.length} fact{orphanedFacts.length === 1 ? "" : "s"} recorded outside
+          this pack {orphanedFacts.length === 1 ? "is" : "are"} kept and still used for accuracy
+          checks: {[...new Set(orphanedFacts.map((fact) => fact.fact_type))].join(", ")}.
+        </p>
+      )}
     </div>
   )
 }

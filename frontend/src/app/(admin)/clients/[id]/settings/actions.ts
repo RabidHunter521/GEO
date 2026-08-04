@@ -30,6 +30,11 @@ export async function updateClientAction(
     lead_to_customer_pct?: number
     enabled_platforms?: Platform[]
     ga4_property_id?: string | null
+    industry_pack?: string | null
+    industry_subcategory?: string | null
+    // Control field, never persisted: the API returns 409 with an impact
+    // preview when an already-chosen pack is switched without it.
+    confirm_pack_change?: boolean
   },
 ) {
   const client = await updateClient(id, data)

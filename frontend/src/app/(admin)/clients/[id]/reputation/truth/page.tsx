@@ -1,4 +1,4 @@
-import { getAllTruthFacts, getBusinessLocations } from "@/lib/api"
+import { getAllTruthFacts, getBusinessLocations, getClient } from "@/lib/api"
 import { TruthVaultClient } from "./TruthVaultClient"
 
 export default async function TruthVaultPage({
@@ -9,6 +9,7 @@ export default async function TruthVaultPage({
 }) {
   const { id } = await params
   const { location } = await searchParams
+  const client = await getClient(id)
   const locations = await getBusinessLocations(id)
   // The admin selector only exposes active locations. Treat a stale or
   // hand-crafted location query as Brand-wide instead of silently presenting
@@ -25,5 +26,6 @@ export default async function TruthVaultPage({
     locations={locations}
     facts={facts}
     selectedLocationId={selectedLocationId}
+    packKey={client.industry_pack}
   />
 }

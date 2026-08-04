@@ -53,6 +53,12 @@ export interface Client {
   archived_at: string | null
   is_prospect: boolean
   internal_notes: string | null
+  // Industry intelligence pack. null = no pack reviewed yet, which keeps the
+  // client on the legacy scan templates. The version is server-stamped from the
+  // pack registry and is never editable by an admin.
+  industry_pack: string | null
+  industry_subcategory: string | null
+  industry_pack_version: string | null
 }
 
 export interface ShareTokenResponse {
