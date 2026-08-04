@@ -120,3 +120,163 @@ def test_confirm_pack_change_is_a_control_field_not_a_column():
     assert "confirm_pack_change" in ClientUpdate.model_fields
     assert not hasattr(Client, "confirm_pack_change")
     assert ClientUpdate().confirm_pack_change is False
+
+
+# --- version stamping and subcategory validity (registry-backed) -------------
+#
+# These exercise the admin route against a REGISTERED pack. The three real packs
+# arrive in Tasks 3-5, so a fixture pack is registered for the duration of each
+# test; the behaviour under test is the wiring, not the pack's content.
+
+def _registered_pack(monkeypatch, *, version="2.1.0", subcategories=("dental", "specialist")):
+    from app.industry_packs import registry
+    from app.industry_packs.base import (
+        IndustryPack, QueryTemplate, RiskRule, TrustedSourceType, TruthFieldDefinition,
+    )
+
+    pack = IndustryPack(
+        key="healthcare",
+        version=version,
+        label="Healthcare",
+        subcategories=subcategories,
+        truth_fields=(TruthFieldDefinition(
+            key="practitioner_name", label="Practitioner name",
+            value_type="text", scope="location",
+        ),),
+        query_templates=(QueryTemplate(
+            id="brand_overview", template="What is {brand}?",
+            buyer_stage="awareness", commercial_intent="low", location_required=False,
+        ),),
+        risk_rules=(RiskRule(
+            id="credentials", fact_type="practitioner", fact_key="qualification",
+            severity="critical",
+            review_instruction="Confirm the stated qualification against the approved fact.",
+        ),),
+        trusted_sources=(TrustedSourceType(key="official_website", label="Official website"),),
+    )
+    monkeypatch.setitem(registry._PACKS, pack.key, pack)
+    return pack
+
+
+def _patch_client(app, get_db, existing, payload):
+    from unittest.mock import MagicMock
+    from fastapi.testclient import TestClient
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    try:
+        return TestClient(app).patch(f"/api/v1/clients/{existing.id}", json=payload)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _api_client_row(**overrides):
+    from tests.test_api_clients import _fake_client
+
+    row = _fake_client("Pack Co")
+    row.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+    for key, value in overrides.items():
+        setattr(row, key, value)
+    return row
+
+
+def test_selecting_a_pack_stamps_the_registry_version(monkeypatch):
+    """The version records which pack definition a client is configured against;
+    an admin must never type it, so the server stamps it on selection."""
+    from tests.test_api_clients import _make_app
+
+    _registered_pack(monkeypatch, version="2.1.0")
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack=None, industry_pack_version=None)
+
+    response = _patch_client(app, get_db, row, {"industry_pack": "healthcare"})
+
+    assert response.status_code == 200
+    assert row.industry_pack_version == "2.1.0"
+
+
+def test_switching_packs_restamps_rather_than_clearing(monkeypatch):
+    from tests.test_api_clients import _make_app
+
+    _registered_pack(monkeypatch, version="2.1.0")
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack="fnb", industry_pack_version="1.0.0")
+
+    response = _patch_client(
+        app, get_db, row, {"industry_pack": "healthcare", "confirm_pack_change": True}
+    )
+
+    assert response.status_code == 200
+    assert row.industry_pack_version == "2.1.0"
+
+
+def test_unregistered_pack_stamps_null_instead_of_500(monkeypatch):
+    """Tasks 3-5 have not landed for every key; the admin API must degrade."""
+    from tests.test_api_clients import _make_app
+
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack=None, industry_pack_version=None)
+
+    response = _patch_client(app, get_db, row, {"industry_pack": "local_services"})
+
+    assert response.status_code == 200
+    assert row.industry_pack_version is None
+
+
+def test_subcategory_must_belong_to_the_selected_pack(monkeypatch):
+    _registered_pack(monkeypatch, subcategories=("dental", "specialist"))
+    from tests.test_api_clients import _make_app
+
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack="healthcare", industry_subcategory="dental")
+
+    response = _patch_client(app, get_db, row, {"industry_subcategory": "cafe"})
+
+    assert response.status_code == 422
+    assert "cafe" in response.json()["detail"]
+
+
+def test_valid_subcategory_is_accepted(monkeypatch):
+    _registered_pack(monkeypatch, subcategories=("dental", "specialist"))
+    from tests.test_api_clients import _make_app
+
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack="healthcare", industry_subcategory="dental")
+
+    response = _patch_client(app, get_db, row, {"industry_subcategory": "specialist"})
+
+    assert response.status_code == 200
+    assert row.industry_subcategory == "specialist"
+
+
+def test_subcategory_is_validated_against_the_merged_pack(monkeypatch):
+    """Sending a new pack and a subcategory from the OLD pack in one request
+    must fail — the check runs on merged state, not on the request alone."""
+    _registered_pack(monkeypatch, subcategories=("dental", "specialist"))
+    from tests.test_api_clients import _make_app
+
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack="fnb", industry_subcategory="cafe")
+
+    response = _patch_client(
+        app, get_db, row,
+        {"industry_pack": "healthcare", "industry_subcategory": "cafe",
+         "confirm_pack_change": True},
+    )
+
+    assert response.status_code == 422
+
+
+def test_subcategory_is_not_rejected_when_the_pack_is_unregistered(monkeypatch):
+    """An empty subcategory list means "cannot validate", not "reject all"."""
+    from tests.test_api_clients import _make_app
+
+    app, get_db = _make_app()
+    row = _api_client_row(industry_pack="local_services", industry_subcategory=None)
+
+    response = _patch_client(app, get_db, row, {"industry_subcategory": "plumbing"})
+
+    assert response.status_code == 200
+    assert row.industry_subcategory == "plumbing"

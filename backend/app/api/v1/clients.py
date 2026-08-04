@@ -31,6 +31,7 @@ from app.services.benchmark_service import compute_industry_benchmark
 from app.services.client_list_service import build_client_list
 from app.services.command_center_service import build_command_center
 from app.services.gap_matrix_service import compute_gap_matrix
+from app.industry_packs import registry as pack_registry
 from app.services.share_link_service import generate_share_token, revoke_share_token
 from app.services import r2_service, assessment_service
 from app.schemas.gap_matrix import GapMatrixResponse
@@ -156,8 +157,24 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
     if pack_changed:
         if "industry_subcategory" not in updates:
             c.industry_subcategory = None
-        # Re-stamped from the registry when the pack is next exercised.
-        c.industry_pack_version = None
+        # Records which pack definition this client is configured against, so a
+        # later version bump is detectable. None until that pack's module lands.
+        c.industry_pack_version = pack_registry.get_pack_version(c.industry_pack)
+
+    # Subcategories are pack-specific, so validate on the MERGED state: sending a
+    # new pack alongside the old pack's subcategory must fail. An empty tuple
+    # means the pack is not registered yet and therefore cannot be validated —
+    # that must read as "accept", not "reject everything".
+    valid_subcategories = pack_registry.subcategories_for(c.industry_pack)
+    if valid_subcategories and c.industry_subcategory:
+        if c.industry_subcategory not in valid_subcategories:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"'{c.industry_subcategory}' is not a subcategory of the "
+                    f"{c.industry_pack} pack. Valid: {', '.join(valid_subcategories)}."
+                ),
+            )
 
     # A manual dimension score must never appear "naked" to the client — if a
     # score is set above 0, the SeenBy team must back it with an evidence line
