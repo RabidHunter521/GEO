@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import scans, clients, competitors, control_queries, toolkit, site_audit, activity, digest, reports, content_gaps, content_roadmap, action_center, traffic, client_view, costs, remediation, citability, deliverables, authority, work_log, work_log_global, misinformation, outcome_actions, action_approvals, locations, truth_vault, tracked_queries, search_console, conversion_events
+from app.api.v1 import scans, clients, competitors, control_queries, toolkit, site_audit, activity, digest, reports, content_gaps, content_roadmap, action_center, traffic, client_view, costs, remediation, citability, deliverables, authority, work_log, work_log_global, misinformation, outcome_actions, action_approvals, locations, truth_vault, tracked_queries, search_console, conversion_events, business_impact
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(scans.router)
@@ -31,3 +31,4 @@ router.include_router(truth_vault.router)
 router.include_router(tracked_queries.router)
 router.include_router(search_console.router)
 router.include_router(conversion_events.router)
+router.include_router(business_impact.router)

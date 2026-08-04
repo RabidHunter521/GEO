@@ -10,7 +10,7 @@ import ipaddress
 from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
 
@@ -38,6 +38,7 @@ from app.models.remediation_item import RemediationItem
 from app.models.business_location import BusinessLocation
 from app.models.misinformation_finding import MisinformationFinding
 from app.models.truth_fact import TruthFact, TruthFactVersion
+from app.schemas.business_impact import ImpactSummaryPublic
 from app.schemas.client_view import (
     ClientViewBenchmark,
     ClientViewCausalTrend,
@@ -77,6 +78,7 @@ from app.schemas.client_view import (
     ClientViewActionPlanItem,
     ClientViewCompletedWorkItem,
 )
+from app.services import business_impact_service
 from app.services.assessment_service import latest_assessment
 from app.services.client_period_summary_service import build_client_period_summary
 from app.services.benchmark_service import compute_industry_benchmark
@@ -1098,3 +1100,23 @@ def get_activity(
             )
         )
     return out
+
+
+@router.get("/business-impact", response_model=list[ImpactSummaryPublic])
+def get_business_impact(
+    client: Client = Depends(require_non_prospect_share_client),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Client-safe evidence ladder: one `ImpactSummaryPublic` per currency.
+
+    Non-prospect only, same as `/truth-health` and `/progress` — a prospect
+    link shows overview + scan only. Built from `ImpactSummaryPublic`, which
+    omits admin-only fields (external identifiers, raw metadata, calculation
+    method) by construction rather than by filtering `ImpactSummary` here.
+    """
+    summaries = business_impact_service.get_impact_summary(
+        client.id, db, date_from=date_from, date_to=date_to
+    )
+    return [ImpactSummaryPublic.from_summary(summary) for summary in summaries]
