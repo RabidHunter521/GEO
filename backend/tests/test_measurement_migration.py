@@ -36,18 +36,18 @@ def test_migration_declares_expected_revision_ids():
     assert f'down_revision: Union[str, None] = "{DOWN_REVISION_ID}"' in source
 
 
-def test_migration_is_the_current_head():
+def test_migration_chains_from_phase_4_head():
     """The plan's pre-flight scan found alembic head == c0f6b4e3d9a1 with no
-    drift; this migration must extend that exact chain, not fork it."""
+    drift; this migration must extend that exact chain. It is no longer the
+    single chain head (Tasks 5+6 migrations and a merge migration extend it),
+    but its parent must still be Phase 4's final head."""
     script = _script_dir()
     revision = script.get_revision(REVISION_ID)
     assert revision is not None
     assert revision.down_revision == DOWN_REVISION_ID
 
     heads = script.get_heads()
-    assert list(heads) == [REVISION_ID], (
-        f"expected {REVISION_ID} to be the single chain head, found {heads}"
-    )
+    assert len(heads) == 1, f"expected exactly one chain head, found {heads}"
 
 
 def test_migration_creates_tracked_queries_table_with_required_columns():
