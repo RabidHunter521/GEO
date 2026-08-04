@@ -13,6 +13,7 @@ from app.prompts import (
     toolkit,
     content_roadmap,
     content_analysis,
+    content_brief,
     report,
     digest,
     assessment,
@@ -31,6 +32,9 @@ REGISTRY: dict[str, dict[str, str]] = {
     "content_analysis_topics":     {"version": content_analysis.TOPICS_ENTITIES_VERSION,    "model": MODEL},
     "content_analysis_quality":    {"version": content_analysis.QUALITY_REC_VERSION,        "model": MODEL},
     "content_analysis_suggested":  {"version": content_analysis.SUGGESTED_CONTENT_VERSION,  "model": MODEL},
+    # Was recording version "unknown": the prompt lived inline in
+    # content_brief_service and so had no registry entry at all.
+    "content_brief":               {"version": content_brief.VERSION,             "model": MODEL},
     "report_narrative":            {"version": report.VERSION,                     "model": MODEL_NARRATIVE},
     "digest_action":               {"version": digest.VERSION,                     "model": MODEL},
     # Sonnet + web_search: client-visible evidence, on-demand volume — the

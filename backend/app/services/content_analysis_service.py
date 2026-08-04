@@ -18,6 +18,7 @@ from app.prompts.content_analysis import (
 from app.services.claude_client import MODEL, anthropic_client, strip_code_fences, was_truncated
 from app.services.content_crawler import CrawlResult, crawl_site
 from app.services.cost_tracker import record_llm_call
+from app.services.pack_query_service import pack_context_for
 from app.services.language_sanitizer import sanitize_text
 
 logger = structlog.get_logger()
@@ -47,7 +48,7 @@ def _quality_recommendation(client: Client, crawl: CrawlResult) -> str:
     response = anthropic_client().messages.create(
         model=MODEL,
         max_tokens=400,
-        messages=[{"role": "user", "content": build_quality_recommendation(client, crawl)}],
+        messages=[{"role": "user", "content": build_quality_recommendation(client, crawl, *pack_context_for(client))}],
     )
     record_llm_call(
         service="content_analysis_quality", model=MODEL, response=response, client_id=client.id
@@ -65,7 +66,7 @@ def _suggested_content(client: Client, topics: list) -> list:
             model=MODEL,
             max_tokens=1024,
             temperature=0,
-            messages=[{"role": "user", "content": build_suggested_content(client, missing)}],
+            messages=[{"role": "user", "content": build_suggested_content(client, missing, *pack_context_for(client))}],
         )
         record_llm_call(
             service="content_analysis_suggested", model=MODEL, response=response, client_id=client.id

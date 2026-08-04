@@ -6,38 +6,18 @@ import json
 import structlog
 from sqlalchemy.orm import Session
 
-from app.core.constants import PLATFORM_LABELS
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.content_brief import ContentBrief
+from app.prompts.content_brief import build_content_brief
 from app.models.scan_query_result import ScanQueryResult
 from app.services.claude_client import anthropic_client, strip_code_fences, MODEL, was_truncated
 from app.services.cost_tracker import record_llm_call
+from app.services.pack_query_service import pack_context_for
 
 logger = structlog.get_logger()
 
 _MAX_TOKENS = 1024
-
-
-def _build_prompt(client: Client, result: ScanQueryResult, competitors_seen: list[str]) -> str:
-    location = ", ".join(p for p in (client.city, client.state, client.country) if p)
-    competitor_line = (
-        f"the answer included these competitors: {', '.join(competitors_seen)} — but "
-        if competitors_seen
-        else "no business stood out in the answer, and "
-    )
-    return f"""You are a GEO (Generative Engine Optimization) content strategist for a {client.industry} business called {client.name}{f" based in {location}" if location else ""}.
-Business context: {client.description or "n/a"}. Target audience: {client.target_audience or "n/a"}.
-
-When AI assistants were asked: "{result.query_text}" (platform: {PLATFORM_LABELS.get(result.platform, result.platform)}), {competitor_line}{client.name} was not yet seen by AI in that answer.
-
-Create one content brief for a page or blog post designed to make AI assistants include {client.name} when answering this exact question.
-- title: a specific, publish-ready page/post title using the industry and locality terms from the question.
-- angle: 1-2 sentences on the unique angle that wins this question (what existing coverage is missing).
-- outline: 4-7 plain-English section bullets (H2 level).
-Never use the words "citation", "cited", "mentioned", "ranking position", or "visibility gap" — use "seen by AI", "AI Search Ranking", and "Your competitors are winning here" instead.
-Output ONLY valid JSON, no code fences, exactly:
-{{"title": "string", "angle": "string", "outline": ["string"]}}"""
 
 
 def generate_brief_for_result(
@@ -55,7 +35,7 @@ def generate_brief_for_result(
         response = anthropic_client().messages.create(
             model=MODEL,
             max_tokens=_MAX_TOKENS,
-            messages=[{"role": "user", "content": _build_prompt(client, result, competitors_seen)}],
+            messages=[{"role": "user", "content": build_content_brief(client, result, competitors_seen, *pack_context_for(client, db))}],
         )
         record_llm_call(
             service="content_brief", model=MODEL, response=response, client_id=client.id, db=db

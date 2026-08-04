@@ -138,6 +138,7 @@ def _registered_pack(monkeypatch, *, version="2.1.0", subcategories=("dental", "
         key="healthcare",
         version=version,
         label="Healthcare",
+        report_fact_label="Practitioner facts reviewed",
         subcategories=subcategories,
         truth_fields=(TruthFieldDefinition(
             key="practitioner_name", label="Practitioner name",

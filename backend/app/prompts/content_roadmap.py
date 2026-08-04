@@ -1,17 +1,19 @@
 # backend/app/prompts/content_roadmap.py
 """Prompt templates for the 90-day content roadmap generator."""
 from app.models.client import Client
+from app.prompts.industry_pack import build_pack_context
 from app.prompts.language import LANGUAGE_RULES
 
-# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
-ROADMAP_VERSION = "v2"
+# v3: industry pack context — the roadmap now plans against the client's
+# approved facts and may not propose content asserting facts it does not have.
+ROADMAP_VERSION = "v3"
 # v3: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
 ARTICLE_VERSION = "v3"
 
 PLAN_WEEKS = 12  # 90-day plan == 12 weekly content pieces
 
 
-def build_roadmap(client: Client, queries: list[dict]) -> str:
+def build_roadmap(client: Client, queries: list[dict], pack=None, facts=()) -> str:
     location = ", ".join(p for p in (client.city, client.state, getattr(client, "country", None)) if p)
     query_lines = "\n".join(
         f'- "{q["query_text"]}" ({q["platform"]}, {q["category"]}; '
@@ -21,7 +23,7 @@ def build_roadmap(client: Client, queries: list[dict]) -> str:
     )
     return f"""You are a GEO (Generative Engine Optimization) content strategist for a {client.industry} business called {client.name}{f" based in {location}" if location else ""}.
 Business context: {client.description or "n/a"}. Target audience: {client.target_audience or "n/a"}.
-
+{build_pack_context(client, pack, facts)}
 These are the questions where AI assistants did NOT yet see {client.name}, and where competitors often are seen instead:
 {query_lines}
 

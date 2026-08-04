@@ -273,6 +273,7 @@ _TRUSTED_SOURCES = (
 HEALTHCARE_PACK = IndustryPack(
     key="healthcare",
     version="1.0.0",
+    report_fact_label="Practitioner and treatment facts reviewed",
     label="Healthcare",
     subcategories=(
         "general_clinic", "dental", "specialist", "aesthetic",

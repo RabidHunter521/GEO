@@ -17,6 +17,7 @@ from app.models.client import Client
 from app.prompts.content_roadmap import PLAN_WEEKS, build_article, build_roadmap
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences, was_truncated
 from app.services.cost_tracker import record_llm_call
+from app.services.pack_query_service import pack_context_for
 from app.services.language_sanitizer import sanitize_text
 from app.services.win_loss_service import compute_win_loss
 
@@ -51,7 +52,7 @@ def generate_roadmap(client: Client, db: Session) -> dict:
     if not queries:
         return {"roadmap_json": [], "source_query_count": 0}
 
-    prompt = build_roadmap(client, queries[:_MAX_QUERIES])
+    prompt = build_roadmap(client, queries[:_MAX_QUERIES], *pack_context_for(client, db))
     response = anthropic_client().messages.create(
         model=MODEL_NARRATIVE,
         max_tokens=_MAX_TOKENS,

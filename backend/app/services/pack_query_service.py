@@ -289,3 +289,34 @@ def _region(city: Any, state: Any) -> str | None:
     if city and state:
         return f"{city}, {state}"
     return city or state
+
+
+def pack_context_for(client, db=None):
+    """(pack, approved_facts) for prompt building, or (None, ()) when unpacked.
+
+    `db` is optional because the content services differ: the brief and roadmap
+    hold a session, while content_analysis does not. When none is given this
+    opens its own, the same fallback cost_tracker.record_llm_usage already uses
+    for exactly this situation.
+
+    Best-effort by design. A Truth Vault read failing must degrade the prompt to
+    the unspecialised version, never stop content generation — and it must never
+    raise into a caller whose except block would log it as a generation failure.
+    """
+    from app.industry_packs import registry as pack_registry
+
+    pack = pack_registry.find_pack(getattr(client, "industry_pack", None))
+    if pack is None:
+        return None, ()
+    try:
+        if db is not None:
+            return pack, approved_facts_for(client, db)
+        from app.core.database import SessionLocal
+
+        with SessionLocal() as session:
+            return pack, approved_facts_for(client, session)
+    except Exception as exc:
+        logger.warning(
+            "pack_context_unavailable", client_id=str(client.id), error=str(exc)
+        )
+        return pack, ()

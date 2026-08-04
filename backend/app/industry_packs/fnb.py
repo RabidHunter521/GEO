@@ -304,6 +304,7 @@ _TRUSTED_SOURCES = (
 FNB_PACK = IndustryPack(
     key="fnb",
     version="1.0.0",
+    report_fact_label="Outlet, menu and dietary information reviewed",
     label="Food & Beverage",
     subcategories=(
         "restaurant", "cafe", "bakery", "bar", "catering",

@@ -1,15 +1,17 @@
 # backend/app/prompts/content_analysis.py
 """Prompt templates for content gap and quality analysis."""
 from app.models.client import Client
+from app.prompts.industry_pack import build_pack_context
 from app.prompts.language import LANGUAGE_RULES
 
 # Unversioned by this change: topic/entity extraction emits internal JSON that
 # never reaches a client, so it carries no language rules to share.
 TOPICS_ENTITIES_VERSION = "v1"
-# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
-QUALITY_REC_VERSION = "v2"
-# v2: shared LANGUAGE_RULES (prompt audit H2) — replaces this file's own copy.
-SUGGESTED_CONTENT_VERSION = "v2"
+# v3: industry pack context — the recommendation now speaks in the client's
+# industry vocabulary and may not invent facts outside the approved set.
+QUALITY_REC_VERSION = "v3"
+# v3: industry pack context (see QUALITY_REC_VERSION).
+SUGGESTED_CONTENT_VERSION = "v3"
 
 
 def build_topics_entities(client: Client, corpus: str) -> str:
@@ -36,10 +38,11 @@ Output ONLY valid JSON, no code fences, in exactly this shape:
   "entities": [{{"entity": "string", "covered": true}}]}}"""
 
 
-def build_quality_recommendation(client: Client, crawl) -> str:
+def build_quality_recommendation(client: Client, crawl, pack=None, facts=()) -> str:
     return f"""You advise on website content quality for AI search visibility.
 
 Business: {client.name} ({client.industry})
+{build_pack_context(client, pack, facts)}
 Crawl metrics:
 - Pages analysed: {crawl.pages_crawled}
 - Total word count: {crawl.word_count}
@@ -60,10 +63,13 @@ Also avoid "outrank", "outranks", "ranking" and "gap" — if a competitor is fav
 today, say they "currently appear instead of" this business. Output only the recommendation text."""
 
 
-def build_suggested_content(client: Client, missing_topics: list[str]) -> str:
+def build_suggested_content(
+    client: Client, missing_topics: list[str], pack=None, facts=()
+) -> str:
     topics_list = "\n".join(f"- {topic}" for topic in missing_topics)
     return f"""You suggest content ideas for a {client.industry} business called {client.name}
 to help AI search engines feature them more often.
+{build_pack_context(client, pack, facts)}
 
 The business does not currently cover these topics on its website:
 {topics_list}

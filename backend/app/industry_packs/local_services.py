@@ -278,6 +278,7 @@ _TRUSTED_SOURCES = (
 LOCAL_SERVICES_PACK = IndustryPack(
     key="local_services",
     version="1.0.0",
+    report_fact_label="Service-area, licensing and availability facts reviewed",
     label="Local Services",
     subcategories=(
         "home_maintenance", "automotive", "beauty_wellness", "cleaning",

@@ -134,6 +134,11 @@ class IndustryPack:
     key: str
     version: str
     label: str
+    # How the report names this pack's reviewed facts, e.g. "Practitioner and
+    # treatment facts reviewed". Lives on the pack so report wording is pack
+    # CONFIGURATION rather than a chain of `if industry` branches in the
+    # template — the plan's explicit requirement.
+    report_fact_label: str
     subcategories: tuple[str, ...]
     truth_fields: tuple[TruthFieldDefinition, ...]
     query_templates: tuple[QueryTemplate, ...]
@@ -188,6 +193,8 @@ def validate_pack(pack: IndustryPack) -> None:
         raise ValueError(f"pack {pack.key}: version {pack.version!r} must be MAJOR.MINOR.PATCH")
     if not pack.label.strip():
         raise ValueError(f"pack {pack.key}: label is required")
+    if not pack.report_fact_label.strip():
+        raise ValueError(f"pack {pack.key}: report_fact_label is required")
 
     if not pack.subcategories:
         raise ValueError(f"pack {pack.key}: at least one subcategory is required")

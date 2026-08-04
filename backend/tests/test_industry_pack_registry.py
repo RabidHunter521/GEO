@@ -67,6 +67,7 @@ def _pack(**kw) -> IndustryPack:
         key="healthcare",
         version="1.0.0",
         label="Healthcare",
+        report_fact_label="Practitioner facts reviewed",
         subcategories=("general_clinic", "dental"),
         truth_fields=(_field(),),
         query_templates=(_template(),),

@@ -490,6 +490,11 @@ class ReportData:
     business_name: str = ""
     brand_authority_evidence: str | None = None
     content_quality_evidence: str | None = None
+    # The industry pack's own wording for its reviewed facts. Empty for an
+    # unpacked client, which renders nothing — report text is pack CONFIGURATION,
+    # never a chain of `if industry` branches.
+    pack_fact_label: str = ""
+
     ai_visitors_current: int | None = None
     ai_visitors_prev: int | None = None
     # Which month ai_visitors_current actually describes. The newest snapshot is
@@ -1322,6 +1327,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         period_end=now,
         period_label=format_period_label(now - timedelta(days=30), now),
         business_name=client.name,
+        pack_fact_label=_pack_fact_label(client),
         overall_score=current_gs.overall_score,
         score_band=score_band,
         score_color=score_color,
@@ -1593,6 +1599,14 @@ def _build_sources_trend_html(data: ReportData) -> str:
     )
 
 
+def _pack_fact_label(client: Client) -> str:
+    """The client pack's report wording, or "" when it has no pack."""
+    from app.industry_packs import registry as pack_registry
+
+    pack = pack_registry.find_pack(getattr(client, "industry_pack", None))
+    return pack.report_fact_label if pack else ""
+
+
 def _build_misinformation_html(data: ReportData) -> str:
     """"How AI Represents You" — monitoring reassurance, never alarm.
 
@@ -1607,6 +1621,14 @@ def _build_misinformation_html(data: ReportData) -> str:
         return ""
 
     parts: list[str] = []
+    # The pack's own wording for what was checked, e.g. "Practitioner and
+    # treatment facts reviewed". Renders nothing for an unpacked client.
+    if data.pack_fact_label:
+        parts.append(
+            f'<div class="stat-card"><div class="stat-sub">'
+            f'{html.escape(data.pack_fact_label)} against what AI tools say about you.'
+            f'</div></div>'
+        )
     if m.open_count:
         severity_bits = ", ".join(
             f"{count} {label}"
