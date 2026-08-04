@@ -6,7 +6,7 @@ from app.models.client import Client
 from app.models.control_query import ControlQuery
 from app.models.scan import Scan
 from app.services import scan_service
-from app.services.query_builder import build_control_queries
+from app.services.query_builder import build_client_queries, build_control_queries
 from app.services.scan_service import _run_platform_queries
 
 
@@ -42,8 +42,13 @@ def test_platform_run_marks_control_rows(db):
     pc = MagicMock()
     pc.query.return_value = MagicMock(text="Some answer", citations=[], model="m",
                                       input_tokens=1, output_tokens=1)
+    # Client queries are now built once by run_scan and passed in, so the worker
+    # thread never needs a DB session. Control behaviour is unchanged either way.
+    client_queries = build_client_queries(client, [])
     with patch.object(scan_service, "_INTER_QUERY_DELAY_SECONDS", 0):
-        results, _ = _run_platform_queries("chatgpt", pc, scan, client, [], controls)
+        results, _ = _run_platform_queries(
+            "chatgpt", pc, scan, client, [], controls, client_queries
+        )
     control_rows = [r for r in results if r.is_control]
     assert len(control_rows) == 1
     assert control_rows[0].query_text == "Best physio in Penang"

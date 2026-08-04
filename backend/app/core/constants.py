@@ -338,3 +338,11 @@ MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
 # without updating this list fails a test instead of becoming unselectable.
 # No PostgreSQL enum by design — adding a pack must not require a migration.
 INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services")
+
+# Cost envelope for pack-generated client queries, deliberately matched to the
+# legacy ceiling (5 per category x 4 categories) so switching a client onto a
+# pack cannot silently multiply their scan bill. Placeholder fan-out is capped
+# separately: a clinic with 40 approved treatments must not turn one template
+# into 40 queries.
+MAX_PACK_QUERIES_PER_SCAN: Final = 20
+MAX_PACK_VALUES_PER_PLACEHOLDER: Final = 3

@@ -44,6 +44,18 @@ def get_pack(key: str) -> IndustryPack:
         ) from None
 
 
+def find_pack(key: str | None) -> IndustryPack | None:
+    """Return the pack for `key`, or None if there is not one.
+
+    The safe counterpart to `get_pack`, for paths that must degrade rather than
+    fail — a scan falls back to the legacy templates rather than dying because
+    a pack module is missing.
+    """
+    if key is None:
+        return None
+    return _PACKS.get(key)
+
+
 def registered_keys() -> tuple[str, ...]:
     return tuple(sorted(_PACKS))
 

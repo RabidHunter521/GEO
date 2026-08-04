@@ -150,6 +150,30 @@ def placeholders_in(template: str) -> set[str]:
     }
 
 
+def category_for(template: QueryTemplate) -> str:
+    """Map a pack query onto the scan engine's four existing categories.
+
+    Every consumer of a scan partitions by `category` — position extraction only
+    runs on the ranked ones, and diffing, digests, reports and the client view
+    all group by it. A fifth category would silently fall out of all of them, so
+    pack queries must land in the existing four.
+
+    The mapping is by PLACEHOLDER ANCHOR, never by reading the English:
+    whichever entity the question is pinned to is what the question is about.
+    That reproduces the legacy templates' own semantics — `{brand} vs
+    {competitor}` is comparison, `Best {industry} in {location}` is
+    recommendation, `... near me in {city}` is local.
+    """
+    used = placeholders_in(template.template)
+    if "competitor" in used:
+        return "comparison"
+    if "brand" in used:
+        return "brand"
+    if used & {"city", "area"}:
+        return "local"
+    return "recommendation"
+
+
 def validate_pack(pack: IndustryPack) -> None:
     """Raise ValueError with a named reason if the pack is malformed."""
     # Imported here rather than at module scope so `base` stays importable by

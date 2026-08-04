@@ -95,3 +95,60 @@ def test_competitor_queries_cover_all_categories():
     queries = build_competitor_queries(client, comp)
     categories = {q["category"] for q in queries}
     assert categories == {"brand", "comparison", "recommendation", "local"}
+
+
+# --- Phase 4: packed vs legacy dispatch --------------------------------------
+#
+# The single most important guarantee in Task 6: a client without a reviewed
+# industry pack must be scanned on EXACTLY the queries it was scanned on before
+# Phase 4 existed. Any drift here silently changes every existing client's
+# measurement and makes their score history incomparable.
+
+def test_a_client_without_a_pack_gets_the_untouched_legacy_queries():
+    from types import SimpleNamespace
+
+    from app.core.constants import QUERY_TEMPLATES
+
+    client = SimpleNamespace(
+        name="Acme", industry="dental clinic", city="Kuala Lumpur",
+        state="Selangor", country="Malaysia",
+    )
+    queries = build_client_queries(client, [])
+
+    brand = [q for q in queries if q["category"] == "brand"]
+    assert [q["query_text"] for q in brand] == [
+        t.format(brand="Acme") for t in QUERY_TEMPLATES["brand"]
+    ]
+    assert {q["category"] for q in queries} <= {
+        "brand", "comparison", "recommendation", "local"
+    }
+
+
+def test_the_legacy_path_is_the_default():
+    """pack=None is the default, so every pre-Phase-4 caller is unaffected."""
+    from types import SimpleNamespace
+
+    client = SimpleNamespace(
+        name="Acme", industry="dental clinic", city="KL", state=None, country=None,
+    )
+    assert build_client_queries(client, []) == build_client_queries(client, [], pack=None)
+
+
+def test_a_packed_client_is_scanned_on_pack_queries_instead():
+    from types import SimpleNamespace
+
+    from app.industry_packs.healthcare import HEALTHCARE_PACK
+
+    client = SimpleNamespace(
+        id=None, name="Klinik Sihat", industry="dental clinic",
+        city="Kuala Lumpur", state="Selangor", country="Malaysia",
+    )
+    legacy = build_client_queries(client, [])
+    packed = build_client_queries(client, [], pack=HEALTHCARE_PACK)
+
+    assert packed
+    assert {q["query_text"] for q in packed} != {q["query_text"] for q in legacy}
+    # still the scan engine's own four categories, never a fifth
+    assert {q["category"] for q in packed} <= {
+        "brand", "comparison", "recommendation", "local"
+    }

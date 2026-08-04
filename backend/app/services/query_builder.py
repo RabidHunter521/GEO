@@ -60,7 +60,31 @@ def _locality(client) -> str | None:
     return client.city or client.state or client.country or None
 
 
-def build_client_queries(client, competitors: list) -> list[dict]:
+def build_client_queries(
+    client,
+    competitors: list,
+    pack=None,
+    locations=(),
+    approved_facts=(),
+) -> list[dict]:
+    """Client-owned queries for one scan.
+
+    A client with a reviewed industry pack is scanned on that pack's buyer
+    questions, built from its APPROVED Truth Vault facts. Everyone else keeps
+    the legacy QUERY_TEMPLATES path unchanged — `pack=None` is the default, so
+    every existing caller behaves exactly as before.
+
+    Competitor and control queries are unaffected either way; they are built by
+    build_competitor_queries / build_control_queries.
+    """
+    if pack is not None:
+        from app.services.pack_query_service import build_pack_queries
+
+        return build_pack_queries(client, locations, approved_facts, pack, competitors)
+    return _legacy_client_queries(client, competitors)
+
+
+def _legacy_client_queries(client, competitors: list) -> list[dict]:
     queries = []
     location = _location(client)
     locality = _locality(client)
