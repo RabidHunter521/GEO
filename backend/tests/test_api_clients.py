@@ -350,6 +350,85 @@ def test_confirmed_industry_pack_change_persists():
     assert existing.industry_pack == "fnb"
 
 
+def test_pack_change_clears_the_stale_subcategory_and_version():
+    """Subcategories are pack-specific — "dental" is meaningless under F&B — and
+    the version records which pack's rules produced the stored evidence. Leaving
+    either behind describes a pack the client no longer has."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = "healthcare"
+    existing.industry_subcategory = "dental"
+    existing.industry_pack_version = "1.0.0"
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_pack": "fnb", "confirm_pack_change": True},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.industry_pack == "fnb"
+    assert existing.industry_subcategory is None
+    assert existing.industry_pack_version is None
+
+
+def test_pack_change_keeps_a_subcategory_sent_in_the_same_request():
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = "healthcare"
+    existing.industry_subcategory = "dental"
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={
+            "industry_pack": "fnb",
+            "industry_subcategory": "cafe",
+            "confirm_pack_change": True,
+        },
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.industry_subcategory == "cafe"
+
+
+def test_editing_subcategory_alone_does_not_clear_the_version():
+    """Only a genuine pack switch invalidates the version."""
+    app, get_db = _make_app()
+    existing = _fake_client("Pack Co")
+    existing.industry_pack = "healthcare"
+    existing.industry_subcategory = "dental"
+    existing.industry_pack_version = "1.0.0"
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"industry_subcategory": "specialist"},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.industry_subcategory == "specialist"
+    assert existing.industry_pack_version == "1.0.0"
+
+
 def test_repeating_the_same_industry_pack_is_not_a_change():
     """A settings form that resubmits every field must not trip the gate."""
     app, get_db = _make_app()

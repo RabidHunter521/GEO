@@ -145,8 +145,19 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
                 },
             )
 
+    # A pack switch invalidates everything scoped to the old pack. Subcategories
+    # are pack-specific ("dental" is meaningless under F&B) and the version
+    # records which pack's rules produced the client's evidence, so both are
+    # cleared here rather than left to describe a pack the client no longer has.
+    # An explicit subcategory sent in the same request wins.
+    pack_changed = "industry_pack" in updates and updates["industry_pack"] != c.industry_pack
     for field, value in updates.items():
         setattr(c, field, value)
+    if pack_changed:
+        if "industry_subcategory" not in updates:
+            c.industry_subcategory = None
+        # Re-stamped from the registry when the pack is next exercised.
+        c.industry_pack_version = None
 
     # A manual dimension score must never appear "naked" to the client — if a
     # score is set above 0, the SeenBy team must back it with an evidence line
