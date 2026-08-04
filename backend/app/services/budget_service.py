@@ -79,3 +79,24 @@ def check_budget(client_id: uuid.UUID, db: Session) -> BudgetStatus:
         client_cap=client_cap,
         global_cap=global_cap,
     )
+
+
+def remaining_budget_usd(client_id: uuid.UUID, db: Session) -> Decimal | None:
+    """Headroom left under whichever cap is tighter, for an in-scan planning
+    step (query_sampling_service) to cap its OWN optional add-on spend
+    against — never a replacement for check_budget's hard pre-trigger block.
+
+    None means no ceiling applies (both caps disabled via a 0 setting), so
+    the caller should not cap anything. A cap already exceeded returns
+    Decimal("0") rather than negative, so callers can treat it as "no
+    headroom" without a separate sign check.
+    """
+    status = check_budget(client_id, db)
+    candidates: list[Decimal] = []
+    if status.client_cap > 0:
+        candidates.append(Decimal(str(status.client_cap)) - status.client_spend)
+    if status.global_cap > 0:
+        candidates.append(Decimal(str(status.global_cap)) - status.global_spend)
+    if not candidates:
+        return None
+    return max(min(candidates), Decimal("0"))

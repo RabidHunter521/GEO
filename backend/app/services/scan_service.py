@@ -20,6 +20,7 @@ from app.models.control_query import ControlQuery
 from app.models.scan_query_source import ScanQuerySource
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
+from app.models.tracked_query import TrackedQuery
 from app.services.platform_clients import get_platform_client
 from app.services.platform_clients.base import PlatformResult
 from app.services.cost_tracker import record_llm_usage
@@ -28,6 +29,8 @@ from app.services.position_extraction import extract_position
 from app.services.provenance_service import normalize_domain
 from app.services.query_builder import build_client_queries, build_competitor_queries, build_control_queries
 from app.services import pack_query_service
+from app.services import query_sampling_service
+from app.services import budget_service
 from app.industry_packs import registry as pack_registry
 from app.models.business_location import BusinessLocation
 from app.services.scoring_service import (
@@ -125,6 +128,7 @@ def _run_platform_queries(
     competitors: list[Competitor],
     control_queries: list[ControlQuery],
     client_queries: list[dict],
+    tracked_query_samples: list[dict] = (),
 ) -> tuple[list[ScanQueryResult], list[PlatformResult]]:
     """Run all queries for one platform using a pre-built client. Raises on
     platform failure — results are returned (not persisted) so a failed platform
@@ -178,6 +182,64 @@ def _run_platform_queries(
                     )
                 )
         results.append(sqr)
+        time.sleep(_INTER_QUERY_DELAY_SECONDS)
+
+    # Repeated samples for the governed tracked-query portfolio (Phase 5 Task
+    # 3, see query_sampling_service). Each sample is isolated in its own
+    # try/except — unlike the loops above, ONE failed repetition here must
+    # not discard already-completed samples for this platform, nor fail the
+    # whole platform: "a partial provider failure records only completed
+    # samples and leaves the scan recoverable" (Task 3 brief). model_name is
+    # recorded from the real platform response, not left at the "unknown"
+    # default, since these rows are what future stability analysis (Task 4)
+    # reads.
+    for q in tracked_query_samples:
+        try:
+            result = platform_client.query(q["query_text"])
+        except Exception as exc:
+            logger.warning(
+                "tracked_query_sample_failed",
+                scan_id=str(scan.id),
+                platform=platform,
+                tracked_query_id=str(q["tracked_query_id"]),
+                sample_index=q["sample_index"],
+                error=str(exc),
+            )
+            continue
+        usages.append(result)
+        response_text = result.text
+        detected = detect_brand_in_answer(response_text, client.name)
+
+        position = None
+        if detected and q["category"] in _RANKED_CATEGORIES:
+            try:
+                position = extract_position(response_text, client.name, client_id=client.id)
+            except Exception as exc:
+                logger.error(
+                    "position_extraction_failed",
+                    scan_id=str(scan.id),
+                    platform=platform,
+                    query=q["query_text"],
+                    error=str(exc),
+                )
+
+        results.append(ScanQueryResult(
+            scan_id=scan.id,
+            platform=platform,
+            competitor_id=None,
+            category=q["category"],
+            # Retained verbatim (not re-templated) for audit — matches the
+            # governed TrackedQuery.text this sample was taken for.
+            query_text=q["query_text"],
+            response_text=response_text,
+            brand_detected=detected,
+            recommendation_position=position,
+            tracked_query_id=q["tracked_query_id"],
+            sample_index=q["sample_index"],
+            prompt_version=q["prompt_version"],
+            model_name=result.model,
+            observed_at=utcnow(),
+        ))
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
     # Benchmark rows: measurement only — no position extraction, no provenance
@@ -268,6 +330,53 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             approved_facts=approved_facts,
         )
 
+        # Repeated samples for the governed tracked-query portfolio (Phase 5
+        # Task 3). Built once here for the same reason client_queries is —
+        # needs the DB, must stay outside the session-free worker threads.
+        # A client with no tracked queries costs nothing beyond this one
+        # empty-result lookup.
+        tracked_query_samples: list[dict] = []
+        # Wrapped in list(...): a real Query.all() already returns a list, but
+        # this normalizes any mocked session's chained-attribute stand-in
+        # (truthy by default even when it iterates empty) to a real, honestly
+        # falsy empty list — so the `if tracked_queries:` gate below can't be
+        # fooled into planning a sampling budget check for a client with none.
+        tracked_queries: list[TrackedQuery] = list(
+            db.query(TrackedQuery)
+            .filter(TrackedQuery.client_id == client.id, TrackedQuery.is_active.is_(True))
+            .order_by(
+                TrackedQuery.priority_score.desc(),
+                TrackedQuery.created_at.asc(),
+                TrackedQuery.id.asc(),
+            )
+            .all()
+        )
+        if tracked_queries:
+            sample_counts = query_sampling_service.existing_sample_counts(
+                [tq.id for tq in tracked_queries], db
+            )
+            # Deterministic but scan-over-scan varying rotation cursor: grows
+            # as more samples accumulate, so the baseline slice keeps moving
+            # through the portfolio instead of always starting at the same
+            # query. No wall-clock/random dependency, so a given DB state
+            # always plans the same way.
+            rotation_seed = sum(sample_counts.values())
+            plans = query_sampling_service.build_sampling_plans(
+                tracked_queries,
+                sample_counts=sample_counts,
+                # Task 4 (answer stability) is the eventual source of this
+                # signal; scan_service has no "did the answer change" signal
+                # yet, so this deliberately passes none rather than
+                # duplicating Task 4's future logic ahead of time.
+                recent_change_ids=set(),
+                rotation_seed=rotation_seed,
+                remaining_budget_usd=budget_service.remaining_budget_usd(client.id, db),
+            )
+            tracked_queries_by_id = {tq.id: tq for tq in tracked_queries}
+            tracked_query_samples = query_sampling_service.expand_plans_to_query_specs(
+                plans, tracked_queries_by_id
+            )
+
         # Per-platform isolation: one provider outage never fails the whole scan.
         failed_platforms: list[str] = []
         platforms = _enabled_platforms(client)
@@ -290,7 +399,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                 future_to_platform = {
                     pool.submit(
                         _run_platform_queries, platform, pc, scan, client, competitors,
-                        control_queries, client_queries,
+                        control_queries, client_queries, tracked_query_samples,
                     ): platform
                     for platform, pc in clients_by_platform.items()
                 }

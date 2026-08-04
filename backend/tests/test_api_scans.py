@@ -2,6 +2,7 @@ import uuid
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from app.schemas.scan import ScanDiffQuery, ScanDiffResponse
+from app.services.platform_clients.base import PlatformResult
 
 
 def test_health_endpoint():
@@ -324,6 +325,203 @@ def test_get_result_snippet_401_without_auth():
     http_client = TestClient(app)
     response = http_client.get(f"/api/v1/scans/{uuid.uuid4()}/results/{uuid.uuid4()}/snippet.png")
     assert response.status_code == 401
+
+
+# ── tracked-query repeat sampling integration (Phase 5 Task 3) ──────────────
+# These run run_scan() directly against a real (SQLite) `db` session rather
+# than mocking the session, because the sampling wiring depends on real
+# TrackedQuery/ScanQueryResult rows and their DB-enforced link — a MagicMock
+# session cannot prove the join actually happens (see the Phase 4 lesson in
+# .superpowers/sdd/progress.md: "each unit passing does not prove the seam
+# exists, and the seam IS the feature").
+
+def _as_result(text, model="test-model"):
+    return PlatformResult(text=text, model=model, input_tokens=1, output_tokens=1)
+
+
+def _sampling_client(db, **overrides):
+    from app.models.client import Client
+    defaults = dict(
+        name="Acme Dental", website="https://acme.com", industry="dental",
+        enabled_platforms=["gemini"],
+    )
+    defaults.update(overrides)
+    client = Client(**defaults)
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return client
+
+
+def _sampling_scan(db, client):
+    from app.models.scan import Scan
+    scan = Scan(client_id=client.id, platform="multi", status="pending")
+    db.add(scan)
+    db.commit()
+    db.refresh(scan)
+    return scan
+
+
+def _tracked_query(db, client, *, text, intent="recommendation", risk_level="standard", is_active=True):
+    from app.models.tracked_query import TrackedQuery
+    tq = TrackedQuery(
+        client_id=client.id,
+        text=text,
+        normalized_text=text.lower(),
+        source="manual",
+        intent=intent,
+        risk_level=risk_level,
+        is_active=is_active,
+    )
+    db.add(tq)
+    db.commit()
+    db.refresh(tq)
+    return tq
+
+
+def test_run_scan_links_high_risk_tracked_query_samples_with_no_duplicates(db):
+    from app.services.scan_service import run_scan
+    from app.models.scan_query_result import ScanQueryResult
+
+    client = _sampling_client(db)
+    scan = _sampling_scan(db, client)
+    tq = _tracked_query(db, client, text="Is Acme Dental a scam?", risk_level="critical")
+
+    mock_platform_client = MagicMock()
+    mock_platform_client.query.side_effect = lambda q: _as_result(f"Answer to: {q}")
+
+    with patch("app.services.scan_service.get_platform_client", return_value=mock_platform_client), \
+         patch("app.services.scan_service.time.sleep"), \
+         patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, db)
+
+    db.refresh(scan)
+    assert scan.status == "completed"
+
+    rows = (
+        db.query(ScanQueryResult)
+        .filter(ScanQueryResult.tracked_query_id == tq.id)
+        .order_by(ScanQueryResult.sample_index)
+        .all()
+    )
+    # High-risk query defaults to 3 repetitions (query_sampling_service.HIGH_PRIORITY_REPETITIONS).
+    assert [r.sample_index for r in rows] == [1, 2, 3]
+    assert len({r.sample_index for r in rows}) == 3  # no duplicate sample_index
+    assert all(r.query_text == tq.text for r in rows)  # original text retained verbatim
+    assert all(r.model_name == "test-model" for r in rows)  # model logged, not left "unknown"
+    assert all(r.platform == "gemini" for r in rows)
+
+
+def test_run_scan_never_samples_an_inactive_tracked_query(db):
+    from app.services.scan_service import run_scan
+    from app.models.scan_query_result import ScanQueryResult
+
+    client = _sampling_client(db)
+    scan = _sampling_scan(db, client)
+    archived = _tracked_query(
+        db, client, text="Archived question", risk_level="critical", is_active=False,
+    )
+
+    mock_platform_client = MagicMock()
+    mock_platform_client.query.side_effect = lambda q: _as_result(f"Answer to: {q}")
+
+    with patch("app.services.scan_service.get_platform_client", return_value=mock_platform_client), \
+         patch("app.services.scan_service.time.sleep"), \
+         patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, db)
+
+    db.refresh(scan)
+    assert scan.status == "completed"
+
+    rows = (
+        db.query(ScanQueryResult)
+        .filter(ScanQueryResult.tracked_query_id == archived.id)
+        .all()
+    )
+    assert rows == []
+
+
+def test_run_scan_partial_sample_failure_keeps_completed_samples_and_scan_recoverable(db):
+    """A provider hiccup on one repetition of a tracked query must not lose
+    the samples that already succeeded, and must not fail the scan — the
+    Task 3 brief's 'partial provider failure records only completed samples
+    and leaves the scan recoverable.'"""
+    from app.services.scan_service import run_scan
+    from app.models.scan_query_result import ScanQueryResult
+
+    client = _sampling_client(db)
+    scan = _sampling_scan(db, client)
+    tq = _tracked_query(db, client, text="Is Acme Dental reputable?", risk_level="critical")
+
+    call_counts: dict[str, int] = {}
+
+    def fake_query(q):
+        if q == tq.text:
+            call_counts[q] = call_counts.get(q, 0) + 1
+            if call_counts[q] == 2:
+                raise Exception("provider hiccup")
+        return _as_result(f"Answer to: {q}")
+
+    mock_platform_client = MagicMock()
+    mock_platform_client.query.side_effect = fake_query
+
+    with patch("app.services.scan_service.get_platform_client", return_value=mock_platform_client), \
+         patch("app.services.scan_service.time.sleep"), \
+         patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, db)
+
+    db.refresh(scan)
+    # The scan as a whole still completes — one failed repetition does not
+    # sink the platform or the scan.
+    assert scan.status == "completed"
+
+    rows = (
+        db.query(ScanQueryResult)
+        .filter(ScanQueryResult.tracked_query_id == tq.id)
+        .order_by(ScanQueryResult.sample_index)
+        .all()
+    )
+    # Repetition 2 of 3 failed and was skipped; 1 and 3 are still recorded —
+    # no gap-filling, no duplicate, no silently dropped scan.
+    assert [r.sample_index for r in rows] == [1, 3]
+
+
+def test_run_scan_repeat_samples_respect_the_remaining_budget(db, monkeypatch):
+    """When the budget is exhausted, run_scan must not add tracked-query
+    repeat-sample spend on top of it — the sampling plan is capped to zero
+    add-on queries rather than bypassing the cap."""
+    from app.services.scan_service import run_scan
+    from app.services import budget_service
+    from app.models.scan_query_result import ScanQueryResult
+
+    monkeypatch.setattr(budget_service.settings, "BUDGET_CLIENT_MONTHLY_USD", 0.001)
+    monkeypatch.setattr(budget_service.settings, "BUDGET_GLOBAL_DAILY_USD", 1000.0)
+
+    client = _sampling_client(db)
+    scan = _sampling_scan(db, client)
+    tq = _tracked_query(db, client, text="Is Acme Dental reputable?", risk_level="critical")
+
+    mock_platform_client = MagicMock()
+    mock_platform_client.query.side_effect = lambda q: _as_result(f"Answer to: {q}")
+
+    with patch("app.services.scan_service.get_platform_client", return_value=mock_platform_client), \
+         patch("app.services.scan_service.time.sleep"), \
+         patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, db)
+
+    db.refresh(scan)
+    assert scan.status == "completed"
+
+    rows = (
+        db.query(ScanQueryResult)
+        .filter(ScanQueryResult.tracked_query_id == tq.id)
+        .all()
+    )
+    # $0.001 of headroom cannot afford even one $0.01 sample, so the
+    # tracked-query add-on is capped to nothing this scan. The scan's
+    # ordinary (non-tracked) queries are unaffected — check_budget's
+    # pre-trigger block is what would have stopped those, not this cap.
+    assert rows == []
 
 
 def test_get_result_snippet_404_when_no_excerpt():

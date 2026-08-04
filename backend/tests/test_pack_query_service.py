@@ -455,7 +455,10 @@ def _captured_queries(db, scan, monkeypatch):
 
     captured = {}
 
-    def _fake_platform_queries(platform, pc, scan_, client_, competitors, controls, client_queries):
+    def _fake_platform_queries(
+        platform, pc, scan_, client_, competitors, controls, client_queries,
+        tracked_query_samples=(),
+    ):
         captured["queries"] = client_queries
         return [], []
 

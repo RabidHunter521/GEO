@@ -112,3 +112,42 @@ def test_check_budget_cap_of_zero_disables_check(db, monkeypatch):
     _log(db, cid, 9999.00)
 
     assert budget_service.check_budget(cid, db).ok is True
+
+
+# ── remaining_budget_usd (query_sampling_service's planning input) ──────────
+
+def test_remaining_budget_usd_is_none_when_both_caps_disabled(db, monkeypatch):
+    monkeypatch.setattr(budget_service.settings, "BUDGET_CLIENT_MONTHLY_USD", 0.0)
+    monkeypatch.setattr(budget_service.settings, "BUDGET_GLOBAL_DAILY_USD", 0.0)
+    cid = uuid.uuid4()
+
+    assert budget_service.remaining_budget_usd(cid, db) is None
+
+
+def test_remaining_budget_usd_uses_tighter_of_the_two_caps(db, monkeypatch):
+    monkeypatch.setattr(budget_service.settings, "BUDGET_CLIENT_MONTHLY_USD", 20.0)
+    monkeypatch.setattr(budget_service.settings, "BUDGET_GLOBAL_DAILY_USD", 50.0)
+    cid = uuid.uuid4()
+    _log(db, cid, 15.00)  # client headroom: 5.00
+    _log(db, uuid.uuid4(), 10.00)  # counts only toward the global cap: headroom 40.00
+
+    assert budget_service.remaining_budget_usd(cid, db) == Decimal("5.00")
+
+
+def test_remaining_budget_usd_floors_at_zero_when_already_over_cap(db, monkeypatch):
+    monkeypatch.setattr(budget_service.settings, "BUDGET_CLIENT_MONTHLY_USD", 4.0)
+    monkeypatch.setattr(budget_service.settings, "BUDGET_GLOBAL_DAILY_USD", 1000.0)
+    cid = uuid.uuid4()
+    _log(db, cid, 9.00)
+
+    assert budget_service.remaining_budget_usd(cid, db) == Decimal("0")
+
+
+def test_remaining_budget_usd_ignores_a_disabled_cap(db, monkeypatch):
+    monkeypatch.setattr(budget_service.settings, "BUDGET_CLIENT_MONTHLY_USD", 0.0)
+    monkeypatch.setattr(budget_service.settings, "BUDGET_GLOBAL_DAILY_USD", 50.0)
+    cid = uuid.uuid4()
+    _log(db, cid, 5.00)
+
+    # Only the global cap is active: 50 - 5 = 45.
+    assert budget_service.remaining_budget_usd(cid, db) == Decimal("45.00")
