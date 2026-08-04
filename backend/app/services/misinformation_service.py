@@ -381,7 +381,16 @@ def store_truth_conflict_candidates(
     before storing anything.  A candidate can never self-confirm or classify a
     legal/professional violation.
     """
+    from app.industry_packs import registry as pack_registry
     from app.models.truth_fact import TruthFact, TruthFactVersion
+    from app.services.pack_risk_service import evaluate_pack_risk
+
+    # The client's pack decides how each conflict is triaged. Resolved once per
+    # call, not per candidate. A client with no reviewed pack, or one whose pack
+    # module is not registered, keeps the pre-Phase-4 "low" default exactly.
+    client = db.get(Client, client_id)
+    pack = pack_registry.find_pack(getattr(client, "industry_pack", None))
+
     result = db.get(ScanQueryResult, scan_query_result_id)
     if result is None or db.get(Scan, result.scan_id) is None:
         return 0
@@ -415,6 +424,7 @@ def store_truth_conflict_candidates(
         ).first()
         if exists is not None:
             continue
+        risk = evaluate_pack_risk(pack, candidate)
         db.add(MisinformationFinding(
             client_id=client_id,
             scan_query_result_id=scan_query_result_id,
@@ -422,10 +432,11 @@ def store_truth_conflict_candidates(
             truth_fact_version_id=version.id,
             quote=candidate.answer_quote,
             category="factual_error",
-            severity="low",
+            severity=risk.finding_severity,
+            rule_key=risk.provenance,
             explanation=(
                 f"AI statement conflicts with approved {candidate.fact_type}/{candidate.fact_key} "
-                f"using the {candidate.comparator} comparator."
+                f"using the {candidate.comparator} comparator. {risk.review_instruction}"
             ),
             status="suggested",
         ))
