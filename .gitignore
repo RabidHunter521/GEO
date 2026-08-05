@@ -50,3 +50,4 @@ graphify-out/
 /*.png
 /*.pdf
 /snap-*.yml
+docs/ops/pre-migration-backups/

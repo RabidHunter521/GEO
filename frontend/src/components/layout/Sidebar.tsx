@@ -27,6 +27,8 @@ import {
   Award,
   Inbox,
   Gauge,
+  Workflow,
+  ShieldCheck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -37,8 +39,20 @@ type IconType = ComponentType<{ className?: string }>
 /** Icon for the ungrouped Overview item — not part of navigation.ts, which stays serializable. */
 const OVERVIEW_ICON: IconType = LayoutDashboard
 
-/** Icons for the global (non-client-scoped) destinations, keyed by href. */
-const GLOBAL_NAV_ICONS: Record<string, IconType> = {
+/**
+ * Icons for the global (non-client-scoped) destinations, keyed by href.
+ * Exported (not just used internally) so nav-icon-coverage.test.ts can assert
+ * every href in ADMIN_GLOBAL_NAV / CLIENT_NAV_GROUPS has a matching entry
+ * here without needing to render this "use client" component. A missing
+ * entry doesn't fail to compile — `Icon` is just `undefined` at runtime,
+ * and React throws "Element type is invalid" the moment the sidebar tries to
+ * render it. That crashed every client detail page in production for two
+ * releases (/delivery from Phase 2, /reputation/truth from Phase 3) before
+ * anyone caught it, because the page had been failing for an unrelated
+ * backend reason the whole time and nobody had seen the sidebar actually try
+ * to render against real data until now.
+ */
+export const GLOBAL_NAV_ICONS: Record<string, IconType> = {
   "/clients": Users,
   "/gap-matrix": Table2,
   "/benchmarks": Gauge,
@@ -46,14 +60,16 @@ const GLOBAL_NAV_ICONS: Record<string, IconType> = {
 }
 
 /** Icons for client-scoped sub-routes, keyed by the relative href used in CLIENT_NAV_GROUPS. */
-const CLIENT_NAV_ICONS: Record<string, IconType> = {
+export const CLIENT_NAV_ICONS: Record<string, IconType> = {
   "/scan": Search,
   "/competitors": BarChart3,
   "/toolkit": Wrench,
   "/authority": Award,
+  "/reputation/truth": ShieldCheck,
   "/content-gaps": Target,
   "/content-roadmap": Map,
   "/content-studio": PenTool,
+  "/delivery": Workflow,
   "/checklist": ListChecks,
   "/activity": Activity,
   "/reports": FileText,

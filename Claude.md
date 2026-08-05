@@ -200,6 +200,8 @@ the URL. `/clients/gap-matrix` permanently redirects to `/gap-matrix`.
 /clients/[id]/content-roadmap→ 90-day content roadmap (competitor lost-query driven)
 /clients/[id]/content-studio→ content studio (page citability audits + content deliverables)
 /clients/[id]/authority  → authority & presence (directory/review/social checklist, provenance-prioritised)
+/clients/[id]/reputation/truth→ Truth Vault (versioned business facts, Phase 3)
+/clients/[id]/delivery   → delivery workspace (Outcome Action lifecycle, Phase 2)
 /clients/[id]/reports    → reports
 /clients/[id]/activity   → activity log
 /clients/[id]/settings   → client settings (incl. client view link controls)
