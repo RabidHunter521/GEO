@@ -9,12 +9,13 @@ compare a partial month against complete ones. Reruns are safe: the same
 calculation version updates its own unapproved row in place and refuses to
 touch an approved one, so a retry cannot fork a published number.
 """
-from datetime import date, timedelta
+from datetime import date
 
 import structlog
 
 from app.core.database import SessionLocal
 from app.services.benchmark_cohort_service import eligible_members_for_period
+from app.services.benchmark_period import previous_month_bounds
 from app.services.benchmark_snapshot_service import (
     BENCHMARK_METRICS,
     generate_ladder_snapshots,
@@ -24,14 +25,6 @@ from app.services.benchmark_snapshot_service import (
 from workers.celery_app import celery_app
 
 logger = structlog.get_logger()
-
-
-def previous_month_bounds(today: date) -> tuple[date, date]:
-    """The last fully closed calendar month relative to `today`."""
-    first_of_this_month = today.replace(day=1)
-    period_end = first_of_this_month - timedelta(days=1)
-    period_start = period_end.replace(day=1)
-    return period_start, period_end
 
 
 @celery_app.task(name="workers.tasks.benchmark_tasks.generate_monthly_benchmarks")

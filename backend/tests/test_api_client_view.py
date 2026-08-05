@@ -459,3 +459,32 @@ def test_scan_unseen_result_has_null_excerpt(db):
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(_saved)
+
+
+def test_prospect_share_link_404s_on_benchmarks(db):
+    """Phase 6: /benchmarks joins the non-prospect surfaces.
+
+    A prospect link is deliberately limited to overview + scan, and every other
+    route returns the same uniform 404 so the link reveals nothing about which
+    surfaces exist for paying clients.
+    """
+    prospect = _make_client(db, is_prospect=True, name="ProspectBench")
+    prospect.share_token = uuid.uuid4().hex
+    paying = _make_client(db, is_prospect=False, name="PayingBench")
+    paying.share_token = uuid.uuid4().hex
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        assert tc.get(f"/api/v1/view/{prospect.share_token}/benchmarks").status_code == 404
+        # The paying client reaches the route; with no approved cohort it gets
+        # suppressed entries rather than an error or an invented number.
+        res = tc.get(f"/api/v1/view/{paying.share_token}/benchmarks")
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body and all(entry["suppressed"] for entry in body)
+        assert all(entry["p50"] is None for entry in body)
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)

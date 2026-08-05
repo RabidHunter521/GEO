@@ -39,6 +39,9 @@ from app.models.business_location import BusinessLocation
 from app.models.misinformation_finding import MisinformationFinding
 from app.models.truth_fact import TruthFact, TruthFactVersion
 from app.schemas.business_impact import ImpactSummaryPublic
+from app.schemas.benchmark_comparison import BenchmarkComparisonPublic
+from app.services import benchmark_comparison_service
+from app.services.benchmark_period import default_benchmark_period
 from app.schemas.client_view import (
     ClientViewBenchmark,
     ClientViewCausalTrend,
@@ -1122,6 +1125,33 @@ def get_business_impact(
         client.id, db, date_from=date_from, date_to=date_to
     )
     return [ImpactSummaryPublic.from_summary(summary) for summary in summaries]
+
+
+@router.get("/benchmarks", response_model=list[BenchmarkComparisonPublic])
+def get_benchmarks(
+    client: Client = Depends(require_non_prospect_share_client),
+    period_start: date | None = Query(default=None),
+    period_end: date | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    """Client-safe cohort comparison: one entry per benchmark metric.
+
+    Rate limiting comes from the router-level `_view_rate_limit` that covers
+    every share-link route; this endpoint adds none of its own.
+
+    Non-prospect only, same as `/business-impact` and `/progress`. Built from
+    `BenchmarkComparisonPublic`, which omits the cohort key and exact member
+    counts by construction rather than by filtering the admin shape here — an
+    exact count that moves month to month says precisely when one organization
+    joined or left the cohort.
+
+    Suppressed entries carry a plain-language message and no numbers, so
+    "not enough comparable data yet" can never be read as "you are doing
+    badly".
+    """
+    start, end = default_benchmark_period(period_start, period_end)
+    comparisons = benchmark_comparison_service.get_client_comparisons(db, client, start, end)
+    return [BenchmarkComparisonPublic.from_comparison(item) for item in comparisons]
 
 
 @router.get("/query-stability", response_model=list[QueryStabilityResponse])
