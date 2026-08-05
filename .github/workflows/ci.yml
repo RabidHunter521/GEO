@@ -149,11 +149,16 @@ jobs:
       # CLAUDE.md §2. This regression has shipped twice. Matches inside prompt
       # files are expected — they are the negative instructions telling the
       # model NOT to use these words — so only client-rendered surfaces are
-      # scanned here.
+      # scanned here. Test fixtures under __tests__ are also excluded: they
+      # legitimately contain the banned phrases as input data for assertions
+      # that the phrase is NOT rendered (see
+      # activity-page-rendering.test.ts), which is the opposite of the
+      # regression this gate exists to catch.
       - name: No banned vocabulary in client-facing UI
         run: |
           if grep -rniE "\b(cited|uncited|citation rate|ranking position|visibility gap|first mentioned)\b" \
                frontend/src --include=*.tsx --include=*.ts \
+             | grep -v '/__tests__/' \
              | grep -vE "^[^:]+:[0-9]+:\s*(//|\*|/\*)"; then
             echo "::error::banned CLAUDE.md §2 vocabulary found in client-facing code"
             exit 1
