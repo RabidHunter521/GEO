@@ -4,6 +4,20 @@
 Anonymous by design: only counts, average, and percentile leave this module.
 Hidden entirely below MIN_BENCHMARK_PEERS scored clients so small cohorts
 can't be reverse-engineered.
+
+**Legacy path.** Phase 6 supersedes this with a cohort engine
+(`benchmark_cohort_service` + `benchmark_snapshot_service`) that compares like
+with like across pack, country, scale, coverage and period, suppresses at a
+10-organization floor, and publishes only immutable approved snapshots. This
+module still powers `IndustryBenchmarkCard` and stays until that card has
+approved-snapshot parity per the Phase 6 plan, Task 6. Two differences matter
+if you are reading both:
+
+* it groups on the free-text `clients.industry` string, not an industry pack;
+* `MIN_BENCHMARK_PEERS` is 3, far below the Phase 6 floor of 10, and it
+  reports an exact rank rather than a coarse percentile band.
+
+Do not extend this module. New benchmark work belongs in the Phase 6 services.
 """
 import math
 import uuid

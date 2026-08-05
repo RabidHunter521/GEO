@@ -298,26 +298,38 @@ def calculate_query_stability(tracked_query_id: uuid.UUID, db: Session) -> Query
     return calculate_stability(_rows_to_samples(rows, domains_by_result))
 
 
-def calculate_portfolio_stability(client_id: uuid.UUID, db: Session) -> list[QueryStability]:
+def calculate_portfolio_stability(
+    client_id: uuid.UUID,
+    db: Session,
+    period_start: datetime | None = None,
+    period_end: datetime | None = None,
+) -> list[QueryStability]:
     """Read-only: one QueryStability per active-or-inactive tracked query
     owned by this client (every governed query in the portfolio, so a
     caller can see which ones have no samples yet at all). Batches the
     ScanQueryResult / ScanQuerySource reads into two queries total instead
-    of one pair per tracked query."""
+    of one pair per tracked query.
+
+    `period_start`/`period_end` bound which observations are considered.
+    Unbounded by default, which is what the live portfolio view wants. Phase 6
+    benchmark snapshots pass a window because a snapshot is an immutable
+    historical record: recomputing July's cohort from today's samples would
+    make an approved number irreproducible."""
     tracked_query_ids = [
         row[0] for row in db.query(TrackedQuery.id).filter(TrackedQuery.client_id == client_id).all()
     ]
     if not tracked_query_ids:
         return []
 
-    rows = (
-        db.query(ScanQueryResult)
-        .filter(
-            ScanQueryResult.tracked_query_id.in_(tracked_query_ids),
-            ScanQueryResult.is_control.is_(False),
-        )
-        .all()
+    query = db.query(ScanQueryResult).filter(
+        ScanQueryResult.tracked_query_id.in_(tracked_query_ids),
+        ScanQueryResult.is_control.is_(False),
     )
+    if period_start is not None:
+        query = query.filter(ScanQueryResult.observed_at >= period_start)
+    if period_end is not None:
+        query = query.filter(ScanQueryResult.observed_at <= period_end)
+    rows = query.all()
     domains_by_result = _load_domains_by_result([row.id for row in rows], db)
 
     samples_by_tracked_query: dict[uuid.UUID, list[ScanQueryResult]] = defaultdict(list)
