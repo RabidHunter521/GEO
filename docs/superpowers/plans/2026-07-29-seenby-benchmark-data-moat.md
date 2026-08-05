@@ -75,6 +75,21 @@ task bodies below still disagree.
    view belongs in `ADMIN_GLOBAL_NAV` alongside Portfolio Intelligence and
    Review Queue.
 
+11. **`docs/ops/` does not exist and there is no release checklist to modify.**
+   Task 9 says to modify `docs/ops/release-checklist.md`. The runbook that is
+   actually used for deploys is the `seenby-release` skill
+   (`.claude/skills/seenby-release/SKILL.md`). Task 9 therefore *creates*
+   `docs/ops/benchmark-privacy-runbook.md` and
+   `docs/ops/release-checklist.md`, with the latter deferring to the skill for
+   deploy mechanics rather than duplicating them.
+
+12. **Task 9 steps 4–6 cannot be executed from this workspace.** Proving RLS
+   with a non-owner role, running `EXPLAIN (ANALYZE, BUFFERS)`, and the
+   three-pack acceptance walkthrough all need a real Postgres and a browser.
+   `backend/.env` points at production Supabase, so running them here would
+   touch production. They are written up as procedures to execute during the
+   release, and are explicitly NOT claimed as done.
+
 8. **A legacy benchmark path already exists.** `app/services/benchmark_service.py`
    (industry percentile over `geo_scores`, `MIN_BENCHMARK_PEERS = 3`) and
    `frontend/src/components/IndustryBenchmarkCard.tsx` are live today. Tasks 5
