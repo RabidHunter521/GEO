@@ -17,15 +17,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.constants import MIN_COHORT_MEMBER_FLOOR
 from app.core.time import utcnow
 from app.models.base import Base
-
-# The plan's floor: a cohort is only publishable at 10+ organizations, and the
-# threshold is "configurable only upward in production". Lowering it is the one
-# configuration change that would silently convert every correct suppression
-# into a publishable number, so the floor is enforced by the database rather
-# than by whichever service happens to write the row.
-MIN_COHORT_MEMBER_FLOOR = 10
 
 
 class BenchmarkCohort(Base):

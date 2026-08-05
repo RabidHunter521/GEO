@@ -1793,7 +1793,7 @@ def _build_impact_html(data: ReportData) -> str:
             f'{window}{caveats_html}'
             f'</div>'
         )
-    return f'<h2>Business Impact Evidence</h2>' + "".join(cards)
+    return '<h2>Business Impact Evidence</h2>' + "".join(cards)
 
 
 def _build_report_html(client: Client, data: ReportData) -> str:

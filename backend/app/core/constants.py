@@ -346,3 +346,90 @@ INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services")
 # into 40 queries.
 MAX_PACK_QUERIES_PER_SCAN: Final = 20
 MAX_PACK_VALUES_PER_PLACEHOLDER: Final = 3
+
+# --- Benchmark cohorts (Phase 6) ----------------------------------------------
+# A cohort is publishable only at this many organizations. Configurable upward
+# only: lowering it is the single change that would silently convert every
+# correct suppression into a publishable number, so migration e2b8d6a5f1c3
+# also enforces it as a CHECK constraint on benchmark_cohorts.min_member_count.
+MIN_COHORT_MEMBER_FLOOR: Final = 10
+
+# Even inside an eligible cohort, a metric is suppressed unless this many
+# members contributed a non-null value. Separate from the cohort floor above:
+# a 12-member cohort where only 3 clients have a stability score must not
+# publish a median of 3 people.
+MIN_METRIC_CONTRIBUTORS: Final = 5
+
+# Location-count bands. Upper bound is exclusive.
+BENCHMARK_SCALE_BANDS: Final = {
+    "single_location": (1, 2),
+    "small_multi_location": (2, 6),
+    "large_multi_location": (6, 10_000),
+}
+
+# One coarser partition of the same axis, used by the widening ladder. Merging
+# single with small (rather than small with large) is the domain call: a
+# one-clinic practice and a three-clinic practice behave far more alike in AI
+# answers than a three-clinic practice and a forty-outlet chain.
+BENCHMARK_MERGED_SCALE_BANDS: Final = {
+    "single_location": "single_or_small_location",
+    "small_multi_location": "single_or_small_location",
+    "large_multi_location": "large_multi_location",
+}
+
+# Query-coverage bands, on distinct tracked queries sampled in the period.
+# Upper bound is inclusive, matching how the plan states them.
+BENCHMARK_COVERAGE_BANDS: Final = {
+    "starter": (10, 29),
+    "standard": (30, 99),
+    "deep": (100, 10_000),
+}
+
+# Below the starter floor a client has no coverage band at all and cannot be
+# compared to anyone.
+BENCHMARK_MIN_COVERAGE: Final = 10
+
+# The newest observation must fall within this many days of period end, so a
+# client scanned once at the start of a long period is not presented as a
+# current reading.
+BENCHMARK_MAX_STALENESS_DAYS: Final = 45
+
+BENCHMARK_DEFINITION_VERSION: Final = "v1"
+
+# The complete machine-readable exclusion vocabulary written to
+# benchmark_cohort_memberships.exclusion_reason. That column is a plain
+# String(64) with no database-level vocabulary, so this tuple is the contract
+# and test_benchmark_cohort_service asserts every member is storable.
+BENCHMARK_EXCLUSION_REASONS: Final = (
+    "opted_out",
+    "archived",
+    "prospect",
+    "no_industry_pack",
+    "unmappable_country",
+    "unknown_scale",
+    "insufficient_coverage",
+    "stale_measurement",
+    "unsupported_measurement_version",
+)
+
+# Free-text `clients.country` values seen in practice, mapped to ISO-3166
+# alpha-2. `business_locations.country` is already alpha-2 and is preferred;
+# this only rescues clients whose locations predate that column being filled.
+# An unmappable value is an exclusion, never a guess.
+COUNTRY_NAME_TO_ISO: Final = {
+    "malaysia": "MY",
+    "my": "MY",
+    "singapore": "SG",
+    "sg": "SG",
+    "indonesia": "ID",
+    "id": "ID",
+    "thailand": "TH",
+    "th": "TH",
+    "philippines": "PH",
+    "ph": "PH",
+    "vietnam": "VN",
+    "viet nam": "VN",
+    "vn": "VN",
+    "brunei": "BN",
+    "bn": "BN",
+}

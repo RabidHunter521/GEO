@@ -9,7 +9,6 @@ from app.models.tracked_query import TrackedQuery
 from app.models.conversion_event import ConversionEvent
 from app.models.search_query_signal import SearchQuerySignal
 from app.models.benchmark_cohort import (
-    MIN_COHORT_MEMBER_FLOOR,
     BenchmarkCohort,
     BenchmarkCohortMembership,
 )
@@ -29,7 +28,6 @@ __all__ = [
     "TrackedQuery",
     "ConversionEvent",
     "SearchQuerySignal",
-    "MIN_COHORT_MEMBER_FLOOR",
     "BenchmarkCohort",
     "BenchmarkCohortMembership",
     "ApprovedSnapshotImmutableError",
