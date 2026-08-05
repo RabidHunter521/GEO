@@ -228,6 +228,62 @@ def upgrade() -> None:
         ),
     )
 
+    op.create_table(
+        "benchmark_publications",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("slug", sa.String(length=128), nullable=False),
+        sa.Column("title", sa.String(length=255), nullable=False),
+        sa.Column("edition", sa.String(length=64), nullable=False),
+        sa.Column("methodology_version", sa.String(length=16), nullable=False),
+        sa.Column("period_start", sa.Date(), nullable=False),
+        sa.Column("period_end", sa.Date(), nullable=False),
+        sa.Column("status", sa.String(length=16), nullable=False, server_default="draft"),
+        sa.Column("payload", sa.JSON(), nullable=False),
+        sa.Column("payload_hash", sa.String(length=64), nullable=False),
+        sa.Column("generated_by", sa.String(length=128), nullable=False),
+        sa.Column("approved_by", sa.String(length=128), nullable=True),
+        sa.Column("approved_at", sa.DateTime(), nullable=True),
+        sa.Column("published_at", sa.DateTime(), nullable=True),
+        sa.Column("withdrawn_at", sa.DateTime(), nullable=True),
+        sa.Column("withdrawn_reason", sa.Text(), nullable=True),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
+        sa.CheckConstraint(
+            "status IN ('draft', 'approved', 'published', 'withdrawn')",
+            name="ck_benchmark_publications_status_vocabulary",
+        ),
+        # Separation of duty. A single shared admin API key means this cannot
+        # be an authentication boundary; it is a procedural one the database
+        # will not let an operator skip.
+        sa.CheckConstraint(
+            "approved_by IS NULL OR approved_by <> generated_by",
+            name="ck_benchmark_publications_approver_differs_from_generator",
+        ),
+        sa.CheckConstraint(
+            "status <> 'approved' OR (approved_by IS NOT NULL AND approved_at IS NOT NULL)",
+            name="ck_benchmark_publications_approved_records_actor",
+        ),
+        sa.CheckConstraint(
+            "status <> 'published' OR (published_at IS NOT NULL AND approved_at IS NOT NULL)",
+            name="ck_benchmark_publications_published_was_approved",
+        ),
+        sa.CheckConstraint(
+            "status <> 'withdrawn' OR withdrawn_at IS NOT NULL",
+            name="ck_benchmark_publications_withdrawn_records_time",
+        ),
+        sa.CheckConstraint(
+            "period_start <= period_end",
+            name="ck_benchmark_publications_period_ordered",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("slug", name="uq_benchmark_publications_slug"),
+    )
+    op.create_index(
+        "ix_benchmark_publications_status_period",
+        "benchmark_publications",
+        ["status", "period_end"],
+    )
+
     # Written out rather than looped: this is the security control CI checks
     # (`relrowsecurity` on every table), and it should stay greppable.
     op.execute("ALTER TABLE benchmark_cohorts ENABLE ROW LEVEL SECURITY;")
@@ -236,6 +292,11 @@ def upgrade() -> None:
     op.execute("REVOKE ALL ON TABLE benchmark_cohort_memberships FROM anon;")
     op.execute("ALTER TABLE benchmark_snapshots ENABLE ROW LEVEL SECURITY;")
     op.execute("REVOKE ALL ON TABLE benchmark_snapshots FROM anon;")
+    # Anonymous readers never touch this table directly. A published edition is
+    # served only through the rate-limited FastAPI endpoint, which returns the
+    # reviewed payload and nothing else.
+    op.execute("ALTER TABLE benchmark_publications ENABLE ROW LEVEL SECURITY;")
+    op.execute("REVOKE ALL ON TABLE benchmark_publications FROM anon;")
 
 
 def downgrade() -> None:
@@ -250,9 +311,15 @@ def downgrade() -> None:
         "ON benchmark_snapshots;"
     )
 
+    op.execute("ALTER TABLE benchmark_publications DISABLE ROW LEVEL SECURITY;")
     op.execute("ALTER TABLE benchmark_snapshots DISABLE ROW LEVEL SECURITY;")
     op.execute("ALTER TABLE benchmark_cohort_memberships DISABLE ROW LEVEL SECURITY;")
     op.execute("ALTER TABLE benchmark_cohorts DISABLE ROW LEVEL SECURITY;")
+
+    op.drop_index(
+        "ix_benchmark_publications_status_period", table_name="benchmark_publications"
+    )
+    op.drop_table("benchmark_publications")
 
     # Snapshots first: their cohort_id is RESTRICT, so dropping cohorts while
     # snapshot rows still reference them fails on a populated database.

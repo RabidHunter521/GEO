@@ -20,7 +20,14 @@ MIGRATION_PATH = (
 REVISION_ID = "e2b8d6a5f1c3"
 DOWN_REVISION_ID = "a4b5c6d7e8f9"
 
-TABLES = ("benchmark_cohorts", "benchmark_cohort_memberships", "benchmark_snapshots")
+TABLES = (
+    "benchmark_cohorts",
+    "benchmark_cohort_memberships",
+    "benchmark_snapshots",
+    # Task 7 extends this same revision rather than chaining a new one: it has
+    # not been applied anywhere yet, so there is no deployed schema to respect.
+    "benchmark_publications",
+)
 
 
 def _source() -> str:
@@ -68,6 +75,26 @@ def test_migration_declares_documented_unique_constraints():
     assert "uq_benchmark_cohorts_key_version" in source
     assert "uq_benchmark_cohort_memberships_cohort_client_period" in source
     assert "uq_benchmark_snapshots_cohort_period_metric_version" in source
+    assert "uq_benchmark_publications_slug" in source
+
+
+def test_migration_enforces_publication_separation_of_duty():
+    """A single shared admin key means this cannot be an authentication
+    boundary, so the database has to be the thing that refuses it."""
+    source = _source()
+    assert "ck_benchmark_publications_approver_differs_from_generator" in source
+    assert "approved_by IS NULL OR approved_by <> generated_by" in source
+
+
+def test_migration_enforces_publication_lifecycle_invariants():
+    source = _source()
+    for constraint in (
+        "ck_benchmark_publications_status_vocabulary",
+        "ck_benchmark_publications_approved_records_actor",
+        "ck_benchmark_publications_published_was_approved",
+        "ck_benchmark_publications_withdrawn_records_time",
+    ):
+        assert constraint in source
 
 
 def test_migration_declares_documented_indexes():
@@ -135,6 +162,7 @@ def test_migration_defines_symmetric_upgrade_and_downgrade():
     for table in TABLES:
         assert f'op.drop_table("{table}")' in downgrade_body
     assert 'op.drop_column("clients", "benchmark_opt_out")' in downgrade_body
+    assert 'op.drop_index(\n        "ix_benchmark_publications_status_period"' in downgrade_body
     assert "DROP FUNCTION IF EXISTS reject_approved_benchmark_snapshot_change" in downgrade_body
 
 

@@ -7,7 +7,7 @@ from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from app.models.base import Base
-from app.models import client, competitor, scan, scan_query_result, scan_query_source, geo_score, activity_log, toolkit_files, report, content_brief, content_analysis, content_roadmap, ai_traffic_snapshot, action_recommendation, remediation_item, dimension_assessment, llm_call_log, share_of_source_snapshot, control_query, guarantee, site_audit, page_audit, content_deliverable, authority_asset, work_log_entry, misinformation_finding, outcome_action, business_location, truth_fact, tracked_query, conversion_event, search_query_signal, benchmark_cohort, benchmark_snapshot  # noqa: F401
+from app.models import client, competitor, scan, scan_query_result, scan_query_source, geo_score, activity_log, toolkit_files, report, content_brief, content_analysis, content_roadmap, ai_traffic_snapshot, action_recommendation, remediation_item, dimension_assessment, llm_call_log, share_of_source_snapshot, control_query, guarantee, site_audit, page_audit, content_deliverable, authority_asset, work_log_entry, misinformation_finding, outcome_action, business_location, truth_fact, tracked_query, conversion_event, search_query_signal, benchmark_cohort, benchmark_snapshot, benchmark_publication  # noqa: F401
 
 
 # Other test modules import models with JSONB columns (content_analyses),

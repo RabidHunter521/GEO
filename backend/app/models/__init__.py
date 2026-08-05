@@ -16,6 +16,11 @@ from app.models.benchmark_snapshot import (
     ApprovedSnapshotImmutableError,
     BenchmarkSnapshot,
 )
+from app.models.benchmark_publication import (
+    BENCHMARK_PUBLICATION_STATUSES,
+    ApprovedPublicationImmutableError,
+    BenchmarkPublication,
+)
 
 __all__ = [
     "OUTCOME_ACTION_STATUSES",
@@ -32,4 +37,7 @@ __all__ = [
     "BenchmarkCohortMembership",
     "ApprovedSnapshotImmutableError",
     "BenchmarkSnapshot",
+    "BENCHMARK_PUBLICATION_STATUSES",
+    "ApprovedPublicationImmutableError",
+    "BenchmarkPublication",
 ]
