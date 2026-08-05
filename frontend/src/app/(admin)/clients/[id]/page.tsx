@@ -1,7 +1,7 @@
 // frontend/src/app/clients/[id]/page.tsx
 import Link from "next/link"
 import { TrendingUp, TrendingDown, Bot } from "lucide-react"
-import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark, getGuarantee, getCommandCenter } from "@/lib/api"
+import { getLatestGeoScore, getClient, getActionRecommendations, getTrafficHistory, getIndustryBenchmark, getGuarantee, getCommandCenter, getQueryStability, getBusinessImpact } from "@/lib/api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
@@ -11,6 +11,8 @@ import { PriorityActionsCard } from "@/components/command-center/PriorityActions
 import { DeliveryStatusCard } from "@/components/command-center/DeliveryStatusCard"
 import { ActionCenterCard } from "./ActionCenterCard"
 import { GuaranteeCard } from "./GuaranteeCard"
+import { StabilityCard } from "@/components/measurement/StabilityCard"
+import { ImpactSummaryCard } from "@/components/measurement/ImpactSummaryCard"
 import { getScoreBand, getScoreColor } from "@/lib/score-utils"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { cn } from "@/lib/utils"
@@ -60,7 +62,7 @@ export default async function ClientOverviewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const [client, geoScore, actions, trafficHistory, benchmark, guarantee, commandCenter] = await Promise.all([
+  const [client, geoScore, actions, trafficHistory, benchmark, guarantee, commandCenter, stability, impact] = await Promise.all([
     getClient(id),
     getLatestGeoScore(id),
     getActionRecommendations(id),
@@ -68,6 +70,8 @@ export default async function ClientOverviewPage({
     getIndustryBenchmark(id).catch(() => null),
     getGuarantee(id).catch(() => null),
     getCommandCenter(id),
+    getQueryStability(id).catch(() => []),
+    getBusinessImpact(id).catch(() => []),
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
@@ -261,6 +265,19 @@ export default async function ClientOverviewPage({
           })}
         </div>
       </div>
+
+      {/* Measurement — stability + impact (Phase 5 Task 8) */}
+      {(stability.length > 0 || impact.length > 0) && (
+        <div>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+            Measurement
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <StabilityCard entries={stability} />
+            <ImpactSummaryCard summaries={impact} />
+          </div>
+        </div>
+      )}
 
       {/* Industry benchmark */}
       {benchmark && (

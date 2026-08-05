@@ -10,6 +10,8 @@ import {
   getViewIssues,
   getViewScan,
   getViewProgress,
+  getViewQueryStability,
+  getViewBusinessImpact,
 } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
@@ -24,6 +26,8 @@ import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
+import { StabilityCard } from "@/components/measurement/StabilityCard"
+import { ImpactSummaryCard } from "@/components/measurement/ImpactSummaryCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { getScoreBand, getScoreColor, type ScoreColor } from "@/lib/score-utils"
 import { cn, joinWithAnd, parseDateOnly } from "@/lib/utils"
@@ -110,12 +114,14 @@ export default async function ViewOverviewPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const [overview, actions, issues, scan, progress] = await Promise.all([
+  const [overview, actions, issues, scan, progress, stability, impact] = await Promise.all([
     getViewOverview(token),
     getViewActions(token),
     getViewIssues(token),
     getViewScan(token),
     getViewProgress(token),
+    getViewQueryStability(token).catch(() => null),
+    getViewBusinessImpact(token).catch(() => null),
   ])
   if (!overview) notFound()
 
@@ -551,6 +557,21 @@ export default async function ViewOverviewPage({
       {!isProspect && progress && progress.length > 0 && (
         <section id="progress" className="reveal scroll-mt-4" style={{ animationDelay: "300ms" }}>
           <ClientProgressList items={progress} />
+        </section>
+      )}
+
+      {/* 5.75 Measurement — stability + impact (clients only, only if data) */}
+      {!isProspect && ((stability && stability.length > 0) || (impact && impact.length > 0)) && (
+        <section className="reveal" style={{ animationDelay: "315ms" }}>
+          <SectionHeading>Measurement</SectionHeading>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {stability && stability.length > 0 && (
+              <StabilityCard entries={stability} />
+            )}
+            {impact && impact.length > 0 && (
+              <ImpactSummaryCard summaries={impact} />
+            )}
+          </div>
         </section>
       )}
 

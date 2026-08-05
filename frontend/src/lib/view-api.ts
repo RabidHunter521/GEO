@@ -18,6 +18,8 @@ import type {
   ClientViewActionPlanItem,
   ClientViewCompletedWorkItem,
   ClientViewTruthHealth,
+  QueryStabilityEntry,
+  ImpactSummaryPublic,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -87,4 +89,12 @@ export function getViewCompletedWork(token: string): Promise<ClientViewCompleted
 
 export function getViewTruthHealth(token: string): Promise<ClientViewTruthHealth | null> {
   return viewFetch<ClientViewTruthHealth>(token, "/truth-health")
+}
+
+export function getViewQueryStability(token: string): Promise<QueryStabilityEntry[] | null> {
+  return viewFetch<QueryStabilityEntry[]>(token, "/query-stability")
+}
+
+export function getViewBusinessImpact(token: string): Promise<ImpactSummaryPublic[] | null> {
+  return viewFetch<ImpactSummaryPublic[]>(token, "/business-impact")
 }

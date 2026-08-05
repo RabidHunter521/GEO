@@ -43,6 +43,41 @@ def build_change_narrative(data) -> str:
         if delivered else "No delivery records were published for this period."
     )
 
+    # Stability summary (Phase 5 Task 8)
+    stability = getattr(data, "stability_summary", None)
+    stability_line = ""
+    if stability and stability.total_queries > 0:
+        parts = []
+        if stability.stable_count:
+            parts.append(f"{stability.stable_count} stable")
+        if stability.repeated_count:
+            parts.append(f"{stability.repeated_count} repeated")
+        if stability.emerging_count:
+            parts.append(f"{stability.emerging_count} emerging")
+        if stability.volatile_count:
+            parts.append(f"{stability.volatile_count} volatile")
+        if stability.insufficient_count:
+            parts.append(f"{stability.insufficient_count} insufficient data")
+        stability_line = (
+            f"Query stability: {stability.total_queries} tracked queries — "
+            + ", ".join(parts) + "."
+        )
+
+    # Impact summary (Phase 5 Task 8) — use "associated with" for correlation
+    impact_summaries = getattr(data, "impact_summaries", None) or []
+    impact_line = ""
+    if impact_summaries:
+        parts = []
+        for imp in impact_summaries:
+            observed_major = imp.observed_value_minor / 100
+            if observed_major > 0:
+                parts.append(
+                    f"Business impact (observed, {imp.currency}): "
+                    f"{imp.currency} {observed_major:,.2f} associated with AI visibility."
+                )
+        if parts:
+            impact_line = " ".join(parts)
+
     return (
         "You are an AI visibility analyst writing a brief monthly summary for a client report. "
         "Write 2-3 sentences (plain text, no headings, under 70 words) explaining what changed this month. "
@@ -60,4 +95,6 @@ def build_change_narrative(data) -> str:
         f"Structured Data {data.structured_data:.0f}.\n"
         f"{competitor_note}\n"
         f"{delivered_line}"
+        + (f"\n{stability_line}" if stability_line else "")
+        + (f"\n{impact_line}" if impact_line else "")
     )

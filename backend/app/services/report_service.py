@@ -462,6 +462,16 @@ class BeforeAfterCard:
 
 
 @dataclass
+class StabilitySummary:
+    total_queries: int
+    stable_count: int
+    repeated_count: int
+    emerging_count: int
+    volatile_count: int
+    insufficient_count: int
+
+
+@dataclass
 class ReportData:
     period_start: datetime
     period_end: datetime
@@ -539,6 +549,9 @@ class ReportData:
     sources_trend: "SourcesTrend | None" = None
     before_after: list["BeforeAfterCard"] = field(default_factory=list)
     misinformation: "MisinformationSummary | None" = None
+    # ── Report v2 (Phase 5 Task 8): stability + impact ──────────────────
+    stability_summary: "StabilitySummary | None" = None
+    impact_summaries: list = field(default_factory=list)
 
 
 def _compute_trend(current: float, prev: float | None) -> str:
@@ -1322,6 +1335,30 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     misinformation = _safe(
         "misinformation", lambda: _gather_misinformation(client, db, since), None)
 
+    # ── Phase 5 Task 8: stability + impact ────────────────────────────
+    def _gather_stability():
+        from app.services import query_stability_service
+        stabilities = query_stability_service.calculate_portfolio_stability(client.id, db)
+        if not stabilities:
+            return None
+        from collections import Counter
+        counts = Counter(s.state for s in stabilities)
+        return StabilitySummary(
+            total_queries=len(stabilities),
+            stable_count=counts.get("stable", 0),
+            repeated_count=counts.get("repeated", 0),
+            emerging_count=counts.get("emerging", 0),
+            volatile_count=counts.get("volatile", 0),
+            insufficient_count=counts.get("insufficient", 0),
+        )
+
+    def _gather_impact():
+        from app.services import business_impact_service as bis
+        return bis.get_impact_summary(client.id, db)
+
+    stability_summary = _safe("stability", _gather_stability, None)
+    impact_summaries = _safe("impact", _gather_impact, [])
+
     data = ReportData(
         period_start=now - timedelta(days=30),
         period_end=now,
@@ -1374,6 +1411,8 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         sources_trend=sources_trend,
         misinformation=misinformation,
         before_after=before_after,
+        stability_summary=stability_summary,
+        impact_summaries=impact_summaries,
     )
     from app.services.proof_card_service import select_proof_cards
     proof_cards = select_proof_cards(
@@ -1673,6 +1712,90 @@ def _build_before_after_html(data: ReportData) -> str:
     return f'<h2>Before &amp; After</h2>{cards}'
 
 
+def _build_stability_html(data: ReportData) -> str:
+    """Portfolio stability summary — count per state."""
+    s = data.stability_summary
+    if s is None or s.total_queries == 0:
+        return ""
+    parts = []
+    if s.stable_count:
+        parts.append(f"<strong>{s.stable_count}</strong> stable")
+    if s.repeated_count:
+        parts.append(f"<strong>{s.repeated_count}</strong> repeated")
+    if s.emerging_count:
+        parts.append(f"<strong>{s.emerging_count}</strong> emerging")
+    if s.volatile_count:
+        parts.append(f"<strong>{s.volatile_count}</strong> volatile")
+    if s.insufficient_count:
+        parts.append(f"<strong>{s.insufficient_count}</strong> insufficient data")
+    summary_line = " &middot; ".join(parts)
+    return (
+        f'<h2>Answer Stability</h2>'
+        f'<div class="stat-card">'
+        f'<div class="stat-label">{s.total_queries} tracked queries</div>'
+        f'<div class="stat-sub">{summary_line}</div>'
+        f'<div class="stat-sub" style="color:#94a3b8;font-size:8.5pt;margin-top:4px;">'
+        f'Stability measures how consistently AI answers agree across repeated observations.</div>'
+        f'</div>'
+    )
+
+
+def _build_impact_html(data: ReportData) -> str:
+    """Evidence-ladder impact — per currency, never summed across levels.
+
+    Uses "associated with" language for correlation — NEVER "caused by" or
+    "due to" (CLAUDE.md causal-language rule).
+    """
+    if not data.impact_summaries:
+        return ""
+    LEVEL_LABELS = {
+        "observed": "Directly measured",
+        "attributed": "Rule-based attribution",
+        "assisted": "AI-assisted matching",
+        "estimated": "Modeled projection",
+    }
+    cards = []
+    for imp in data.impact_summaries:
+        curr = imp.currency
+        rows = ""
+        for level, label in LEVEL_LABELS.items():
+            value_minor = getattr(imp, f"{level}_value_minor", 0)
+            value_major = value_minor / 100
+            count = imp.event_count_by_level.get(level, 0)
+            estimated_class = ' style="color:#94a3b8;font-style:italic;"' if level == "estimated" else ""
+            estimated_suffix = " (estimated)" if level == "estimated" else ""
+            rows += (
+                f'<tr{estimated_class}>'
+                f'<td>{html.escape(label)}{estimated_suffix}</td>'
+                f'<td style="text-align:right;">{curr} {value_major:,.2f}</td>'
+                f'<td style="text-align:right;">{count}</td>'
+                f'</tr>'
+            )
+        window = ""
+        if imp.window_start and imp.window_end:
+            window = (
+                f'<div class="stat-sub" style="margin-top:4px;">'
+                f'Window: {imp.window_start} &ndash; {imp.window_end}</div>'
+            )
+        caveats_html = ""
+        if imp.caveats:
+            caveats_html = (
+                '<div class="stat-sub" style="color:#94a3b8;font-size:8.5pt;margin-top:6px;">'
+                + "<br>".join(html.escape(c) for c in imp.caveats)
+                + "</div>"
+            )
+        cards.append(
+            f'<div class="stat-card">'
+            f'<div class="stat-label">Conversion evidence associated with AI visibility ({html.escape(curr)})</div>'
+            f'<table><thead><tr><th>Evidence level</th><th style="text-align:right;">Value</th>'
+            f'<th style="text-align:right;">Events</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table>'
+            f'{window}{caveats_html}'
+            f'</div>'
+        )
+    return f'<h2>Business Impact Evidence</h2>' + "".join(cards)
+
+
 def _build_report_html(client: Client, data: ReportData) -> str:
     _, ai_color = get_score_band(data.ai_citability)
 
@@ -1902,6 +2025,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     sources_trend_section = _build_sources_trend_html(data)
     before_after_section = _build_before_after_html(data)
     misinformation_section = _build_misinformation_html(data)
+    stability_section = _build_stability_html(data)
+    impact_section = _build_impact_html(data)
 
     # ── Gauge SVG + generated date ─────────────────────────────────────────
     gauge_svg = _build_gauge_svg(data.overall_score)
@@ -1995,6 +2120,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 {sources_trend_section}
 {before_after_section}
 {misinformation_section}
+{stability_section}
+{impact_section}
 
 <!-- ── 11: AI READINESS TOOLKIT ──────────────────────────────────── -->
 <h2>AI Readiness Toolkit</h2>

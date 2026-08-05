@@ -1284,3 +1284,43 @@ export interface TruthFactDraftInput {
   source_url?: string | null
   effective_from: string
 }
+
+// ── Answer stability — 5-state machine from repeated sampling (Phase 5) ──
+export type StabilityState = "insufficient" | "emerging" | "repeated" | "stable" | "volatile"
+
+export interface QueryStabilityEntry {
+  tracked_query_id: string | null
+  state: StabilityState
+  score: number | null
+  sample_count: number
+  period_count: number
+  agreement: Record<string, number>
+  calculation_version: string
+}
+
+// ── Business impact evidence ladder (Phase 5) — per-currency, per-evidence-level ──
+export interface ImpactSummary {
+  observed_value_minor: number
+  attributed_value_minor: number
+  assisted_value_minor: number
+  estimated_value_minor: number
+  currency: string
+  event_count_by_level: Record<string, number>
+  window_start: string | null
+  window_end: string | null
+  calculation_version: string
+  caveats: string[]
+}
+
+// Client-safe version (no calculation_version)
+export interface ImpactSummaryPublic {
+  observed_value_minor: number
+  attributed_value_minor: number
+  assisted_value_minor: number
+  estimated_value_minor: number
+  currency: string
+  event_count_by_level: Record<string, number>
+  window_start: string | null
+  window_end: string | null
+  caveats: string[]
+}

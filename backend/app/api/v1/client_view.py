@@ -78,7 +78,9 @@ from app.schemas.client_view import (
     ClientViewActionPlanItem,
     ClientViewCompletedWorkItem,
 )
+from app.schemas.query_stability import QueryStabilityResponse
 from app.services import business_impact_service
+from app.services import query_stability_service
 from app.services.assessment_service import latest_assessment
 from app.services.client_period_summary_service import build_client_period_summary
 from app.services.benchmark_service import compute_industry_benchmark
@@ -1120,3 +1122,18 @@ def get_business_impact(
         client.id, db, date_from=date_from, date_to=date_to
     )
     return [ImpactSummaryPublic.from_summary(summary) for summary in summaries]
+
+
+@router.get("/query-stability", response_model=list[QueryStabilityResponse])
+def get_query_stability(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    """Per-query answer stability for the client's tracked query portfolio.
+
+    Non-prospect only — same gate as ``/business-impact`` and ``/truth-health``.
+    Stability data carries no raw AI responses, confidence scores or char offsets
+    (the ``score`` is a 0.0-1.0 agreement ratio), so ``QueryStabilityResponse``
+    is used directly (no public-only projection needed).
+    """
+    return query_stability_service.calculate_portfolio_stability(client.id, db)
