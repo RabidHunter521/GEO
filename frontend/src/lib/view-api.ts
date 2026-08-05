@@ -20,6 +20,7 @@ import type {
   ClientViewTruthHealth,
   QueryStabilityEntry,
   ImpactSummaryPublic,
+  BenchmarkComparisonPublic,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -97,4 +98,9 @@ export function getViewQueryStability(token: string): Promise<QueryStabilityEntr
 
 export function getViewBusinessImpact(token: string): Promise<ImpactSummaryPublic[] | null> {
   return viewFetch<ImpactSummaryPublic[]>(token, "/business-impact")
+}
+
+/** Phase 6 cohort comparison. Whitelisted shape — no cohort key, no exact counts. */
+export function getViewBenchmarks(token: string): Promise<BenchmarkComparisonPublic[] | null> {
+  return viewFetch<BenchmarkComparisonPublic[]>(token, "/benchmarks")
 }

@@ -27,6 +27,7 @@ const viewApi = vi.hoisted(() => ({
   getViewScan: vi.fn(),
   getViewQueryStability: vi.fn().mockResolvedValue([]),
   getViewBusinessImpact: vi.fn().mockResolvedValue([]),
+  getViewBenchmarks: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock("@/lib/api", () => adminApi)

@@ -6,6 +6,7 @@ import {
   formatMetricValue,
   hasVersionMismatch,
   isStale,
+  nextActionFor,
   opportunityMetrics,
   percentileBandLabel,
   percentileBandSymbol,
@@ -190,6 +191,69 @@ describe("formatMetricValue", () => {
   it("renders an em dash for an absent value rather than a zero", () => {
     expect(formatMetricValue(null, "ai_presence_score")).toBe("—")
     expect(formatMetricValue(undefined, "ai_presence_score")).toBe("—")
+  })
+})
+
+describe("nextActionFor", () => {
+  it("offers an action only for the bottom quarter", () => {
+    expect(nextActionFor(comparison({ percentile_band: "bottom_quartile" }))).toBeTruthy()
+    expect(nextActionFor(comparison({ percentile_band: "middle_half" }))).toBeNull()
+    expect(nextActionFor(comparison({ percentile_band: "top_quartile" }))).toBeNull()
+  })
+
+  it("never offers an action for a suppressed comparison", () => {
+    const item = comparison({ suppressed: true, percentile_band: "bottom_quartile" })
+    expect(nextActionFor(item)).toBeNull()
+  })
+
+  it("covers every metric in the registry", () => {
+    const metrics = [
+      "ai_presence_score",
+      "answer_stability_score",
+      "accuracy_rate",
+      "share_of_source",
+      "verified_action_rate",
+    ]
+    for (const metric_key of metrics) {
+      const action = nextActionFor(comparison({ metric_key, percentile_band: "bottom_quartile" }))
+      expect(action, metric_key).toBeTruthy()
+    }
+  })
+
+  it("returns null for an unknown metric rather than inventing advice", () => {
+    const item = comparison({ metric_key: "something_new", percentile_band: "bottom_quartile" })
+    expect(nextActionFor(item)).toBeNull()
+  })
+
+  it("describes what we will do, never what the client will get", () => {
+    const promises = ["guarantee", "will increase", "will improve", "ensure", "boost your"]
+    for (const metric_key of ["ai_presence_score", "accuracy_rate", "share_of_source"]) {
+      const action = nextActionFor(
+        comparison({ metric_key, percentile_band: "bottom_quartile" }),
+      ) as string
+      for (const promise of promises) {
+        expect(action.toLowerCase()).not.toContain(promise)
+      }
+    }
+  })
+
+  it("uses no banned CLAUDE.md section 2 vocabulary", () => {
+    const banned = ["cited", "uncited", "citation rate", "ranking position", "visibility gap"]
+    const metrics = [
+      "ai_presence_score",
+      "answer_stability_score",
+      "accuracy_rate",
+      "share_of_source",
+      "verified_action_rate",
+    ]
+    for (const metric_key of metrics) {
+      const action = nextActionFor(
+        comparison({ metric_key, percentile_band: "bottom_quartile" }),
+      ) as string
+      for (const term of banned) {
+        expect(action.toLowerCase()).not.toContain(term)
+      }
+    }
   })
 })
 

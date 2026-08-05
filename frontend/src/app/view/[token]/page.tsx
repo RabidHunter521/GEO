@@ -12,6 +12,7 @@ import {
   getViewProgress,
   getViewQueryStability,
   getViewBusinessImpact,
+  getViewBenchmarks,
 } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
@@ -26,6 +27,7 @@ import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
 import { IndustryBenchmarkCard } from "@/components/IndustryBenchmarkCard"
+import { ClientBenchmarkCard } from "@/components/benchmarks/ClientBenchmarkCard"
 import { StabilityCard } from "@/components/measurement/StabilityCard"
 import { ImpactSummaryCard } from "@/components/measurement/ImpactSummaryCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
@@ -114,16 +116,26 @@ export default async function ViewOverviewPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const [overview, actions, issues, scan, progress, stability, impact] = await Promise.all([
-    getViewOverview(token),
-    getViewActions(token),
-    getViewIssues(token),
-    getViewScan(token),
-    getViewProgress(token),
-    getViewQueryStability(token).catch(() => null),
-    getViewBusinessImpact(token).catch(() => null),
-  ])
+  const [overview, actions, issues, scan, progress, stability, impact, benchmarks] =
+    await Promise.all([
+      getViewOverview(token),
+      getViewActions(token),
+      getViewIssues(token),
+      getViewScan(token),
+      getViewProgress(token),
+      getViewQueryStability(token).catch(() => null),
+      getViewBusinessImpact(token).catch(() => null),
+      getViewBenchmarks(token).catch(() => null),
+    ])
   if (!overview) notFound()
+
+  // The Phase 6 card only earns its place once an approved snapshot actually
+  // produced a published comparison. An all-suppressed response means the
+  // cohort is not publishable yet, and in that state the legacy industry card
+  // still tells the client something true — so it stays until then.
+  const hasApprovedBenchmarks = Boolean(
+    benchmarks && benchmarks.some((item) => !item.suppressed),
+  )
 
   // Prospects get a stripped-down overview: just the score hero and the
   // per-platform visibility. The deeper breakdown, benchmark, action plan and
@@ -350,8 +362,18 @@ export default async function ViewOverviewPage({
         </section>
       )}
 
-      {/* 3. Where you stand — benchmark + per-platform visibility */}
-      {!isProspect && overview.benchmark && (
+      {/* 3. Where you stand — benchmark + per-platform visibility.
+          Phase 6 cohort comparison wins whenever an approved snapshot exists.
+          The legacy card is the fallback, not a supplement: showing both would
+          put an exact peer count next to a deliberately banded one. The
+          fallback never synthesises a cohort — it only renders the industry
+          standing the API already computed. */}
+      {!isProspect && hasApprovedBenchmarks && (
+        <section className="reveal" style={{ animationDelay: "180ms" }}>
+          <ClientBenchmarkCard comparisons={benchmarks!} />
+        </section>
+      )}
+      {!isProspect && !hasApprovedBenchmarks && overview.benchmark && (
         <section className="reveal" style={{ animationDelay: "180ms" }}>
           <IndustryBenchmarkCard
             industry={overview.benchmark.industry}

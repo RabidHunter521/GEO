@@ -1,6 +1,19 @@
 // frontend/src/components/IndustryBenchmarkCard.tsx
 // Anonymous industry standing card — shared by the admin client detail page
 // and the read-only client view overview.
+//
+// LEGACY (Phase 6). Superseded by ClientBenchmarkCard, which the share view
+// renders whenever an approved cohort snapshot exists for the client. This
+// card remains the fallback until that is true for everyone, and it is the
+// reason the fallback is time-limited rather than permanent: it shows an
+// EXACT peer count, and on the admin page a rank — both of which Phase 6
+// forbids, because an exact count that moves month to month reveals when one
+// business joined or left, and a rank in a small group narrows down who the
+// neighbours are. It also groups on the free-text `clients.industry` string
+// with a floor of only 3 peers.
+//
+// Do not add features here. When every client has an approved snapshot,
+// delete this component and its two call sites.
 import { Trophy } from "lucide-react"
 
 interface Props {

@@ -10,7 +10,15 @@
  * we are about to render describe missing data or poor performance? Those are
  * different statements and the components must never blur them.
  */
-import type { BenchmarkComparison } from "@/types"
+import type { BenchmarkComparison, BenchmarkComparisonPublic } from "@/types"
+
+/**
+ * Helpers that only read fields common to both shapes accept either, so the
+ * admin grid and the client card cannot drift apart in how they read a value.
+ * Helpers that need an admin-only field (cellState, opportunityMetrics) keep
+ * the narrower type.
+ */
+type AnyComparison = BenchmarkComparison | BenchmarkComparisonPublic
 
 /** A snapshot older than this is shown, but labelled as a past period. */
 export const STALE_AFTER_DAYS = 75
@@ -24,6 +32,32 @@ export function cellState(comparison: BenchmarkComparison): BenchmarkCellState {
 }
 
 /**
+ * One concrete next step for a published comparison, or null.
+ *
+ * Only the bottom quarter gets an action. A client already at or above the
+ * middle of their cohort does not need to be told to do something about it,
+ * and manufacturing an action for every row is how a report starts reading
+ * like filler.
+ *
+ * The wording never promises a result — the cohort is descriptive, so the
+ * action says what we will do, not what it will achieve.
+ */
+export function nextActionFor(comparison: AnyComparison): string | null {
+  if (comparison.suppressed) return null
+  if (comparison.percentile_band !== "bottom_quartile") return null
+
+  const actions: Record<string, string> = {
+    ai_presence_score: "We're prioritising the questions where AI answers leave you out.",
+    answer_stability_score:
+      "AI answers about you vary between checks — we're working on the sources behind them.",
+    accuracy_rate: "We're correcting the inaccurate claims AI answers repeat about you.",
+    share_of_source: "We're working to get your own pages into the sources AI reads.",
+    verified_action_rate: "We're closing out the delivery work that's still open.",
+  }
+  return actions[comparison.metric_key] ?? null
+}
+
+/**
  * Suppression always reads as absent data, never as a bad result.
  *
  * The backend already ships a plain-language `suppression_message`; this is
@@ -31,7 +65,7 @@ export function cellState(comparison: BenchmarkComparison): BenchmarkCellState {
  * unknown reason rendering as anything judgemental would be a claim we cannot
  * support.
  */
-export function suppressionText(comparison: BenchmarkComparison): string {
+export function suppressionText(comparison: AnyComparison): string {
   return comparison.suppression_message ?? "Not enough comparable data yet."
 }
 
@@ -70,7 +104,7 @@ export function isStale(periodEnd: string, today: Date = new Date()): boolean {
  * as one consistent picture; the grid shows a notice instead of silently
  * blending them.
  */
-export function hasVersionMismatch(comparisons: BenchmarkComparison[]): boolean {
+export function hasVersionMismatch(comparisons: AnyComparison[]): boolean {
   const versions = new Set(
     comparisons
       .filter((item) => !item.suppressed && item.calculation_version)
@@ -83,7 +117,7 @@ export interface CohortHealth {
   total: number
   published: number
   suppressed: number
-  /** 0–100, rounded. 0 when there is nothing to summarise. */
+  /** 0-100, rounded. 0 when there is nothing to summarise. */
   suppressionRate: number
   /** True when nothing at all can be shown yet. */
   isEmpty: boolean
@@ -91,7 +125,7 @@ export interface CohortHealth {
   allSuppressed: boolean
 }
 
-export function cohortHealth(comparisons: BenchmarkComparison[]): CohortHealth {
+export function cohortHealth(comparisons: AnyComparison[]): CohortHealth {
   const total = comparisons.length
   const published = comparisons.filter((item) => !item.suppressed).length
   const suppressed = total - published
@@ -130,8 +164,8 @@ export function formatMetricValue(
   return String(Math.round(value))
 }
 
-/** "40 – 55 – 70" style range summary, or null when suppressed. */
-export function rangeLabel(comparison: BenchmarkComparison): string | null {
+/** "40 · 55 · 70" style range summary, or null when suppressed. */
+export function rangeLabel(comparison: AnyComparison): string | null {
   if (comparison.suppressed) return null
   const { p25, p50, p75, metric_key } = comparison
   if (p25 === null || p50 === null || p75 === null) return null
