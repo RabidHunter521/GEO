@@ -10,6 +10,13 @@ const adminApi = vi.hoisted(() => ({
   getIndustryBenchmark: vi.fn(),
   getLatestGeoScore: vi.fn(),
   getTrafficHistory: vi.fn(),
+  // Phase 5 added these to the overview pages but not to this mock, which has
+  // failed the unit project since 0e1533a. A whole-module vi.mock replaces the
+  // module, so every function the page imports has to be listed here.
+  // Resolved, not bare vi.fn(): the pages call `.catch()` on these directly,
+  // so a mock returning undefined throws before any assertion runs.
+  getQueryStability: vi.fn().mockResolvedValue([]),
+  getBusinessImpact: vi.fn().mockResolvedValue([]),
 }))
 
 const viewApi = vi.hoisted(() => ({
@@ -18,6 +25,8 @@ const viewApi = vi.hoisted(() => ({
   getViewOverview: vi.fn(),
   getViewProgress: vi.fn(),
   getViewScan: vi.fn(),
+  getViewQueryStability: vi.fn().mockResolvedValue([]),
+  getViewBusinessImpact: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock("@/lib/api", () => adminApi)

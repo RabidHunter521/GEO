@@ -33,10 +33,11 @@ describe("navigation contract", () => {
     ])
   })
 
-  it("exposes the three global (non-client-scoped) admin destinations", () => {
+  it("exposes the global (non-client-scoped) admin destinations", () => {
     expect(ADMIN_GLOBAL_NAV.map((item) => item.href)).toEqual([
       "/clients",
       "/gap-matrix",
+      "/benchmarks",
       "/review-queue",
     ])
   })

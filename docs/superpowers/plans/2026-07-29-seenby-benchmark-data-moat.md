@@ -55,6 +55,26 @@ task bodies below still disagree.
 7. **Test/demo exclusion uses existing flags.** There is no `is_test` column.
    Exclusion uses `archived_at IS NOT NULL`, `is_prospect IS TRUE`, and the new
    opt-out flag.
+9. **There is no frontend component-test stack.** Tasks 5 and 6 specify
+   `*.test.tsx` files beside the components, but `@testing-library/react` and
+   a DOM environment are not installed, and `vitest.config.ts`'s `unit`
+   project only includes `src/lib/__tests__/**/*.test.ts` under
+   `environment: "node"`. Those files would never execute. The convention this
+   repo actually established over Phases 1–5 is to extract presentation logic
+   into `src/lib/*.ts` and unit-test that (`metric-display.test.ts`,
+   `delivery-lifecycle.test.ts`, `navigation.test.ts`). Phase 6 follows it:
+   benchmark presentation logic lives in `src/lib/benchmark-display.ts` with
+   tests in `src/lib/__tests__/benchmark-display.test.ts`. Consequence to state
+   plainly rather than paper over: the keyboard-navigation and 360px
+   requirements in Tasks 5 and 6 are implemented but **not verified by an
+   automated test** — they need the browser walkthrough.
+
+10. **Benchmarks is a global page, not a client-scoped one.** Task 5 says to
+   place it "under Intelligence", but Intelligence is a group inside
+   `CLIENT_NAV_GROUPS` (routes relative to `/clients/[id]`). A portfolio-wide
+   view belongs in `ADMIN_GLOBAL_NAV` alongside Portfolio Intelligence and
+   Review Queue.
+
 8. **A legacy benchmark path already exists.** `app/services/benchmark_service.py`
    (industry percentile over `geo_scores`, `MIN_BENCHMARK_PEERS = 3`) and
    `frontend/src/components/IndustryBenchmarkCard.tsx` are live today. Tasks 5

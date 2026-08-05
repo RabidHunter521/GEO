@@ -183,6 +183,7 @@ Exact structure — do not add pages without updating this:
 /                        → redirect to /clients
 /clients                 → all clients overview
 /gap-matrix              → cross-client competitor gap matrix
+/benchmarks              → portfolio cohort benchmarks (Phase 6)
 /review-queue            → cross-client work-log inbox (pending suggestions)
 
 Global (non-client-scoped) admin pages live at the TOP LEVEL, inside the

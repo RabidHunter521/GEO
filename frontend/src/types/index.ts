@@ -1324,3 +1324,50 @@ export interface ImpactSummaryPublic {
   window_end: string | null
   caveats: string[]
 }
+
+// ── Benchmarks (Phase 6) ─────────────────────────────────────────────────
+// Mirrors app/schemas/benchmark_comparison.py. The admin shape carries the
+// cohort key and exact counts; BenchmarkComparisonPublic (the share-link
+// shape) deliberately does not, and is a separate interface rather than an
+// extension so a field added to the admin shape cannot reach a client surface
+// by inheritance.
+
+export interface BenchmarkComparison {
+  metric_key: string
+  metric_label: string
+  client_value: number | null
+  percentile_band: string | null
+  cohort_label: string
+  cohort_key?: string | null
+  eligible_member_count?: number | null
+  contributing_member_count?: number | null
+  p25: number | null
+  p50: number | null
+  p75: number | null
+  period_start: string
+  period_end: string
+  member_count_band: string | null
+  calculation_version: string | null
+  suppressed: boolean
+  suppression_reason?: string | null
+  suppression_message: string | null
+  caveat: string
+}
+
+export interface BenchmarkComparisonPublic {
+  metric_key: string
+  metric_label: string
+  client_value: number | null
+  percentile_band: string | null
+  cohort_label: string
+  p25: number | null
+  p50: number | null
+  p75: number | null
+  period_start: string
+  period_end: string
+  member_count_band: string | null
+  calculation_version: string | null
+  suppressed: boolean
+  suppression_message: string | null
+  caveat: string
+}

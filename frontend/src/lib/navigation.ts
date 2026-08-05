@@ -22,6 +22,10 @@ export interface NavGroup {
 export const ADMIN_GLOBAL_NAV: readonly NavItem[] = [
   { href: "/clients", label: "All Clients" },
   { href: "/gap-matrix", label: "Portfolio Intelligence" },
+  // Phase 6. Global rather than client-scoped: it compares the whole portfolio
+  // against cohorts, so it does not belong in CLIENT_NAV_GROUPS' Intelligence
+  // group (those hrefs are relative to /clients/[id]).
+  { href: "/benchmarks", label: "Benchmarks" },
   { href: "/review-queue", label: "Review Queue" },
 ] as const
 

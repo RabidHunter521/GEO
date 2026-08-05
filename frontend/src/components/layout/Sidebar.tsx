@@ -26,6 +26,7 @@ import {
   X,
   Award,
   Inbox,
+  Gauge,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -36,10 +37,11 @@ type IconType = ComponentType<{ className?: string }>
 /** Icon for the ungrouped Overview item — not part of navigation.ts, which stays serializable. */
 const OVERVIEW_ICON: IconType = LayoutDashboard
 
-/** Icons for the three global (non-client-scoped) destinations, keyed by href. */
+/** Icons for the global (non-client-scoped) destinations, keyed by href. */
 const GLOBAL_NAV_ICONS: Record<string, IconType> = {
   "/clients": Users,
   "/gap-matrix": Table2,
+  "/benchmarks": Gauge,
   "/review-queue": Inbox,
 }
 
