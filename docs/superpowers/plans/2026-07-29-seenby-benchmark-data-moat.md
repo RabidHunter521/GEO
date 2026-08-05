@@ -22,6 +22,44 @@
 - A benchmark is descriptive, not a performance guarantee.
 - Use `rtk` for repository commands and TDD for production changes.
 
+## Plan drift corrections (grounded against the codebase 2026-08-05)
+
+This plan was written 2026-07-29, before Phases 4 and 5 landed. The following
+claims were stale and are corrected here; the corrected value wins wherever the
+task bodies below still disagree.
+
+1. **Migration parent.** The single alembic head is now `a4b5c6d7e8f9`
+   (Phase 5's merge migration), not `d1a7c5f4e0b2`. Revision `e2b8d6a5f1c3`
+   sets `down_revision = "a4b5c6d7e8f9"`, and the Task 9 rollback target is
+   `a4b5c6d7e8f9`.
+2. **No live `alembic upgrade` in this repo.** `backend/.env` points at
+   production Supabase, so `alembic upgrade head` would migrate production.
+   Migrations are verified the way every prior phase verified them: static
+   source assertions plus an `alembic.script.ScriptDirectory` chain/head check
+   (see `tests/test_measurement_migration.py`). Real upgrade/downgrade against
+   Postgres happens in the `seenby-release` runbook, not here.
+3. **Worker task location.** `backend/app/tasks/` does not exist. Celery tasks
+   live in `backend/workers/tasks/` (CLAUDE.md §10), so Task 3's file is
+   `backend/workers/tasks/benchmark_tasks.py`, a thin entrypoint delegating to
+   the service.
+4. **Admin page location.** Global admin pages live in the `(admin)` route
+   group (CLAUDE.md §9). Task 5's page is
+   `frontend/src/app/(admin)/benchmarks/page.tsx`, served at `/benchmarks`, and
+   CLAUDE.md §9's navigation list must be updated in the same commit.
+5. **Client opt-out has no storage yet.** `clients` has no opt-out column, so
+   Task 1's migration adds `benchmark_opt_out` (boolean, not null, default
+   false) and Task 2's eligibility reads it.
+6. **`country_code` is derived, not stored.** `clients.country` is free-text
+   `String(255)`. Cohort keys use a normalized ISO-3166 alpha-2 code derived
+   from it; an unmappable country is an exclusion reason, never a guess.
+7. **Test/demo exclusion uses existing flags.** There is no `is_test` column.
+   Exclusion uses `archived_at IS NOT NULL`, `is_prospect IS TRUE`, and the new
+   opt-out flag.
+8. **A legacy benchmark path already exists.** `app/services/benchmark_service.py`
+   (industry percentile over `geo_scores`, `MIN_BENCHMARK_PEERS = 3`) and
+   `frontend/src/components/IndustryBenchmarkCard.tsx` are live today. Tasks 5
+   and 6's parity/feature-flag steps refer to these.
+
 ---
 
 ### Task 1: Persist cohorts, membership, and immutable snapshots
@@ -77,7 +115,9 @@ Use a separate private `benchmark_cohort_memberships` table with `client_id`, in
 
 - [ ] **Step 2: Implement revision `e2b8d6a5f1c3`**
 
-Set `down_revision = "d1a7c5f4e0b2"`. Add:
+Set `down_revision = "a4b5c6d7e8f9"` (see drift correction 1). Also add
+`clients.benchmark_opt_out` (boolean, not null, server default false) per
+drift correction 5. Add:
 
 ```sql
 UNIQUE (cohort_key, definition_version)
@@ -96,12 +136,14 @@ Add a database trigger or repository-enforced rule that rejects updates to appro
 
 - [ ] **Step 4: Verify migration reversibility**
 
+Per drift correction 2, do NOT run alembic against this repo's `.env`. Verify
+statically (symmetric upgrade/downgrade source assertions) plus a
+`ScriptDirectory` chain check that `e2b8d6a5f1c3` descends from `a4b5c6d7e8f9`
+and is the single head:
+
 ```bash
 cd backend
-rtk alembic upgrade head
-rtk pytest tests/test_benchmark_models.py tests/test_benchmark_migration.py -q
-rtk alembic downgrade d1a7c5f4e0b2
-rtk alembic upgrade head
+.venv/Scripts/python.exe -m pytest tests/test_benchmark_models.py tests/test_benchmark_migration.py -q
 ```
 
 - [ ] **Step 5: Commit**
@@ -175,7 +217,7 @@ rtk git commit -m "feat: calculate benchmark eligibility"
 
 **Files:**
 - Create: `backend/app/services/benchmark_snapshot_service.py`
-- Create: `backend/app/tasks/benchmark_tasks.py`
+- Create: `backend/workers/tasks/benchmark_tasks.py`
 - Modify: `backend/app/services/benchmark_service.py`
 - Create: `backend/tests/test_benchmark_snapshot_service.py`
 - Create: `backend/tests/test_benchmark_privacy.py`
@@ -220,7 +262,7 @@ rtk pytest tests/test_benchmark_snapshot_service.py tests/test_benchmark_privacy
 - [ ] **Step 6: Commit**
 
 ```bash
-rtk git add backend/app/services/benchmark_snapshot_service.py backend/app/tasks/benchmark_tasks.py backend/app/services/benchmark_service.py backend/tests/test_benchmark_snapshot_service.py backend/tests/test_benchmark_privacy.py
+rtk git add backend/app/services/benchmark_snapshot_service.py backend/workers/tasks/benchmark_tasks.py backend/app/services/benchmark_service.py backend/tests/test_benchmark_snapshot_service.py backend/tests/test_benchmark_privacy.py
 rtk git commit -m "feat: generate private benchmark snapshots"
 ```
 
@@ -296,7 +338,7 @@ rtk git commit -m "feat: expose cohort benchmark comparisons"
 **Files:**
 - Create: `frontend/src/components/benchmarks/PortfolioBenchmarkGrid.tsx`
 - Create: `frontend/src/components/benchmarks/CohortHealthPanel.tsx`
-- Create: `frontend/src/app/benchmarks/page.tsx`
+- Create: `frontend/src/app/(admin)/benchmarks/page.tsx`
 - Modify: `frontend/src/components/layout/Sidebar.tsx`
 - Modify: `frontend/src/lib/api.ts`
 - Modify: `frontend/src/types/index.ts`
@@ -335,7 +377,7 @@ rtk npm run build
 - [ ] **Step 5: Commit**
 
 ```bash
-rtk git add frontend/src/components/benchmarks/PortfolioBenchmarkGrid.tsx frontend/src/components/benchmarks/CohortHealthPanel.tsx frontend/src/app/benchmarks/page.tsx frontend/src/components/layout/Sidebar.tsx frontend/src/lib/api.ts frontend/src/types/index.ts frontend/src/components/benchmarks/PortfolioBenchmarkGrid.test.tsx
+rtk git add frontend/src/components/benchmarks/PortfolioBenchmarkGrid.tsx frontend/src/components/benchmarks/CohortHealthPanel.tsx frontend/src/app/(admin)/benchmarks/page.tsx frontend/src/components/layout/Sidebar.tsx frontend/src/lib/api.ts frontend/src/types/index.ts frontend/src/components/benchmarks/PortfolioBenchmarkGrid.test.tsx
 rtk git commit -m "feat: add portfolio benchmark intelligence"
 ```
 
@@ -531,14 +573,13 @@ rtk git commit -m "feat: add aggregate market intelligence"
 
 - [ ] **Step 1: Document governance**
 
-Document cohort versions, opt-out handling, minimum thresholds, suppression, dominant-client rules, approval separation, snapshot replacement, incident withdrawal, retention, and rollback to `d1a7c5f4e0b2`.
+Document cohort versions, opt-out handling, minimum thresholds, suppression, dominant-client rules, approval separation, snapshot replacement, incident withdrawal, retention, and rollback to `a4b5c6d7e8f9`.
 
 - [ ] **Step 2: Run backend verification**
 
 ```bash
 cd backend
-rtk alembic upgrade head
-rtk pytest tests/test_benchmark_models.py tests/test_benchmark_migration.py tests/test_benchmark_cohort_service.py tests/test_benchmark_snapshot_service.py tests/test_benchmark_privacy.py tests/test_benchmark_comparison_service.py tests/test_api_benchmarks.py tests/test_api_client_view.py tests/test_benchmark_publication_service.py tests/test_api_public_benchmarks.py tests/test_market_intelligence_service.py tests/test_api_market_intelligence.py -q
+.venv/Scripts/python.exe -m pytest tests/test_benchmark_models.py tests/test_benchmark_migration.py tests/test_benchmark_cohort_service.py tests/test_benchmark_snapshot_service.py tests/test_benchmark_privacy.py tests/test_benchmark_comparison_service.py tests/test_api_benchmarks.py tests/test_api_client_view.py tests/test_benchmark_publication_service.py tests/test_api_public_benchmarks.py tests/test_market_intelligence_service.py tests/test_api_market_intelligence.py -q
 ```
 
 - [ ] **Step 3: Run frontend and repository verification**
