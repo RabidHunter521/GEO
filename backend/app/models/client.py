@@ -83,3 +83,11 @@ class Client(Base):
     # definitions are code-versioned, and this records which version's queries
     # and risk rules produced a client's stored evidence.
     industry_pack_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Phase 6 benchmarks. Opting out removes this client from every cohort
+    # aggregate, in both directions: they stop contributing to peer numbers and
+    # they stop receiving a comparison. Default False (participating) because
+    # cohorts are anonymous, suppressed below threshold, and never expose a
+    # member; a client who still objects gets a one-flag exit.
+    benchmark_opt_out: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
