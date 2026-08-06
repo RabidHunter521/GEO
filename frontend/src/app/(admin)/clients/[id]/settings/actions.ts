@@ -35,6 +35,7 @@ export async function updateClientAction(
     // Control field, never persisted: the API returns 409 with an impact
     // preview when an already-chosen pack is switched without it.
     confirm_pack_change?: boolean
+    benchmark_opt_out?: boolean
   },
 ) {
   const client = await updateClient(id, data)

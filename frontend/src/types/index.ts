@@ -59,6 +59,10 @@ export interface Client {
   industry_pack: string | null
   industry_subcategory: string | null
   industry_pack_version: string | null
+  // Removes this client from cohort benchmark aggregates in both directions:
+  // they stop contributing to peer numbers and stop receiving a comparison.
+  // Forward-looking only — does not rewrite an already-approved snapshot.
+  benchmark_opt_out: boolean
 }
 
 export interface ShareTokenResponse {

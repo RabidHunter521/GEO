@@ -42,6 +42,7 @@ import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, Dim
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
 import { IndustryPackCard } from "./IndustryPackCard"
+import { BenchmarkOptOutCard } from "./BenchmarkOptOutCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { isValidWebsite } from "@/lib/utils"
 import { generateAssessment, acceptAssessment } from "@/lib/api"
@@ -445,6 +446,12 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       {/* Industry pack — saves on its own, like competitors and benchmark
           queries, because a pack change needs its own confirmation step. */}
       <IndustryPackCard client={client} />
+
+      <Separator />
+
+      {/* Benchmark opt-out — saves on its own, like the industry pack card,
+          because this is a privacy control rather than an ordinary field. */}
+      <BenchmarkOptOutCard client={client} />
 
       <Separator />
 

@@ -54,6 +54,10 @@ class ClientUpdate(BaseModel):
     # admin can never type one.
     industry_pack: str | None = None
     industry_subcategory: str | None = Field(default=None, max_length=64)
+    # Removes this client from cohort benchmark aggregates in both directions:
+    # they stop contributing to peer numbers and stop receiving a comparison.
+    # Forward-looking only — see app/services/benchmark_publication_service.py.
+    benchmark_opt_out: bool | None = None
     # Control field, NOT a column. Switching an already-chosen pack changes which
     # queries a client is scanned on and resets benchmark comparability, so the
     # route refuses an unconfirmed switch. The route must pop this before its
@@ -123,6 +127,7 @@ class ClientResponse(BaseModel):
     industry_pack: str | None = None
     industry_subcategory: str | None = None
     industry_pack_version: str | None = None
+    benchmark_opt_out: bool = False
 
     model_config = {"from_attributes": True}
 

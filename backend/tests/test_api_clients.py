@@ -49,6 +49,7 @@ def _fake_client(name="Acme Corp"):
     m.industry_pack = None
     m.industry_subcategory = None
     m.industry_pack_version = None
+    m.benchmark_opt_out = False
     return m
 
 
@@ -125,6 +126,7 @@ def test_create_client_returns_201():
         from datetime import datetime
         obj.created_at = datetime(2026, 1, 1)
         obj.archived_at = None
+        obj.benchmark_opt_out = False
 
     mock_db = MagicMock()
     mock_db.refresh = MagicMock(side_effect=fake_refresh)
@@ -234,6 +236,63 @@ def test_update_client_persists_industry_pack():
     app.dependency_overrides.clear()
     assert get_response.status_code == 200
     assert get_response.json()["industry_pack"] == "healthcare"
+
+
+def test_update_client_persists_benchmark_opt_out():
+    """Same end-to-end guarantee `phone` needed: PATCH parsing must apply the
+    field to the row, and the response schema must not strip it on read."""
+    app, get_db = _make_app()
+    existing = _fake_client("Opt Out Co")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    patch_response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"benchmark_opt_out": True},
+    )
+    assert patch_response.status_code == 200
+    assert patch_response.json()["benchmark_opt_out"] is True
+    # Proves the route's setattr loop applied it to the row rather than
+    # Pydantic silently dropping an unknown field.
+    assert existing.benchmark_opt_out is True
+
+    get_response = client.get(f"/api/v1/clients/{existing.id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["benchmark_opt_out"] is True
+
+    # And it toggles back — this is not a one-way switch like industry_pack.
+    revert_response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"benchmark_opt_out": False},
+    )
+    app.dependency_overrides.clear()
+    assert revert_response.status_code == 200
+    assert revert_response.json()["benchmark_opt_out"] is False
+    assert existing.benchmark_opt_out is False
+
+
+def test_update_client_defaults_benchmark_opt_out_to_false():
+    """A client created before this field existed must read as participating
+    by default, not as opted out — absence of a value is not the same as an
+    explicit opt-out."""
+    app, get_db = _make_app()
+    existing = _fake_client("Default Co")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.get(f"/api/v1/clients/{existing.id}")
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["benchmark_opt_out"] is False
 
 
 def test_update_client_never_writes_the_confirmation_control_field():

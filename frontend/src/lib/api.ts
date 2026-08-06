@@ -113,6 +113,7 @@ export function updateClient(
       | "is_prospect"
       | "internal_notes"
       | "ga4_property_id"
+      | "benchmark_opt_out"
     >
   >,
 ): Promise<Client> {
