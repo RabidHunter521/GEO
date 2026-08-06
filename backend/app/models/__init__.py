@@ -21,6 +21,7 @@ from app.models.benchmark_publication import (
     ApprovedPublicationImmutableError,
     BenchmarkPublication,
 )
+from app.models.misinformation_finding import MisinformationFinding
 
 __all__ = [
     "OUTCOME_ACTION_STATUSES",
@@ -40,4 +41,5 @@ __all__ = [
     "BENCHMARK_PUBLICATION_STATUSES",
     "ApprovedPublicationImmutableError",
     "BenchmarkPublication",
+    "MisinformationFinding",
 ]
