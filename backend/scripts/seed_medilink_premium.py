@@ -92,6 +92,84 @@ SHARE_LINK_CREATED = CLIENT_CREATED + timedelta(days=1)
 TOOLKIT_GENERATED = NOW - timedelta(days=95)
 TOOLKIT_VERIFIED = NOW - timedelta(days=93)
 
+# app/prompts/content_roadmap.py PLAN_WEEKS = 12 — a real generated roadmap is
+# always exactly 12 weekly items. MEDILINK["roadmap_themes"] only has 3
+# (weeks 1-3, already-published); these fill out weeks 4-12 as the upcoming plan.
+ROADMAP_WEEKS_4_TO_12 = [
+    {
+        "week": 4, "theme": "Patient Guides: Insurance & Panel Clinic Access", "priority": "medium",
+        "content_type": "Patient guide article",
+        "suggested_title": "A Patient's Guide to Panel Clinics and Insurance Coverage at Medilink Healthcare",
+        "rationale": "Insurance/panel and walk-in-vs-appointment questions are a common AI query type Medilink currently has no dedicated page answering.",
+        "target_queries": ["How do I choose a primary care and health screening provider in Kuala Lumpur, Klang Valley, Malaysia?"],
+        "competitors_winning": ["Care Clinic Group"], "article_content": None,
+    },
+    {
+        "week": 5, "theme": "Outlet Comparison: Bangsar vs Cheras", "priority": "low",
+        "content_type": "Location comparison page",
+        "suggested_title": "Medilink Healthcare Bangsar vs Cheras: Which Clinic Should You Visit?",
+        "rationale": "With two active clinics, a clear outlet-comparison page helps both local 'near me' queries and walk-in routing.",
+        "target_queries": ["Best primary care and health screening provider near me in Kuala Lumpur"],
+        "competitors_winning": [], "article_content": None,
+    },
+    {
+        "week": 6, "theme": "Vaccination & Travel Health", "priority": "medium",
+        "content_type": "Service explainer page",
+        "suggested_title": "Vaccination and Travel Health Services at Medilink Healthcare",
+        "rationale": "Vaccination and travel-health queries are a listed service with no dedicated explainer page today.",
+        "target_queries": ["What services does Medilink Healthcare offer?"],
+        "competitors_winning": ["Care Clinic Group", "Medipulse Healthcare"], "article_content": None,
+    },
+    {
+        "week": 7, "theme": "Understanding Your Health Screening Results", "priority": "medium",
+        "content_type": "Patient education article",
+        "suggested_title": "Understanding Your Health Screening Results: A Plain-Language Guide from Medilink Healthcare",
+        "rationale": "Post-screening follow-up questions are a high-trust content opportunity AI assistants can cite directly.",
+        "target_queries": ["What should I look for in a primary care and health screening provider in Kuala Lumpur, Klang Valley, Malaysia?"],
+        "competitors_winning": ["Sentosa Healthcare"], "article_content": None,
+    },
+    {
+        "week": 8, "theme": "Women's Health Screening", "priority": "high",
+        "content_type": "Service landing page",
+        "suggested_title": "Women's Health Screening Packages at Medilink Healthcare",
+        "rationale": "Demographic-specific screening packages are a recommendation-category gap where Sentosa Healthcare currently dominates.",
+        "target_queries": ["Best primary care and health screening provider in Kuala Lumpur, Klang Valley, Malaysia"],
+        "competitors_winning": ["Sentosa Healthcare"], "article_content": None,
+    },
+    {
+        "week": 9, "theme": "Pre-Employment Medical Examinations", "priority": "high",
+        "content_type": "Service landing page",
+        "suggested_title": "Pre-Employment Medical Examinations for Employers: A Guide from Medilink Healthcare",
+        "rationale": "Deepens the corporate/occupational-health hub started in week 2 with the specific query HR teams search for first.",
+        "target_queries": ["How much does a primary care and health screening provider cost in Kuala Lumpur, Klang Valley, Malaysia?"],
+        "competitors_winning": ["Medipulse Healthcare"], "article_content": None,
+    },
+    {
+        "week": 10, "theme": "Medilink Healthcare vs Sentosa Healthcare", "priority": "medium",
+        "content_type": "Comparison landing page",
+        "suggested_title": "Medilink Healthcare vs Sentosa Healthcare: Choosing the Right Fit",
+        "rationale": "Comparison queries currently favor Sentosa Healthcare's broader specialist network; an honest comparison page increases the odds Medilink is surfaced alongside it.",
+        "target_queries": ["Medilink Healthcare vs Sentosa Healthcare"],
+        "competitors_winning": ["Sentosa Healthcare"], "article_content": None,
+    },
+    {
+        "week": 11, "theme": "Senior Health Screening", "priority": "medium",
+        "content_type": "Service landing page",
+        "suggested_title": "Senior Health Screening: What to Expect at Medilink Healthcare",
+        "rationale": "Age-specific screening guidance is a natural local-trust play for the Klang Valley's ageing population.",
+        "target_queries": ["Signs I need a primary care and health screening provider in Kuala Lumpur"],
+        "competitors_winning": [], "article_content": None,
+    },
+    {
+        "week": 12, "theme": "New Patient FAQ", "priority": "low",
+        "content_type": "FAQ page",
+        "suggested_title": "Everything You Need to Know Before Your First Visit to Medilink Healthcare",
+        "rationale": "A consolidated FAQ closes remaining walk-in/appointment and first-visit questions AI assistants are asked.",
+        "target_queries": ["How do I find a reliable primary care and health screening provider in Kuala Lumpur?"],
+        "competitors_winning": [], "article_content": None,
+    },
+]
+
 SCAN_OFFSETS_DAYS = [120, 90, 60, 30, 2]
 SCAN_DATES = [NOW - timedelta(days=d) for d in SCAN_OFFSETS_DAYS]
 N_SCANS = len(SCAN_DATES)
@@ -519,6 +597,15 @@ def main() -> None:
             "on-site occupational health assessments across its Bangsar and Cheras clinics...\n\n"
             "*(Published to medilinkhealthcare.my in month 3 of the retainer.)*"
         )
+        roadmap_json[2]["article_content"] = (
+            "# Diabetes and Hypertension Screening: When to Get Checked at Medilink Healthcare\n\n"
+            "Diabetes and high blood pressure often have no symptoms until complications set in. "
+            "Medilink Healthcare's screening packages include fasting blood glucose, HbA1c, and "
+            "blood pressure checks, with same-week appointments across the Bangsar and Cheras "
+            "clinics...\n\n"
+            "*(Published to medilinkhealthcare.my in month 4 of the retainer.)*"
+        )
+        roadmap_json.extend(ROADMAP_WEEKS_4_TO_12)
         db.add(ContentRoadmap(
             client_id=client.id, status="completed",
             roadmap_json=roadmap_json, source_query_count=len(latest_lost),
