@@ -1,7 +1,9 @@
 # backend/Dockerfile
 # Single image shared by all Railway services (api, worker, beat).
 # Each service overrides the start command — see bin/start-*.sh.
-FROM python:3.12-slim
+# Pinned to bookworm (not the floating `slim` tag): it rolled to Debian
+# trixie, which renamed libgdk-pixbuf2.0-0 and broke this apt-get install.
+FROM python:3.12-slim-bookworm
 
 # System libs required by WeasyPrint (PDF report generation) + psycopg2 build.
 RUN apt-get update && apt-get install -y --no-install-recommends \

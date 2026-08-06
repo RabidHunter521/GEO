@@ -4,24 +4,30 @@ Localhost → live, ready for real clients. Work top to bottom. Fill in the
 **worksheet** at the bottom as you provision each service, then paste those
 values into Railway and Vercel.
 
-> Architecture is already baked into the repo — don't second-guess the stack:
-> backend on **Railway** (3 services, 1 Docker image), DB on **Supabase**,
-> Redis on **Railway**, frontend on **Vercel**, files on **Cloudflare R2**,
-> email via **Resend**, optional alerts via **Telegram**.
+> Architecture: everything that runs code lives on **Railway** (4 services, 2
+> Docker images) in one project. DB on **Supabase**, files on **Cloudflare
+> R2**, email via **Resend**, optional alerts via **Telegram**. The frontend
+> talks to the API over Railway's **private network** — the API is never
+> exposed publicly, so there is no `api.seenby.my`.
 
 | Piece | Host | Source of truth |
 |---|---|---|
-| API + worker + beat | Railway (3 services) | `backend/bin/start-*.sh`, `backend/Dockerfile` |
+| API + worker + beat | Railway (3 services, 1 image) | `backend/bin/start-*.sh`, `backend/Dockerfile` |
+| Admin panel | Railway (1 service) | `frontend/Dockerfile` (Next.js 15 standalone) |
 | PostgreSQL | Supabase (session pooler) | `backend/.env.example` |
 | Redis (Celery broker) | Railway plugin | `REDIS_URL` in `app/core/config.py` |
-| Admin panel | Vercel | `frontend/` (Next.js 15 SSR) |
 | File storage | Cloudflare R2 (2 buckets) | `CLOUDFLARE_R2_*` |
 | Email | Resend (sender `contact@seenby.my`) | `app/services/email_service.py` |
 | Admin alerts | Telegram (optional) | `TELEGRAM_*` |
 
-Accounts needed: Railway, Vercel, Supabase, Cloudflare, Resend, billing-enabled
-API keys for Anthropic / OpenAI / Gemini / Perplexity, and DNS control for
+Accounts needed: Railway, Supabase, Cloudflare, Resend, billing-enabled API
+keys for Anthropic / OpenAI / Gemini / Perplexity, and DNS control for
 `seenby.my`.
+
+Only the **frontend** service gets a public Railway domain. `api`, `worker`,
+and `beat` should never have public networking enabled — Railway gives every
+service in a project a private DNS name (`<service-name>.railway.internal`)
+automatically, reachable only from other services in the same project.
 
 ---
 
@@ -75,58 +81,60 @@ openssl rand -base64 24  # ADMIN_PASSWORD (your login)
 
 ---
 
-## Phase 2 — Deploy backend on Railway
+## Phase 2 — Deploy to Railway (backend + frontend, one project)
 
-One Railway project = **Redis + 3 services**, all pointing at `backend/` and the
-same `Dockerfile`.
+One Railway project = **Redis + 4 services** — 3 from `backend/Dockerfile`,
+1 from `frontend/Dockerfile`.
 
 1. **Add Redis** (New → Database → Redis) → copy `REDIS_URL`.
-2. **Service `api`** — start command `bin/start-web.sh` (Dockerfile default).
-3. **Service `worker`** — start command `bin/start-worker.sh`.
-4. **Service `beat`** — start command `bin/start-beat.sh`.
+2. **Service `api`** — source `backend/`, start command `bin/start-web.sh`
+   (Dockerfile default). **Leave public networking off.**
+3. **Service `worker`** — source `backend/`, start command
+   `bin/start-worker.sh`. No networking needed at all.
+4. **Service `beat`** — source `backend/`, start command `bin/start-beat.sh`.
+   No networking needed at all.
+5. **Service `frontend`** — source `frontend/` (uses `frontend/Dockerfile`).
+   This is the only service that gets a public domain.
 
-Set **the same env vars on all three** (worker & beat need DB/Redis/LLM/email
-keys too — see worksheet). Then:
+Set **the same backend env vars on `api`, `worker`, AND `beat`** (worker &
+beat need DB/Redis/LLM/email keys too — see worksheet). Then:
 
-- Deploy `api` **first** (it runs the migrations), then `worker`, then `beat`.
-- Generate a public domain for `api` → `api.seenby.my` (or use the railway.app
-  URL). Copy it for Phase 3.
-- ⚠️ Set `RATE_LIMIT_TRUSTED_PROXY=1` — Railway sits behind a proxy, so the
-  rate limiter must trust `X-Forwarded-For`.
+- Deploy `api` **first** (it runs the migrations), then `worker`, then `beat`,
+  then `frontend`.
+- ⚠️ Set `RATE_LIMIT_TRUSTED_PROXY=1` on the backend services — Railway sits
+  behind a proxy, so the rate limiter must trust `X-Forwarded-For`.
+- On `frontend`, set `API_BASE_URL=http://api.railway.internal:8000` —
+  Railway's private networking. It resolves `<service-name>.railway.internal`
+  only within the same project (swap `api` for whatever you actually name the
+  service). This means the FastAPI service is **never reachable from the
+  public internet**, unlike the old Vercel+public-API setup.
+- Generate a public domain for `frontend` only → `app.seenby.my` (or the
+  railway.app URL), via Settings → Networking → Public Networking.
+- Security: the browser never sees `ADMIN_API_KEY` — `src/lib/api.ts` is
+  server-only and calls the backend over the private network. Keep it that
+  way.
 
----
-
-## Phase 3 — Deploy frontend on Vercel
-
-1. Import repo → **Root Directory = `frontend`** (auto-detects Next.js).
-2. Set env vars (see worksheet). Key ones:
-   - `API_BASE_URL` = the Railway `api` URL
-   - `ADMIN_API_KEY` = **exactly** the same value as on the backend
-   - `NEXTAUTH_URL` = `https://app.seenby.my`
-3. Deploy, then add custom domain `app.seenby.my` (add the CNAME at registrar).
-4. Security: the browser never sees `ADMIN_API_KEY` — `src/lib/api.ts` is
-   server-only and calls Railway server-to-server. Keep it that way.
-
-After the domain resolves, confirm Railway's `ALLOWED_ORIGINS` and
+After the domain resolves, confirm the backend's `ALLOWED_ORIGINS` and
 `FRONTEND_BASE_URL` exactly match `https://app.seenby.my` (HTTPS, no trailing
 slash). HSTS is already set in `next.config.ts` and activates over TLS.
 
 ---
 
-## Phase 4 — DNS (one pass at the registrar)
+## Phase 3 — DNS (one pass at the registrar)
 
 | Record | Type | Points to | For |
 |---|---|---|---|
-| `app.seenby.my` | CNAME | Vercel | admin panel |
-| `api.seenby.my` | CNAME | Railway api service | backend |
+| `app.seenby.my` | CNAME | Railway `frontend` service | admin panel |
 | `cdn.seenby.my` | CNAME | R2 public bucket | client logos |
 | `seenby.my` SPF | TXT | Resend value | email auth |
 | Resend DKIM | CNAME/TXT | Resend values | email auth |
 | `_dmarc.seenby.my` | TXT | Resend value | email auth |
 
+No `api.seenby.my` record — the API is private-network-only (Phase 2).
+
 ---
 
-## Phase 5 — Go-live smoke test (on a throwaway test client, before any real client)
+## Phase 4 — Go-live smoke test (on a throwaway test client, before any real client)
 
 - [ ] Log into `app.seenby.my` with admin credentials
 - [ ] Create a test client → run a **scan** → all enabled platforms return
@@ -143,11 +151,13 @@ slash). HSTS is already set in `next.config.ts` and activates over TLS.
 
 ---
 
-## Phase 6 — Operational readiness
+## Phase 5 — Operational readiness
 
 - **Backups:** confirm Supabase plan retains backups and doesn't pause.
-- **Uptime:** add a monitor (e.g. UptimeRobot) on `api.seenby.my/health` (or
-  `/docs`) and `app.seenby.my`.
+- **Uptime:** add a monitor (e.g. UptimeRobot) on `app.seenby.my`. The API has
+  no public URL to monitor directly — set a Railway health check path
+  (`/health`) on the `api` service (Settings → Healthcheck) and watch its
+  deploy logs instead.
 - **Cron health:** digests, reports, and the daily retention/purge job run from
   the `beat` service — keep it running and watch its logs.
 - **Cost ceiling:** provider billing caps + in-app budgets = belt & suspenders.
@@ -173,8 +183,8 @@ and frontend.
 | `PERPLEXITY_API_KEY` | | Perplexity (1.4) |
 | `RESEND_API_KEY` | | Resend (1.3) |
 | `ADMIN_API_KEY` | | generated (1.5) — shared |
-| `ALLOWED_ORIGINS` | `https://app.seenby.my` | Phase 3 |
-| `FRONTEND_BASE_URL` | `https://app.seenby.my` | Phase 3 |
+| `ALLOWED_ORIGINS` | `https://app.seenby.my` | Phase 2 |
+| `FRONTEND_BASE_URL` | `https://app.seenby.my` | Phase 2 |
 | `CLOUDFLARE_R2_ENDPOINT_URL` | | R2 (1.2) |
 | `CLOUDFLARE_R2_ACCESS_KEY_ID` | | R2 (1.2) |
 | `CLOUDFLARE_R2_SECRET_ACCESS_KEY` | | R2 (1.2) |
@@ -187,56 +197,66 @@ and frontend.
 | `TELEGRAM_BOT_TOKEN` | (optional) | Telegram (1.6) |
 | `TELEGRAM_CHAT_ID` | (optional) | Telegram (1.6) |
 
-### Frontend (Vercel)
+### Frontend (Railway — set on `frontend`)
 
 | Var | Value | From |
 |---|---|---|
-| `NEXTAUTH_URL` | `https://app.seenby.my` | Phase 3 |
+| `NEXTAUTH_URL` | `https://app.seenby.my` | Phase 2 |
 | `AUTH_SECRET` | | generated (1.5) |
 | `ADMIN_USERNAME` | | your choice |
 | `ADMIN_PASSWORD` | | generated (1.5) |
-| `API_BASE_URL` | `https://api.seenby.my` | Railway api (Phase 2) |
+| `API_BASE_URL` | `http://api.railway.internal:8000` | Railway private network (Phase 2) — not a public URL |
 | `ADMIN_API_KEY` | | **same as backend** (1.5) |
 
 ---
 
 ## Decisions to confirm before launch
 
-1. **Domain split** — this runbook assumes `app.` (admin) + `api.` (backend) +
-   `cdn.` (logos), leaving apex `seenby.my` for a future marketing site. Adjust
-   if you'd rather run the app on the apex.
+1. **Domain split** — this runbook assumes only `app.` (admin, public) and
+   `cdn.` (logos, public) are real DNS records; `api` is private-network-only
+   and never gets a hostname. Apex `seenby.my` is free for a future marketing
+   site.
 2. **Paid tiers** — free Supabase/Railway tiers pause and break cron jobs. Real
    clients require paid tiers (~$5–20/mo each to start).
 3. **Budget caps** — `$20/client/month`, `$50/day global` are the shipped
    defaults. Confirm they match your unit economics.
 
-Is the app fully ready after the deployment guide?
-Yes, functionally. The one thing the guide doesn't cover is production hardening over time — but for a solo operator with real clients it's complete:
-
-Code runs, emails send, scans execute, PDFs generate, client view works.
-Cost guardrails, circuit breakers, and alerts are already built in.
+**Is the app fully ready after the deployment guide?**
+Yes, functionally. The one thing the guide doesn't cover is production
+hardening over time — but for a solo operator with real clients it's
+complete: code runs, emails send, scans execute, PDFs generate, client view
+works. Cost guardrails, circuit breakers, and alerts are already built in.
 Backups, uptime monitoring, and cron health are your only ongoing ops tasks.
-Will a GitHub push auto-deploy everywhere?
-Vercel — yes, automatically. When you import the repo, Vercel installs a GitHub webhook. Every push to master triggers a redeploy of the frontend. Zero config needed.
 
-Railway — yes, but you have to enable it once per service during setup. When you create each service (api, worker, beat), Railway asks which branch to watch — pick master and tick "Deploy on push." After that, every push redeploys all three.
+**Will a GitHub push auto-deploy everywhere?**
+Yes — enable it once per service during setup. When you create each service
+(`api`, `worker`, `beat`, `frontend`), Railway asks which branch to watch —
+pick `master` and tick "Deploy on push." After that, every push redeploys all
+four.
 
-So the full chain on every git push origin master:
+```
+git push → GitHub → webhook → Railway redeploys api      (runs alembic upgrade head first)
+                             → Railway redeploys worker
+                             → Railway redeploys beat
+                             → Railway redeploys frontend
+```
 
+Two things to be careful about:
+- Migrations run on every `api` restart (`alembic upgrade head` in
+  `start-web.sh`). That's safe if migrations are additive. If you ever push a
+  destructive migration, it runs the moment the new `api` service boots — no
+  review gate. For now that's fine; just be aware.
+- All four Railway services redeploy on every push, even if you only changed
+  one file. That means a brief worker restart on every deploy. Not a problem
+  for on-demand scans, but worth knowing.
 
-git push → GitHub → webhook → Vercel rebuilds frontend
-                            → Railway redeploys api (runs alembic upgrade head first)
-                            → Railway redeploys worker
-                            → Railway redeploys beat
-Two things to be careful about
-Migrations run on every api restart (alembic upgrade head in start-web.sh). That's safe if migrations are additive. If you ever push a destructive migration, it runs the moment the new api service boots — no review gate. For now that's fine; just be aware.
+The practical flow once live:
 
-All three Railway services redeploy on every push, even if you only changed a frontend file. That means a brief worker restart on every deploy. Not a problem for on-demand scans, but worth knowing.
-
-The practical flow once live
-
-# make changes locally
+```bash
 git add .
 git commit -m "feat: ..."
-git push origin master   # ← this alone deploys everything
-One push, everything updates. That's the full CI/CD pipeline — no extra tooling needed for MVP.
+git push origin master   # this alone deploys everything
+```
+
+One push, everything updates — the full CI/CD pipeline, one platform, no
+extra tooling needed for MVP.
