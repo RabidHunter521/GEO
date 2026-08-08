@@ -375,6 +375,24 @@ def test_client_queries_never_carry_a_competitor_id():
     assert all(q["competitor_id"] is None for q in queries)
 
 
+def test_pack_queries_are_not_governed_tracked_queries():
+    """Why the query cap and the benchmark coverage band are independent.
+
+    coverage_band_for counts DISTINCT tracked_query_id on non-control rows.
+    Pack client queries leave that NULL — the governed portfolio is sampled
+    separately by query_sampling_service — so MAX_PACK_QUERIES_PER_SCAN cannot
+    move a client between cohorts. constants.py states this; this test is what
+    stops it quietly becoming false.
+    """
+    queries = build_pack_queries(
+        _client(industry_subcategory="dental"), [_location()],
+        [_fact("treatment", "offered", ["teeth whitening"])], HEALTHCARE_PACK, [],
+    )
+    assert queries
+    assert all("tracked_query_id" not in q for q in queries)
+    assert all("sample_index" not in q for q in queries)
+
+
 def test_no_query_is_marked_as_a_control():
     """Control queries are admin-authored benchmarks and must stay separate."""
     queries = build_pack_queries(_client(), [_location()], [], HEALTHCARE_PACK, [])

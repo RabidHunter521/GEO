@@ -100,9 +100,15 @@ number; weights unchanged.)
 
 ## 5. Scan Engine Rules
 
-- Up to 20 queries per platform per scan (5 per category × 4 categories), run on
-  every enabled platform. Comparison queries are capped by the number of
-  competitors (max 5), so a client with no competitors runs 15.
+- Legacy (no industry pack): up to 20 queries per platform per scan (5 per
+  category × 4 categories), run on every enabled platform. Comparison queries
+  are capped by the number of competitors (max 5), so a client with no
+  competitors runs 15.
+- Packed clients: up to `MAX_PACK_QUERIES_PER_SCAN` (28) per platform, built
+  from the pack's templates and the client's APPROVED facts only. Queries land
+  in the same 4 categories. A pack template may be scoped to specific
+  subcategories; scoped questions outrank generic ones of equal commercial
+  intent and buyer stage, so specialisation survives the cap.
 - 4 platforms: chatgpt, perplexity, gemini, claude (per-client toggle in settings, ≥1 required)
 - Retry once on API failure, flag if fails again
 - If one platform fails entirely, the scan still completes: score uses the

@@ -339,12 +339,25 @@ MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
 # No PostgreSQL enum by design — adding a pack must not require a migration.
 INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services")
 
-# Cost envelope for pack-generated client queries, deliberately matched to the
-# legacy ceiling (5 per category x 4 categories) so switching a client onto a
-# pack cannot silently multiply their scan bill. Placeholder fan-out is capped
-# separately: a clinic with 40 approved treatments must not turn one template
-# into 40 queries.
-MAX_PACK_QUERIES_PER_SCAN: Final = 20
+# Cost envelope for pack-generated client queries. Raised 20 -> 28 once packs
+# carried subcategory-scoped questions: at 20 a specialised client spent its
+# whole budget on the generic set plus two scoped questions, which is a thin
+# return on having a subcategory at all.
+#
+# This is a SPEND ceiling and nothing else. Two things it is deliberately NOT
+# coupled to, both of which have been mistaken for constraints on it:
+#   - Benchmark coverage bands count distinct TRACKED queries (the governed
+#     portfolio, joined via ScanQueryResult.tracked_query_id). Pack client
+#     queries leave that column NULL, so this number cannot move a client
+#     between cohorts.
+#   - MISINFORMATION_MAX_ROWS_PER_SCAN is independent, so raising this widens
+#     measurement without deepening accuracy detection.
+#
+# What it DOES move: 28 x enabled platforms calls per scan instead of 20, and
+# AI Citability's denominator, so packed clients' scores shift on the next
+# scan. Placeholder fan-out is capped separately, so a clinic with 40 approved
+# treatments still cannot turn one template into 40 queries.
+MAX_PACK_QUERIES_PER_SCAN: Final = 28
 MAX_PACK_VALUES_PER_PLACEHOLDER: Final = 3
 
 # --- Benchmark cohorts (Phase 6) ----------------------------------------------
