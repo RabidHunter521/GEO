@@ -1017,6 +1017,8 @@ export interface AuthorityCatalogItem {
   url_hint: string | null
   suggested_industries: string[]
   added: boolean
+  /** "core" when the client's industry pack names this as a priority asset. */
+  priority: "core" | "standard"
 }
 export interface AuthoritySuggestedDomain {
   domain: string
