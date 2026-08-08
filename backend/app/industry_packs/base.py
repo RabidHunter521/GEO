@@ -58,6 +58,10 @@ def finding_severity_for(risk_severity: str) -> str:
 ALLOWED_PLACEHOLDERS = frozenset({
     "brand", "service", "specialty", "city", "location", "area",
     "competitor", "industry", "cuisine", "dish", "occasion", "dietary", "problem",
+    # Education. Deliberately new names rather than overloading {service} and
+    # {specialty}: the templates then read correctly, and an existing pack has
+    # no programme.* facts so nothing about it changes.
+    "subject", "level",
 })
 # Placeholders that need a real location to expand. A template using one must
 # declare location_required, so a client with no location is skipped instead of

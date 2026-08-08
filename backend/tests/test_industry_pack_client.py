@@ -32,11 +32,11 @@ def _client(**overrides) -> Client:
     return Client(**fields)
 
 
-def test_supported_pack_keys_are_exactly_the_three_phase_four_packs():
+def test_supported_pack_keys_are_exactly_the_four_shipped_packs():
     # The registry (Task 2) asserts its own keys against this constant, so a
     # pack added in code without updating this tuple fails a test rather than
     # silently becoming unselectable.
-    assert INDUSTRY_PACK_KEYS == ("healthcare", "fnb", "local_services")
+    assert INDUSTRY_PACK_KEYS == ("healthcare", "fnb", "local_services", "education")
 
 
 def test_existing_clients_have_null_pack_fields(db):

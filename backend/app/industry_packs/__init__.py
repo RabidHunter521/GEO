@@ -8,5 +8,6 @@ from app.industry_packs import base, registry  # noqa: F401
 from app.industry_packs import healthcare  # noqa: F401  (registers on import)
 from app.industry_packs import fnb  # noqa: F401  (registers on import)
 from app.industry_packs import local_services  # noqa: F401  (registers on import)
+from app.industry_packs import education  # noqa: F401  (registers on import)
 
-__all__ = ["base", "registry", "healthcare", "fnb", "local_services"]
+__all__ = ["base", "registry", "healthcare", "fnb", "local_services", "education"]

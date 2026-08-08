@@ -57,7 +57,16 @@ def publish_cohort_for(db, pack, *, count=10, score=55.0, subcategory=None):
 
 
 def all_three_packs(db):
-    for pack in ("healthcare", "fnb", "local_services"):
+    """Publishes a cohort for every REQUIRED_PACKS entry.
+
+    `build_edition_payload` requires every pack in INDUSTRY_PACK_KEYS to clear
+    the privacy gate before any metric appears (see the module docstring on
+    `benchmark_publication_service.REQUIRED_PACKS`), so this helper must cover
+    all of them or every test using it gets an empty edition. Name predates the
+    education pack; kept as-is to avoid a ~30-callsite rename across this file
+    and test_api_public_benchmarks.py.
+    """
+    for pack in ("healthcare", "fnb", "local_services", "education"):
         publish_cohort_for(db, pack)
 
 
