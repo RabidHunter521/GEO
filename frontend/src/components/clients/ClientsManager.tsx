@@ -230,7 +230,7 @@ export function ClientsManager({ clients }: Props) {
         <div className="rounded-xl border border-dashed bg-card/50 py-16 text-center">
           <p className="font-display text-lg font-semibold">No clients yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add your first client, or scan a prospect to get started.
+            Add your first client, or add a prospect to get started.
           </p>
           <div className="mt-4 flex justify-center gap-2">
             <AddProspectButton />

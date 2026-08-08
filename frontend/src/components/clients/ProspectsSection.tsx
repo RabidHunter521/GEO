@@ -1,12 +1,13 @@
 // frontend/src/components/clients/ProspectsSection.tsx
 // Lightweight list of cold-outreach prospects, kept separate from the
-// portfolio grid. Each row offers the sendable view link, a one-click
+// portfolio grid. Prospects are added without scanning, so each row carries a
+// manual "Scan" action alongside the sendable view link, a one-click
 // "Convert to Client", and removal.
 "use client"
 
 import { useEffect, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowRight, Copy, Loader2, Trash2, UserCheck } from "lucide-react"
+import { ArrowRight, Copy, Loader2, Radar, Trash2, UserCheck } from "lucide-react"
 import { toast } from "sonner"
 import { copyToClipboard } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,7 @@ import {
 import {
   archiveClientsAction,
   convertProspectToClientAction,
+  triggerScanAction,
 } from "@/app/(admin)/clients/actions"
 import type { ClientListItem } from "@/types"
 
@@ -47,6 +49,17 @@ function ProspectRow({ prospect }: { prospect: ClientListItem }) {
     toast[ok ? "success" : "error"](
       ok ? "Link copied to clipboard" : "Couldn't copy — copy the link manually.",
     )
+  }
+
+  function handleScan() {
+    startTransition(async () => {
+      try {
+        await triggerScanAction(prospect.id)
+        toast.success(`Scan started for ${prospect.name}`)
+      } catch {
+        toast.error("Could not start the scan")
+      }
+    })
   }
 
   function handleConvert() {
@@ -95,10 +108,28 @@ function ProspectRow({ prospect }: { prospect: ClientListItem }) {
         ) : prospect.latest_scan_status === "failed" ? (
           <span className="text-xs text-destructive">Scan failed</span>
         ) : (
-          <span className="text-xs text-muted-foreground">No score yet</span>
+          <span className="text-xs text-muted-foreground">Not scanned yet</span>
         )}
 
-        {url && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleScan}
+          disabled={pending || scanning}
+          title="Run a scan for this prospect"
+        >
+          {pending ? (
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Radar className="mr-1 h-3.5 w-3.5" />
+          )}
+          {prospect.latest_overall_score !== null ? "Rescan" : "Scan"}
+        </Button>
+
+        {/* The share view is only worth sending once a scan has produced a
+            score — before that it would show the lead an empty report. */}
+        {url && prospect.latest_overall_score !== null && (
           <Button
             type="button"
             variant="outline"

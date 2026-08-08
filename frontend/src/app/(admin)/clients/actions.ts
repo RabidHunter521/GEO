@@ -29,8 +29,8 @@ export async function createClientAction(data: {
 }
 
 // Lightweight cold-outreach flow: create the prospect, optionally seed one
-// competitor, mint a share link, and kick off a scan in one shot — so the
-// prospect view is ready to screen-share in a sales call.
+// competitor, and mint a share link. Scanning is MANUAL — same as clients — so
+// leads can be added in bulk and only the promising ones cost a scan.
 export async function createProspectAction(data: {
   name: string
   website: string
@@ -44,14 +44,13 @@ export async function createProspectAction(data: {
     is_prospect: true,
     enabled_platforms: ["chatgpt", "perplexity"],
   })
-  // Seed the competitor (if given) BEFORE the scan fires so the scan runs its
-  // comparison queries — the competitor gap is the centrepiece of the call.
+  // Seed the competitor (if given) now so a later scan runs its comparison
+  // queries — the competitor gap is the centrepiece of the call.
   const competitor = data.competitor?.trim()
   if (competitor) {
     await apiAddCompetitor(client.id, { name: competitor })
   }
   const { share_token } = await apiGenerateShareToken(client.id)
-  await apiTriggerScan(client.id)
   revalidatePath("/clients")
   return { client, share_token }
 }

@@ -25,7 +25,7 @@ export function AddProspectButton() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Scan a Prospect</DialogTitle>
+            <DialogTitle>Add a Prospect</DialogTitle>
           </DialogHeader>
           <ProspectQuickForm onClose={() => setOpen(false)} />
         </DialogContent>
