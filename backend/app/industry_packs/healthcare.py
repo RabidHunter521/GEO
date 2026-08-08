@@ -154,7 +154,7 @@ _QUERY_TEMPLATES = (
         buyer_stage="decision", commercial_intent="high", location_required=True,
     ),
     QueryTemplate(
-        id="local_recommendation", template="Recommend a {specialty} clinic near {city}",
+        id="local_recommendation", template="Recommend a clinic for {specialty} near {city}",
         buyer_stage="decision", commercial_intent="high", location_required=True,
     ),
     QueryTemplate(
@@ -209,7 +209,7 @@ _QUERY_TEMPLATES = (
     ),
     QueryTemplate(
         id="specialist_referral",
-        template="Do I need a referral to see a {specialty} specialist at {brand}?",
+        template="Do I need a referral to see a specialist in {specialty} at {brand}?",
         buyer_stage="consideration", commercial_intent="high", location_required=False,
         subcategories=("specialist",),
     ),
