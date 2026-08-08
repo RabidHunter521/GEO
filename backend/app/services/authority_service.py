@@ -28,7 +28,35 @@ from app.services.url_safety import is_safe_crawl_url, safe_get
 
 logger = structlog.get_logger()
 
-CATALOG_BY_KEY: dict[str, dict] = {item["key"]: item for item in AUTHORITY_ASSET_CATALOG}
+def _pack_catalog_items() -> list[dict]:
+    """Every pack's authority targets, flattened into shared-catalog shape.
+
+    Packs register at import time (app/industry_packs/__init__), so importing
+    the registry here is enough to see all of them. Keys are validated globally
+    unique against AUTHORITY_ASSET_CATALOG by `validate_pack`, which is what
+    lets one namespace serve both.
+    """
+    from app.industry_packs import registry as pack_registry
+
+    return [
+        {
+            "key": target.key, "name": target.name, "type": target.asset_type,
+            "provenance_domain": target.provenance_domain,
+            "url_hint": target.url_hint, "suggested_industries": [],
+            "pack": pack.key,
+        }
+        for pack in pack_registry.all_packs()
+        for target in pack.authority_targets
+    ]
+
+
+# Shared catalog first, then every pack's own targets. `add_assets` resolves
+# through this, deliberately without checking the client's pack: over-
+# restricting would break a legitimate cross-industry add (a clinic café), and
+# the picker is admin-only.
+CATALOG_BY_KEY: dict[str, dict] = {
+    item["key"]: item for item in [*AUTHORITY_ASSET_CATALOG, *_pack_catalog_items()]
+}
 _TYPE_ORDER = {t: i for i, t in enumerate(AUTHORITY_ASSET_TYPES)}
 _STATUS_LABELS = {
     "missing": "missing", "in_progress": "in progress",
@@ -51,27 +79,50 @@ def _industry_match(item: dict, industry: str) -> bool:
 
 
 def get_catalog(client: Client, db: Session) -> list[dict]:
-    """Full master catalog with an `added` flag per item, industry-sorted.
+    """What this client's admin may add, ordered by what matters for them.
 
-    Matching-industry items float to the top; ties keep the catalog's type
-    order. Never auto-selects — the flag just tells the picker what to disable.
+    A packed client sees the shared catalog plus its OWN pack's targets, with
+    the pack's priority assets first in the pack's declared order. An unpacked
+    client — or one whose pack key is not registered — sees exactly the shared
+    catalog sorted by the old free-text industry hint, unchanged.
+
+    Never auto-selects: `added` only tells the picker what to disable, and
+    `priority` only drives ordering and a badge.
     """
+    from app.industry_packs import registry as pack_registry
+
+    pack = pack_registry.find_pack(getattr(client, "industry_pack", None))
+    priority_rank = {key: i for i, key in enumerate(pack.priority_asset_keys)} if pack else {}
+    pack_target_keys = {t.key for t in pack.authority_targets} if pack else set()
+
     added_keys = {
         r.asset_key
         for r in db.query(AuthorityAsset.asset_key)
         .filter(AuthorityAsset.client_id == client.id, AuthorityAsset.asset_key.isnot(None))
         .all()
     }
+    # Another pack's targets are not offered here: a clinic has no use for a
+    # GrabFood listing, and showing every pack's would make the picker noise.
+    visible = [
+        item for item in CATALOG_BY_KEY.values()
+        if item.get("pack") is None or item["key"] in pack_target_keys
+    ]
     items = [
         {
             "key": item["key"], "name": item["name"], "type": item["type"],
             "provenance_domain": item["provenance_domain"], "url_hint": item["url_hint"],
             "suggested_industries": item["suggested_industries"],
             "added": item["key"] in added_keys,
+            "priority": "core" if item["key"] in priority_rank else "standard",
         }
-        for item in AUTHORITY_ASSET_CATALOG
+        for item in visible
     ]
     items.sort(key=lambda i: (
+        # 0: pack priorities, in the order the pack declares them.
+        # 1: the pack's remaining own targets.
+        # 2: everything else, on the pre-pack industry-hint ordering.
+        priority_rank.get(i["key"], 10_000),
+        0 if i["key"] in pack_target_keys else 1,
         0 if _industry_match(i, client.industry) else 1,
         _TYPE_ORDER.get(i["type"], 99),
     ))
@@ -388,9 +439,12 @@ def seen_in_ai_sources_for(asset: AuthorityAsset, db: Session) -> int:
     return sum(n for domain, n in counts.items() if _domain_matches(domain, asset.provenance_domain))
 
 
+# Includes pack targets, deliberately across all packs: this maps a domain an
+# AI actually cited back to a one-click add, and a citation is evidence
+# regardless of which pack the client is on.
 _CATALOG_KEY_BY_DOMAIN: dict[str, str] = {
     item["provenance_domain"]: item["key"]
-    for item in AUTHORITY_ASSET_CATALOG
+    for item in CATALOG_BY_KEY.values()
     if item["provenance_domain"]
 }
 

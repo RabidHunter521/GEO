@@ -25,6 +25,10 @@ def _fake_client():
     m.country = "Malaysia"
     m.contact_email = "hello@acme.com"
     m.logo_url = "https://acme.com/logo.png"
+    # Explicit rather than left to MagicMock's auto-attribute: an unpacked
+    # client is the fallback path these tests are asserting.
+    m.industry_pack = None
+    m.industry_subcategory = None
     return m
 
 
@@ -212,13 +216,108 @@ def test_build_llms_full_txt_prompt_covers_extended_sections():
         assert required in prompt, required
 
 
-def test_build_schema_json_v5_adds_service_and_breadcrumb():
+def test_build_schema_json_v6_adds_service_and_breadcrumb():
     from app.prompts.toolkit import build_schema_json, SCHEMA_JSON_VERSION
     client = _fake_client()
     prompt = build_schema_json(client)
-    assert SCHEMA_JSON_VERSION == "v5"
+    assert SCHEMA_JSON_VERSION == "v6"
     assert "6 schemas" in prompt
     assert '"Service"' in prompt
     assert '"BreadcrumbList"' in prompt
     # existing types unchanged
     assert '"Organization"' in prompt and '"FAQPage"' in prompt and '"WebSite"' in prompt
+
+
+# ── pack-driven schema types ─────────────────────────────────────────────────
+#
+# schema.json is the one generated file the client publishes on their own site.
+# Before packs drove it, the @type came from keyword-matching free-text
+# `industry`, so a dental practice whose industry read "aesthetics" shipped
+# LocalBusiness. These assert the pack now wins.
+
+def _packed_client(pack: str, subcategory: str | None, industry: str = "aesthetics"):
+    client = _fake_client()
+    client.industry = industry
+    client.industry_pack = pack
+    client.industry_subcategory = subcategory
+    return client
+
+
+@pytest.mark.parametrize(
+    "pack,subcategory,expected",
+    [
+        ("healthcare", "dental", "Dentist"),
+        ("healthcare", "physiotherapy", "Physiotherapy"),
+        ("healthcare", "pharmacy", "Pharmacy"),
+        ("healthcare", "other_healthcare", "MedicalBusiness"),
+        ("fnb", "cafe", "CafeOrCoffeeShop"),
+        ("fnb", "quick_service", "FastFoodRestaurant"),
+        ("fnb", "catering", "FoodEstablishment"),
+        ("local_services", "automotive", "AutomotiveBusiness"),
+        ("local_services", "emergency_service", "LocalBusiness"),
+    ],
+)
+def test_pack_subcategory_drives_the_primary_schema_type(pack, subcategory, expected):
+    from app.prompts.toolkit import _schema_type_for
+
+    assert _schema_type_for(_packed_client(pack, subcategory)) == expected
+
+
+def test_pack_beats_the_industry_keyword_match():
+    """The whole point: "aesthetics" keyword-matches nothing and used to fall
+    through to LocalBusiness for a dental clinic."""
+    from app.prompts.toolkit import _schema_type_for
+
+    assert _schema_type_for(_packed_client("healthcare", "dental")) == "Dentist"
+
+
+def test_a_packed_client_with_no_subcategory_gets_the_pack_default():
+    from app.prompts.toolkit import _schema_type_for
+
+    assert _schema_type_for(_packed_client("fnb", None)) == "FoodEstablishment"
+
+
+def test_an_unpacked_client_still_uses_keyword_matching():
+    from app.prompts.toolkit import _schema_type_for
+
+    client = _fake_client()
+    client.industry = "Dental clinic"
+    assert _schema_type_for(client) == "Dentist"
+
+    client.industry = "Something unmatched"
+    assert _schema_type_for(client) == "LocalBusiness"
+
+
+def test_an_unregistered_pack_key_degrades_to_keyword_matching():
+    """A pack column set to a key whose module has not landed must not 500 the
+    toolkit — the same degradation rule the rest of the pack layer follows."""
+    from app.prompts.toolkit import _schema_type_for
+
+    client = _packed_client("retail", "whatever", industry="Bakery")
+    assert _schema_type_for(client) == "Bakery"
+
+
+def test_pack_schema_guidance_reaches_the_prompt():
+    from app.prompts.toolkit import build_schema_json
+
+    prompt = build_schema_json(_packed_client("fnb", "restaurant"))
+    assert "servesCuisine" in prompt
+    assert "hasMenu" in prompt
+    # The safety line matters most: wrong dietary markup is the worst thing
+    # this file can carry onto a live site.
+    assert "halal" in prompt.lower()
+
+
+def test_healthcare_guidance_forbids_publishing_practitioner_detail():
+    from app.prompts.toolkit import build_schema_json
+
+    prompt = build_schema_json(_packed_client("healthcare", "general_clinic"))
+    assert "MedicalClinic" in prompt
+    assert "Truth Vault review" in prompt
+
+
+def test_an_unpacked_client_gets_no_guidance_block():
+    from app.prompts.toolkit import build_schema_json
+
+    prompt = build_schema_json(_fake_client())
+    assert "Industry-specific rules" not in prompt

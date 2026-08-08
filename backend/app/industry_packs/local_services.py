@@ -19,9 +19,11 @@ adjudicate who holds a licence.
 """
 from app.industry_packs import registry
 from app.industry_packs.base import (
+    AuthorityTarget,
     IndustryPack,
     QueryTemplate,
     RiskRule,
+    SchemaProfile,
     TrustedSourceType,
     TruthFieldDefinition,
 )
@@ -275,6 +277,59 @@ _TRUSTED_SOURCES = (
     TrustedSourceType(key="reviewed_publication", label="Reviewed publication"),
 )
 
+# `emergency_service` deliberately keeps the LocalBusiness default. schema.org's
+# `EmergencyService` means fire/police/hospital, not a 24-hour locksmith, so
+# using it would be semantically wrong in a file the client publishes. 24/7
+# availability is expressed through opening hours instead — see the guidance.
+_SCHEMA = SchemaProfile(
+    default_type="LocalBusiness",
+    subcategory_types=(
+        ("home_maintenance", "HomeAndConstructionBusiness"),
+        ("automotive", "AutomotiveBusiness"),
+        ("beauty_wellness", "HealthAndBeautyBusiness"),
+        ("cleaning", "ProfessionalService"),
+        ("repair", "HomeAndConstructionBusiness"),
+        ("professional_local", "ProfessionalService"),
+    ),
+    guidance=(
+        "Add `areaServed` only from a location stated in the business details. "
+        "Coverage radius and service-area lists are reviewed facts — never "
+        "widen the area beyond what is given.",
+        "Express round-the-clock availability with an "
+        "`openingHoursSpecification` covering all seven days, not with a claim "
+        "in the description. Only do this when the details say so.",
+        "Do not emit any licence number, insurance, bonding, warranty or "
+        "guarantee property. Those are risk-sensitive facts and are published "
+        "only after Truth Vault review.",
+        "Service entries describe what the business does. Never state response "
+        "times, callout fees or price guarantees.",
+    ),
+)
+
+# Where a Malaysian buyer actually looks for a tradesperson. The generic
+# licence entry carries no domain because which register applies depends on the
+# trade and the country; the admin fills in the real one.
+_AUTHORITY_TARGETS = (
+    AuthorityTarget(
+        key="recommend_my", name="Recommend.my listing", asset_type="directory",
+        provenance_domain="recommend.my", url_hint="https://www.recommend.my/",
+    ),
+    AuthorityTarget(
+        key="mudah", name="Mudah.my listing", asset_type="directory",
+        provenance_domain="mudah.my", url_hint="https://www.mudah.my/",
+    ),
+    AuthorityTarget(
+        key="carousell", name="Carousell services listing", asset_type="directory",
+        provenance_domain="carousell.com.my", url_hint="https://www.carousell.com.my/",
+    ),
+    AuthorityTarget(
+        key="trade_licence_register", name="Trade licence or registration listing",
+        asset_type="directory", provenance_domain=None, url_hint=None,
+    ),
+)
+
+_PRIORITY_ASSETS = ("gbp", "recommend_my", "yellowpages_my", "facebook")
+
 LOCAL_SERVICES_PACK = IndustryPack(
     key="local_services",
     version="1.0.0",
@@ -288,6 +343,9 @@ LOCAL_SERVICES_PACK = IndustryPack(
     query_templates=_QUERY_TEMPLATES,
     risk_rules=_RISK_RULES,
     trusted_sources=_TRUSTED_SOURCES,
+    schema_profile=_SCHEMA,
+    authority_targets=_AUTHORITY_TARGETS,
+    priority_asset_keys=_PRIORITY_ASSETS,
 )
 
 registry.register(LOCAL_SERVICES_PACK)

@@ -12,6 +12,9 @@ class CatalogItem(BaseModel):
     url_hint: str | None
     suggested_industries: list[str]
     added: bool
+    # "core" when the client's industry pack names this asset as one that
+    # matters most for it; "standard" otherwise. Ordering + a badge only.
+    priority: str = "standard"
 
 
 class ReviewSnapshot(BaseModel):

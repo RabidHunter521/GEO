@@ -47,6 +47,11 @@ export function CatalogPicker({ catalog, onAdd, pending }: Props) {
             />
             <span>
               <span className="font-medium">{item.name}</span>
+              {item.priority === "core" && (
+                <span className="ml-1.5 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary align-middle">
+                  Core
+                </span>
+              )}
               <span className="block text-xs text-muted-foreground">{item.type.replace("_", " ")}</span>
             </span>
           </label>

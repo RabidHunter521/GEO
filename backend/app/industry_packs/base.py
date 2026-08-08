@@ -66,6 +66,11 @@ LOCATION_PLACEHOLDERS = frozenset({"city", "location", "area"})
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
+# schema.org types are PascalCase identifiers. Anything else — a space, a
+# hyphen, a stray trailing space — becomes an invalid @type in a JSON-LD file
+# the client publishes on their own site, where nothing of ours will catch it.
+_SCHEMA_TYPE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
+
 # A pack routes evidence to a human reviewer. It never adjudicates legality:
 # SeenBy is not a regulator and cannot substantiate a claim that a business is
 # breaking a rule. Instructions must describe what to CHECK, not what is true.
@@ -130,6 +135,51 @@ class TrustedSourceType:
 
 
 @dataclass(frozen=True)
+class SchemaProfile:
+    """Which schema.org type the AI Readiness Toolkit publishes for this pack.
+
+    This is the one pack axis whose output leaves our surfaces entirely: the
+    client copies `schema.json` onto their own site. The generator previously
+    keyword-matched free-text `client.industry` and fell back to
+    `LocalBusiness`, so a dental practice whose industry read "aesthetics" got
+    generic markup. The pack knows better and says so here.
+
+    `guidance` lines are appended verbatim to the schema prompt. Keep them about
+    STRUCTURE (which properties this business type should carry), never about
+    facts — the prompt's never-invent rules still govern content.
+    """
+
+    default_type: str
+    # (subcategory, schema.org type). A subcategory with no entry uses the
+    # default; a subcategory that does not exist on the pack is a typo and is
+    # rejected, because it would silently never match.
+    subcategory_types: tuple[tuple[str, str], ...] = ()
+    guidance: tuple[str, ...] = ()
+
+    def type_for(self, subcategory: str | None) -> str:
+        for key, schema_type in self.subcategory_types:
+            if key == subcategory:
+                return schema_type
+        return self.default_type
+
+
+@dataclass(frozen=True)
+class AuthorityTarget:
+    """An authority asset that only matters for this pack.
+
+    Merged into the shared AUTHORITY_ASSET_CATALOG so the picker, the add
+    resolver and the provenance-to-catalog mapping all see one namespace.
+    Keys must therefore be globally unique, which `validate_pack` enforces.
+    """
+
+    key: str
+    name: str
+    asset_type: str
+    provenance_domain: str | None = None
+    url_hint: str | None = None
+
+
+@dataclass(frozen=True)
 class IndustryPack:
     key: str
     version: str
@@ -144,6 +194,15 @@ class IndustryPack:
     query_templates: tuple[QueryTemplate, ...]
     risk_rules: tuple[RiskRule, ...]
     trusted_sources: tuple[TrustedSourceType, ...]
+    # Optional on the contract so the registry's fixture packs stay small; a
+    # test asserts every REGISTERED pack declares one, because a real pack
+    # without a profile publishes LocalBusiness for a dental clinic.
+    schema_profile: SchemaProfile | None = None
+    # Authority assets this pack adds to the shared catalog…
+    authority_targets: tuple[AuthorityTarget, ...] = ()
+    # …and the asset keys (shared or pack-added) that matter most for it, which
+    # is what floats them to the top of the admin's picker.
+    priority_asset_keys: tuple[str, ...] = ()
 
 
 def placeholders_in(template: str) -> set[str]:
@@ -231,6 +290,76 @@ def validate_pack(pack: IndustryPack) -> None:
     declared_pairs = {(f.fact_type, f.key) for f in pack.truth_fields}
     for rule in pack.risk_rules:
         _validate_risk_rule(pack.key, rule, declared_types, declared_pairs)
+
+    if pack.schema_profile is not None:
+        _validate_schema_profile(pack.key, pack.schema_profile, set(pack.subcategories))
+    _validate_authority(pack)
+
+
+def _validate_schema_profile(
+    pack_key: str, profile: SchemaProfile, subcategories: set[str]
+) -> None:
+    if not profile.default_type.strip():
+        raise ValueError(f"pack {pack_key}: schema profile needs a default_type")
+
+    _reject_duplicates(
+        [sub for sub, _ in profile.subcategory_types],
+        f"pack {pack_key}: duplicate schema override for subcategory",
+    )
+    for schema_type in [profile.default_type, *(t for _, t in profile.subcategory_types)]:
+        if not _SCHEMA_TYPE.match(schema_type):
+            raise ValueError(
+                f"pack {pack_key}: {schema_type!r} is not a valid schema.org type "
+                "(expected a PascalCase identifier such as 'MedicalClinic')"
+            )
+    for sub, _ in profile.subcategory_types:
+        if sub not in subcategories:
+            raise ValueError(
+                f"pack {pack_key}: schema override names {sub!r}, but the pack "
+                "declares no subcategory by that name, so it could never match"
+            )
+
+
+def _validate_authority(pack: IndustryPack) -> None:
+    """Pack authority targets share one key namespace with the global catalog.
+
+    Imported here rather than at module scope for the same reason as
+    INDUSTRY_PACK_KEYS above: `base` must stay importable without app config.
+    """
+    from app.core.constants import AUTHORITY_ASSET_CATALOG, AUTHORITY_ASSET_TYPES
+
+    shared_keys = {item["key"] for item in AUTHORITY_ASSET_CATALOG}
+
+    _reject_duplicates(
+        [t.key for t in pack.authority_targets],
+        f"pack {pack.key}: duplicate authority target",
+    )
+    for target in pack.authority_targets:
+        if target.key in shared_keys:
+            raise ValueError(
+                f"pack {pack.key}: authority target {target.key!r} is already in the "
+                "shared authority catalog; use priority_asset_keys to promote it instead"
+            )
+        if not target.name.strip():
+            raise ValueError(
+                f"pack {pack.key}: authority target {target.key!r} needs a name"
+            )
+        if target.asset_type not in AUTHORITY_ASSET_TYPES:
+            raise ValueError(
+                f"pack {pack.key}: authority target {target.key!r} has unsupported "
+                f"asset_type {target.asset_type!r}; expected one of {AUTHORITY_ASSET_TYPES}"
+            )
+
+    _reject_duplicates(
+        list(pack.priority_asset_keys),
+        f"pack {pack.key}: duplicate priority authority asset",
+    )
+    known = shared_keys | {t.key for t in pack.authority_targets}
+    for key in pack.priority_asset_keys:
+        if key not in known:
+            raise ValueError(
+                f"pack {pack.key}: priority list names unknown authority asset {key!r}"
+            )
 
 
 def _validate_template(pack_key: str, template: QueryTemplate) -> None:

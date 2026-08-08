@@ -15,9 +15,11 @@ SeenBy observes what AI systems say about a venue; it does not certify anyone.
 """
 from app.industry_packs import registry
 from app.industry_packs.base import (
+    AuthorityTarget,
     IndustryPack,
     QueryTemplate,
     RiskRule,
+    SchemaProfile,
     TrustedSourceType,
     TruthFieldDefinition,
 )
@@ -301,6 +303,54 @@ _TRUSTED_SOURCES = (
     TrustedSourceType(key="reviewed_publication", label="Reviewed publication"),
 )
 
+# `catering`, `food_delivery` and `other_fnb` deliberately have no override:
+# schema.org has no type that fits them better than FoodEstablishment, and
+# inventing a closer-sounding one would put an invalid @type on a client's site.
+_SCHEMA = SchemaProfile(
+    default_type="FoodEstablishment",
+    subcategory_types=(
+        ("restaurant", "Restaurant"),
+        ("cafe", "CafeOrCoffeeShop"),
+        ("bakery", "Bakery"),
+        ("bar", "BarOrPub"),
+        ("quick_service", "FastFoodRestaurant"),
+    ),
+    guidance=(
+        "Add `servesCuisine` only when the description names the cuisine "
+        "outright.",
+        "Add `hasMenu` only with a real menu URL on the business's own domain. "
+        "Never invent a menu path, and never inline menu items or prices.",
+        "Do not emit halal, vegetarian, vegan, allergen or any other dietary "
+        "property. Those are risk-sensitive facts requiring an approved source, "
+        "and wrong dietary markup is the most harmful error this file can carry.",
+        "Add `acceptsReservations` only when the description states it.",
+    ),
+)
+
+# Delivery marketplaces are listed as directories: they are where a buyer finds
+# the outlet, which is what the authority checklist tracks. The catalog already
+# carries the platform-neutral entries (GBP, Facebook, Instagram).
+_AUTHORITY_TARGETS = (
+    AuthorityTarget(
+        key="tripadvisor", name="TripAdvisor listing", asset_type="review_platform",
+        provenance_domain="tripadvisor.com", url_hint="https://www.tripadvisor.com/",
+    ),
+    AuthorityTarget(
+        key="foodpanda", name="Foodpanda merchant listing", asset_type="directory",
+        provenance_domain="foodpanda.my", url_hint="https://www.foodpanda.my/",
+    ),
+    AuthorityTarget(
+        key="grabfood", name="GrabFood merchant listing", asset_type="directory",
+        provenance_domain="grab.com", url_hint="https://food.grab.com/my/en/",
+    ),
+    AuthorityTarget(
+        key="burpple", name="Burpple listing", asset_type="review_platform",
+        provenance_domain="burpple.com", url_hint="https://www.burpple.com/",
+    ),
+)
+
+_PRIORITY_ASSETS = ("gbp", "tripadvisor", "foodpanda", "instagram")
+
 FNB_PACK = IndustryPack(
     key="fnb",
     version="1.0.0",
@@ -314,6 +364,9 @@ FNB_PACK = IndustryPack(
     query_templates=_QUERY_TEMPLATES,
     risk_rules=_RISK_RULES,
     trusted_sources=_TRUSTED_SOURCES,
+    schema_profile=_SCHEMA,
+    authority_targets=_AUTHORITY_TARGETS,
+    priority_asset_keys=_PRIORITY_ASSETS,
 )
 
 registry.register(FNB_PACK)

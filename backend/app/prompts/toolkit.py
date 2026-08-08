@@ -9,10 +9,17 @@ LLMS_FULL_TXT_VERSION = "v1"
 # v4: feed logo_url as logo/image; drop the WordPress-only SearchAction; stop
 # emitting hallucinated sameAs URLs into the published file.
 # v5: add Service (one per main service) + BreadcrumbList to the @graph.
-SCHEMA_JSON_VERSION = "v5"
+# v6: the primary @type and a block of structural rules now come from the
+# client's industry pack + subcategory when it has one, instead of always
+# keyword-matching free-text industry.
+SCHEMA_JSON_VERSION = "v6"
 
 # Maps common industry keywords → the most specific schema.org type.
 # Checked in order; first match wins. Falls back to LocalBusiness.
+#
+# This is now the FALLBACK, used for clients with no industry pack. A packed
+# client's type comes from its pack, which knows the business type as a fact
+# rather than guessing it from a free-text string.
 _INDUSTRY_SCHEMA_TYPES: list[tuple[str, str]] = [
     ("dental", "Dentist"),
     ("dentist", "Dentist"),
@@ -57,12 +64,52 @@ _INDUSTRY_SCHEMA_TYPES: list[tuple[str, str]] = [
 ]
 
 
-def _schema_type_for(industry: str) -> str:
-    lower = industry.lower()
+def _pack_schema_profile(client: Client):
+    """The client's pack schema profile, or None.
+
+    Degrades to None for an unpacked client, an unregistered pack key, or a
+    pack that declares no profile — the toolkit must never 500 because of a
+    pack column, the same rule the rest of the pack layer follows.
+    """
+    from app.industry_packs import registry as pack_registry
+
+    key = getattr(client, "industry_pack", None)
+    pack = pack_registry.find_pack(key if isinstance(key, str) else None)
+    return pack.schema_profile if pack else None
+
+
+def _schema_type_for(client: Client) -> str:
+    """The primary schema.org @type for the generated JSON-LD file.
+
+    Pack first: it knows the business type as a reviewed selection. Free-text
+    keyword matching only runs when there is no pack to ask.
+    """
+    profile = _pack_schema_profile(client)
+    if profile is not None:
+        subcategory = getattr(client, "industry_subcategory", None)
+        return profile.type_for(subcategory if isinstance(subcategory, str) else None)
+
+    lower = (client.industry or "").lower()
     for keyword, schema_type in _INDUSTRY_SCHEMA_TYPES:
         if keyword in lower:
             return schema_type
     return "LocalBusiness"
+
+
+def _pack_schema_guidance(client: Client) -> str:
+    """Pack structural rules appended to the schema prompt.
+
+    Deliberately about STRUCTURE — which properties this business type should
+    and must not carry. The prompt's never-invent rules still govern content,
+    and several of these lines exist to stop the model publishing a
+    risk-sensitive claim (a credential, a halal status, a licence number) that
+    has not been through Truth Vault review.
+    """
+    profile = _pack_schema_profile(client)
+    if profile is None or not profile.guidance:
+        return ""
+    lines = "\n".join(f"- {line}" for line in profile.guidance)
+    return f"\n\nIndustry-specific rules (these override the generic guidance above):\n{lines}"
 
 
 def _key_pages_block(page_urls: list[str] | None) -> str:
@@ -214,7 +261,8 @@ Rules:
 
 
 def build_schema_json(client: Client) -> str:
-    schema_type = _schema_type_for(client.industry)
+    schema_type = _schema_type_for(client)
+    pack_guidance = _pack_schema_guidance(client)
     location = ", ".join(p for p in [client.city, client.state, client.country] if p)
     has_logo = bool(client.logo_url)
 
@@ -277,7 +325,7 @@ Schema 6 — BreadcrumbList:
   @id: "{client.website}/#breadcrumbs"
   itemListElement: exactly 2 ListItem entries:
     position 1: name "Home", item "{client.website}"
-    position 2: name "Services", item "{client.website}/services"
+    position 2: name "Services", item "{client.website}/services"{pack_guidance}
 
 ---
 

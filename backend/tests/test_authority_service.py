@@ -1,10 +1,11 @@
 """authority_service — catalog, CRUD (spec §4, §10). Real db fixture."""
 
 
-def _make_client(db, industry="Dental clinic"):
+def _make_client(db, industry="Dental clinic", pack=None, subcategory=None):
     from app.models.client import Client
     c = Client(name="Acme Dental", website="https://acme.com",
-               industry=industry, contact_email="hello@acme.com")
+               industry=industry, contact_email="hello@acme.com",
+               industry_pack=pack, industry_subcategory=subcategory)
     db.add(c)
     db.commit()
     return c
@@ -27,6 +28,92 @@ def test_catalog_sorts_industry_matches_first(db):
     # ahead of an item with no industry hint.
     keys = [i["key"] for i in catalog]
     assert keys.index("myhealth_clinic") < keys.index("linkedin")
+
+
+# ── pack-driven authority targets ────────────────────────────────────────────
+#
+# A dental practice and a mamak used to be offered the identical directory
+# menu, sorted by whether free-text industry happened to contain a hint word.
+# A packed client now gets its pack's own targets, with the ones that matter
+# most for that industry at the top.
+
+def test_an_unpacked_client_sees_only_the_shared_catalog(db):
+    from app.core.constants import AUTHORITY_ASSET_CATALOG
+    from app.services import authority_service
+
+    catalog = authority_service.get_catalog(_make_client(db), db)
+    assert len(catalog) == len(AUTHORITY_ASSET_CATALOG)
+    assert all(item["priority"] == "standard" for item in catalog)
+
+
+def test_a_packed_client_also_sees_its_pack_targets(db):
+    from app.industry_packs import registry
+    from app.services import authority_service
+
+    client = _make_client(db, pack="healthcare", subcategory="dental")
+    keys = [i["key"] for i in authority_service.get_catalog(client, db)]
+    for target in registry.get_pack("healthcare").authority_targets:
+        assert target.key in keys, target.key
+
+
+def test_a_packed_client_does_not_see_another_packs_targets(db):
+    from app.services import authority_service
+
+    client = _make_client(db, pack="healthcare", subcategory="dental")
+    keys = [i["key"] for i in authority_service.get_catalog(client, db)]
+    assert "foodpanda" not in keys
+    assert "recommend_my" not in keys
+
+
+def test_pack_priority_assets_sort_to_the_top_in_declared_order(db):
+    from app.industry_packs import registry
+    from app.services import authority_service
+
+    client = _make_client(db, industry="Restaurant", pack="fnb", subcategory="restaurant")
+    keys = [i["key"] for i in authority_service.get_catalog(client, db)]
+    expected = list(registry.get_pack("fnb").priority_asset_keys)
+    assert keys[: len(expected)] == expected
+
+
+def test_priority_assets_are_flagged_core(db):
+    from app.services import authority_service
+
+    client = _make_client(db, pack="fnb", subcategory="cafe")
+    by_key = {i["key"]: i for i in authority_service.get_catalog(client, db)}
+    assert by_key["foodpanda"]["priority"] == "core"
+    assert by_key["gbp"]["priority"] == "core"
+    assert by_key["burpple"]["priority"] == "standard"
+
+
+def test_a_pack_target_can_be_added_as_an_asset(db):
+    """The picker offering an item the add resolver rejects would be a dead
+    checkbox."""
+    from app.services import authority_service
+
+    client = _make_client(db, pack="local_services", subcategory="home_maintenance")
+    rows = authority_service.add_assets(client, [{"asset_key": "recommend_my"}], db)
+    assert len(rows) == 1
+    assert rows[0].name == "Recommend.my listing"
+    assert rows[0].asset_type == "directory"
+    assert rows[0].provenance_domain == "recommend.my"
+
+
+def test_an_unregistered_pack_key_degrades_to_the_shared_catalog(db):
+    from app.core.constants import AUTHORITY_ASSET_CATALOG
+    from app.services import authority_service
+
+    client = _make_client(db, pack="retail")
+    catalog = authority_service.get_catalog(client, db)
+    assert len(catalog) == len(AUTHORITY_ASSET_CATALOG)
+
+
+def test_pack_target_domains_map_back_to_their_catalog_key():
+    """suggested_next turns a cited domain into a one-click add; a pack domain
+    that mapped to nothing would show the domain with no action."""
+    from app.services import authority_service
+
+    assert authority_service._CATALOG_KEY_BY_DOMAIN["foodpanda.my"] == "foodpanda"
+    assert authority_service._CATALOG_KEY_BY_DOMAIN["recommend.my"] == "recommend_my"
 
 
 def test_add_selected_catalog_keys_creates_exactly_those(db):
