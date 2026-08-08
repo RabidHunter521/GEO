@@ -14,9 +14,11 @@ enforces this, so it cannot drift.
 """
 from app.industry_packs import registry
 from app.industry_packs.base import (
+    AuthorityTarget,
     IndustryPack,
     QueryTemplate,
     RiskRule,
+    SchemaProfile,
     TrustedSourceType,
     TruthFieldDefinition,
 )
@@ -270,6 +272,62 @@ _TRUSTED_SOURCES = (
     TrustedSourceType(key="reviewed_publication", label="Reviewed publication"),
 )
 
+# Every type below is a real schema.org MedicalBusiness/MedicalOrganization
+# subtype. `aesthetic` maps to MedicalClinic rather than HealthAndBeautyBusiness
+# because an aesthetic practice with registered practitioners is a clinic; the
+# beauty type sits under LocalBusiness and would drop the medical semantics.
+_SCHEMA = SchemaProfile(
+    default_type="MedicalBusiness",
+    subcategory_types=(
+        ("general_clinic", "MedicalClinic"),
+        ("dental", "Dentist"),
+        ("specialist", "Physician"),
+        ("aesthetic", "MedicalClinic"),
+        ("physiotherapy", "Physiotherapy"),
+        ("diagnostics", "DiagnosticLab"),
+        ("pharmacy", "Pharmacy"),
+    ),
+    guidance=(
+        "Add `medicalSpecialty` to the primary business entry only when the "
+        "description states a specialty outright. Do not infer one.",
+        "Do not emit `employee`, `Physician` or any named-practitioner entry. "
+        "Practitioner names, qualifications and registration numbers are "
+        "risk-sensitive facts and are published only after Truth Vault review.",
+        "Do not emit `priceRange` or any price property. Treatment pricing is "
+        "a reviewed fact and belongs nowhere in generated markup.",
+        "Service entries describe treatments offered. Never state or imply an "
+        "outcome, success rate or recovery time.",
+    ),
+)
+
+# Deliberately generic where a register is country-specific: the pack works
+# outside Malaysia, so "Professional register profile" carries no domain and the
+# admin fills in the real one. MyHEALTH already exists in the shared catalog.
+_AUTHORITY_TARGETS = (
+    AuthorityTarget(
+        key="medical_register", name="Professional register profile",
+        asset_type="directory", provenance_domain=None, url_hint=None,
+    ),
+    AuthorityTarget(
+        key="doctoroncall", name="DoctorOnCall listing", asset_type="directory",
+        provenance_domain="doctoroncall.com.my", url_hint="https://www.doctoroncall.com.my/",
+    ),
+    AuthorityTarget(
+        key="bookdoc", name="BookDoc listing", asset_type="directory",
+        provenance_domain="bookdoc.com", url_hint="https://www.bookdoc.com/",
+    ),
+    AuthorityTarget(
+        key="whatclinic", name="WhatClinic listing", asset_type="directory",
+        provenance_domain="whatclinic.com", url_hint="https://www.whatclinic.com/",
+    ),
+    AuthorityTarget(
+        key="insurer_panel", name="Insurance panel listing", asset_type="directory",
+        provenance_domain=None, url_hint=None,
+    ),
+)
+
+_PRIORITY_ASSETS = ("gbp", "myhealth_clinic", "medical_register", "doctoroncall")
+
 HEALTHCARE_PACK = IndustryPack(
     key="healthcare",
     version="1.0.0",
@@ -283,6 +341,9 @@ HEALTHCARE_PACK = IndustryPack(
     query_templates=_QUERY_TEMPLATES,
     risk_rules=_RISK_RULES,
     trusted_sources=_TRUSTED_SOURCES,
+    schema_profile=_SCHEMA,
+    authority_targets=_AUTHORITY_TARGETS,
+    priority_asset_keys=_PRIORITY_ASSETS,
 )
 
 registry.register(HEALTHCARE_PACK)

@@ -16,9 +16,11 @@ import pytest
 
 from app.core.constants import INDUSTRY_PACK_KEYS
 from app.industry_packs.base import (
+    AuthorityTarget,
     IndustryPack,
     QueryTemplate,
     RiskRule,
+    SchemaProfile,
     TrustedSourceType,
     TruthFieldDefinition,
     validate_pack,
@@ -62,6 +64,29 @@ def _rule(id="credentials", **kw) -> RiskRule:
     )
 
 
+def _schema(**kw) -> SchemaProfile:
+    return dataclasses.replace(
+        SchemaProfile(
+            default_type="MedicalBusiness",
+            subcategory_types=(("dental", "Dentist"),),
+        ),
+        **kw,
+    )
+
+
+def _target(key="mmc_register", **kw) -> AuthorityTarget:
+    return dataclasses.replace(
+        AuthorityTarget(
+            key=key,
+            name="Professional register profile",
+            asset_type="directory",
+            provenance_domain="mmc.gov.my",
+            url_hint="https://mmc.gov.my/",
+        ),
+        **kw,
+    )
+
+
 def _pack(**kw) -> IndustryPack:
     base = IndustryPack(
         key="healthcare",
@@ -81,7 +106,10 @@ def _pack(**kw) -> IndustryPack:
 
 @pytest.mark.parametrize(
     "obj",
-    [_pack(), _field(), _template(), _rule(), TrustedSourceType(key="x", label="X")],
+    [
+        _pack(), _field(), _template(), _rule(), _schema(), _target(),
+        TrustedSourceType(key="x", label="X"),
+    ],
 )
 def test_pack_definitions_are_frozen(obj):
     """Definitions are returned by reference; a mutable one would let a scan
@@ -273,6 +301,120 @@ def test_unmapped_severity_raises_instead_of_being_dropped():
 
     with pytest.raises(ValueError, match="unmapped pack risk severity"):
         finding_severity_for("catastrophic")
+
+
+# --- schema profile ---------------------------------------------------------
+#
+# The toolkit's schema.json is a file the client PUBLISHES. A wrong @type is not
+# a cosmetic slip: it is wrong structured data on their live site, emitted under
+# our name. These tests keep the pack from being the thing that gets it wrong.
+
+def test_schema_profile_is_optional():
+    """An unpacked client still falls back to keyword matching."""
+    assert validate_pack(_pack(schema_profile=None)) is None
+
+
+def test_schema_default_type_is_required():
+    with pytest.raises(ValueError, match="default_type"):
+        validate_pack(_pack(schema_profile=_schema(default_type="  ")))
+
+
+@pytest.mark.parametrize("bad", ["medical business", "Medical-Business", "1Dentist", "Dentist "])
+def test_schema_types_must_look_like_schema_org_types(bad):
+    """schema.org types are PascalCase identifiers; anything else lands in a
+    published JSON-LD file as an invalid @type."""
+    with pytest.raises(ValueError, match="schema.org type"):
+        validate_pack(_pack(schema_profile=_schema(default_type=bad)))
+
+
+def test_schema_subcategory_override_must_name_a_real_subcategory():
+    """A typo'd subcategory never matches, so the pack silently keeps handing
+    every client the default type while looking specialised."""
+    with pytest.raises(ValueError, match="no subcategory"):
+        validate_pack(
+            _pack(schema_profile=_schema(subcategory_types=(("dentl", "Dentist"),)))
+        )
+
+
+def test_schema_subcategory_overrides_must_be_unique():
+    with pytest.raises(ValueError, match="duplicate schema override"):
+        validate_pack(
+            _pack(
+                schema_profile=_schema(
+                    subcategory_types=(("dental", "Dentist"), ("dental", "MedicalClinic")),
+                )
+            )
+        )
+
+
+def test_schema_type_for_prefers_the_subcategory():
+    profile = _schema()
+    assert profile.type_for("dental") == "Dentist"
+    assert profile.type_for("general_clinic") == "MedicalBusiness"
+    assert profile.type_for(None) == "MedicalBusiness"
+
+
+# --- authority targets ------------------------------------------------------
+
+def test_authority_target_key_may_not_shadow_the_global_catalog():
+    """A pack target reusing a global key would make two different rows answer
+    to one key, and add_assets resolves keys through a single lookup."""
+    with pytest.raises(ValueError, match="already in the shared authority catalog"):
+        validate_pack(_pack(authority_targets=(_target(key="gbp"),)))
+
+
+def test_authority_target_keys_must_be_unique_within_a_pack():
+    with pytest.raises(ValueError, match="duplicate authority target"):
+        validate_pack(_pack(authority_targets=(_target(), _target())))
+
+
+def test_authority_target_type_must_be_a_supported_asset_type():
+    with pytest.raises(ValueError, match="asset_type"):
+        validate_pack(_pack(authority_targets=(_target(asset_type="register"),)))
+
+
+def test_authority_target_needs_a_name():
+    with pytest.raises(ValueError, match="name"):
+        validate_pack(_pack(authority_targets=(_target(name="  "),)))
+
+
+def test_priority_asset_key_must_exist_somewhere():
+    """Either in the shared catalog or among this pack's own targets. A key
+    matching neither sorts nothing and is a silent typo."""
+    with pytest.raises(ValueError, match="unknown authority asset"):
+        validate_pack(_pack(priority_asset_keys=("gbp", "not_a_real_key")))
+
+
+def test_priority_asset_key_may_name_a_pack_target():
+    pack = _pack(authority_targets=(_target(),), priority_asset_keys=("mmc_register", "gbp"))
+    assert validate_pack(pack) is None
+
+
+def test_priority_asset_keys_must_be_unique():
+    with pytest.raises(ValueError, match="duplicate priority"):
+        validate_pack(_pack(priority_asset_keys=("gbp", "gbp")))
+
+
+# --- the real packs ---------------------------------------------------------
+
+def test_every_registered_pack_declares_a_schema_profile():
+    """Optional on the contract so fixtures stay small, mandatory in practice —
+    a real pack without one publishes LocalBusiness for a dental clinic."""
+    missing = [p.key for p in registry.all_packs() if p.schema_profile is None]
+    assert not missing, f"packs with no schema profile: {missing}"
+
+
+def test_every_registered_pack_covers_every_subcategory_with_a_schema_type():
+    """A subcategory falling through to the pack default is fine; a subcategory
+    the pack never considered is how `physiotherapy` ends up as a Dentist."""
+    for pack in registry.all_packs():
+        for sub in pack.subcategories:
+            assert pack.schema_profile.type_for(sub), f"{pack.key}.{sub} resolves to nothing"
+
+
+def test_every_registered_pack_declares_priority_authority_targets():
+    thin = [p.key for p in registry.all_packs() if len(p.priority_asset_keys) < 2]
+    assert not thin, f"packs with too few priority authority assets: {thin}"
 
 
 # --- registry lookup --------------------------------------------------------
