@@ -109,10 +109,13 @@ def build_pack_queries(
     facts = list(facts)
     active_locations = [loc for loc in locations if getattr(loc, "active", True)]
     scopes = _location_scopes(client, active_locations)
+    subcategory = getattr(client, "industry_subcategory", None)
 
     built: list[dict] = []
     seen: set[str] = set()
     for template in pack.query_templates:
+        if not _applies_to(template, subcategory):
+            continue
         for scope in scopes:
             built.extend(
                 _expand(template, pack, client, scope, facts, competitors, seen)
@@ -122,11 +125,30 @@ def build_pack_queries(
         key=lambda q: (
             _INTENT_RANK.get(q["commercial_intent"], 9),
             _STAGE_RANK.get(q["buyer_stage"], 9),
+            # Specialisation has to survive the cap or it is decoration. Two
+            # queries of equal intent and stage are not equally useful: the one
+            # written for this exact kind of business is the whole reason the
+            # subcategory exists, so it takes the slot.
+            0 if q["subcategory_specific"] else 1,
             q["template_id"],
             q["query_text"],
         )
     )
     return built[:MAX_PACK_QUERIES_PER_SCAN]
+
+
+def _applies_to(template: QueryTemplate, subcategory: str | None) -> bool:
+    """Whether this template is built for a client of `subcategory`.
+
+    An unscoped template applies to everyone. A scoped one applies only to the
+    subcategories it names, so a client with no subcategory — or one the pack
+    does not recognise — is measured on the generic set. Falling back to "all
+    scoped templates" instead would ask a dental practice whether it needs a
+    doctor's referral AND whether to fast beforehand.
+    """
+    if not template.subcategories:
+        return True
+    return isinstance(subcategory, str) and subcategory in template.subcategories
 
 
 @dataclass(frozen=True)
@@ -206,6 +228,7 @@ def _expand(
             "buyer_stage": template.buyer_stage,
             "commercial_intent": template.commercial_intent,
             "location_id": scope.location_id,
+            "subcategory_specific": bool(template.subcategories),
         })
     return rows
 

@@ -179,6 +179,65 @@ _QUERY_TEMPLATES = (
         id="booking", template="How do I book {brand}?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
     ),
+
+    # --- subcategory-specific -------------------------------------------------
+    # A 24-hour locksmith, a salon and a bookkeeper share almost no buyer
+    # question beyond "who covers my area". Anchored to {brand} or a location
+    # placeholder so they land in the brand/local categories rather than paying
+    # for position extraction on a yes/no answer.
+    QueryTemplate(
+        id="home_free_quote", template="Does {brand} give free quotes for {service}?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("home_maintenance",),
+    ),
+    QueryTemplate(
+        id="auto_courtesy_car", template="Does {brand} provide a courtesy car?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("automotive",),
+    ),
+    QueryTemplate(
+        id="auto_wait_on_site", template="Can I wait while {brand} does {service}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("automotive",),
+    ),
+    QueryTemplate(
+        id="beauty_walk_ins", template="Does {brand} take walk-ins for {service}?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("beauty_wellness",),
+    ),
+    QueryTemplate(
+        id="cleaning_supplies_included",
+        template="Does {brand} bring its own cleaning supplies?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("cleaning",),
+    ),
+    QueryTemplate(
+        id="cleaning_frequency",
+        template="How often should I book {service} from {brand}?",
+        buyer_stage="consideration", commercial_intent="low", location_required=False,
+        subcategories=("cleaning",),
+    ),
+    QueryTemplate(
+        id="repair_scope", template="Does {brand} repair {problem}?",
+        buyer_stage="consideration", commercial_intent="high", location_required=False,
+        subcategories=("repair",),
+    ),
+    QueryTemplate(
+        id="emergency_24h", template="Is there a 24 hour {industry} in {city}?",
+        buyer_stage="decision", commercial_intent="high", location_required=True,
+        subcategories=("emergency_service",),
+    ),
+    QueryTemplate(
+        id="emergency_response_time", template="How fast can {brand} get here?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("emergency_service",),
+    ),
+    QueryTemplate(
+        id="professional_free_consult",
+        template="Does {brand} offer a free first consultation?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("professional_local",),
+    ),
 )
 
 _RISK_RULES = (
