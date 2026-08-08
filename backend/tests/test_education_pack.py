@@ -133,9 +133,22 @@ def test_schema_guidance_prefers_course_over_service():
 
 
 def test_schema_guidance_forbids_publishing_risk_sensitive_claims():
-    guidance = " ".join(EDUCATION_PACK.schema_profile.guidance).lower()
+    """This guidance goes verbatim into the prompt that generates the
+    client's live schema.json. Mentioning "accreditation" is not enough — a
+    line reading "emit accreditation bodies" would pass a substring check
+    while telling the AI to do the opposite of what this pack requires.
+    Each risk-sensitive topic must appear inside a sentence that actually
+    prohibits emitting it.
+    """
+    guidance_lines = [line.lower() for line in EDUCATION_PACK.schema_profile.guidance]
+    prohibition_markers = ("do not emit", "do not")
     for forbidden in ("accreditation", "teacher", "results", "fee"):
-        assert forbidden in guidance, forbidden
+        matching_lines = [line for line in guidance_lines if forbidden in line]
+        assert matching_lines, forbidden
+        assert any(
+            any(marker in line for marker in prohibition_markers)
+            for line in matching_lines
+        ), f"no prohibition sentence found for {forbidden!r}: {matching_lines}"
 
 
 def test_every_subcategory_has_scoped_queries_except_other():
@@ -159,6 +172,17 @@ def test_scoped_queries_are_anchored():
             continue
         used = placeholders_in(template.template)
         assert used & {"brand", "city", "area", "location"}, template.id
+
+
+def test_no_query_presumes_the_school_is_the_answer():
+    """Templates are buyer questions, not leading questions; a template naming
+    the brand inside a "best" or "recommend" question would manufacture the
+    very visibility the scan is supposed to measure — asking an AI "is {brand}
+    the best school?" is not a measurement."""
+    for q in EDUCATION_PACK.query_templates:
+        lowered = q.template.lower()
+        if "best" in lowered or "recommend" in lowered:
+            assert "{brand}" not in q.template, q.id
 
 
 def test_authority_targets_and_priorities():

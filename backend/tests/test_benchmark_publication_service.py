@@ -117,9 +117,17 @@ def test_payload_excludes_small_market_cuts(db):
 
 def test_a_metric_missing_from_one_pack_is_excluded_entirely(db):
     """An index covering healthcare but silently omitting F&B invites the
-    reader to assume the omission means zero."""
+    reader to assume the omission means zero.
+
+    All REQUIRED_PACKS other than the deliberately-thin one must clear the
+    contributor floor, or the assertion below would also pass with that floor
+    deleted — the exclusion would then be fully explained by the missing
+    education cohort instead of by local_services' low count, and the test
+    would no longer prove what it claims to.
+    """
     publish_cohort_for(db, "healthcare")
     publish_cohort_for(db, "fnb")
+    publish_cohort_for(db, "education")
     # local_services never reaches the threshold.
     publish_cohort_for(db, "local_services", count=4)
 
