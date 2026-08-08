@@ -76,7 +76,7 @@ structurally from every pack so far:
   claim, in any property or in the description.
 - Do not emit `priceRange` or fee properties.
 
-## Truth fields (20)
+## Truth fields (23)
 
 | fact_type | key | type | scope | flags |
 |---|---|---|---|---|
@@ -190,26 +190,46 @@ client has no `programme.offered` so nothing changes for existing packs.
 
 ## Authority targets
 
-| key | name | type |
-|---|---|---|
-| `education_register` | Education authority register listing | directory |
-| `schooladvisor` | SchoolAdvisor listing | directory |
-| `eduadvisor` | EduAdvisor listing | directory |
-| `afterschool_my` | Afterschool.my listing | directory |
+| key | name | type | domain |
+|---|---|---|---|
+| `education_register` | Education authority register listing | directory | — |
+| `schooladvisor` | SchoolAdvisor listing | directory | `schooladvisor.my` |
+| `curriculum_body_directory` | Curriculum body school directory | directory | — |
 
-**Priority:** `gbp`, `education_register`, `schooladvisor`, `facebook`.
+**Priority:** `gbp`, `schooladvisor`, `education_register`, `facebook`.
 Facebook is a priority here and not for healthcare — Malaysian parents
 research schools through Facebook groups and pages to a degree that makes the
 page a genuine authority asset, not just a social presence.
 
-`education_register` deliberately carries no `provenance_domain`, matching
-`medical_register` and `trade_licence_register`: which register applies is
-country-specific and belongs in the Truth Vault, not hardcoded in a pack.
+`education_register` and `curriculum_body_directory` deliberately carry no
+`provenance_domain`, matching `medical_register` and `trade_licence_register`:
+which register or curriculum body applies is country- and curriculum-specific
+and belongs in the Truth Vault, not hardcoded in a pack.
+`curriculum_body_directory` covers being listed by the body whose curriculum
+the school claims to follow — the IB World Schools directory, Cambridge
+International's school finder, and equivalents. For an international or
+private school this is a stronger authority signal than any commercial
+directory, and it pairs directly with the `invented_curriculum` risk rule.
 
-**Verify before implementing:** the three commercial directory domains above
-are named from general knowledge and have NOT been checked. Confirm each
-resolves and is still active before writing them into the pack — a dead
-`url_hint` in the admin picker is a broken checklist item.
+### Directory verification result (2026-08-08)
+
+All three commercial candidates from the first draft were checked:
+
+| Domain | Resolves | K-12? | Decision |
+|---|---|---|---|
+| `schooladvisor.my` | yes | **yes** — preschool, primary, international, boarding | **keep** |
+| `eduadvisor.my` | yes | no — tertiary only, explicitly post-SPM | **drop** |
+| `afterschool.my` | yes | no — self-described "Higher Education Advisor" | **drop** |
+
+EduAdvisor and Afterschool.my are the wrong buyer for a parent-facing K-12
+pack. Both belong to a future Higher Education pack if that is ever built.
+
+**This weakens criterion 5 (directory ecosystem) from the ranking that put
+Education first.** Malaysia's K-12 directory ecosystem is genuinely thin:
+realistically it is SchoolAdvisor, Google Business Profile and Facebook. The
+pack is still worth building on criteria 1, 2, 4 and 6, but the authority axis
+delivers less here than it does for F&B, where four live commercial platforms
+carry real citation weight.
 
 ## Trusted sources
 
