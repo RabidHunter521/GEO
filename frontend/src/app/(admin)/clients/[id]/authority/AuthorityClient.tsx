@@ -8,8 +8,11 @@ import { Input } from "@/components/ui/input"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
+import {
+  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type {
-  AuthorityAsset, AuthorityCatalogItem, AuthorityStatus, AuthorityView,
+  AuthorityAsset, AuthorityCatalogItem, AuthorityReviewSnapshot, AuthorityStatus, AuthorityView,
 } from "@/types"
 import { CatalogPicker } from "./CatalogPicker"
 import {
@@ -184,17 +187,38 @@ export function AuthorityClient({
   )
 }
 
-function Sparkline({ points }: { points: number[] }) {
-  if (points.length < 2) return null
-  const max = Math.max(...points), min = Math.min(...points)
+function Sparkline({ snapshots }: { snapshots: AuthorityReviewSnapshot[] }) {
+  if (snapshots.length < 2) return null
+  const counts = snapshots.map((s) => s.count)
+  const max = Math.max(...counts), min = Math.min(...counts)
   const span = max - min || 1
-  const d = points
-    .map((p, i) => `${(i / (points.length - 1)) * 100},${20 - ((p - min) / span) * 18}`)
-    .join(" ")
+  const coords = snapshots.map((s, i) => ({
+    x: (i / (snapshots.length - 1)) * 100,
+    y: 20 - ((s.count - min) / span) * 18,
+    snapshot: s,
+  }))
+  const d = coords.map((c) => `${c.x},${c.y}`).join(" ")
   return (
-    <svg viewBox="0 0 100 20" className="h-5 w-24" preserveAspectRatio="none" aria-hidden>
-      <polyline points={d} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-primary" />
-    </svg>
+    <TooltipProvider delayDuration={100}>
+      <svg viewBox="0 0 100 20" className="h-5 w-24 overflow-visible">
+        <polyline points={d} fill="none" stroke="currentColor" strokeWidth="1.5" className="text-primary" />
+        {coords.map((c) => (
+          <Tooltip key={c.snapshot.date}>
+            <TooltipTrigger asChild>
+              <circle
+                cx={c.x} cy={c.y} r={5}
+                fill="transparent"
+                className="cursor-default text-primary hover:fill-current hover:opacity-30"
+              />
+            </TooltipTrigger>
+            <TooltipContent>
+              {new Date(c.snapshot.date).toLocaleDateString(undefined, { year: "numeric", month: "short" })}
+              {" · "}{c.snapshot.rating}★ · {c.snapshot.count} reviews
+            </TooltipContent>
+          </Tooltip>
+        ))}
+      </svg>
+    </TooltipProvider>
   )
 }
 
@@ -218,7 +242,7 @@ function ReviewSnapshotRow({
           {latest.rating}★ · {latest.count} reviews
         </span>
       )}
-      <Sparkline points={snaps.map((s) => s.count)} />
+      <Sparkline snapshots={snaps} />
       <Input value={rating} onChange={(e) => setRating(e.target.value)}
              placeholder="Rating" className="h-8 w-20" inputMode="decimal" />
       <Input value={count} onChange={(e) => setCount(e.target.value)}
