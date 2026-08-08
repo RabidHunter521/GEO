@@ -395,6 +395,30 @@ def test_priority_asset_keys_must_be_unique():
         validate_pack(_pack(priority_asset_keys=("gbp", "gbp")))
 
 
+# --- subcategory-scoped queries ---------------------------------------------
+
+def test_a_template_scoped_to_a_real_subcategory_is_valid():
+    assert validate_pack(_pack(query_templates=(_template(subcategories=("dental",)),))) is None
+
+
+def test_a_template_scoped_to_an_unknown_subcategory_is_rejected():
+    """It would never match any client, so the pack would look specialised
+    while measuring nobody on that question."""
+    with pytest.raises(ValueError, match="no subcategory"):
+        validate_pack(_pack(query_templates=(_template(subcategories=("orthodontics",)),)))
+
+
+def test_template_subcategory_scope_must_not_repeat():
+    with pytest.raises(ValueError, match="duplicate subcategory scope"):
+        validate_pack(
+            _pack(query_templates=(_template(subcategories=("dental", "dental")),))
+        )
+
+
+def test_an_unscoped_template_stays_the_default():
+    assert _template().subcategories == ()
+
+
 # --- the real packs ---------------------------------------------------------
 
 def test_every_registered_pack_declares_a_schema_profile():
@@ -415,6 +439,27 @@ def test_every_registered_pack_covers_every_subcategory_with_a_schema_type():
 def test_every_registered_pack_declares_priority_authority_targets():
     thin = [p.key for p in registry.all_packs() if len(p.priority_asset_keys) < 2]
     assert not thin, f"packs with too few priority authority assets: {thin}"
+
+
+def test_every_registered_pack_specialises_at_least_some_subcategories():
+    """Subcategories existed for a release doing nothing but populating a
+    dropdown. A pack whose templates are all generic has not specialised."""
+    for pack in registry.all_packs():
+        scoped = [t for t in pack.query_templates if t.subcategories]
+        assert scoped, f"{pack.key} has no subcategory-scoped queries"
+
+
+def test_no_subcategory_is_scoped_more_than_the_generic_set(_max_per_subcategory=4):
+    """A client is measured on generic templates PLUS its own. Letting one
+    subcategory carry a dozen extra questions would crowd the shared ones out
+    of MAX_PACK_QUERIES_PER_SCAN for that subcategory alone."""
+    for pack in registry.all_packs():
+        counts: dict[str, int] = {}
+        for template in pack.query_templates:
+            for sub in template.subcategories:
+                counts[sub] = counts.get(sub, 0) + 1
+        over = {s: n for s, n in counts.items() if n > _max_per_subcategory}
+        assert not over, f"{pack.key} over-scopes: {over}"
 
 
 # --- registry lookup --------------------------------------------------------

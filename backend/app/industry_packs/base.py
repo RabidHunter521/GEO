@@ -112,6 +112,13 @@ class QueryTemplate:
     buyer_stage: Literal["awareness", "consideration", "decision"]
     commercial_intent: Literal["low", "medium", "high"]
     location_required: bool
+    # Subcategories this question applies to. Empty — the default — means every
+    # client of the pack, which is how every template behaved before scoping
+    # existed. A scoped template reaches ONLY a client whose subcategory is
+    # named here; a client with no subcategory, or one the pack does not know,
+    # gets the generic set. "Do I need to fast before this?" is a real question
+    # for a diagnostics lab and nonsense for a dental practice.
+    subcategories: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -284,7 +291,7 @@ def validate_pack(pack: IndustryPack) -> None:
             )
 
     for template in pack.query_templates:
-        _validate_template(pack.key, template)
+        _validate_template(pack.key, template, set(pack.subcategories))
 
     declared_types = {f.fact_type for f in pack.truth_fields}
     declared_pairs = {(f.fact_type, f.key) for f in pack.truth_fields}
@@ -362,7 +369,20 @@ def _validate_authority(pack: IndustryPack) -> None:
             )
 
 
-def _validate_template(pack_key: str, template: QueryTemplate) -> None:
+def _validate_template(
+    pack_key: str, template: QueryTemplate, subcategories: set[str]
+) -> None:
+    _reject_duplicates(
+        list(template.subcategories),
+        f"pack {pack_key}: query {template.id!r} has a duplicate subcategory scope",
+    )
+    for sub in template.subcategories:
+        if sub not in subcategories:
+            raise ValueError(
+                f"pack {pack_key}: query {template.id!r} is scoped to {sub!r}, but the "
+                "pack declares no subcategory by that name, so it could never be built"
+            )
+
     used = placeholders_in(template.template)
     unknown = used - ALLOWED_PLACEHOLDERS
     if unknown:

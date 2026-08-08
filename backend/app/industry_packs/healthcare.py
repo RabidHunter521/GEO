@@ -161,6 +161,80 @@ _QUERY_TEMPLATES = (
         id="booking", template="How do I book an appointment with {brand}?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
     ),
+
+    # --- subcategory-specific -------------------------------------------------
+    # The questions a buyer only asks about ONE kind of practice. Anchored to
+    # {brand} or a location placeholder deliberately: those land in the brand
+    # and local categories, and only the ranked categories (recommendation,
+    # local) pay for position extraction, so an unanchored yes/no question
+    # would buy an extra LLM call it can never use.
+    QueryTemplate(
+        id="walk_in_availability", template="Does {brand} accept walk-in patients?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("general_clinic",),
+    ),
+    QueryTemplate(
+        id="dental_nervous_patients",
+        template="Which dental clinic in {city} is good for nervous patients?",
+        buyer_stage="decision", commercial_intent="high", location_required=True,
+        subcategories=("dental",),
+    ),
+    QueryTemplate(
+        id="dental_sedation", template="Does {brand} offer sedation for {service}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("dental",),
+    ),
+    QueryTemplate(
+        id="aesthetic_safety", template="Is {service} at {brand} safe?",
+        buyer_stage="consideration", commercial_intent="high", location_required=False,
+        subcategories=("aesthetic",),
+    ),
+    QueryTemplate(
+        id="aesthetic_downtime",
+        template="How much downtime does {service} at {brand} need?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("aesthetic",),
+    ),
+    QueryTemplate(
+        id="physio_session_count",
+        template="How many {service} sessions will I need at {brand}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("physiotherapy",),
+    ),
+    QueryTemplate(
+        id="physio_referral",
+        template="Do I need a doctor's referral for {service} at {brand}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("physiotherapy",),
+    ),
+    QueryTemplate(
+        id="specialist_referral",
+        template="Do I need a referral to see a {specialty} specialist at {brand}?",
+        buyer_stage="consideration", commercial_intent="high", location_required=False,
+        subcategories=("specialist",),
+    ),
+    QueryTemplate(
+        id="diagnostics_turnaround",
+        template="How long do {service} results take at {brand}?",
+        buyer_stage="consideration", commercial_intent="high", location_required=False,
+        subcategories=("diagnostics",),
+    ),
+    QueryTemplate(
+        id="diagnostics_preparation",
+        template="Do I need to fast before {service} at {brand}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("diagnostics",),
+    ),
+    QueryTemplate(
+        id="pharmacy_24h", template="Is there a 24 hour pharmacy in {city}?",
+        buyer_stage="decision", commercial_intent="high", location_required=True,
+        subcategories=("pharmacy",),
+    ),
+    QueryTemplate(
+        id="pharmacy_prescriptions", template="Does {brand} fill prescriptions?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("pharmacy",),
+    ),
 )
 
 _RISK_RULES = (

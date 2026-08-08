@@ -189,6 +189,75 @@ _QUERY_TEMPLATES = (
         id="late_night", template="What food is open late in {area}?",
         buyer_stage="decision", commercial_intent="high", location_required=True,
     ),
+
+    # --- subcategory-specific -------------------------------------------------
+    # A café and a caterer are not asked the same things. Anchored to {brand} or
+    # a location placeholder so they land in the brand/local categories rather
+    # than paying for position extraction on a yes/no answer.
+    QueryTemplate(
+        id="restaurant_occasion_booking",
+        template="Does {brand} take reservations for {occasion}?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("restaurant",),
+    ),
+    QueryTemplate(
+        id="restaurant_large_group", template="Can {brand} seat a large group?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("restaurant",),
+    ),
+    QueryTemplate(
+        id="cafe_work_friendly", template="Is {brand} a good cafe to work from?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("cafe",),
+    ),
+    QueryTemplate(
+        id="cafe_amenities", template="Does {brand} have wifi and power outlets?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("cafe",),
+    ),
+    QueryTemplate(
+        id="bakery_custom_order",
+        template="Does {brand} make custom cakes for {occasion}?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("bakery",),
+    ),
+    QueryTemplate(
+        id="bakery_lead_time",
+        template="How far ahead do I need to order from {brand}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("bakery",),
+    ),
+    QueryTemplate(
+        id="bar_happy_hour", template="Does {brand} have a happy hour?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("bar",),
+    ),
+    QueryTemplate(
+        id="bar_open_late", template="Which bars in {city} are open late?",
+        buyer_stage="decision", commercial_intent="high", location_required=True,
+        subcategories=("bar",),
+    ),
+    QueryTemplate(
+        id="catering_occasion", template="Does {brand} cater for {occasion}?",
+        buyer_stage="decision", commercial_intent="high", location_required=False,
+        subcategories=("catering",),
+    ),
+    QueryTemplate(
+        id="catering_minimum_order",
+        template="What is the minimum order for catering from {brand}?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("catering",),
+    ),
+    QueryTemplate(
+        id="delivery_coverage", template="Does {brand} deliver to {area}?",
+        buyer_stage="decision", commercial_intent="high", location_required=True,
+        subcategories=("food_delivery",),
+    ),
+    QueryTemplate(
+        id="qsr_drive_through", template="Does {brand} have a drive-through?",
+        buyer_stage="consideration", commercial_intent="medium", location_required=False,
+        subcategories=("quick_service",),
+    ),
 )
 
 _RISK_RULES = (

@@ -213,6 +213,130 @@ def test_cap_keeps_the_most_commercially_valuable_queries():
     assert queries[0]["commercial_intent"] == "high"
 
 
+# --- subcategory specialisation ---------------------------------------------
+#
+# Until now the 8 subcategories per pack did nothing but populate a dropdown:
+# a dental practice and a physiotherapy practice were measured on identical
+# questions. A template may now name the subcategories it applies to.
+
+def _scoped_texts(pack, subcategory, facts=(), locations=None):
+    return _texts(build_pack_queries(
+        _client(industry_subcategory=subcategory),
+        [_location()] if locations is None else locations,
+        list(facts), pack, [],
+    ))
+
+
+def test_a_subcategory_only_query_reaches_that_subcategory():
+    texts = _scoped_texts(
+        HEALTHCARE_PACK, "diagnostics", [_fact("treatment", "offered", ["MRI scan"])]
+    )
+    assert any("results" in t and "MRI scan" in t for t in texts), texts
+
+
+def test_a_subcategory_only_query_does_not_reach_another_subcategory():
+    """The whole point: dental and physiotherapy stop scanning identically."""
+    facts = [_fact("treatment", "offered", ["MRI scan"])]
+    diagnostics = set(_scoped_texts(HEALTHCARE_PACK, "diagnostics", facts))
+    physio = set(_scoped_texts(HEALTHCARE_PACK, "physiotherapy", facts))
+
+    assert diagnostics != physio
+    assert diagnostics - physio, "diagnostics gained nothing of its own"
+    assert physio - diagnostics, "physiotherapy gained nothing of its own"
+
+
+def test_generic_queries_still_reach_every_subcategory():
+    """Specialisation ADDS; it must not fragment the shared measurement, or
+    two clients in one pack stop being comparable at all."""
+    facts = [_fact("treatment", "offered", ["MRI scan"])]
+    generic = {
+        t.id for t in HEALTHCARE_PACK.query_templates if not t.subcategories
+    }
+    assert generic, "fixture assumption: the pack still has generic templates"
+
+    dental = set(_scoped_texts(HEALTHCARE_PACK, "dental", facts))
+    physio = set(_scoped_texts(HEALTHCARE_PACK, "physiotherapy", facts))
+    assert dental & physio, "no shared questions left between two subcategories"
+
+
+def test_a_client_with_no_subcategory_gets_only_the_generic_set():
+    """Not "all of them": scoped questions contradict each other across
+    subcategories, and an unclassified client has no basis for picking."""
+    facts = [_fact("treatment", "offered", ["MRI scan"])]
+    unclassified = set(_scoped_texts(HEALTHCARE_PACK, None, facts))
+    dental = set(_scoped_texts(HEALTHCARE_PACK, "dental", facts))
+
+    assert unclassified <= dental
+    assert dental - unclassified
+
+
+def test_an_unknown_subcategory_falls_back_to_the_generic_set():
+    facts = [_fact("treatment", "offered", ["MRI scan"])]
+    assert (
+        set(_scoped_texts(HEALTHCARE_PACK, "orthodontics", facts))
+        == set(_scoped_texts(HEALTHCARE_PACK, None, facts))
+    )
+
+
+def test_subcategory_queries_outrank_generic_ones_at_equal_value():
+    """Specialisation has to survive the cap. Two queries of the same
+    commercial intent and buyer stage are not equally useful: the one written
+    for this exact kind of business is why the subcategory exists."""
+    many = [f"treatment {i}" for i in range(40)]
+    queries = build_pack_queries(
+        _client(industry_subcategory="dental"),
+        [_location(uuid.uuid4(), city=f"City {i}") for i in range(6)],
+        [_fact("treatment", "offered", many), _fact("specialty", "offered", many)],
+        HEALTHCARE_PACK, [_competitor()],
+    )
+    assert len(queries) == MAX_PACK_QUERIES_PER_SCAN, "expected the cap to bite"
+
+    scoped_by_id = {
+        t.id for t in HEALTHCARE_PACK.query_templates if "dental" in t.subcategories
+    }
+    assert any(q["template_id"] in scoped_by_id for q in queries), (
+        "every dental-specific query was crowded out by generic ones"
+    )
+
+    # and the existing intent ordering is untouched
+    rank = {"high": 0, "medium": 1, "low": 2}
+    intents = [rank[q["commercial_intent"]] for q in queries]
+    assert intents == sorted(intents)
+
+
+def test_specialisation_does_not_raise_the_query_cap():
+    """Scan spend and AI Citability's denominator both key off this number."""
+    queries = build_pack_queries(
+        _client(industry_subcategory="dental"),
+        [_location(uuid.uuid4(), city=f"City {i}") for i in range(6)],
+        [_fact("treatment", "offered", [f"t{i}" for i in range(40)])],
+        HEALTHCARE_PACK, [_competitor()],
+    )
+    assert len(queries) <= MAX_PACK_QUERIES_PER_SCAN
+
+
+@pytest.mark.parametrize(
+    "pack,subcategory",
+    [
+        (HEALTHCARE_PACK, "dental"),
+        (HEALTHCARE_PACK, "physiotherapy"),
+        (FNB_PACK, "cafe"),
+        (FNB_PACK, "catering"),
+        (LOCAL_SERVICES_PACK, "emergency_service"),
+        (LOCAL_SERVICES_PACK, "automotive"),
+    ],
+)
+def test_scoped_queries_never_leak_a_placeholder(pack, subcategory):
+    texts = _scoped_texts(pack, subcategory, [
+        _fact("treatment", "offered", ["x"]), _fact("service", "catalog", ["x"]),
+        _fact("cuisine", "types", ["x"]), _fact("menu", "signature_dishes", ["x"]),
+        _fact("occasion", "suitable_for", ["birthdays"]),
+    ])
+    assert texts
+    for text in texts:
+        assert "{" not in text and "}" not in text, text
+
+
 # --- category mapping -------------------------------------------------------
 
 def test_every_query_lands_in_an_existing_scan_category():
