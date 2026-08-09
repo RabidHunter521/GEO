@@ -38,6 +38,8 @@ _FACT_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
     "dish":      (("menu", "signature_dishes"), ("menu", "items")),
     "occasion":  (("occasion", "suitable_for"),),
     "dietary":   (("dietary", "options"),),
+    "subject":   (("programme", "offered"),),
+    "level":     (("programme", "levels"),),
 }
 
 # Ordering used when the cap bites: keep what a buyer is closest to acting on.

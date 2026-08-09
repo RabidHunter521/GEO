@@ -337,7 +337,7 @@ MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
 # the registry asserts its own keys against this tuple, so a pack added in code
 # without updating this list fails a test instead of becoming unselectable.
 # No PostgreSQL enum by design — adding a pack must not require a migration.
-INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services")
+INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services", "education")
 
 # Cost envelope for pack-generated client queries. Raised 20 -> 28 once packs
 # carried subcategory-scoped questions: at 20 a specialised client spent its

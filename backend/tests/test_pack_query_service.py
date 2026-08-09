@@ -649,3 +649,57 @@ def test_run_scan_keeps_unpacked_clients_on_the_legacy_templates(db, monkeypatch
     texts = [q["query_text"] for q in _captured_queries(db, scan, monkeypatch)]
 
     assert any(t.startswith("Tell me about") for t in texts), texts
+
+
+# --- education placeholders --------------------------------------------------
+
+def test_subject_placeholder_is_filled_from_approved_programme_facts():
+    """The integration point that fails SILENTLY. Without _FACT_SOURCES
+    knowing `subject`, every {subject} template is dropped at DEBUG level and
+    the pack quietly loses a third of its queries."""
+    from app.industry_packs.education import EDUCATION_PACK
+
+    texts = _texts(build_pack_queries(
+        _client(industry_subcategory="tuition_centre"), [_location()],
+        [_fact("programme", "offered", ["Additional Mathematics"])],
+        EDUCATION_PACK, [],
+    ))
+    assert any("Additional Mathematics" in t for t in texts), texts
+    assert all("{" not in t for t in texts)
+
+
+def test_level_placeholder_is_filled_from_approved_programme_facts():
+    from app.industry_packs.education import EDUCATION_PACK
+
+    texts = _texts(build_pack_queries(
+        _client(industry_subcategory="private_school"), [_location()],
+        [_fact("programme", "levels", ["Form 4"])],
+        EDUCATION_PACK, [],
+    ))
+    assert any("Form 4" in t for t in texts), texts
+
+
+def test_education_subcategories_scan_differently():
+    from app.industry_packs.education import EDUCATION_PACK
+
+    facts = [_fact("programme", "offered", ["English"])]
+    kindergarten = set(_texts(build_pack_queries(
+        _client(industry_subcategory="kindergarten"), [_location()],
+        facts, EDUCATION_PACK, [],
+    )))
+    driving = set(_texts(build_pack_queries(
+        _client(industry_subcategory="driving_school"), [_location()],
+        facts, EDUCATION_PACK, [],
+    )))
+    assert kindergarten - driving
+    assert driving - kindergarten
+
+
+def test_a_healthcare_client_is_unaffected_by_the_new_placeholders():
+    """programme.* facts do not exist for other packs, so nothing changes."""
+    before = _texts(build_pack_queries(
+        _client(), [_location()],
+        [_fact("treatment", "offered", ["teeth whitening"])], HEALTHCARE_PACK, [],
+    ))
+    assert before
+    assert all("{" not in t for t in before)

@@ -12,7 +12,7 @@
  * never render, and copying them would double the drift surface for nothing.
  */
 
-export type PackKey = "healthcare" | "fnb" | "local_services"
+export type PackKey = "healthcare" | "fnb" | "local_services" | "education"
 
 /** Mirrors TruthFieldDefinition.value_type in app/industry_packs/base.py. */
 export type FactValueType = "text" | "boolean" | "number" | "url" | "list" | "hours"
@@ -131,7 +131,42 @@ const LOCAL_SERVICES: PackDefinition = {
   ],
 }
 
-export const INDUSTRY_PACKS: readonly PackDefinition[] = [HEALTHCARE, FNB, LOCAL_SERVICES]
+const EDUCATION: PackDefinition = {
+  key: "education",
+  label: "Education",
+  subcategories: [
+    "tuition_centre", "enrichment", "kindergarten",
+    "international_school", "private_school",
+    "language_centre", "driving_school", "other_education",
+  ],
+  fields: [
+    { factType: "teacher", key: "name", label: "Teacher or principal name", valueType: "text", scope: "location", required: true },
+    { factType: "teacher", key: "qualification", label: "Teaching qualification", valueType: "text", scope: "location", riskSensitive: true },
+    { factType: "teacher", key: "subjects", label: "Subjects taught", valueType: "list", scope: "location" },
+    { factType: "teacher", key: "languages", label: "Languages of instruction", valueType: "list", scope: "location" },
+    { factType: "programme", key: "offered", label: "Subjects or programmes offered", valueType: "list", scope: "either", riskSensitive: true, required: true },
+    { factType: "programme", key: "curriculum", label: "Curriculum followed", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "programme", key: "levels", label: "Levels or year groups taught", valueType: "list", scope: "either" },
+    { factType: "programme", key: "class_size", label: "Typical class size", valueType: "number", scope: "either" },
+    { factType: "programme", key: "not_offered", label: "Subjects explicitly not offered", valueType: "list", scope: "either" },
+    { factType: "accreditation", key: "body", label: "Registering or accrediting body", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "accreditation", key: "registration_number", label: "Registration reference number", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "accreditation", key: "valid_until", label: "Registration valid until", valueType: "text", scope: "either" },
+    { factType: "outcomes", key: "results_published", label: "Results the school publishes", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "outcomes", key: "placements", label: "Published onward placements", valueType: "list", scope: "either", riskSensitive: true },
+    { factType: "fees", key: "range", label: "Fee range", valueType: "text", scope: "either" },
+    { factType: "fees", key: "registration_fee", label: "Registration fee", valueType: "text", scope: "either" },
+    { factType: "fees", key: "payment_plans", label: "Instalment plans available", valueType: "boolean", scope: "either" },
+    { factType: "campus", key: "name", label: "Campus name", valueType: "text", scope: "location", required: true },
+    { factType: "campus", key: "amenities", label: "Campus amenities", valueType: "list", scope: "location" },
+    { factType: "campus", key: "transport_provided", label: "School transport provided", valueType: "boolean", scope: "location" },
+    { factType: "admissions", key: "intake_months", label: "Intake months", valueType: "list", scope: "either" },
+    { factType: "admissions", key: "age_range", label: "Age range accepted", valueType: "text", scope: "either" },
+    { factType: "admissions", key: "entrance_assessment", label: "Entrance assessment required", valueType: "boolean", scope: "either" },
+  ],
+}
+
+export const INDUSTRY_PACKS: readonly PackDefinition[] = [HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION]
 
 export const PACK_KEYS: readonly PackKey[] = INDUSTRY_PACKS.map((pack) => pack.key)
 

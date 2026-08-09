@@ -430,7 +430,7 @@ _QUERY_TEMPLATES = (
     ),
     QueryTemplate(
         id="subject_discovery",
-        template="Where can my child learn {subject} in {city}?",
+        template="Where can I learn {subject} in {city}?",
         buyer_stage="awareness", commercial_intent="medium", location_required=True,
     ),
     QueryTemplate(
@@ -457,13 +457,13 @@ _QUERY_TEMPLATES = (
     ),
     QueryTemplate(
         id="subject_cost",
-        template="How much does {subject} tuition cost in {city}?",
+        template="How much does {subject} cost in {city}?",
         buyer_stage="consideration", commercial_intent="high", location_required=True,
     ),
     # decision
     QueryTemplate(
         id="brand_vs_competitor",
-        template="{brand} vs {competitor}: which is better for my child?",
+        template="{brand} vs {competitor}: which is better?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
     ),
     QueryTemplate(
@@ -475,7 +475,7 @@ _QUERY_TEMPLATES = (
         buyer_stage="decision", commercial_intent="high", location_required=True,
     ),
     QueryTemplate(
-        id="admissions", template="How do I enrol my child at {brand}?",
+        id="admissions", template="How do I enrol at {brand}?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
     ),
 

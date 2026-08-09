@@ -145,12 +145,12 @@ buy an LLM call it cannot use.
 **Generic (excerpt):**
 
 - `brand_overview` — "What is {brand}?"
-- `subject_discovery` — "Where can my child learn {subject} in {city}?"
+- `subject_discovery` — "Where can I learn {subject} in {city}?"
 - `brand_programmes` — "What subjects does {brand} teach?"
 - `fees_check` — "How much are the fees at {brand}?"
 - `reputation` — "Is {brand} a good school?"
-- `admissions` — "How do I enrol my child at {brand}?"
-- `brand_vs_competitor` — "{brand} vs {competitor}: which is better for my child?"
+- `admissions` — "How do I enrol at {brand}?"
+- `brand_vs_competitor` — "{brand} vs {competitor}: which is better?"
 - `local_best` — "Best {industry} in {location}"
 
 **Scoped (excerpt):**

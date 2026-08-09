@@ -5,7 +5,7 @@ burst pipe at 2am acting on a false "24-hour emergency" answer, or a customer
 who believes a tradesperson is insured when the approved facts do not say so.
 Those rank above an ordinary price or hours conflict.
 
-This module also closes the registry loop — with all three packs landed,
+This module also closes the registry loop — with every pack landed,
 `registered_keys()` must equal INDUSTRY_PACK_KEYS. Until that assertion exists,
 the version-stamping and subcategory-validation paths silently degrade for any
 pack whose module has not been imported.
@@ -56,7 +56,7 @@ def test_every_registered_pack_has_a_distinct_label():
     assert len(labels) == len(set(labels))
 
 
-def test_all_three_packs_validate():
+def test_every_registered_pack_validates():
     for pack in registry.all_packs():
         assert validate_pack(pack) is None
 

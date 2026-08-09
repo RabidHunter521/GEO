@@ -63,6 +63,8 @@ def all_required_packs(db):
     Derived from REQUIRED_PACKS rather than a hardcoded list so widening the
     edition's scope updates the fixture with it — but note that REQUIRED_PACKS
     is itself pinned, so a new industry pack does not silently land here.
+    Registering the education pack is exactly that case: it joins
+    INDUSTRY_PACK_KEYS without joining the edition, and so must not appear here.
     """
     for pack in REQUIRED_PACKS:
         publish_cohort_for(db, pack)
@@ -115,9 +117,17 @@ def test_payload_excludes_small_market_cuts(db):
 
 def test_a_metric_missing_from_one_pack_is_excluded_entirely(db):
     """An index covering healthcare but silently omitting F&B invites the
-    reader to assume the omission means zero."""
+    reader to assume the omission means zero.
+
+    All REQUIRED_PACKS other than the deliberately-thin one must clear the
+    contributor floor, or the assertion below would also pass with that floor
+    deleted — the exclusion would then be fully explained by the missing
+    education cohort instead of by local_services' low count, and the test
+    would no longer prove what it claims to.
+    """
     publish_cohort_for(db, "healthcare")
     publish_cohort_for(db, "fnb")
+    publish_cohort_for(db, "education")
     # local_services never reaches the threshold.
     publish_cohort_for(db, "local_services", count=4)
 

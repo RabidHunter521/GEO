@@ -17,8 +17,8 @@ const VALUE_TYPES = ["text", "boolean", "number", "url", "list", "hours"]
 const SCOPES = ["brand", "location", "either"]
 
 describe("catalog shape", () => {
-  it("has exactly the three supported packs", () => {
-    expect(PACK_KEYS).toEqual(["healthcare", "fnb", "local_services"])
+  it("has exactly the four supported packs", () => {
+    expect(PACK_KEYS).toEqual(["healthcare", "fnb", "local_services", "education"])
   })
 
   it("gives every pack a non-empty, unique set of subcategories", () => {
