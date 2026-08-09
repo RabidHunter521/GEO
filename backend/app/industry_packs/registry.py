@@ -6,9 +6,11 @@ a scan. Definitions are returned by reference because they are frozen.
 
 Lookups that the request path depends on — version stamping and subcategory
 validation — DEGRADE for an unregistered key rather than raising, so the admin
-API cannot 500 on a pack whose module has not landed yet. Task 5 adds the
-assertion that all three supported keys really are registered, which is what
-turns that graceful degradation back into a hard guarantee.
+API cannot 500 on a pack whose module has not landed yet.
+`test_every_supported_pack_key_is_actually_registered` in
+test_local_services_pack.py asserts that all four supported keys really are
+registered, which is what turns that graceful degradation back into a hard
+guarantee.
 """
 from __future__ import annotations
 

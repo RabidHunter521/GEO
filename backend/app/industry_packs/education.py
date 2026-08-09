@@ -197,8 +197,12 @@ _QUERY_TEMPLATES = (
     ),
 
     # --- subcategory-specific ------------------------------------------------
-    # Anchored to {brand} or a location placeholder on purpose: only the ranked
-    # categories (recommendation, local) pay for position extraction.
+    # Anchored to {brand} or a location placeholder on purpose: those land in
+    # the brand and local categories, and only the ranked categories
+    # (recommendation, local) pay for position extraction. An unanchored
+    # template would fall through `category_for` to recommendation — precisely
+    # the category that pays — buying an extra LLM call these yes/no and
+    # small-group questions can never use.
     QueryTemplate(
         id="tuition_group_size",
         template="Does {brand} offer small group classes for {subject}?",

@@ -65,6 +65,19 @@ def test_a_packed_client_does_not_see_another_packs_targets(db):
     assert "recommend_my" not in keys
 
 
+def test_an_education_client_sees_its_own_authority_targets(db):
+    from app.services import authority_service
+
+    client = _make_client(db, pack="education", subcategory="kindergarten")
+    catalog = authority_service.get_catalog(client, db)
+    keys = [i["key"] for i in catalog]
+
+    assert "schooladvisor" in keys
+    assert "education_register" in keys
+    assert "foodpanda" not in keys
+    assert keys[:4] == ["gbp", "schooladvisor", "education_register", "facebook"]
+
+
 def test_pack_priority_assets_sort_to_the_top_in_declared_order(db):
     from app.industry_packs import registry
     from app.services import authority_service
