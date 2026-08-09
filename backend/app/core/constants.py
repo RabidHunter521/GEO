@@ -467,9 +467,9 @@ KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "deliverable_reviewed", "digest_sent", "hallucination_flagged",
     "page_audit_run", "report_generated", "report_sent",
     "review_snapshot_added", "scan_blocked_budget", "scan_completed",
-    "scan_failed", "scan_platform_unavailable", "share_link_regenerated",
-    "share_link_revoked", "site_audit_run", "toolkit_generated",
-    "toolkit_verified", "traffic_updated",
+    "scan_failed", "scan_platform_unavailable", "share_link_generated",
+    "share_link_regenerated", "share_link_revoked", "site_audit_run",
+    "toolkit_generated", "toolkit_verified", "traffic_updated",
 })
 
 EVENT_TIERS: Final = {
@@ -493,6 +493,7 @@ EVENT_TIERS: Final = {
     "authority_assets_added": EVENT_TIER_NOTABLE,
     "authority_status_changed": EVENT_TIER_NOTABLE,
     "review_snapshot_added": EVENT_TIER_NOTABLE,
+    "share_link_generated": EVENT_TIER_NOTABLE,
     "share_link_regenerated": EVENT_TIER_NOTABLE,
     "share_link_revoked": EVENT_TIER_NOTABLE,
     # routine — the expected heartbeat
@@ -535,6 +536,7 @@ EVENT_CATEGORIES: Final = {
     "authority_status_changed": "content_work",
     "review_snapshot_added": "content_work",
     "client_created": "admin",
+    "share_link_generated": "admin",
     "share_link_regenerated": "admin",
     "share_link_revoked": "admin",
     "traffic_updated": "admin",
@@ -570,6 +572,7 @@ EVENT_LINK_ROUTES: Final = {
     "authority_assets_added": "/authority",
     "authority_status_changed": "/authority",
     "review_snapshot_added": "/authority",
+    "share_link_generated": "/settings",
     "share_link_regenerated": "/settings",
     "share_link_revoked": "/settings",
 }
