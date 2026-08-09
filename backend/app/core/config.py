@@ -34,9 +34,14 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_PUBLIC_BUCKET_NAME: str = ""
     # Public base URL (custom domain or r2.dev) mapped to the PUBLIC bucket above.
     CLOUDFLARE_R2_PUBLIC_URL: str = ""
-    # Set to any non-empty value when the app sits behind a reverse proxy
-    # (Nginx, Caddy, etc.). Causes the rate limiter to key on the rightmost
-    # X-Forwarded-For entry (proxy-appended) rather than the TCP connection IP.
+    # Number of proxy hops in front of the app. "" / "0" = none (the rate
+    # limiter ignores X-Forwarded-For and keys on the TCP connection IP).
+    # "1" = one reverse proxy (Caddy, Nginx); "2" = two (e.g. a platform edge
+    # in front of its own router, as on Railway/Vercel). The limiter keys on
+    # the Nth X-Forwarded-For entry from the right, which is the last address
+    # the client could not forge. Set this too low behind two proxies and every
+    # visitor shares one bucket; too high and the limiter falls back to the
+    # peer IP. Any truthy non-numeric value means 1 (the original flag form).
     RATE_LIMIT_TRUSTED_PROXY: str = ""
     # ── Cost guardrails ──────────────────────────────────────────────────────
     # USD spend caps enforced before a scan is triggered (scans are the dominant

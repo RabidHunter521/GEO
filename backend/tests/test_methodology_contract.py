@@ -6,7 +6,7 @@ from app.core.constants import DIMENSION_EVIDENCE_LABEL, SCORE_DISPLAY_LABEL, SC
 
 ROOT = Path(__file__).resolve().parents[2]
 METHODOLOGY = ROOT / "docs" / "methodology.md"
-FEATURES = ROOT / "FEATURES.md"
+FEATURES = ROOT / "docs" / "FEATURES.md"
 ARCHITECTURE = ROOT / "docs" / "architecture.md"
 
 REQUIRED_SECTIONS = [
