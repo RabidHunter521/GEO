@@ -1,7 +1,7 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -865,5 +865,36 @@ export function getClientBenchmarks(
   const qs = params.toString()
   return apiFetch<BenchmarkComparison[]>(
     `/api/v1/clients/${clientId}/benchmarks${qs ? `?${qs}` : ""}`,
+  )
+}
+
+// ── Global dashboard ─────────────────────────────────────────────────────────
+
+function dashboardQuery(f: DashboardFilters, extra?: Record<string, string>): string {
+  const p = new URLSearchParams()
+  if (f.startDate && f.endDate) {
+    p.set("start_date", f.startDate)
+    p.set("end_date", f.endDate)
+  } else {
+    p.set("days", String(f.days ?? 30))
+  }
+  if (f.clientId) p.set("client_id", f.clientId)
+  if (f.category) p.set("category", f.category)
+  if (f.eventType) p.set("event_type", f.eventType)
+  if (f.attentionOnly) p.set("attention_only", "true")
+  for (const [k, v] of Object.entries(extra ?? {})) p.set(k, v)
+  return p.toString()
+}
+
+export function getDashboardSummary(filters: DashboardFilters): Promise<DashboardSummary> {
+  return apiFetch<DashboardSummary>(`/api/v1/dashboard/summary?${dashboardQuery(filters)}`)
+}
+
+export function getDashboardFeed(
+  filters: DashboardFilters,
+  offset = 0,
+): Promise<DashboardFeedResponse> {
+  return apiFetch<DashboardFeedResponse>(
+    `/api/v1/dashboard/feed?${dashboardQuery(filters, { offset: String(offset), limit: "50" })}`,
   )
 }

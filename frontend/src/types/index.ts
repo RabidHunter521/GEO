@@ -1377,3 +1377,66 @@ export interface BenchmarkComparisonPublic {
   suppression_message: string | null
   caveat: string
 }
+
+// ── Global dashboard ─────────────────────────────────────────────────────────
+
+export type DashboardEventTier = "attention" | "notable" | "routine"
+
+export interface DashboardFeedItem {
+  id: string
+  client_id: string
+  client_name: string
+  event_type: string
+  note: string
+  created_at: string
+  tier: DashboardEventTier
+  category: string | null
+  link_path: string
+}
+
+export interface DashboardFeedResponse {
+  items: DashboardFeedItem[]
+  total: number
+  has_more: boolean
+}
+
+export interface DashboardMover {
+  client_id: string
+  client_name: string
+  delta: number
+  latest_score: number
+}
+
+export interface DashboardSummary {
+  attention: {
+    scans_failed: number
+    platforms_unavailable: number
+    hallucinations_flagged: number
+    alerts_sent: number
+    share_of_source_changes: number
+  }
+  portfolio: {
+    average_score: number | null
+    average_delta: number | null
+    clients_scored: number
+    biggest_gainer: DashboardMover | null
+    biggest_decliner: DashboardMover | null
+  }
+  cost: {
+    total_cost_usd: number
+    top_service: { service: string; cost_usd: number } | null
+    unattributed_cost_usd: number
+    selected_client_cost_usd: number | null
+  }
+}
+
+/** Filter contract shared by the page URL, api.ts, and the server action. */
+export interface DashboardFilters {
+  days?: number
+  startDate?: string // ISO date; must travel with endDate
+  endDate?: string
+  clientId?: string
+  category?: string
+  eventType?: string
+  attentionOnly?: boolean
+}
