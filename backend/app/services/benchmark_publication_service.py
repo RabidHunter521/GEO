@@ -31,17 +31,31 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.core.constants import INDUSTRY_PACK_KEYS, MIN_METRIC_CONTRIBUTORS
+from app.core.constants import MIN_METRIC_CONTRIBUTORS
 from app.models.benchmark_cohort import BenchmarkCohort
 from app.models.benchmark_publication import BenchmarkPublication
 from app.models.benchmark_snapshot import BenchmarkSnapshot
 from app.schemas.benchmark_comparison import member_count_band
 from app.services.benchmark_snapshot_service import BENCHMARK_METRICS
 
-# The first edition reports these packs. A metric appears only if it clears the
+# The packs this edition reports. A metric appears only if it clears the
 # privacy gates in EVERY one of them — an index that covers healthcare but
 # silently omits F&B invites the reader to assume the omission means zero.
-REQUIRED_PACKS: tuple[str, ...] = INDUSTRY_PACK_KEYS
+#
+# Deliberately a literal, NOT `INDUSTRY_PACK_KEYS`. It was bound to that
+# constant once, which made an editorial decision a side effect of the
+# engineering registry: registering a fourth pack raised the bar for every
+# metric in every edition — nothing could publish until the new pack had its
+# own cohort of ten — with no review and no METHODOLOGY_VERSION bump.
+# METHODOLOGY_VERSION exists precisely so an edition's definition is stable and
+# versioned, so widening the scope is a deliberate edit here plus a bump.
+#
+# What keeps the pin honest is `packs_covered` in the payload: the reader is
+# told the scope rather than inferring it from which cohorts appear, so a pack
+# outside the scope is never mistaken for a pack reporting zero.
+# `test_required_packs_is_pinned_not_derived_from_the_pack_registry` enforces
+# the literal at the source level.
+REQUIRED_PACKS: tuple[str, ...] = ("healthcare", "fnb", "local_services")
 
 METHODOLOGY_VERSION = "v1"
 
@@ -145,10 +159,17 @@ def build_edition_payload(
         "methodology_version": methodology_version,
         "period_start": period_start.isoformat(),
         "period_end": period_end.isoformat(),
+        # The edition's scope, stated rather than left to be inferred from
+        # which cohorts happen to appear. Without it a pinned scope would be a
+        # loophole: a reader who knows SeenBy supports a pack, and does not
+        # find it here, is back to reading its absence as zero.
+        "packs_covered": sorted(REQUIRED_PACKS),
         "metrics_included": sorted(qualifying_metrics),
         "cohorts": entries,
         "notes": [
             "Ranges describe SeenBy clients only and are not a market census.",
+            "This edition covers these industries only; an industry not listed "
+            "above was not measured for this edition.",
             "A measure is omitted when too few comparable businesses reported it.",
             "Figures are descriptive, not a forecast or a guarantee of results.",
         ],
