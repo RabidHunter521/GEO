@@ -8,7 +8,7 @@ from datetime import date, datetime
 
 import pytest
 
-from app.core.constants import MIN_METRIC_CONTRIBUTORS
+from app.core.constants import INDUSTRY_PACK_KEYS, MIN_METRIC_CONTRIBUTORS
 from app.models.benchmark_publication import (
     ApprovedPublicationImmutableError,
     BenchmarkPublication,
@@ -16,6 +16,7 @@ from app.models.benchmark_publication import (
 from app.services.benchmark_cohort_service import eligible_members_for_period
 from app.services.benchmark_publication_service import (
     METHODOLOGY_VERSION,
+    REQUIRED_PACKS,
     PublicationError,
     approve_publication,
     build_edition_payload,
@@ -56,8 +57,14 @@ def publish_cohort_for(db, pack, *, count=10, score=55.0, subcategory=None):
     db.commit()
 
 
-def all_three_packs(db):
-    for pack in ("healthcare", "fnb", "local_services"):
+def all_required_packs(db):
+    """A qualifying cohort for every pack the edition is scoped to.
+
+    Derived from REQUIRED_PACKS rather than a hardcoded list so widening the
+    edition's scope updates the fixture with it — but note that REQUIRED_PACKS
+    is itself pinned, so a new industry pack does not silently land here.
+    """
+    for pack in REQUIRED_PACKS:
         publish_cohort_for(db, pack)
 
 
@@ -78,7 +85,7 @@ def draft(db, **overrides):
 
 
 def test_payload_omits_every_client_identifier(db):
-    all_three_packs(db)
+    all_required_packs(db)
     payload = build_edition_payload(db, PERIOD_START, PERIOD_END)
 
     serialized = str(payload)
@@ -87,7 +94,7 @@ def test_payload_omits_every_client_identifier(db):
 
 
 def test_payload_reports_bands_not_counts(db):
-    all_three_packs(db)
+    all_required_packs(db)
     entry = build_edition_payload(db, PERIOD_START, PERIOD_END)["cohorts"][0]
 
     assert entry["member_count_band"] == "10–19"
@@ -98,7 +105,7 @@ def test_payload_reports_bands_not_counts(db):
 def test_payload_excludes_small_market_cuts(db):
     """City-level cells of an already-small cohort are the easiest to
     re-identify, so the public index reports country level only."""
-    all_three_packs(db)
+    all_required_packs(db)
     payload = build_edition_payload(db, PERIOD_START, PERIOD_END)
 
     for entry in payload["cohorts"]:
@@ -119,8 +126,107 @@ def test_a_metric_missing_from_one_pack_is_excluded_entirely(db):
     assert payload["cohorts"] == []
 
 
+# --- editorial scope ----------------------------------------------------------
+
+
+def test_required_packs_is_pinned_not_derived_from_the_pack_registry():
+    """An edition's editorial scope must not float with the engineering registry.
+
+    REQUIRED_PACKS was once bound to INDUSTRY_PACK_KEYS. Registering a fourth
+    pack therefore raised the publication bar for every metric in every
+    edition — no metric could qualify until the new pack had its own cohort of
+    ten — with no review and no METHODOLOGY_VERSION bump. METHODOLOGY_VERSION
+    exists precisely so an edition's definition is stable and versioned, so
+    widening the scope has to be a deliberate edit here.
+
+    Asserted at the source level rather than by value: the two tuples are
+    equal today, so a value comparison would pass even if the coupling came
+    back.
+    """
+    import ast
+    from pathlib import Path
+
+    from app.services import benchmark_publication_service as service
+
+    tree = ast.parse(Path(service.__file__).read_text(encoding="utf-8"))
+    declarations = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.Assign, ast.AnnAssign))
+        for target in ([node.target] if isinstance(node, ast.AnnAssign) else node.targets)
+        if isinstance(target, ast.Name) and target.id == "REQUIRED_PACKS"
+    ]
+    assert len(declarations) == 1, "REQUIRED_PACKS should be declared exactly once"
+
+    assigned = declarations[0].value
+    assert isinstance(assigned, ast.Tuple), (
+        "REQUIRED_PACKS must be a literal tuple. Binding it to another constant "
+        "lets that constant silently redefine what a published edition contains."
+    )
+    assert [element.value for element in assigned.elts] == list(REQUIRED_PACKS)
+    assert REQUIRED_PACKS is not INDUSTRY_PACK_KEYS
+
+
+def test_every_scoped_pack_is_a_real_pack():
+    """The other half of pinning: the pin must not rot.
+
+    Decoupling from the registry means a pack rename or removal no longer
+    propagates. An edition scoped to a pack key that no longer exists could
+    never collect a cohort for it, so nothing would publish, ever — the same
+    outage the coupling caused, arrived at from the opposite direction. This
+    is a static consistency check, not a behavioural coupling: it constrains
+    what REQUIRED_PACKS may name, never what an edition must include.
+    """
+    assert set(REQUIRED_PACKS).issubset(INDUSTRY_PACK_KEYS), (
+        f"REQUIRED_PACKS names packs that are not registered: "
+        f"{sorted(set(REQUIRED_PACKS) - set(INDUSTRY_PACK_KEYS))}"
+    )
+    assert len(set(REQUIRED_PACKS)) == len(REQUIRED_PACKS)
+
+
+def test_a_pack_outside_the_edition_scope_cannot_block_publication(db):
+    """Shipping an industry pack must not take the index offline.
+
+    The scoped packs all qualify here while a fourth pack falls far short of
+    the thresholds. That fourth pack is simply not part of this edition, so it
+    has no vote on whether the edition publishes.
+    """
+    all_required_packs(db)
+    out_of_scope = "education"
+    assert out_of_scope not in REQUIRED_PACKS
+    publish_cohort_for(db, out_of_scope, count=4)
+
+    payload = build_edition_payload(db, PERIOD_START, PERIOD_END)
+
+    assert payload["metrics_included"]
+    assert {entry["industry_pack"] for entry in payload["cohorts"]} == set(REQUIRED_PACKS)
+
+
+def test_payload_names_the_packs_the_edition_covers(db):
+    """Scope is stated, never inferred from which cohorts happen to appear.
+
+    This is what keeps the pinned scope honest. The privacy rule elsewhere in
+    this file — a metric is dropped unless it clears every scoped pack — stops
+    a reader treating a missing pack as a zero. It only works if the reader is
+    told which packs were in scope to begin with.
+    """
+    all_required_packs(db)
+    payload = build_edition_payload(db, PERIOD_START, PERIOD_END)
+
+    assert payload["packs_covered"] == sorted(REQUIRED_PACKS)
+
+
+def test_packs_covered_is_reported_even_when_nothing_qualifies(db):
+    """An empty edition still has to say what it looked at."""
+    publish_cohort_for(db, REQUIRED_PACKS[0])
+    payload = build_edition_payload(db, PERIOD_START, PERIOD_END)
+
+    assert payload["cohorts"] == []
+    assert payload["packs_covered"] == sorted(REQUIRED_PACKS)
+
+
 def test_payload_states_it_is_descriptive_not_a_guarantee(db):
-    all_three_packs(db)
+    all_required_packs(db)
     notes = " ".join(build_edition_payload(db, PERIOD_START, PERIOD_END)["notes"]).lower()
     assert "guarantee" in notes
     assert "not a market census" in notes
@@ -136,7 +242,7 @@ def test_payload_hash_is_stable_across_key_order(db):
 
 
 def test_draft_starts_unapproved(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
 
     assert publication.status == "draft"
@@ -145,14 +251,14 @@ def test_draft_starts_unapproved(db):
 
 
 def test_duplicate_slug_is_rejected(db):
-    all_three_packs(db)
+    all_required_packs(db)
     draft(db)
     with pytest.raises(PublicationError, match="already in use"):
         draft(db)
 
 
 def test_approval_requires_a_different_actor(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
 
     with pytest.raises(PublicationError, match="different actor"):
@@ -160,7 +266,7 @@ def test_approval_requires_a_different_actor(db):
 
 
 def test_approval_by_a_second_actor_succeeds(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approved = approve_publication(db, publication.id, "reviewer@seenby.my")
 
@@ -176,7 +282,7 @@ def test_approval_rejects_a_draft_whose_underlying_data_moved(db):
     would contain, so the draft has to be regenerated and re-read rather than
     rubber-stamped.
     """
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
 
     from app.models.benchmark_cohort import BenchmarkCohort
@@ -199,7 +305,7 @@ def test_opting_out_does_not_retroactively_rewrite_an_approved_period(db):
     silently change a figure someone may already have been shown. Opting out
     removes the client from cohorts computed *after* the flag is set.
     """
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     before = dict(publication.payload)
 
@@ -222,7 +328,7 @@ def test_a_period_with_nothing_publishable_cannot_be_approved(db):
 
 
 def test_only_a_draft_can_be_approved(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approve_publication(db, publication.id, "reviewer@seenby.my")
 
@@ -231,7 +337,7 @@ def test_only_a_draft_can_be_approved(db):
 
 
 def test_publishing_promotes_the_reviewed_bytes(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approved = approve_publication(db, publication.id, "reviewer@seenby.my")
     reviewed_hash = approved.payload_hash
@@ -245,7 +351,7 @@ def test_publishing_promotes_the_reviewed_bytes(db):
 
 def test_publishing_does_not_recalculate(db):
     """The reviewer approved one set of numbers; the world must receive those."""
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approve_publication(db, publication.id, "reviewer@seenby.my")
     before = dict(publication.payload)
@@ -257,7 +363,7 @@ def test_publishing_does_not_recalculate(db):
 
 
 def test_an_unapproved_draft_cannot_be_published(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     with pytest.raises(PublicationError, match="only an approved edition"):
         publish_publication(db, publication.id)
@@ -267,7 +373,7 @@ def test_an_unapproved_draft_cannot_be_published(db):
 
 
 def test_approved_payload_cannot_be_edited(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approve_publication(db, publication.id, "reviewer@seenby.my")
 
@@ -277,7 +383,7 @@ def test_approved_payload_cannot_be_edited(db):
 
 
 def test_approved_slug_and_period_are_frozen(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approve_publication(db, publication.id, "reviewer@seenby.my")
 
@@ -287,7 +393,7 @@ def test_approved_slug_and_period_are_frozen(db):
 
 
 def test_a_draft_can_still_be_corrected(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     publication.title = "SEA AI Visibility Index — corrected"
     db.commit()
@@ -295,7 +401,7 @@ def test_a_draft_can_still_be_corrected(db):
 
 
 def test_withdrawal_closes_access_without_deleting_the_record(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     approve_publication(db, publication.id, "reviewer@seenby.my")
     publish_publication(db, publication.id)
@@ -311,14 +417,14 @@ def test_withdrawal_closes_access_without_deleting_the_record(db):
 
 
 def test_a_draft_cannot_be_withdrawn(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     with pytest.raises(PublicationError, match="cannot withdraw a draft"):
         withdraw_publication(db, publication.id, "no reason")
 
 
 def test_get_published_ignores_every_non_published_state(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     assert get_published(db, publication.slug) is None
 
@@ -327,14 +433,14 @@ def test_get_published_ignores_every_non_published_state(db):
 
 
 def test_methodology_version_travels_with_the_payload(db):
-    all_three_packs(db)
+    all_required_packs(db)
     publication = draft(db)
     assert publication.payload["methodology_version"] == METHODOLOGY_VERSION
     assert publication.methodology_version == METHODOLOGY_VERSION
 
 
 def test_contributor_floor_is_enforced_in_the_payload(db):
-    all_three_packs(db)
+    all_required_packs(db)
     payload = build_edition_payload(db, PERIOD_START, PERIOD_END)
     assert payload["cohorts"]
     # Every published band starts at or above the contributor floor.

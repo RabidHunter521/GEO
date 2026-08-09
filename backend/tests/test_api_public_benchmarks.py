@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-from tests.test_benchmark_publication_service import all_three_packs
+from tests.test_benchmark_publication_service import all_required_packs
 from tests.test_benchmark_snapshot_service import PERIOD_END, PERIOD_START
 
 SLUG = "sea-ai-visibility-index-2026-07"
@@ -57,7 +57,7 @@ def create_draft(api, auth_headers, **overrides):
 
 
 def publish_edition(api, auth_headers, db):
-    all_three_packs(db)
+    all_required_packs(db)
     created = create_draft(api, auth_headers)
     assert created.status_code == 201, created.text
     publication_id = created.json()["id"]
@@ -78,7 +78,7 @@ def publish_edition(api, auth_headers, db):
 
 
 def test_every_workflow_route_requires_authentication(api, db):
-    all_three_packs(db)
+    all_required_packs(db)
     assert api.post("/api/v1/benchmarks/publications", json=draft_body()).status_code in (401, 403)
     assert api.get("/api/v1/benchmarks/publications").status_code in (401, 403)
 
@@ -89,7 +89,7 @@ def test_every_workflow_route_requires_authentication(api, db):
 
 
 def test_self_approval_is_rejected_as_a_conflict(api, db, auth_headers):
-    all_three_packs(db)
+    all_required_packs(db)
     publication_id = create_draft(api, auth_headers).json()["id"]
 
     response = api.post(
@@ -102,7 +102,7 @@ def test_self_approval_is_rejected_as_a_conflict(api, db, auth_headers):
 
 
 def test_publishing_an_unapproved_draft_is_a_conflict_not_a_server_error(api, db, auth_headers):
-    all_three_packs(db)
+    all_required_packs(db)
     publication_id = create_draft(api, auth_headers).json()["id"]
 
     response = api.post(
@@ -119,7 +119,7 @@ def test_unknown_publication_is_a_404(api, db, auth_headers):
 
 
 def test_a_slug_must_be_url_safe(api, db, auth_headers):
-    all_three_packs(db)
+    all_required_packs(db)
     response = create_draft(api, auth_headers, slug="Not A Slug!")
     assert response.status_code == 422
 
@@ -166,13 +166,13 @@ def test_public_endpoint_asks_not_to_be_indexed(api, db, auth_headers):
 
 
 def test_an_unpublished_draft_is_not_publicly_readable(api, db, auth_headers):
-    all_three_packs(db)
+    all_required_packs(db)
     create_draft(api, auth_headers)
     assert api.get(f"/api/v1/public/benchmarks/{SLUG}").status_code == 404
 
 
 def test_an_approved_but_unpublished_edition_is_not_publicly_readable(api, db, auth_headers):
-    all_three_packs(db)
+    all_required_packs(db)
     publication_id = create_draft(api, auth_headers).json()["id"]
     api.post(
         f"/api/v1/benchmarks/publications/{publication_id}/approve",
@@ -201,7 +201,7 @@ def test_withdrawal_closes_public_access_immediately(api, db, auth_headers):
 
 
 def test_unknown_slug_returns_the_same_404_as_a_withheld_one(api, db, auth_headers):
-    all_three_packs(db)
+    all_required_packs(db)
     create_draft(api, auth_headers)
 
     unknown = api.get("/api/v1/public/benchmarks/no-such-edition")
