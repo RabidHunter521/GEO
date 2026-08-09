@@ -26,37 +26,53 @@ def _get_redis() -> "redis.Redis":
     return _redis_client
 
 
-def _trusted_proxy_hops() -> int:
-    """How many proxies sit in front of the app. 0 = none (ignore XFF entirely).
+_LEFTMOST = "leftmost"
 
-    The setting began life as a bare on/off flag, so any truthy non-numeric
-    value still means exactly one hop.
+
+def _trusted_proxy_mode() -> int | str:
+    """How to read X-Forwarded-For, from RATE_LIMIT_TRUSTED_PROXY.
+
+    Returns 0 (no proxy — ignore the header), the string "leftmost", or a
+    positive hop count. The two non-zero modes exist because the two proxy
+    families behave oppositely, and picking the wrong one silently breaks the
+    limiter rather than erroring:
+
+    * **Append-only proxies** (Caddy, Nginx) forward whatever XFF the client
+      sent and append to it, so leading entries are attacker-controlled and the
+      client is the Nth entry from the RIGHT. -> set a hop count.
+    * **Stripping edges** (Railway, Cloudflare) discard the client's XFF and
+      rebuild the chain, so the LEFTMOST entry is authoritative. These platforms
+      also do not guarantee a stable internal hop count, which makes counting
+      from the right actively unsafe there. -> set "leftmost".
+
+    The setting began life as a bare on/off flag, so any other truthy value
+    still means exactly one hop.
     """
-    raw = str(settings.RATE_LIMIT_TRUSTED_PROXY).strip()
+    raw = str(settings.RATE_LIMIT_TRUSTED_PROXY).strip().lower()
     if not raw:
         return 0
+    if raw == _LEFTMOST:
+        return _LEFTMOST
     try:
-        return max(1, int(raw))
+        return max(0, int(raw))
     except ValueError:
         return 1
 
 
 def _client_ip(request: Request) -> str:
-    hops = _trusted_proxy_hops()
-    if hops:
-        # Each proxy appends the address it received the connection from, so
-        # with N trusted proxies the client is the Nth entry from the right.
-        # Everything further left is client-supplied and forgeable; the entries
-        # to the right are our own infrastructure. Keying on the rightmost when
-        # two proxies are in front (Railway, Vercel) would bucket every visitor
-        # under one platform IP and turn the limiter into a global cap.
+    mode = _trusted_proxy_mode()
+    if mode:
         xff = request.headers.get("x-forwarded-for")
         if xff:
             parts = [p.strip() for p in xff.split(",") if p.strip()]
-            if len(parts) >= hops:
-                return parts[-hops]
-            # Shorter chain than configured: the request did not come through
-            # the proxy path we were told about, so trust none of the header.
+            if parts:
+                if mode == _LEFTMOST:
+                    return parts[0]
+                if len(parts) >= mode:
+                    return parts[-mode]
+                # Shorter chain than configured: the request did not come
+                # through the proxy path we were told about, so trust none of
+                # the header and fall through to the peer address.
     return request.client.host if request.client else "unknown"
 
 

@@ -34,14 +34,19 @@ class Settings(BaseSettings):
     CLOUDFLARE_R2_PUBLIC_BUCKET_NAME: str = ""
     # Public base URL (custom domain or r2.dev) mapped to the PUBLIC bucket above.
     CLOUDFLARE_R2_PUBLIC_URL: str = ""
-    # Number of proxy hops in front of the app. "" / "0" = none (the rate
-    # limiter ignores X-Forwarded-For and keys on the TCP connection IP).
-    # "1" = one reverse proxy (Caddy, Nginx); "2" = two (e.g. a platform edge
-    # in front of its own router, as on Railway/Vercel). The limiter keys on
-    # the Nth X-Forwarded-For entry from the right, which is the last address
-    # the client could not forge. Set this too low behind two proxies and every
-    # visitor shares one bucket; too high and the limiter falls back to the
-    # peer IP. Any truthy non-numeric value means 1 (the original flag form).
+    # How the rate limiter should read X-Forwarded-For. Match this to the proxy
+    # in front of the app — the two families behave oppositely and the wrong
+    # setting degrades the limiter silently rather than erroring:
+    #   ""  / "0"     no proxy — key on the TCP connection IP, ignore the header
+    #   "leftmost"    a STRIPPING edge (Railway, Cloudflare): it discards the
+    #                 client's XFF and rebuilds it, so entry 0 is the real
+    #                 client. Required on Railway, which also does not promise a
+    #                 stable internal hop count.
+    #   "1", "2", …   an APPEND-ONLY proxy chain (Caddy, Nginx): the client's own
+    #                 XFF is preserved and appended to, so leading entries are
+    #                 forgeable and the client is the Nth entry from the right.
+    #                 "1" is one reverse proxy, the single-VPS Caddy setup.
+    # Any other truthy value means 1 (the original on/off flag form).
     RATE_LIMIT_TRUSTED_PROXY: str = ""
     # ── Cost guardrails ──────────────────────────────────────────────────────
     # USD spend caps enforced before a scan is triggered (scans are the dominant

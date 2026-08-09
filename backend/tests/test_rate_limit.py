@@ -132,6 +132,41 @@ def test_non_numeric_trusted_proxy_still_means_one_hop(monkeypatch):
     assert "rl:view:192.168.1.5" in fake.counts
 
 
+def test_leftmost_mode_keys_on_the_first_forwarded_for_entry(monkeypatch):
+    # Railway's edge STRIPS any client-supplied X-Forwarded-For and rebuilds the
+    # chain, so the leftmost entry is the real client and is not forgeable. It
+    # also warns the internal hop count can vary, which is exactly why counting
+    # from the right is unsafe there.
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "leftmost")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 198.51.100.4, 192.168.1.5"))
+    assert "rl:view:203.0.113.7" in fake.counts
+    assert "rl:view:192.168.1.5" not in fake.counts
+
+
+def test_leftmost_mode_survives_a_changing_internal_hop_count(monkeypatch):
+    # The whole point of leftmost mode: two requests that traversed a different
+    # number of internal hops must still key on the same client.
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "leftmost")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 192.168.1.5"))
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 198.51.100.4, 192.168.1.5"))
+    assert fake.counts["rl:view:203.0.113.7"] == 2
+
+
+def test_leftmost_mode_falls_back_to_peer_without_forwarded_for(monkeypatch):
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "leftmost")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9"))
+    assert "rl:view:10.0.0.9" in fake.counts
+
+
 def test_fails_open_when_redis_unavailable(monkeypatch):
     class _Broken:
         def incr(self, key):
