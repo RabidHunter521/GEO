@@ -92,6 +92,46 @@ def test_untrusted_proxy_ignores_client_forwarded_for(monkeypatch):
     assert "rl:view:203.0.113.7" not in fake.counts
 
 
+def test_two_trusted_proxies_key_on_second_entry_from_the_right(monkeypatch):
+    # Two proxies (e.g. Railway's edge + the platform router) each append the
+    # address they received the connection from, so the real client is the 2nd
+    # entry from the right. Keying on the rightmost would collapse every visitor
+    # into one bucket — the platform's own IP.
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "2")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 198.51.100.4, 192.168.1.5"))
+    assert "rl:view:198.51.100.4" in fake.counts
+    assert "rl:view:192.168.1.5" not in fake.counts  # that is proxy 1, not the client
+    assert "rl:view:203.0.113.7" not in fake.counts  # client-forgeable
+
+
+def test_shorter_chain_than_configured_hops_falls_back_to_peer(monkeypatch):
+    # Fewer XFF entries than configured hops means the request did not traverse
+    # the chain we were told about — every entry is then suspect, so trust the
+    # TCP peer instead of picking a forgeable entry.
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "2")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7"))
+    assert "rl:view:10.0.0.9" in fake.counts
+    assert "rl:view:203.0.113.7" not in fake.counts
+
+
+def test_non_numeric_trusted_proxy_still_means_one_hop(monkeypatch):
+    # Back-compat: the setting used to be a bare on/off flag ("any non-empty
+    # value"), and existing deploys set things like "true". That must keep
+    # meaning exactly one proxy hop.
+    fake = _FakeRedis()
+    monkeypatch.setattr(rl, "_get_redis", lambda: fake)
+    monkeypatch.setattr(rl.settings, "RATE_LIMIT_TRUSTED_PROXY", "true")
+    dep = rl.rate_limit("view", max_requests=5, window_seconds=60)
+    dep(_request(ip="10.0.0.9", xff="203.0.113.7, 192.168.1.5"))
+    assert "rl:view:192.168.1.5" in fake.counts
+
+
 def test_fails_open_when_redis_unavailable(monkeypatch):
     class _Broken:
         def incr(self, key):

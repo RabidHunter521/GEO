@@ -26,14 +26,37 @@ def _get_redis() -> "redis.Redis":
     return _redis_client
 
 
+def _trusted_proxy_hops() -> int:
+    """How many proxies sit in front of the app. 0 = none (ignore XFF entirely).
+
+    The setting began life as a bare on/off flag, so any truthy non-numeric
+    value still means exactly one hop.
+    """
+    raw = str(settings.RATE_LIMIT_TRUSTED_PROXY).strip()
+    if not raw:
+        return 0
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return 1
+
+
 def _client_ip(request: Request) -> str:
-    if settings.RATE_LIMIT_TRUSTED_PROXY:
-        # Behind a reverse proxy: take the rightmost XFF entry, which is
-        # appended by the proxy from its own $remote_addr and cannot be forged
-        # by the client. The leftmost entries are client-controlled.
+    hops = _trusted_proxy_hops()
+    if hops:
+        # Each proxy appends the address it received the connection from, so
+        # with N trusted proxies the client is the Nth entry from the right.
+        # Everything further left is client-supplied and forgeable; the entries
+        # to the right are our own infrastructure. Keying on the rightmost when
+        # two proxies are in front (Railway, Vercel) would bucket every visitor
+        # under one platform IP and turn the limiter into a global cap.
         xff = request.headers.get("x-forwarded-for")
         if xff:
-            return xff.split(",")[-1].strip()
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            if len(parts) >= hops:
+                return parts[-hops]
+            # Shorter chain than configured: the request did not come through
+            # the proxy path we were told about, so trust none of the header.
     return request.client.host if request.client else "unknown"
 
 

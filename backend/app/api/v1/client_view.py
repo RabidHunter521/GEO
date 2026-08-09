@@ -931,7 +931,7 @@ def get_reports(
 
 @router.get("/issues", response_model=list[ClientViewIssueGroup])
 def get_issues(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     return detect_client_issues(client, db)
@@ -939,7 +939,7 @@ def get_issues(
 
 @router.get("/actions", response_model=list[ClientViewAction])
 def get_actions(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     actions = (
@@ -980,7 +980,7 @@ ACTIVITY_LIMIT = 30
 
 @router.get("/toolkit", response_model=ClientViewToolkit | None)
 def get_toolkit(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     files = (
@@ -1005,7 +1005,7 @@ def get_toolkit(
 
 @router.get("/roadmap", response_model=ClientViewRoadmap | None)
 def get_roadmap(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     roadmap = (
@@ -1042,7 +1042,7 @@ def get_roadmap(
 
 @router.get("/content-gaps", response_model=ClientViewContentGaps | None)
 def get_content_gaps(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     analysis = (
@@ -1080,7 +1080,7 @@ def get_content_gaps(
 
 @router.get("/activity", response_model=list[ClientViewActivity])
 def get_activity(
-    client: Client = Depends(require_share_client),
+    client: Client = Depends(require_non_prospect_share_client),
     db: Session = Depends(get_db),
 ):
     rows = (

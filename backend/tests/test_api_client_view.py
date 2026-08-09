@@ -488,3 +488,59 @@ def test_prospect_share_link_404s_on_benchmarks(db):
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(_saved)
+
+
+# Every deliverable surface a prospect link must NOT reach. Overview and /scan
+# are the whole prospect view; anything else is paid work product (roadmap
+# article bodies, the AI Readiness Toolkit files, gap analysis) and must return
+# the same uniform 404 as an unknown token.
+_PROSPECT_FORBIDDEN_PATHS = [
+    "/issues",
+    "/actions",
+    "/toolkit",
+    "/roadmap",
+    "/content-gaps",
+    "/activity",
+]
+
+
+@pytest.mark.parametrize("path", _PROSPECT_FORBIDDEN_PATHS)
+def test_prospect_share_link_404s_on_deliverable_surfaces(db, path):
+    """A prospect token must not reach any deliverable surface.
+
+    These six routes were gated on `require_share_client` (token valid) rather
+    than `require_non_prospect_share_client`, so a prospect who called the API
+    directly — bypassing the UI, which hides the tabs — could pull the full
+    content roadmap including generated article bodies, plus the toolkit files.
+    """
+    prospect = _make_client(db, is_prospect=True, name=f"ProspectGate{path}")
+    prospect.share_token = uuid.uuid4().hex
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{prospect.share_token}{path}")
+        assert res.status_code == 404, f"{path} leaked to a prospect: {res.status_code}"
+        # Uniform body too — a distinct message would still reveal the surface.
+        assert res.json() == {"detail": "Not found"}
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
+@pytest.mark.parametrize("path", _PROSPECT_FORBIDDEN_PATHS)
+def test_paying_client_still_reaches_deliverable_surfaces(db, path):
+    """The gate must not cost a paying client access to the same routes."""
+    paying = _make_client(db, is_prospect=False, name=f"PayingGate{path}")
+    paying.share_token = uuid.uuid4().hex
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{paying.share_token}{path}")
+        assert res.status_code == 200, f"{path} broke for a paying client: {res.text}"
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
