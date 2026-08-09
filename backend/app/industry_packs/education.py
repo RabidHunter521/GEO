@@ -147,7 +147,7 @@ _QUERY_TEMPLATES = (
     ),
     QueryTemplate(
         id="subject_discovery",
-        template="Where can my child learn {subject} in {city}?",
+        template="Where can I learn {subject} in {city}?",
         buyer_stage="awareness", commercial_intent="medium", location_required=True,
     ),
     QueryTemplate(
@@ -174,13 +174,13 @@ _QUERY_TEMPLATES = (
     ),
     QueryTemplate(
         id="subject_cost",
-        template="How much does {subject} tuition cost in {city}?",
+        template="How much does {subject} cost in {city}?",
         buyer_stage="consideration", commercial_intent="high", location_required=True,
     ),
     # decision
     QueryTemplate(
         id="brand_vs_competitor",
-        template="{brand} vs {competitor}: which is better for my child?",
+        template="{brand} vs {competitor}: which is better?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
     ),
     QueryTemplate(
@@ -192,17 +192,21 @@ _QUERY_TEMPLATES = (
         buyer_stage="decision", commercial_intent="high", location_required=True,
     ),
     QueryTemplate(
-        id="admissions", template="How do I enrol my child at {brand}?",
+        id="admissions", template="How do I enrol at {brand}?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
     ),
 
     # --- subcategory-specific ------------------------------------------------
-    # Anchored to {brand} or a location placeholder on purpose: those land in
-    # the brand and local categories, and only the ranked categories
-    # (recommendation, local) pay for position extraction. An unanchored
-    # template would fall through `category_for` to recommendation — precisely
-    # the category that pays — buying an extra LLM call these yes/no and
-    # small-group questions can never use.
+    # Anchored to {brand} or a location placeholder on purpose, and each
+    # anchor is chosen to match what the question can pay for:
+    #   - {brand}-anchored yes/no questions land in `brand` (not ranked),
+    #     which is correct — a yes/no answer has no ranking to extract.
+    #   - Location-anchored "which X in {city}" questions land in `local`
+    #     (ranked), which is also correct — those are genuine ranked-list
+    #     questions worth the extra position-extraction call.
+    # What to avoid is an UNANCHORED template: `category_for` would fall
+    # through it to `recommendation` (ranked), buying a position-extraction
+    # call a yes/no or small-group question can never use.
     QueryTemplate(
         id="tuition_group_size",
         template="Does {brand} offer small group classes for {subject}?",

@@ -255,6 +255,8 @@ def _packed_client(pack: str, subcategory: str | None, industry: str = "aestheti
         ("fnb", "catering", "FoodEstablishment"),
         ("local_services", "automotive", "AutomotiveBusiness"),
         ("local_services", "emergency_service", "LocalBusiness"),
+        ("education", "kindergarten", "Preschool"),
+        ("education", "driving_school", "EducationalOrganization"),
     ],
 )
 def test_pack_subcategory_drives_the_primary_schema_type(pack, subcategory, expected):
