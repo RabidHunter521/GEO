@@ -50,10 +50,11 @@ def test_migration_declares_expected_revision_ids():
     assert f'down_revision: Union[str, None] = "{DOWN_REVISION_ID}"' in source
 
 
-def test_migration_chains_from_phase_5_head_and_is_the_only_head():
-    """Phase 5 ended on the merge revision a4b5c6d7e8f9. The plan named
-    d1a7c5f4e0b2 because it was written before Phase 5 shipped; chaining there
-    would fork the tree into two heads."""
+def test_migration_chains_from_phase_5_head_and_tree_does_not_fork():
+    """Phase 5 ended on the merge revision a4b5c6d7e8f9, which must remain
+    the direct parent of this migration. The migration is no longer the single
+    chain head because later migrations extend it, but the tree must maintain
+    exactly one head to prevent accidental schema drift."""
     script = _script_dir()
     revision = script.get_revision(REVISION_ID)
     assert revision is not None
@@ -61,7 +62,6 @@ def test_migration_chains_from_phase_5_head_and_is_the_only_head():
 
     heads = script.get_heads()
     assert len(heads) == 1, f"expected exactly one chain head, found {heads}"
-    assert heads[0] == REVISION_ID
 
 
 def test_migration_creates_all_three_benchmark_tables():
