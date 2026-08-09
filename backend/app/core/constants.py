@@ -446,3 +446,130 @@ COUNTRY_NAME_TO_ISO: Final = {
     "brunei": "BN",
     "bn": "BN",
 }
+
+# ── Global dashboard event classification ────────────────────────────────────
+# Three maps + a canonical set, all keyed by activity_log.event_type. Coverage-
+# tested in tests/test_dashboard_constants.py: every known type must appear in
+# all three maps. Unknown types (a future writer someone forgets to add here)
+# render as DEFAULT_EVENT_TIER / category None / the per-client activity page —
+# visible, never silently swallowed. When you add an ActivityLog writer, add
+# its event_type to all four structures below.
+
+EVENT_TIER_ATTENTION: Final = "attention"
+EVENT_TIER_NOTABLE: Final = "notable"
+EVENT_TIER_ROUTINE: Final = "routine"
+DEFAULT_EVENT_TIER: Final = EVENT_TIER_NOTABLE
+
+KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
+    "alert_sent", "assessment_accepted", "assessment_generated",
+    "authority_assets_added", "authority_status_changed", "brief_generated",
+    "citation_flip", "client_created", "deliverable_generated",
+    "deliverable_reviewed", "digest_sent", "hallucination_flagged",
+    "page_audit_run", "report_generated", "report_sent",
+    "review_snapshot_added", "scan_blocked_budget", "scan_completed",
+    "scan_failed", "scan_platform_unavailable", "share_link_regenerated",
+    "share_link_revoked", "site_audit_run", "toolkit_generated",
+    "toolkit_verified", "traffic_updated",
+})
+
+EVENT_TIERS: Final = {
+    # attention — something failed or moved against the client
+    "scan_failed": EVENT_TIER_ATTENTION,
+    "scan_platform_unavailable": EVENT_TIER_ATTENTION,
+    "scan_blocked_budget": EVENT_TIER_ATTENTION,
+    "hallucination_flagged": EVENT_TIER_ATTENTION,
+    "alert_sent": EVENT_TIER_ATTENTION,
+    "citation_flip": EVENT_TIER_ATTENTION,
+    # notable — work delivered, or state that changes scores/access
+    "client_created": EVENT_TIER_NOTABLE,
+    "report_generated": EVENT_TIER_NOTABLE,
+    "report_sent": EVENT_TIER_NOTABLE,
+    "toolkit_verified": EVENT_TIER_NOTABLE,
+    "assessment_generated": EVENT_TIER_NOTABLE,
+    "assessment_accepted": EVENT_TIER_NOTABLE,
+    "deliverable_generated": EVENT_TIER_NOTABLE,
+    "deliverable_reviewed": EVENT_TIER_NOTABLE,
+    "brief_generated": EVENT_TIER_NOTABLE,
+    "authority_assets_added": EVENT_TIER_NOTABLE,
+    "authority_status_changed": EVENT_TIER_NOTABLE,
+    "review_snapshot_added": EVENT_TIER_NOTABLE,
+    "share_link_regenerated": EVENT_TIER_NOTABLE,
+    "share_link_revoked": EVENT_TIER_NOTABLE,
+    # routine — the expected heartbeat
+    "scan_completed": EVENT_TIER_ROUTINE,
+    "digest_sent": EVENT_TIER_ROUTINE,
+    "traffic_updated": EVENT_TIER_ROUTINE,
+    "toolkit_generated": EVENT_TIER_ROUTINE,
+    "page_audit_run": EVENT_TIER_ROUTINE,
+    "site_audit_run": EVENT_TIER_ROUTINE,
+}
+
+# Category keys are API values (stable identifiers); labels are display text.
+DASHBOARD_CATEGORY_LABELS: Final = {
+    "scans": "Scans",
+    "reports_emails": "Reports & Emails",
+    "alerts_issues": "Alerts & Issues",
+    "content_work": "Content Work",
+    "admin": "Admin",
+}
+
+EVENT_CATEGORIES: Final = {
+    "scan_completed": "scans",
+    "scan_failed": "scans",
+    "scan_platform_unavailable": "scans",
+    "scan_blocked_budget": "scans",
+    "report_generated": "reports_emails",
+    "report_sent": "reports_emails",
+    "digest_sent": "reports_emails",
+    "alert_sent": "alerts_issues",
+    "hallucination_flagged": "alerts_issues",
+    "citation_flip": "alerts_issues",
+    "brief_generated": "content_work",
+    "deliverable_generated": "content_work",
+    "deliverable_reviewed": "content_work",
+    "page_audit_run": "content_work",
+    "site_audit_run": "content_work",
+    "toolkit_generated": "content_work",
+    "toolkit_verified": "content_work",
+    "authority_assets_added": "content_work",
+    "authority_status_changed": "content_work",
+    "review_snapshot_added": "content_work",
+    "client_created": "admin",
+    "share_link_regenerated": "admin",
+    "share_link_revoked": "admin",
+    "traffic_updated": "admin",
+    "assessment_generated": "admin",
+    "assessment_accepted": "admin",
+}
+
+# Client-relative route each event links to ("" = the client overview page).
+# Deliberately imprecise-but-close (spec: route-by-type, option A) — the
+# destination page shows the item within one scroll.
+EVENT_LINK_ROUTES: Final = {
+    "scan_completed": "/scan",
+    "scan_failed": "/scan",
+    "scan_platform_unavailable": "/scan",
+    "scan_blocked_budget": "/scan",
+    "hallucination_flagged": "/scan",
+    "citation_flip": "/scan",
+    "alert_sent": "",
+    "client_created": "",
+    "assessment_generated": "",
+    "assessment_accepted": "",
+    "traffic_updated": "",
+    "report_generated": "/reports",
+    "report_sent": "/reports",
+    "digest_sent": "/activity",
+    "toolkit_generated": "/toolkit",
+    "toolkit_verified": "/toolkit",
+    "site_audit_run": "/toolkit",
+    "brief_generated": "/content-roadmap",
+    "deliverable_generated": "/content-studio",
+    "deliverable_reviewed": "/content-studio",
+    "page_audit_run": "/content-studio",
+    "authority_assets_added": "/authority",
+    "authority_status_changed": "/authority",
+    "review_snapshot_added": "/authority",
+    "share_link_regenerated": "/settings",
+    "share_link_revoked": "/settings",
+}
