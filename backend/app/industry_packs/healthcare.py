@@ -163,11 +163,16 @@ _QUERY_TEMPLATES = (
     ),
 
     # --- subcategory-specific -------------------------------------------------
-    # The questions a buyer only asks about ONE kind of practice. Anchored to
-    # {brand} or a location placeholder deliberately: those land in the brand
-    # and local categories, and only the ranked categories (recommendation,
-    # local) pay for position extraction, so an unanchored yes/no question
-    # would buy an extra LLM call it can never use.
+    # The questions a buyer only asks about ONE kind of practice. Each anchor
+    # is chosen to match what the question can pay for:
+    #   - {brand}-anchored yes/no questions land in `brand`, which is NOT
+    #     ranked — correct, a yes/no answer has no ranking to extract.
+    #   - Location-anchored "which X in {city}" questions land in `local`,
+    #     which IS ranked — also correct, those are genuine ranked-list
+    #     questions worth the position-extraction call (dental_nervous_patients
+    #     and pharmacy_24h below).
+    # What to avoid is an UNANCHORED template: `category_for` falls through to
+    # `recommendation` (ranked), buying a call a yes/no question cannot use.
     QueryTemplate(
         id="walk_in_availability", template="Does {brand} accept walk-in patients?",
         buyer_stage="decision", commercial_intent="high", location_required=False,

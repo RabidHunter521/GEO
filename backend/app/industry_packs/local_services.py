@@ -182,9 +182,14 @@ _QUERY_TEMPLATES = (
 
     # --- subcategory-specific -------------------------------------------------
     # A 24-hour locksmith, a salon and a bookkeeper share almost no buyer
-    # question beyond "who covers my area". Anchored to {brand} or a location
-    # placeholder so they land in the brand/local categories rather than paying
-    # for position extraction on a yes/no answer.
+    # question beyond "who covers my area". Each anchor is chosen to match what
+    # the question can pay for: {brand}-anchored yes/no questions land in
+    # `brand`, which is NOT ranked — correct, there is nothing to rank.
+    # Location-anchored "which X in {city}" questions land in `local`, which IS
+    # ranked — also correct, those are genuine ranked lists worth the
+    # position-extraction call (emergency_24h below). What to avoid is an
+    # UNANCHORED template: `category_for` falls through to `recommendation`
+    # (ranked), buying a call a yes/no question cannot use.
     QueryTemplate(
         id="home_free_quote", template="Does {brand} give free quotes for {service}?",
         buyer_stage="decision", commercial_intent="high", location_required=False,
