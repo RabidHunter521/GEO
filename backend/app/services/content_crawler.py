@@ -12,9 +12,13 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+import structlog
 from bs4 import BeautifulSoup
 
+from app.services.page_readability import looks_unreadable
 from app.services.url_safety import is_safe_crawl_url, safe_get
+
+logger = structlog.get_logger()
 
 _TIMEOUT = 10
 _MAX_PAGES = 15
@@ -90,22 +94,33 @@ def crawl_site(website: str) -> CrawlResult:
             continue
 
         soup = BeautifulSoup(r.text, "lxml")
+        # Read every structural signal BEFORE extracting text — that step
+        # decomposes <script>, which would take the JSON-LD with it.
+        h1_count = len(soup.find_all("h1"))
+        has_schema = soup.find("script", attrs={"type": "application/ld+json"}) is not None
+        page_is_faq = "faq" in url.lower() or any(
+            "faq" in h or "frequently asked" in h
+            for h in (
+                heading.get_text(strip=True).lower()
+                for heading in soup.find_all(["h1", "h2", "h3"])
+            )
+        )
+
+        page_text = _extract_visible_text(soup)
+        if looks_unreadable(r.text, page_text):
+            # Client-rendered shell or login wall — counting it would inflate
+            # pages_crawled and push pure markup into the Claude corpus.
+            logger.info("crawl_page_unreadable", url=url, html_bytes=len(r.text))
+            continue
+
         result.pages_crawled += 1
-        result.h1_count += len(soup.find_all("h1"))
-
-        if soup.find("script", attrs={"type": "application/ld+json"}):
+        result.h1_count += h1_count
+        if has_schema:
             result.schema_present = True
-
-        if "faq" in url.lower():
+        if page_is_faq:
             faq_count += 1
-        else:
-            for heading in soup.find_all(["h1", "h2", "h3"]):
-                htext = heading.get_text(strip=True).lower()
-                if "faq" in htext or "frequently asked" in htext:
-                    faq_count += 1
-                    break
 
-        corpus_parts.append(_extract_visible_text(soup))
+        corpus_parts.append(page_text)
 
     result.faq_count = faq_count
     corpus = "\n\n".join(corpus_parts)

@@ -93,3 +93,25 @@ def test_crawl_site_skips_non_html_and_errors():
     # only the homepage counts; the JSON page is skipped
     assert result.pages_crawled == 1
     assert result.schema_present is False
+
+
+def test_crawl_site_skips_unreadable_js_shell():
+    """A login wall / JS shell returns 200 + huge HTML + no text. It must not
+    count as a crawled page, and its markup must never reach text_corpus."""
+    shell = ("<html><body>" + "<div class='_9dls'></div>" * 18_000 +
+             "</body></html>")
+
+    def dispatch(url, **kwargs):
+        if url.endswith("/sitemap.xml"):
+            return _resp(text="<urlset><loc>https://acme.com/wall</loc></urlset>")
+        if "wall" in url:
+            return _resp(text=shell)
+        return _resp(text="<html><body><h1>Home</h1>"
+                          "<p>We sell solar panels and inverters</p></body></html>")
+
+    with patch("app.services.content_crawler.safe_get", side_effect=dispatch):
+        result = crawl_site("https://acme.com")
+
+    assert result.pages_crawled == 1          # homepage only
+    assert "_9dls" not in result.text_corpus
+    assert result.word_count < 40
