@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, time as dtime, timedelta, timezone
 
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.core.constants import (
@@ -29,9 +29,17 @@ from app.core.constants import (
 from app.core.time import utcnow
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
+from app.models.geo_score import GeoScore
+from app.models.llm_call_log import LlmCallLog
 from app.schemas.dashboard import (
+    AttentionCounts,
+    CostSummary,
     DashboardFeedItem,
     DashboardFeedResponse,
+    DashboardMover,
+    DashboardSummaryResponse,
+    PortfolioHealth,
+    ServiceCost,
 )
 
 
@@ -128,4 +136,164 @@ def get_feed(
     ]
     return DashboardFeedResponse(
         items=items, total=total, has_more=offset + len(items) < total
+    )
+
+
+_ATTENTION_FIELD_BY_EVENT = {
+    "scan_failed": "scans_failed",
+    "scan_platform_unavailable": "platforms_unavailable",
+    "hallucination_flagged": "hallucinations_flagged",
+    "alert_sent": "alerts_sent",
+    "citation_flip": "share_of_source_changes",
+}
+
+
+def get_summary(
+    db: Session, period: Period, *, client_id: uuid.UUID | None = None
+) -> DashboardSummaryResponse:
+    return DashboardSummaryResponse(
+        attention=_attention_counts(db, period, client_id),
+        portfolio=_portfolio_health(db, period, client_id),
+        cost=_cost_summary(db, period, client_id),
+    )
+
+
+def _attention_counts(
+    db: Session, period: Period, client_id: uuid.UUID | None
+) -> AttentionCounts:
+    q = (
+        db.query(ActivityLog.event_type, func.count(ActivityLog.id))
+        .join(Client, ActivityLog.client_id == Client.id)
+        .filter(Client.archived_at.is_(None))
+        .filter(
+            ActivityLog.created_at >= period.start,
+            ActivityLog.created_at < period.end,
+            ActivityLog.event_type.in_(_ATTENTION_FIELD_BY_EVENT),
+        )
+        .group_by(ActivityLog.event_type)
+    )
+    if client_id is not None:
+        q = q.filter(ActivityLog.client_id == client_id)
+    counts = dict(q.all())
+    return AttentionCounts(
+        **{
+            field: counts.get(event, 0)
+            for event, field in _ATTENTION_FIELD_BY_EVENT.items()
+        }
+    )
+
+
+def _portfolio_health(
+    db: Session, period: Period, client_id: uuid.UUID | None
+) -> PortfolioHealth:
+    clients_q = db.query(Client).filter(
+        Client.archived_at.is_(None), Client.is_prospect.is_(False)
+    )
+    if client_id is not None:
+        clients_q = clients_q.filter(Client.id == client_id)
+    clients = clients_q.all()
+    name_by_id = {c.id: c.name for c in clients}
+    if not clients:
+        return PortfolioHealth(
+            average_score=None, average_delta=None, clients_scored=0,
+            biggest_gainer=None, biggest_decliner=None,
+        )
+
+    # One pass over scores, newest first: the first row seen per client is
+    # its latest (≤ period end); the first row with computed_at < start is
+    # its baseline. Clients with no baseline contribute no delta (spec).
+    scores = (
+        db.query(GeoScore)
+        .filter(
+            GeoScore.client_id.in_(name_by_id),
+            GeoScore.computed_at < period.end,
+        )
+        .order_by(GeoScore.client_id, desc(GeoScore.computed_at))
+        .all()
+    )
+    latest: dict[uuid.UUID, float] = {}
+    baseline: dict[uuid.UUID, float] = {}
+    for s in scores:
+        if s.client_id not in latest:
+            latest[s.client_id] = s.overall_score
+        if s.client_id not in baseline and s.computed_at < period.start:
+            baseline[s.client_id] = s.overall_score
+
+    if not latest:
+        return PortfolioHealth(
+            average_score=None, average_delta=None, clients_scored=0,
+            biggest_gainer=None, biggest_decliner=None,
+        )
+
+    deltas = {
+        cid: latest[cid] - baseline[cid] for cid in latest if cid in baseline
+    }
+
+    def _mover(cid: uuid.UUID) -> DashboardMover:
+        return DashboardMover(
+            client_id=cid, client_name=name_by_id[cid],
+            delta=round(deltas[cid], 1), latest_score=latest[cid],
+        )
+
+    gainer_id = max(deltas, key=deltas.__getitem__, default=None)
+    decliner_id = min(deltas, key=deltas.__getitem__, default=None)
+    return PortfolioHealth(
+        average_score=round(sum(latest.values()) / len(latest), 1),
+        average_delta=(
+            round(sum(deltas.values()) / len(deltas), 1) if deltas else None
+        ),
+        clients_scored=len(latest),
+        biggest_gainer=(
+            _mover(gainer_id) if gainer_id is not None and deltas[gainer_id] > 0 else None
+        ),
+        biggest_decliner=(
+            _mover(decliner_id) if decliner_id is not None and deltas[decliner_id] < 0 else None
+        ),
+    )
+
+
+def _cost_summary(
+    db: Session, period: Period, client_id: uuid.UUID | None
+) -> CostSummary:
+    # llm_call_logs.called_at is the one AWARE column — aware bounds only here.
+    in_period = [
+        LlmCallLog.called_at >= period.start_aware,
+        LlmCallLog.called_at < period.end_aware,
+    ]
+    total = (
+        db.query(func.coalesce(func.sum(LlmCallLog.cost_usd), 0))
+        .filter(*in_period)
+        .scalar()
+    )
+    unattributed = (
+        db.query(func.coalesce(func.sum(LlmCallLog.cost_usd), 0))
+        .filter(*in_period, LlmCallLog.client_id.is_(None))
+        .scalar()
+    )
+    top = (
+        db.query(
+            LlmCallLog.service,
+            func.sum(LlmCallLog.cost_usd).label("cost"),
+        )
+        .filter(*in_period)
+        .group_by(LlmCallLog.service)
+        .order_by(func.sum(LlmCallLog.cost_usd).desc())
+        .first()
+    )
+    selected = None
+    if client_id is not None:
+        selected = float(
+            db.query(func.coalesce(func.sum(LlmCallLog.cost_usd), 0))
+            .filter(*in_period, LlmCallLog.client_id == client_id)
+            .scalar()
+        )
+    return CostSummary(
+        total_cost_usd=float(total),
+        top_service=(
+            ServiceCost(service=top.service, cost_usd=float(top.cost))
+            if top is not None
+            else None
+        ),
+        unattributed_cost_usd=float(unattributed),
+        selected_client_cost_usd=selected,
     )
