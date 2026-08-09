@@ -24,6 +24,7 @@ from app.models.activity_log import ActivityLog
 from app.models.authority_asset import AuthorityAsset
 from app.models.client import Client
 from app.services.brand_detection import detect_brand_mention
+from app.services.page_readability import looks_unreadable
 from app.services.url_safety import is_safe_crawl_url, safe_get
 
 logger = structlog.get_logger()
@@ -325,6 +326,19 @@ def verify_asset(asset: AuthorityAsset, client: Client, db: Session) -> tuple[Au
             ctype = resp.headers.get("content-type", "").lower()
             if resp.status_code != 200 or ("html" not in ctype and ctype != ""):
                 note = "Couldn't load that page — it didn't return a readable web page."
+            elif looks_unreadable(resp.text, _page_text(resp.text)):
+                # A login wall or client-rendered shell: 200, plenty of markup,
+                # no readable text. Its one visible word is often the brand
+                # name itself, which would satisfy extract_nap and publish a
+                # false "verified" to the client. Leave status alone.
+                logger.info(
+                    "authority_verify_unreadable",
+                    asset_id=str(asset.id),
+                    url=asset.url,
+                    html_bytes=len(resp.text),
+                )
+                note = ("Couldn't read that page — it loads its content in the browser "
+                        "or asks for a login. Verify by hand if the listing looks right.")
             else:
                 text = _page_text(resp.text)
                 found = extract_nap(text, client)

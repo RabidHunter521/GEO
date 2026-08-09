@@ -433,3 +433,56 @@ def test_summarize_for_assessment_reports_verified_names(db):
     summary = authority_service.summarize_for_assessment(client.id, db)
     assert summary["verified"] == 1
     assert "Google Business Profile" in summary["verified_names"]
+
+
+# --- Readable-content gate (regression: the Facebook login-wall false verify) ---
+
+def _login_wall(brand: str) -> str:
+    """A facebook.com/<brand>-shaped response: ~465 KB of markup whose only
+    visible text is the brand name. Measured live 2026-08-09."""
+    filler = "<div class='_9dls'></div>" * 18_000
+    return f"<html><head><title>{brand}</title></head><body>{filler}</body></html>"
+
+
+def test_verify_does_not_verify_a_login_wall_naming_the_brand(db):
+    """The bug this gate exists for: a 200 with one visible word — the brand
+    name — used to satisfy extract_nap and publish 'now verified'."""
+    from app.models.activity_log import ActivityLog
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "facebook", "url": "https://www.facebook.com/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get",
+                      return_value=_ok(_login_wall("Acme Dental"))):
+        asset, note = authority_service.verify_asset(asset, client, db)
+
+    assert asset.status == "live"           # never upgraded off an unreadable page
+    assert asset.found_nap is None          # no NAP claimed from one word
+    assert asset.last_checked_at is not None  # the attempt is still recorded
+    assert "browser" in note.lower() or "log in" in note.lower()
+    # The "live" status change logs one row; no *verified* row may join it.
+    assert db.query(ActivityLog).filter(
+        ActivityLog.event_type == "authority_status_changed",
+        ActivityLog.note.like("%verified%"),
+    ).count() == 0
+
+
+def test_verify_still_reads_a_large_page_with_real_content(db):
+    """The gate must not reject a big page that genuinely has content."""
+    from app.services import authority_service
+    client = _make_client(db)
+    (asset,) = authority_service.add_assets(
+        client, [{"asset_key": "linkedin", "url": "https://linkedin.com/company/acme"}], db)
+    authority_service.update_asset(asset, {"status": "live"}, db)
+
+    body = " ".join(f"word{i}" for i in range(200))
+    html = ("<html><body><div>" + "<span></span>" * 5_000 +
+            f"<h1>Acme Dental</h1><p>{body}</p></div></body></html>")
+    with patch.object(authority_service, "is_safe_crawl_url", return_value=True), \
+         patch.object(authority_service, "safe_get", return_value=_ok(html)):
+        asset, note = authority_service.verify_asset(asset, client, db)
+
+    assert asset.status == "verified"
