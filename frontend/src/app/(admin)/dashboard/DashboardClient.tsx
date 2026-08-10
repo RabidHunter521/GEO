@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SearchableSelect } from "@/components/ui/searchable-select"
-import { presentActivityNote, presentActivityType } from "@/lib/activity-presentation"
+import { formatUtc, presentActivityNote, presentActivityType } from "@/lib/activity-presentation"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { getScoreColor } from "@/lib/score-utils"
 import { cn } from "@/lib/utils"
@@ -58,16 +58,6 @@ const SCORE_TEXT: Record<ReturnType<typeof getScoreColor>, string> = {
   green: "text-emerald-600",
   yellow: "text-amber-600",
   red: "text-red-600",
-}
-
-// Backend timestamps are naive UTC with no zone suffix; without the "Z" the
-// browser would parse them as local time and shift everything by +8h.
-function formatUtc(ts: string): string {
-  const iso = ts.endsWith("Z") || ts.includes("+") ? ts : `${ts}Z`
-  return new Intl.DateTimeFormat("en-MY", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(iso))
 }
 
 function usd(n: number): string {
@@ -164,6 +154,7 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
   const attentionRows: { label: string; count: number; event: string }[] = [
     { label: "Scans failed", count: attention.scans_failed, event: "scan_failed" },
     { label: "Platforms unavailable", count: attention.platforms_unavailable, event: "scan_platform_unavailable" },
+    { label: "Scans blocked by budget", count: attention.scans_blocked_budget, event: "scan_blocked_budget" },
     { label: "Accuracy issues", count: attention.hallucinations_flagged, event: "hallucination_flagged" },
     { label: "Alerts sent", count: attention.alerts_sent, event: "alert_sent" },
     { label: "Share-of-source changes", count: attention.share_of_source_changes, event: "citation_flip" },
@@ -254,6 +245,7 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
           <Badge variant="secondary" className="gap-1">
             {presentActivityType(filters.eventType).label}
             <button
+              type="button"
               aria-label="Clear event filter"
               onClick={() => push({ ...filters, eventType: undefined })}
               className="ml-1 font-bold"
@@ -303,7 +295,7 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
           </CardHeader>
           <CardContent className="space-y-1.5">
             {portfolio.average_score === null ? (
-              <p className="text-sm text-muted-foreground">No scans in this period yet.</p>
+              <p className="text-sm text-muted-foreground">No scored clients yet.</p>
             ) : (
               <>
                 <p className="text-2xl font-bold">

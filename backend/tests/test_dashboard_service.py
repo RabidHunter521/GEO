@@ -119,7 +119,7 @@ class TestFeed:
         res = dashboard_service.get_feed(db, _period())
         assert res.total == 1 and res.items[0].client_id == lead.id
 
-    def test_period_bounds_are_inclusive_start_exclusive_end(self, db):
+    def test_filters_events_outside_the_window(self, db):
         c = _client(db)
         _event(db, c, days_ago=40)  # outside a 30-day window
         _event(db, c, days_ago=5)
@@ -185,6 +185,16 @@ class TestSummaryAttention:
         _event(db, b, event_type="scan_failed")
         s = dashboard_service.get_summary(db, _period(), client_id=a.id)
         assert s.attention.scans_failed == 1
+
+    def test_counts_scan_blocked_budget_events(self, db):
+        # scan_blocked_budget is an attention-tier event (EVENT_TIERS) written
+        # by alert_service.py when the spend cap blocks a scan. If the tile
+        # doesn't count it, "Nothing needs attention" can be shown while the
+        # attention-only feed still has entries.
+        c = _client(db)
+        _event(db, c, event_type="scan_blocked_budget")
+        s = dashboard_service.get_summary(db, _period(30))
+        assert s.attention.scans_blocked_budget == 1
 
 
 class TestSummaryPortfolio:

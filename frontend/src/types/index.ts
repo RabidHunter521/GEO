@@ -1411,6 +1411,7 @@ export interface DashboardSummary {
   attention: {
     scans_failed: number
     platforms_unavailable: number
+    scans_blocked_budget: number
     hallucinations_flagged: number
     alerts_sent: number
     share_of_source_changes: number

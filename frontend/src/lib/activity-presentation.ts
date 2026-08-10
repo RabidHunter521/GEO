@@ -71,3 +71,22 @@ export function presentActivityNote(note: string): string {
     note,
   )
 }
+
+// Backend timestamps (activity_log.created_at, geo_scores.computed_at, etc.)
+// are stored as naive UTC — no zone suffix. `new Date(ts)` on a string with
+// no zone info is parsed as LOCAL time by the browser, not UTC, which shifts
+// every displayed timestamp by the viewer's UTC offset (+8h in Malaysia).
+// Appending "Z" before parsing forces the correct UTC interpretation. Every
+// surface that renders a backend timestamp must parse through this
+// function (or formatUtc below) rather than calling `new Date(ts)` directly.
+export function parseUtc(ts: string): Date {
+  const iso = ts.endsWith("Z") || ts.includes("+") ? ts : `${ts}Z`
+  return new Date(iso)
+}
+
+export function formatUtc(ts: string): string {
+  return new Intl.DateTimeFormat("en-MY", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(parseUtc(ts))
+}

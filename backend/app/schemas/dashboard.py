@@ -27,6 +27,7 @@ class DashboardFeedResponse(BaseModel):
 class AttentionCounts(BaseModel):
     scans_failed: int
     platforms_unavailable: int
+    scans_blocked_budget: int
     hallucinations_flagged: int
     alerts_sent: int
     share_of_source_changes: int

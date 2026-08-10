@@ -2,7 +2,7 @@ import Link from "next/link"
 import { Activity, CheckCircle, XCircle, Wrench, ShieldCheck, UserPlus, Mail, FileText, Bell, AlertTriangle, ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { getActivityLog, getWorkLog } from "@/lib/api"
 import { Button } from "@/components/ui/button"
-import { presentActivityNote, presentActivityType } from "@/lib/activity-presentation"
+import { parseUtc, presentActivityNote, presentActivityType } from "@/lib/activity-presentation"
 import type { ActivityLogEntry } from "@/types"
 import { WorkLogCard } from "./WorkLogCard"
 
@@ -43,8 +43,11 @@ function EventIcon({ type }: { type: string }) {
   }
 }
 
+// created_at is naive UTC (no zone suffix) — parseUtc appends "Z" so this
+// parses as UTC instead of the browser's local zone. See
+// src/lib/activity-presentation.ts for why that matters.
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("en-MY", {
+  return parseUtc(iso).toLocaleString("en-MY", {
     day: "numeric",
     month: "short",
     year: "numeric",

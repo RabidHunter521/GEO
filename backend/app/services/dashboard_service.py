@@ -142,6 +142,7 @@ def get_feed(
 _ATTENTION_FIELD_BY_EVENT = {
     "scan_failed": "scans_failed",
     "scan_platform_unavailable": "platforms_unavailable",
+    "scan_blocked_budget": "scans_blocked_budget",
     "hallucination_flagged": "hallucinations_flagged",
     "alert_sent": "alerts_sent",
     "citation_flip": "share_of_source_changes",
@@ -186,6 +187,17 @@ def _attention_counts(
 def _portfolio_health(
     db: Session, period: Period, client_id: uuid.UUID | None
 ) -> PortfolioHealth:
+    # average_score / clients_scored are an AS-OF-PERIOD-END snapshot, not a
+    # period-windowed metric: the scores query below bounds only on
+    # `computed_at < period.end` (no `>= period.start`) so a client last
+    # scanned months ago still counts as "scored" and contributes its latest
+    # score to the average. That is intentional — this tile answers "how
+    # healthy is the portfolio right now," not "who was scored in this
+    # window." average_delta and the biggest_gainer/biggest_decliner movers
+    # ARE period-scoped (they require a baseline score from before
+    # period.start). Do not "fix" the snapshot half of this to be
+    # period-windowed — that would make average_score None/misleading for a
+    # client the admin just hasn't re-scanned recently, which is worse.
     clients_q = db.query(Client).filter(
         Client.archived_at.is_(None), Client.is_prospect.is_(False)
     )
