@@ -1,8 +1,10 @@
+import base64
 import html
 import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 from app.core.time import utcnow
 
@@ -73,6 +75,11 @@ _REMEDIATION_BADGE = {
 }
 
 logger = structlog.get_logger()
+
+# 64x64 PNG mark, base64-inlined so the PDF stays a single self-contained
+# render — no network fetch of a static asset mid-generation.
+_LOGO_FILE = Path(__file__).resolve().parent.parent / "assets" / "logo-64.png"
+_LOGO_B64 = base64.b64encode(_LOGO_FILE.read_bytes()).decode("ascii")
 
 # ── CSS ─────────────────────────────────────────────────────────────────────
 
@@ -183,12 +190,16 @@ body {
   padding: 48px 0 44px;
 }
 .cover-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 20pt;
   font-weight: 700;
   color: #ffffff;
   letter-spacing: -0.02em;
   margin-bottom: 8px;
 }
+.cover-logo-img { width: 28px; height: 28px; border-radius: 7px; }
 .cover-rule {
   border: none;
   border-top: 3px solid #2563eb;
@@ -362,7 +373,8 @@ td:first-child { font-weight: 600; }
 /* ── Misc ────────────────────────────────────────────────────────────── */
 .score-trend-line { font-size: 12pt; font-weight: 700; margin-bottom: 14px; }
 .won-back-note { font-size: 10pt; color: #166534; font-weight: 600; margin-bottom: 10px; }
-.report-footer { margin-top: 40px; font-size: 8pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+.report-footer { margin-top: 40px; font-size: 8pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; align-items: flex-start; gap: 8px; }
+.report-footer-logo { width: 14px; height: 14px; border-radius: 4px; margin-top: 1px; flex-shrink: 0; }
 """
 
 
@@ -2045,7 +2057,10 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 
 <!-- ── COVER ──────────────────────────────────────────────────────── -->
 <div class="cover page-break">
-  <div class="cover-logo">SeenBy</div>
+  <div class="cover-logo">
+    <img src="data:image/png;base64,{_LOGO_B64}" alt="" class="cover-logo-img">
+    SeenBy
+  </div>
   <hr class="cover-rule">
   <div class="cover-tagline">AI Visibility Intelligence</div>
 
@@ -2141,10 +2156,13 @@ def _build_report_html(client: Client, data: ReportData) -> str:
   <p class="rec-body">{safe_recommendation}</p>
 </div>
 
-<p class="report-footer">
-  This report was generated automatically by SeenBy. Manual dimension scores (Brand Authority,
-  Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my
-</p>
+<div class="report-footer">
+  <img src="data:image/png;base64,{_LOGO_B64}" alt="" class="report-footer-logo">
+  <p style="margin:0;">
+    This report was generated automatically by SeenBy. Manual dimension scores (Brand Authority,
+    Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my
+  </p>
+</div>
 
 </body>
 </html>"""
@@ -2164,7 +2182,8 @@ body {
   margin: 0;
 }
 .sc-top { border-bottom: 3px solid #070d1a; padding-bottom: 10px; margin-bottom: 22px; }
-.sc-logo { font-size: 18pt; font-weight: 700; color: #070d1a; letter-spacing: -0.02em; }
+.sc-logo { display: inline-flex; align-items: center; gap: 8px; font-size: 18pt; font-weight: 700; color: #070d1a; letter-spacing: -0.02em; }
+.sc-logo-img { width: 22px; height: 22px; border-radius: 6px; }
 .sc-kicker { font-size: 10pt; color: #64748b; }
 .sc-client { font-size: 20pt; font-weight: 700; color: #0f172a; margin: 0 0 2px; letter-spacing: -0.02em; }
 .sc-score-box {
@@ -2251,7 +2270,7 @@ def _build_scorecard_html(
   <div class="sc-top">
     <table style="width:100%;border-collapse:collapse;">
       <tr>
-        <td><span class="sc-logo">SeenBy</span></td>
+        <td><span class="sc-logo"><img src="data:image/png;base64,{_LOGO_B64}" alt="" class="sc-logo-img">SeenBy</span></td>
         <td style="text-align:right;" class="sc-kicker">
           AI Visibility Scorecard &middot; {generated_date}
         </td>

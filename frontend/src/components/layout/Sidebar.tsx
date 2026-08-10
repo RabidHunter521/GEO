@@ -21,7 +21,6 @@ import {
   Users,
   Table2,
   LogOut,
-  Eye,
   Menu,
   X,
   Award,
@@ -81,9 +80,12 @@ export const CLIENT_NAV_ICONS: Record<string, IconType> = {
 function Brand() {
   return (
     <Link href="/dashboard" className="group flex items-center gap-2.5">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-700 text-primary-foreground shadow-brand transition-shadow group-hover:shadow-brand-lg">
-        <Eye className="h-4 w-4" />
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/logo.png"
+        alt="SeenBy"
+        className="h-8 w-8 shrink-0 rounded-lg shadow-brand transition-shadow group-hover:shadow-brand-lg"
+      />
       <span className="font-display text-lg font-semibold tracking-tight text-foreground">
         Seen<span className="text-primary">By</span>
       </span>

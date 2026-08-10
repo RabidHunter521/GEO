@@ -49,7 +49,9 @@ export default async function ClientViewLayout({
                 />
               )}
               <div className="min-w-0">
-              <p className="font-display text-lg font-bold tracking-tight text-primary">
+              <p className="flex items-center gap-1.5 font-display text-lg font-bold tracking-tight text-primary">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png" alt="" className="h-4 w-4 rounded-[3px]" />
                 SeenBy
               </p>
               <h1 className="mt-1 truncate font-display text-2xl font-semibold tracking-tight">
@@ -88,14 +90,16 @@ export default async function ClientViewLayout({
       <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</main>
 
       <footer className="border-t py-6">
-        <p className="text-center text-xs text-muted-foreground">
+        <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
           Powered by{" "}
           <a
             href="https://seenby.my"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-medium text-primary underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="" className="h-3.5 w-3.5 rounded-[3px]" />
             SeenBy
           </a>{" "}
           — AI visibility tracking

@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { signIn } from "next-auth/react"
-import { Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -52,9 +51,12 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-app-wash bg-background p-4">
       <Card className="w-full max-w-sm shadow-brand">
         <CardHeader className="space-y-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-brand">
-            <Eye className="h-5 w-5" />
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="SeenBy"
+            className="h-11 w-11 rounded-xl shadow-brand"
+          />
           <div className="space-y-1">
             <CardTitle className="text-2xl">SeenBy</CardTitle>
             <CardDescription>Admin access only</CardDescription>
