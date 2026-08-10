@@ -31,7 +31,7 @@ const ACTIVITY_PRESENTATION: Record<string, ActivityPresentation> = {
   traffic_updated: { label: "AI traffic data updated", tone: "information" },
   page_audit_run: { label: "Page citability checked", tone: "information" },
   site_audit_run: { label: "Website readiness checked", tone: "information" },
-  citation_flip: { label: "Citation source changed", tone: "information" },
+  citation_flip: { label: "Share-of-source change", tone: "information" },
 }
 
 const ACTIVITY_NOTE_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
