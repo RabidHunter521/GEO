@@ -186,7 +186,8 @@ Admin alerts (score drop / competitor overtake / hallucination):
 ## 9. Admin Panel Navigation
 
 Exact structure — do not add pages without updating this:
-/                        → redirect to /clients
+/                        → redirect to /dashboard
+/dashboard               → global activity dashboard (feed + attention/health/cost tiles, landing page)
 /clients                 → all clients overview
 /gap-matrix              → cross-client competitor gap matrix
 /benchmarks              → portfolio cohort benchmarks (Phase 6)

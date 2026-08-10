@@ -20,6 +20,9 @@ export interface NavGroup {
 
 /** Global (non-client-scoped) destinations, always reachable regardless of which client is open. */
 export const ADMIN_GLOBAL_NAV: readonly NavItem[] = [
+  // Landing page: the cross-client "what happened" view. LayoutDashboard is
+  // taken by the per-client Overview item — Sidebar uses Radar here.
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/clients", label: "All Clients" },
   { href: "/gap-matrix", label: "Portfolio Intelligence" },
   // Phase 6. Global rather than client-scoped: it compares the whole portfolio

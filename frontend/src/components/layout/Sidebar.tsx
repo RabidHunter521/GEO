@@ -29,6 +29,7 @@ import {
   Gauge,
   Workflow,
   ShieldCheck,
+  Radar,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -53,6 +54,7 @@ const OVERVIEW_ICON: IconType = LayoutDashboard
  * to render against real data until now.
  */
 export const GLOBAL_NAV_ICONS: Record<string, IconType> = {
+  "/dashboard": Radar,
   "/clients": Users,
   "/gap-matrix": Table2,
   "/benchmarks": Gauge,
@@ -78,7 +80,7 @@ export const CLIENT_NAV_ICONS: Record<string, IconType> = {
 
 function Brand() {
   return (
-    <Link href="/clients" className="group flex items-center gap-2.5">
+    <Link href="/dashboard" className="group flex items-center gap-2.5">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-700 text-primary-foreground shadow-brand transition-shadow group-hover:shadow-brand-lg">
         <Eye className="h-4 w-4" />
       </span>
