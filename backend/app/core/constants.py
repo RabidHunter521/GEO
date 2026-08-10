@@ -454,6 +454,16 @@ COUNTRY_NAME_TO_ISO: Final = {
 # render as DEFAULT_EVENT_TIER / category None / the per-client activity page —
 # visible, never silently swallowed. When you add an ActivityLog writer, add
 # its event_type to all four structures below.
+#
+# The set covers every event_type observed in the database, not only those a
+# grep of live code would find. That includes seed-originated event types
+# (backend/scripts/seed_medilink_premium.py) written once to represent a real
+# shipped feature's history and never re-emitted by app/worker code today —
+# they still need classification so the dashboard's category filter covers
+# them. test_dashboard_constants.py's AST scan guards the live-writer side of
+# this (backend/app/ + backend/workers/); it deliberately does not — and
+# cannot — see scripts/ or historical seed data, so a live smoke test against
+# the real database is still the way to catch the next gap.
 
 EVENT_TIER_ATTENTION: Final = "attention"
 EVENT_TIER_NOTABLE: Final = "notable"
@@ -462,14 +472,18 @@ DEFAULT_EVENT_TIER: Final = EVENT_TIER_NOTABLE
 
 KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "alert_sent", "assessment_accepted", "assessment_generated",
-    "authority_assets_added", "authority_status_changed", "brief_generated",
-    "citation_flip", "client_created", "deliverable_generated",
-    "deliverable_reviewed", "digest_sent", "hallucination_flagged",
-    "page_audit_run", "report_generated", "report_sent",
-    "review_snapshot_added", "scan_blocked_budget", "scan_completed",
-    "scan_failed", "scan_platform_unavailable", "share_link_generated",
-    "share_link_regenerated", "share_link_revoked", "site_audit_run",
-    "toolkit_generated", "toolkit_verified", "traffic_updated",
+    "authority_asset_verified", "authority_assets_added", "authority_status_changed",
+    "brief_generated", "citation_flip", "client_created",
+    "content_analyzed", "deliverable_generated", "deliverable_reviewed",
+    "digest_sent", "guarantee_met", "guarantee_opened",
+    "hallucination_flagged", "location_added", "misinformation_flagged",
+    "misinformation_resolved", "page_audit_run", "report_generated",
+    "report_sent", "review_snapshot_added", "roadmap_generated",
+    "scan_blocked_budget", "scan_completed", "scan_failed",
+    "scan_platform_unavailable", "share_link_generated", "share_link_regenerated",
+    "share_link_revoked", "site_audit_run", "toolkit_generated",
+    "toolkit_verified", "traffic_updated", "truth_vault_seeded",
+    "work_log_published",
 })
 
 EVENT_TIERS: Final = {
@@ -490,9 +504,18 @@ EVENT_TIERS: Final = {
     "deliverable_generated": EVENT_TIER_NOTABLE,
     "deliverable_reviewed": EVENT_TIER_NOTABLE,
     "brief_generated": EVENT_TIER_NOTABLE,
+    "roadmap_generated": EVENT_TIER_NOTABLE,
     "authority_assets_added": EVENT_TIER_NOTABLE,
     "authority_status_changed": EVENT_TIER_NOTABLE,
+    "authority_asset_verified": EVENT_TIER_NOTABLE,
     "review_snapshot_added": EVENT_TIER_NOTABLE,
+    "misinformation_flagged": EVENT_TIER_NOTABLE,
+    "misinformation_resolved": EVENT_TIER_NOTABLE,
+    "guarantee_opened": EVENT_TIER_NOTABLE,
+    "guarantee_met": EVENT_TIER_NOTABLE,
+    "location_added": EVENT_TIER_NOTABLE,
+    "truth_vault_seeded": EVENT_TIER_NOTABLE,
+    "work_log_published": EVENT_TIER_NOTABLE,
     "share_link_generated": EVENT_TIER_NOTABLE,
     "share_link_regenerated": EVENT_TIER_NOTABLE,
     "share_link_revoked": EVENT_TIER_NOTABLE,
@@ -503,6 +526,7 @@ EVENT_TIERS: Final = {
     "toolkit_generated": EVENT_TIER_ROUTINE,
     "page_audit_run": EVENT_TIER_ROUTINE,
     "site_audit_run": EVENT_TIER_ROUTINE,
+    "content_analyzed": EVENT_TIER_ROUTINE,
 }
 
 # Category keys are API values (stable identifiers); labels are display text.
@@ -525,16 +549,22 @@ EVENT_CATEGORIES: Final = {
     "alert_sent": "alerts_issues",
     "hallucination_flagged": "alerts_issues",
     "citation_flip": "alerts_issues",
+    "misinformation_flagged": "alerts_issues",
+    "misinformation_resolved": "alerts_issues",
     "brief_generated": "content_work",
+    "roadmap_generated": "content_work",
     "deliverable_generated": "content_work",
     "deliverable_reviewed": "content_work",
     "page_audit_run": "content_work",
     "site_audit_run": "content_work",
+    "content_analyzed": "content_work",
     "toolkit_generated": "content_work",
     "toolkit_verified": "content_work",
     "authority_assets_added": "content_work",
     "authority_status_changed": "content_work",
+    "authority_asset_verified": "content_work",
     "review_snapshot_added": "content_work",
+    "work_log_published": "content_work",
     "client_created": "admin",
     "share_link_generated": "admin",
     "share_link_regenerated": "admin",
@@ -542,6 +572,10 @@ EVENT_CATEGORIES: Final = {
     "traffic_updated": "admin",
     "assessment_generated": "admin",
     "assessment_accepted": "admin",
+    "guarantee_opened": "admin",
+    "guarantee_met": "admin",
+    "location_added": "admin",
+    "truth_vault_seeded": "admin",
 }
 
 # Client-relative route each event links to ("" = the client overview page).
@@ -554,25 +588,35 @@ EVENT_LINK_ROUTES: Final = {
     "scan_blocked_budget": "/scan",
     "hallucination_flagged": "/scan",
     "citation_flip": "/scan",
+    "misinformation_flagged": "/scan",
+    "misinformation_resolved": "/scan",
     "alert_sent": "",
     "client_created": "",
     "assessment_generated": "",
     "assessment_accepted": "",
     "traffic_updated": "",
+    "guarantee_opened": "",
+    "guarantee_met": "",
     "report_generated": "/reports",
     "report_sent": "/reports",
     "digest_sent": "/activity",
+    "work_log_published": "/activity",
     "toolkit_generated": "/toolkit",
     "toolkit_verified": "/toolkit",
     "site_audit_run": "/toolkit",
     "brief_generated": "/content-roadmap",
+    "roadmap_generated": "/content-roadmap",
+    "content_analyzed": "/content-gaps",
     "deliverable_generated": "/content-studio",
     "deliverable_reviewed": "/content-studio",
     "page_audit_run": "/content-studio",
     "authority_assets_added": "/authority",
     "authority_status_changed": "/authority",
+    "authority_asset_verified": "/authority",
     "review_snapshot_added": "/authority",
+    "truth_vault_seeded": "/reputation/truth",
     "share_link_generated": "/settings",
     "share_link_regenerated": "/settings",
     "share_link_revoked": "/settings",
+    "location_added": "/settings",
 }
