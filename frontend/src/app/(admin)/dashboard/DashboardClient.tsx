@@ -89,6 +89,7 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
   const [customStart, setCustomStart] = useState(filters.startDate ?? "")
   const [customEnd, setCustomEnd] = useState(filters.endDate ?? "")
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   function push(next: DashboardFilters) {
@@ -127,6 +128,8 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
   }
 
   async function loadMore() {
+    if (isLoadingMore) return
+    setIsLoadingMore(true)
     setLoadError(null)
     try {
       const next = await loadMoreFeedAction(filters, items.length)
@@ -134,6 +137,8 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
       setHasMore(next.has_more)
     } catch {
       setLoadError("Could not load more events. Try again.")
+    } finally {
+      setIsLoadingMore(false)
     }
   }
 
@@ -409,8 +414,8 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
           {loadError && <p className="mt-3 text-sm text-destructive">{loadError}</p>}
           {hasMore && (
             <div className="mt-4 text-center">
-              <Button variant="outline" size="sm" onClick={loadMore}>
-                Load more
+              <Button variant="outline" size="sm" onClick={loadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? "Loading…" : "Load more"}
               </Button>
             </div>
           )}
