@@ -27,7 +27,7 @@ export default function LoginPage() {
       const result = await signIn("credentials", {
         username: data.get("username") as string,
         password: data.get("password") as string,
-        callbackUrl: "/clients",
+        callbackUrl: "/dashboard",
         redirect: false,
       })
       if (result?.error) {

@@ -64,7 +64,7 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl)
   }
   if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL("/clients", req.nextUrl))
+    return NextResponse.redirect(new URL("/dashboard", req.nextUrl))
   }
   return proceed()
 })
