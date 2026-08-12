@@ -39,7 +39,7 @@ export default async function HomePage() {
       {totalItems === 0 ? (
         <div className="rounded-md border bg-card py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            You&apos;re all caught up. Nothing needs your attention.
+            Nothing in the queue right now.
           </p>
         </div>
       ) : (

@@ -32,9 +32,11 @@ export function HomeGreeting({ name, totalItems, clientCount }: Props) {
   return (
     <div className="rounded-xl border bg-card p-6 shadow-sm">
       <h1 className="font-display text-2xl font-bold tracking-tight">{greeting}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Here&apos;s what needs your attention today.
-      </p>
+      {totalItems > 0 && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          Here&apos;s what needs your attention today.
+        </p>
+      )}
       <p className="mt-3 text-sm font-medium">{summary}</p>
     </div>
   )
