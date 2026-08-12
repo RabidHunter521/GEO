@@ -88,7 +88,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (safeEqual(username, adminUser) && safeEqual(password, adminPass)) {
           loginAttempts.delete(username) // success resets the per-user counter
           globalFailures = null // …and the global backstop
-          return { id: "admin", name: "Admin", email: "admin@seenby.my" }
+          return {
+            id: "admin",
+            name: process.env.ADMIN_DISPLAY_NAME || "Admin",
+            email: "admin@seenby.my",
+          }
         }
         recordFailure(username)
         return null
