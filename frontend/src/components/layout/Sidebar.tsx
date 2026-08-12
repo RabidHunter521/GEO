@@ -8,6 +8,7 @@ import { signOut } from "next-auth/react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {
   LayoutDashboard,
+  Home,
   ListChecks,
   Search,
   BarChart3,
@@ -53,6 +54,7 @@ const OVERVIEW_ICON: IconType = LayoutDashboard
  * to render against real data until now.
  */
 export const GLOBAL_NAV_ICONS: Record<string, IconType> = {
+  "/home": Home,
   "/dashboard": Radar,
   "/clients": Users,
   "/gap-matrix": Table2,
@@ -79,7 +81,7 @@ export const CLIENT_NAV_ICONS: Record<string, IconType> = {
 
 function Brand() {
   return (
-    <Link href="/dashboard" className="group flex items-center gap-2.5">
+    <Link href="/home" className="group flex items-center gap-2.5">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/logo.png"

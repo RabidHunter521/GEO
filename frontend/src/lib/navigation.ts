@@ -20,6 +20,8 @@ export interface NavGroup {
 
 /** Global (non-client-scoped) destinations, always reachable regardless of which client is open. */
 export const ADMIN_GLOBAL_NAV: readonly NavItem[] = [
+  // Post-login landing: greeting + Action Required inbox. Home icon in Sidebar.
+  { href: "/home", label: "Home" },
   // Landing page: the cross-client "what happened" view. LayoutDashboard is
   // taken by the per-client Overview item — Sidebar uses Radar here.
   { href: "/dashboard", label: "Dashboard" },
