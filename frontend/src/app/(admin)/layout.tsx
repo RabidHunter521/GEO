@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { auth } from "../../../auth"
 import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar"
 import { getSuggestedWorkLogCount } from "@/lib/api"
+import { isAuthenticatedAdmin } from "@/lib/session-guard"
 
 export default async function ClientsLayout({
   children,
@@ -9,8 +10,10 @@ export default async function ClientsLayout({
   children: React.ReactNode
 }) {
   // Second auth layer behind middleware — admin pages must fail closed.
+  // Validated, not just present: an error-populated auth object is truthy but
+  // is not a session (see isAuthenticatedAdmin).
   const session = await auth()
-  if (!session) redirect("/auth/login")
+  if (!isAuthenticatedAdmin(session)) redirect("/auth/login")
 
   // Best-effort: this layout wraps every admin page, so a failing count must
   // never take the sidebar (and with it the whole panel) down. No badge is a

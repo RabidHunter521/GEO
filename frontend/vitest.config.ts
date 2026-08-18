@@ -19,6 +19,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(dirname, "./src"),
+      // src/lib/api.ts imports "server-only" so that pulling it into a client
+      // bundle is a build error. Under Vitest there is no server/client graph,
+      // so that package resolves to the variant that throws on import. Point it
+      // at the no-op entry the package ships for exactly this case — the build
+      // still gets the real guard; the tests can import the module under test.
+      "server-only": path.resolve(dirname, "./node_modules/server-only/empty.js"),
     },
   },
   test: {

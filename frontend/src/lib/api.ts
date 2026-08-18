@@ -1,6 +1,11 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
 // Accesses process.env.ADMIN_API_KEY which is a server-side env var.
+//
+// The import below turns that from a convention into a BUILD ERROR: if this
+// module is ever pulled into a client bundle, the build fails instead of
+// silently shipping a module that reaches for admin credentials.
+import "server-only"
 import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"

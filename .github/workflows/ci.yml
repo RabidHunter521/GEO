@@ -142,6 +142,46 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      # Gate on the PRODUCTION tree only. The dev toolchain (storybook, vitest)
+      # carries advisories that never reach a user, and failing the build on
+      # those trains everyone to ignore this job. Shipped code must stay at zero.
+      - name: npm audit (production dependencies)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+      # Visibility only — reports the dev-tree findings without failing the run.
+      - name: npm audit (full tree, informational)
+        working-directory: frontend
+        continue-on-error: true
+        run: npm audit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pip-audit
+        run: pipx install pip-audit
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Export backend requirements
+        working-directory: backend
+        run: |
+          poetry self add poetry-plugin-export
+          poetry export -f requirements.txt --without-hashes -o requirements-audit.txt
+      - name: pip-audit (backend dependencies)
+        working-directory: backend
+        run: pip-audit -r requirements-audit.txt
+
   banned-language:
     runs-on: ubuntu-latest
     steps:

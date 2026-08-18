@@ -7,6 +7,7 @@
 //     header can only ever say 'unsafe-inline', which defeats the point.
 import { NextResponse } from "next/server"
 import { auth } from "../auth"
+import { isAuthenticatedAdmin } from "@/lib/session-guard"
 
 // React Refresh compiles with eval in development; production never needs it.
 const isDev = process.env.NODE_ENV !== "production"
@@ -56,7 +57,10 @@ export default auth((req) => {
     return proceed()
   }
 
-  const isLoggedIn = !!req.auth
+  // Not `!!req.auth`: Auth.js can hand back an error-populated auth object
+  // instead of null, which an existence check reads as "logged in" and lets an
+  // anonymous request straight into the admin panel. Assert a real identity.
+  const isLoggedIn = isAuthenticatedAdmin(req.auth)
   const isLoginPage = req.nextUrl.pathname.startsWith("/auth/login")
 
   if (!isLoggedIn && !isLoginPage) {
