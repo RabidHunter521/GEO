@@ -45,7 +45,7 @@ import { IndustryPackCard } from "./IndustryPackCard"
 import { BenchmarkOptOutCard } from "./BenchmarkOptOutCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { isValidWebsite } from "@/lib/utils"
-import { generateAssessment, acceptAssessment } from "@/lib/api"
+import { generateAssessmentAction, acceptAssessmentAction } from "./actions"
 
 interface Props {
   client: Client
@@ -80,7 +80,7 @@ function AssessmentReview({
   async function generate() {
     setLoading(true)
     try {
-      const a = await generateAssessment(clientId, dimension)
+      const a = await generateAssessmentAction(clientId, dimension)
       setDraft(a)
       setAdjust(String(a.suggested_score))
     } catch {
@@ -102,7 +102,7 @@ function AssessmentReview({
       finalScore = n
     }
     try {
-      const saved = await acceptAssessment(clientId, dimension, finalScore)
+      const saved = await acceptAssessmentAction(clientId, dimension, finalScore)
       onAccepted(saved.final_score ?? saved.suggested_score)
       setDraft(null)
     } catch {

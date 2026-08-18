@@ -2,8 +2,8 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo, syncGa4Traffic } from "@/lib/api"
-import type { Platform } from "@/types"
+import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo, syncGa4Traffic, generateAssessment, acceptAssessment } from "@/lib/api"
+import type { AssessmentDimension, Platform } from "@/types"
 
 export async function updateClientAction(
   id: string,
@@ -82,4 +82,26 @@ export async function saveInternalNotesAction(clientId: string, notes: string) {
   await updateClient(clientId, { internal_notes: notes })
   revalidatePath(`/clients/${clientId}`)
   revalidatePath(`/clients/${clientId}/settings`)
+}
+
+// Assisted scoring runs here, not in the client component. lib/api.ts reads
+// ADMIN_API_KEY and API_BASE_URL, which only exist on the server — importing it
+// from "use client" code shipped a browser fetch to http://localhost:8000 that
+// CSP blocked outright, so Generate assessment could never succeed in prod.
+export async function generateAssessmentAction(
+  clientId: string,
+  dimension: AssessmentDimension,
+) {
+  return generateAssessment(clientId, dimension)
+}
+
+export async function acceptAssessmentAction(
+  clientId: string,
+  dimension: AssessmentDimension,
+  finalScore: number | null,
+) {
+  const saved = await acceptAssessment(clientId, dimension, finalScore)
+  revalidatePath(`/clients/${clientId}`)
+  revalidatePath(`/clients/${clientId}/settings`)
+  return saved
 }
