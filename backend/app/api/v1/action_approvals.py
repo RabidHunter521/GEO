@@ -2,10 +2,11 @@
 import ipaddress
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.models.client import Client
 from app.schemas.action_approval import (
     ActionApprovalDecisionIn,
@@ -20,7 +21,24 @@ from app.services.action_approval_service import (
     resolve_approval_token,
 )
 
-router = APIRouter(prefix="/action-approvals", tags=["action-approvals"])
+def _approval_headers(response: Response) -> None:
+    """Approval links carry a client's business name and pending work — never
+    cache them and never let them be indexed. Mirrors the client-view surface."""
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+
+
+# Unauthenticated, token-addressed surface — the only one that had no limiter.
+# The 256-bit token makes guessing infeasible, so this is about abuse and load
+# (each POST writes a decision + activity row), not brute force. Fails open if
+# Redis is down, exactly like the client view.
+_approval_rate_limit = rate_limit("action_approvals", max_requests=30, window_seconds=60)
+
+router = APIRouter(
+    prefix="/action-approvals",
+    tags=["action-approvals"],
+    dependencies=[Depends(_approval_headers), Depends(_approval_rate_limit)],
+)
 
 
 def _approval_not_found() -> HTTPException:

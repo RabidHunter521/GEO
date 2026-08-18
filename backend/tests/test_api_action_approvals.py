@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(db):
+    from app.api.v1.action_approvals import _approval_rate_limit
     from app.core.database import get_db
     from app.main import app
 
@@ -14,6 +15,10 @@ def client(db):
         yield db
 
     app.dependency_overrides[get_db] = fake_get_db
+    # The public approval router is rate limited. Override it here, as the
+    # client-view API tests do for theirs — otherwise every request in this
+    # module makes a real Redis call and blocks on the connect timeout.
+    app.dependency_overrides[_approval_rate_limit] = lambda: None
     test_client = TestClient(app)
     yield test_client
     app.dependency_overrides.clear()
