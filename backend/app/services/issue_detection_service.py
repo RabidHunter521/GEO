@@ -4,13 +4,24 @@ All issue text here is client-facing: it must follow the language rules in
 CLAUDE.md (no "cited", "citation rate", "mentioned" — use "Seen by AI" /
 "visibility frequency"). Issues state the problem only, never the fix —
 remediation comes from the SeenBy team.
+
+Governing rule (CLAUDE.md §2 / seenby-client-output rule 2): a group may only
+be emitted when we actually observed something. The reviewed dimensions
+(brand_authority, content_quality) are gated on an admin-accepted assessment,
+because their score defaults to 0 on the Client model — an unassessed client
+scores 0 for "nobody has looked yet", and reading that as "scored badly" told
+clients specific things about their business ("Sparse customer reviews or
+testimonials") that we had never researched, under a badge claiming public
+evidence and human review. The auto-verified dimensions report only the fact
+the verification crawler actually establishes.
 """
 import uuid
 
 from sqlalchemy.orm import Session
 
-from app.core.constants import SCORE_BANDS
+from app.core.constants import DIMENSION_EVIDENCE_LABEL, SCORE_BANDS
 from app.models.client import Client
+from app.models.dimension_assessment import DimensionAssessment
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
@@ -48,18 +59,24 @@ _CONTENT_QUALITY_ISSUES = [
     "Missing supporting evidence, examples, or data",
 ]
 
+# Auto-verified dimensions report ONLY what the verification crawler actually
+# establishes. The previous tail of this list ("Crawlability and indexing
+# problems", "Missing or incomplete meta information", "Page speed and mobile
+# experience need improvement") was emitted from the score alone — we never
+# measure crawl health, meta tags or page speed anywhere, so those were claims
+# about the client's site that no stored observation supported. Deleted rather
+# than left unused, so they cannot be re-wired by accident. If we ever want
+# them back, source them from site_audit_service, which does measure.
 _TECHNICAL_ISSUES = [
     "Website is not yet verified as accessible to AI crawlers",
-    "Crawlability and indexing problems",
-    "Missing or incomplete meta information",
-    "Page speed and mobile experience need improvement",
 ]
 
+# Both lines restate the one fact structured_data_verified records. The former
+# tail ("Missing organization and business schema", "Missing FAQ or article
+# schema") named specific schema types we never look for individually.
 _STRUCTURED_DATA_ISSUES = [
     "No verified schema markup implemented",
     "Key business information is not yet machine-readable",
-    "Missing organization and business schema",
-    "Missing FAQ or article schema",
 ]
 
 
@@ -72,6 +89,37 @@ def _tiered(pool: list[str], score: float) -> list[str]:
     if score >= _DEVELOPING:
         return pool[:4]
     return pool
+
+
+def _is_reviewed(client_id, dimension: str, db: Session) -> bool:
+    """True only when an admin has accepted (or adjusted) an assessment for this
+    dimension. Mirrors client_view._accepted_bullets — a Claude suggestion that
+    nobody signed off on is not a review, so "suggested" does not count.
+
+    This is what makes DIMENSION_EVIDENCE_LABEL truthful: the badge is attached
+    to a group only where the review it claims actually happened.
+    """
+    return (
+        db.query(DimensionAssessment.id)
+        .filter(
+            DimensionAssessment.client_id == client_id,
+            DimensionAssessment.dimension == dimension,
+            DimensionAssessment.status.in_(("accepted", "adjusted")),
+        )
+        .first()
+        is not None
+    )
+
+
+def _group(dimension: str, label: str, issues: list[str], *, reviewed: bool = False) -> dict:
+    """One issue group. `evidence_label` is set only for reviewed dimensions, so
+    the client view renders the badge from the data instead of asserting it."""
+    return {
+        "dimension": dimension,
+        "dimension_label": label,
+        "issues": issues,
+        "evidence_label": DIMENSION_EVIDENCE_LABEL if reviewed else None,
+    }
 
 
 def detect_client_issues(client: Client, db: Session) -> list[dict]:
@@ -139,52 +187,39 @@ def detect_client_issues(client: Client, db: Session) -> list[dict]:
             ai_issues.append("Competitors are seen by AI more frequently than your brand")
 
     if ai_issues:
-        groups.append({
-            "dimension": "ai_visibility",
-            "dimension_label": "AI Visibility",
-            "issues": ai_issues,
-        })
+        groups.append(_group("ai_visibility", "AI Visibility", ai_issues))
 
-    # ── Manually assessed dimensions — tiered generic findings ──────────────
-    ba_issues = _tiered(_BRAND_AUTHORITY_ISSUES, latest_score.brand_authority)
-    if ba_issues:
-        groups.append({
-            "dimension": "brand_authority",
-            "dimension_label": "Brand Authority",
-            "issues": ba_issues,
-        })
+    # ── Reviewed dimensions — only once a human has signed off ───────────────
+    # Gated on an accepted assessment, not on the score: brand_authority_score
+    # and content_quality_score default to 0, so an unassessed client would
+    # otherwise be shown the full pool of findings nobody researched.
+    if _is_reviewed(client.id, "brand_authority", db):
+        ba_issues = _tiered(_BRAND_AUTHORITY_ISSUES, latest_score.brand_authority)
+        if ba_issues:
+            groups.append(
+                _group("brand_authority", "Brand Authority", ba_issues, reviewed=True)
+            )
 
-    cq_issues = _tiered(_CONTENT_QUALITY_ISSUES, latest_score.content_quality)
-    if cq_issues:
-        groups.append({
-            "dimension": "content_quality",
-            "dimension_label": "Content Quality",
-            "issues": cq_issues,
-        })
+    if _is_reviewed(client.id, "content_quality", db):
+        cq_issues = _tiered(_CONTENT_QUALITY_ISSUES, latest_score.content_quality)
+        if cq_issues:
+            groups.append(
+                _group("content_quality", "Content Quality", cq_issues, reviewed=True)
+            )
 
     # ── Toolkit-verified dimensions ──────────────────────────────────────────
-    tech_issues: list[str] = []
+    # Each reports exactly one verified fact. The score check the technical
+    # branch used to carry was redundant (the dimension is 0 or 100, so
+    # "< good" and "not verified" are the same condition) and it was what let
+    # the unmeasured claims through.
     if not client.technical_foundations_verified:
-        tech_issues.append(_TECHNICAL_ISSUES[0])
-    if latest_score.technical_foundations < _GOOD:
-        tech_issues.extend(_TECHNICAL_ISSUES[1:3])
-    if tech_issues:
-        groups.append({
-            "dimension": "technical_foundations",
-            "dimension_label": "Technical Foundations",
-            "issues": tech_issues,
-        })
+        groups.append(
+            _group("technical_foundations", "Technical Foundations", list(_TECHNICAL_ISSUES))
+        )
 
-    sd_issues: list[str] = []
     if not client.structured_data_verified:
-        sd_issues.extend(_STRUCTURED_DATA_ISSUES[:2])
-    elif latest_score.structured_data < _GOOD:
-        sd_issues.extend(_STRUCTURED_DATA_ISSUES[2:4])
-    if sd_issues:
-        groups.append({
-            "dimension": "structured_data",
-            "dimension_label": "Structured Data",
-            "issues": sd_issues,
-        })
+        groups.append(
+            _group("structured_data", "Structured Data", list(_STRUCTURED_DATA_ISSUES))
+        )
 
     return groups

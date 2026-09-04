@@ -220,9 +220,12 @@ export default async function ViewReputationPage({
               <div key={group.dimension} className="card-lift rounded-xl border bg-card p-4">
                 <p className="text-sm font-medium">
                   {group.dimension_label}
-                  {group.dimension === "brand_authority" && (
+                  {/* Server-sent: present only where a person actually reviewed
+                      this dimension. Never re-derive it from the dimension name —
+                      that claimed a review had happened for unassessed clients. */}
+                  {group.evidence_label && (
                     <span className="ml-1.5 text-xs font-normal italic text-muted-foreground">
-                      · Based on public evidence · Reviewed by SeenBy
+                      · {group.evidence_label}
                     </span>
                   )}
                 </p>

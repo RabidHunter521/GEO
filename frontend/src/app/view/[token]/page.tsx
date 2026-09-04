@@ -478,6 +478,18 @@ export default async function ViewOverviewPage({
               const raw = score ? (score[dim.key as DimKey & keyof ClientViewScore] as number) : null
               const pct = raw !== null ? Math.max(0, Math.min(100, raw)) : 0
               const barClass = raw !== null ? BAR_CLASS[getScoreColor(raw)] : "bar-primary"
+              // The server sends evidence bullets only for an assessment an admin
+              // accepted, so their presence is the review actually having happened.
+              // dim.manual alone says "this dimension is reviewable", not "reviewed" —
+              // gating the badge on it stamped "Reviewed by SeenBy" on the default
+              // score of 0 that an unassessed client carries.
+              const evidence =
+                dim.key === "brand_authority"
+                  ? score?.brand_authority_evidence ?? []
+                  : dim.key === "content_quality"
+                    ? score?.content_quality_evidence ?? []
+                    : []
+              const reviewed = dim.manual && evidence.length > 0
               return (
                 <div key={dim.key} className="card-lift rounded-xl border bg-card p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -485,8 +497,11 @@ export default async function ViewOverviewPage({
                       <DimensionInfo label={dim.label} description={dim.description} />
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {dim.weight} weight
-                        {dim.manual && (
+                        {reviewed && (
                           <span className="ml-1.5 italic">· Based on public evidence · Reviewed by SeenBy</span>
+                        )}
+                        {dim.manual && !reviewed && (
+                          <span className="ml-1.5 italic">· Not yet reviewed</span>
                         )}
                       </p>
                     </div>
