@@ -297,6 +297,10 @@ class ClientViewIssueGroup(BaseModel):
     dimension: str
     dimension_label: str
     issues: list[str]
+    # DIMENSION_EVIDENCE_LABEL for dimensions a person actually reviewed, None
+    # for measured ones. Sent from the server so the view renders the badge from
+    # data rather than asserting human review for a hardcoded dimension name.
+    evidence_label: str | None = None
 
 
 class ClientViewLocationSummary(BaseModel):

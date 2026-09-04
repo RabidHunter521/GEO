@@ -734,6 +734,8 @@ export interface ClientViewIssueGroup {
   dimension: "ai_visibility" | "brand_authority" | "content_quality" | "technical_foundations" | "structured_data"
   dimension_label: string
   issues: string[]
+  /** Present only for dimensions a person reviewed; render the badge from this, never from the dimension name. */
+  evidence_label: string | null
 }
 
 // Truth-health data is exposed only through the share-token view. These are
