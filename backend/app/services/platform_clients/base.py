@@ -27,6 +27,10 @@ class PlatformResult:
 
     Usage travels with the answer so the scan engine can cost-log every query
     (the providers expose usage in different shapes; each adapter normalizes it).
+
+    search_requests is the billable web-search / grounded-request count for the
+    call. Every platform runs search-enabled, and providers charge per request
+    on top of tokens, so cost is wrong without it.
     """
 
     text: str
@@ -34,6 +38,7 @@ class PlatformResult:
     input_tokens: int
     output_tokens: int
     citations: tuple[SourceCitation, ...] = ()
+    search_requests: int = 0
 
 # Per-call HTTP timeout for every platform query. Bounds a single hung provider
 # call so it can't pin a Celery worker (which also has a hard time limit). SDK

@@ -74,6 +74,8 @@ class PerplexityClient:
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
                 citations=_parse_citations(payload),
+                # Perplexity bills a flat search fee per request, not per source.
+                search_requests=1,
             )
 
         return query_with_retry(self.platform, _call)

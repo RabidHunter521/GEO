@@ -51,3 +51,21 @@ def was_truncated(response, service: str) -> bool:
         logger.warning("claude_response_truncated", service=service,
                        hint="raise max_tokens for this prompt")
     return truncated
+
+
+def web_search_requests(response) -> int:
+    """Billable server-side web searches Anthropic performed for this call.
+
+    Anthropic bills web search per search ON TOP of tokens, and reports the
+    count at usage.server_tool_use.web_search_requests. Only the assessment
+    prompts and the Claude scan platform pass a web_search tool; every other
+    call reports 0 and costs nothing extra.
+
+    Defensive by design: the field is absent on older SDK shapes and on the
+    mocks used in tests, and a cost-logging slip must never break a scan.
+    """
+    try:
+        count = response.usage.server_tool_use.web_search_requests
+    except Exception:
+        return 0
+    return count if isinstance(count, int) and count >= 0 else 0

@@ -14,6 +14,7 @@ from app.prompts import (
     content_roadmap,
     content_analysis,
     content_brief,
+    position_extraction,
     report,
     digest,
     assessment,
@@ -26,17 +27,24 @@ from app.prompts import (
 REGISTRY: dict[str, dict[str, str]] = {
     "action_center":               {"version": action_center.VERSION,              "model": MODEL_NARRATIVE},
     "toolkit_llms_txt":            {"version": toolkit.LLMS_TXT_VERSION,           "model": MODEL},
+    "toolkit_llms_full_txt":       {"version": toolkit.LLMS_FULL_TXT_VERSION,      "model": MODEL},
     "toolkit_schema_json":         {"version": toolkit.SCHEMA_JSON_VERSION,        "model": MODEL},
     "content_roadmap":             {"version": content_roadmap.ROADMAP_VERSION,    "model": MODEL_NARRATIVE},
     "content_roadmap_article":     {"version": content_roadmap.ARTICLE_VERSION,    "model": MODEL_NARRATIVE},
     "content_analysis_topics":     {"version": content_analysis.TOPICS_ENTITIES_VERSION,    "model": MODEL},
-    "content_analysis_quality":    {"version": content_analysis.QUALITY_REC_VERSION,        "model": MODEL},
+    # Sonnet: renders verbatim on the client view page under "Our recommendation".
+    "content_analysis_quality":    {"version": content_analysis.QUALITY_REC_VERSION,        "model": MODEL_NARRATIVE},
     "content_analysis_suggested":  {"version": content_analysis.SUGGESTED_CONTENT_VERSION,  "model": MODEL},
     # Was recording version "unknown": the prompt lived inline in
     # content_brief_service and so had no registry entry at all.
     "content_brief":               {"version": content_brief.VERSION,             "model": MODEL},
+    # Runs once per recommendation/local query, so it is the highest-volume
+    # Claude call in a scan — it was logging cost against version "unknown".
+    "position_extraction":         {"version": position_extraction.VERSION,       "model": MODEL},
     "report_narrative":            {"version": report.VERSION,                     "model": MODEL_NARRATIVE},
-    "digest_action":               {"version": digest.VERSION,                     "model": MODEL},
+    # Sonnet: emailed to the client verbatim, and the digest is automated — no
+    # admin review stands between this sentence and the client.
+    "digest_action":               {"version": digest.VERSION,                     "model": MODEL_NARRATIVE},
     # Sonnet + web_search: client-visible evidence, on-demand volume — the
     # high-stakes/low-volume case (audit C1; fabricated evidence on Haiku).
     "assessment_brand_authority":  {"version": assessment.BRAND_AUTHORITY_VERSION,  "model": MODEL_NARRATIVE},
@@ -47,7 +55,8 @@ REGISTRY: dict[str, dict[str, str]] = {
     "scan_perplexity":             {"version": SCAN_QUERY_VERSION,                 "model": "sonar"},
     "scan_gemini":                 {"version": SCAN_QUERY_VERSION,                 "model": "gemini-2.5-flash-lite"},
     "scan_claude":                 {"version": SCAN_QUERY_VERSION,                 "model": "claude-haiku-4-5-20251001"},
-    "citability_suggestions":      {"version": citability.SUGGESTIONS_VERSION,     "model": MODEL},
+    # Sonnet: emits publish-ready copy for the client's live site (audit C1 shape).
+    "citability_suggestions":      {"version": citability.SUGGESTIONS_VERSION,     "model": MODEL_NARRATIVE},
     "deliverable_faq_pack":        {"version": deliverables.FAQ_PACK_VERSION,        "model": MODEL_NARRATIVE},
     "deliverable_comparison_page": {"version": deliverables.COMPARISON_PAGE_VERSION, "model": MODEL_NARRATIVE},
     "deliverable_glossary":        {"version": deliverables.GLOSSARY_VERSION,        "model": MODEL_NARRATIVE},

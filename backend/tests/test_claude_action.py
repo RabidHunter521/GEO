@@ -119,3 +119,22 @@ def test_falls_back_to_static_tip_when_claude_raises():
         )
     # 75 is in "good" band (65-79)
     assert result == DIGEST_STATIC_TIPS["good"]
+
+
+def test_digest_action_uses_sonnet_not_haiku():
+    """The tip is emailed to the client verbatim and the digest is automated —
+    no admin review stands between this sentence and the client, so it belongs
+    on MODEL_NARRATIVE. Pinned so a refactor can't quietly send it back."""
+    from app.services import claude_action
+
+    mock_client = _mock_claude("Publish three service pages this month.")
+    with patch("app.services.claude_action.anthropic_client", return_value=mock_client), \
+            patch("app.services.claude_action.record_llm_call") as rec:
+        claude_action.get_digest_action(
+            client=_make_client(),
+            current_ai_citability=70.0,
+            prev_ai_citability=60.0,  # 10pt move clears the 5pt threshold
+        )
+
+    assert mock_client.messages.create.call_args.kwargs["model"] == claude_action.MODEL_NARRATIVE
+    assert rec.call_args.kwargs["model"] == claude_action.MODEL_NARRATIVE

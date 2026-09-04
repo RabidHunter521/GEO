@@ -426,6 +426,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                         model=usage.model,
                         input_tokens=usage.input_tokens,
                         output_tokens=usage.output_tokens,
+                        search_count=usage.search_requests,
                         client_id=client.id,
                         db=db,
                     )

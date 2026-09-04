@@ -1,6 +1,7 @@
 # backend/app/services/platform_clients/claude.py
 import anthropic
 
+from app.services.claude_client import web_search_requests
 from app.services.platform_clients.base import (
     PLATFORM_QUERY_TIMEOUT_SECONDS,
     PlatformNotConfiguredError,
@@ -43,6 +44,7 @@ class ClaudeClient:
                 model=MODEL_NAME,
                 input_tokens=response.usage.input_tokens,
                 output_tokens=response.usage.output_tokens,
+                search_requests=web_search_requests(response),
             )
 
         return query_with_retry(self.platform, _call)

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.constants import DIGEST_STATIC_TIPS
 from app.models.client import Client
 from app.prompts.digest import build_action
-from app.services.claude_client import MODEL, anthropic_client
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 from app.services.scoring_service import get_score_band
@@ -56,14 +56,17 @@ def _generate_claude_action(
     db: Session | None = None,
 ) -> str:
     prompt = build_action(client, current, prev)
+    # Sonnet, not Haiku: this sentence is emailed to the client verbatim with no
+    # admin review, which is exactly the client-visible-prose case the model
+    # split reserves for MODEL_NARRATIVE. Volume is ~1-4 calls/client/month.
     response = anthropic_client().messages.create(
-        model=MODEL,
+        model=MODEL_NARRATIVE,
         max_tokens=100,
         messages=[{"role": "user", "content": prompt}],
     )
     record_llm_call(
         service="digest_action",
-        model=MODEL,
+        model=MODEL_NARRATIVE,
         response=response,
         client_id=client.id,
         db=db,

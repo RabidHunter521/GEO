@@ -41,6 +41,8 @@ class GeminiClient:
                 model=MODEL_NAME,
                 input_tokens=getattr(usage, "prompt_token_count", 0) or 0,
                 output_tokens=getattr(usage, "candidates_token_count", 0) or 0,
+                # Google bills grounding per grounded prompt, not per search.
+                search_requests=1,
             )
 
         return query_with_retry(self.platform, _call)
