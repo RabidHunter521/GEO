@@ -208,3 +208,32 @@ def test_no_problem_checks_skips_claude(db):
     if audit.score == 100:
         ac.messages.create.assert_not_called()
         assert audit.suggestions == []
+
+
+def test_suggestions_use_sonnet_not_haiku():
+    """generate_suggestions emits publish-ready copy the client pastes onto
+    their live site, and the prompt must forbid inventing services/prices —
+    the fabrication shape that moved the assessments off Haiku (audit C1)."""
+    from unittest.mock import MagicMock, patch
+
+    from app.services import citability_service as cs
+
+    block = MagicMock()
+    block.text = '{"suggestions": [{"section": "Intro", "issue": "x", "rewrite": "y"}]}'
+    response = MagicMock()
+    response.content = [block]
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = response
+
+    client = MagicMock()
+    client.id = "00000000-0000-0000-0000-000000000001"
+    client.name = "Solar Malaysia"
+    client.industry = "solar installation"
+    checks = [{"status": "fail", "label": "Opening answer", "detail": "No direct answer"}]
+
+    with patch("app.services.citability_service.anthropic_client", return_value=mock_client), \
+            patch("app.services.citability_service.record_llm_call") as rec:
+        cs.generate_suggestions(client, checks, "page text here", db=MagicMock())
+
+    assert mock_client.messages.create.call_args.kwargs["model"] == cs.MODEL_NARRATIVE
+    assert rec.call_args.kwargs["model"] == cs.MODEL_NARRATIVE

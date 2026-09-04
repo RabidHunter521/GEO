@@ -18,7 +18,12 @@ from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.page_audit import PageAudit
 from app.prompts.citability import build_citability_suggestions
-from app.services.claude_client import MODEL, anthropic_client, strip_code_fences, was_truncated
+from app.services.claude_client import (
+    MODEL_NARRATIVE,
+    anthropic_client,
+    strip_code_fences,
+    was_truncated,
+)
 from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 from app.services.url_safety import is_safe_crawl_url, safe_get
@@ -341,7 +346,11 @@ def generate_suggestions(
     excerpt = " ".join(page_text.split()[:_EXCERPT_WORDS])
     try:
         response = anthropic_client().messages.create(
-            model=MODEL,
+            # Sonnet, not Haiku: the output is publish-ready copy the client
+            # pastes onto their live site, and the prompt has to forbid
+            # inventing services/prices/claims — the same fabrication risk
+            # that moved the assessments off Haiku (prompt audit C1).
+            model=MODEL_NARRATIVE,
             max_tokens=_SUGGESTIONS_MAX_TOKENS,
             temperature=0,
             messages=[{
@@ -350,7 +359,7 @@ def generate_suggestions(
             }],
         )
         record_llm_call(
-            service="citability_suggestions", model=MODEL, response=response,
+            service="citability_suggestions", model=MODEL_NARRATIVE, response=response,
             client_id=client.id, db=db,
         )
         was_truncated(response, "citability_suggestions")

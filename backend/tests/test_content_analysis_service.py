@@ -77,3 +77,44 @@ def test_analyze_content_assembles_payload():
     assert result["content_metrics_json"]["schema_present"] is True
     assert result["content_metrics_json"]["blog_count"] == 2
     assert "battery storage" in result["content_quality_recommendation"].lower()
+
+
+def _crawl():
+    return CrawlResult(
+        pages_crawled=4, word_count=1200, h1_count=4, faq_count=0,
+        blog_count=1, schema_present=False, text_corpus="Solar panels for homes.",
+    )
+
+
+def test_quality_recommendation_uses_sonnet_not_haiku():
+    """This text renders verbatim on /view/[token]/content-plan under "Our
+    recommendation" — client-visible prose, so MODEL_NARRATIVE."""
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _text("Add service pages.")
+    with patch("app.services.content_analysis_service.anthropic_client", return_value=mock_client), \
+            patch("app.services.content_analysis_service.record_llm_call") as rec, \
+            patch("app.services.content_analysis_service.pack_context_for", return_value=(None, ())):
+        svc._quality_recommendation(_client(), _crawl())
+
+    assert mock_client.messages.create.call_args.kwargs["model"] == svc.MODEL_NARRATIVE
+    assert rec.call_args.kwargs["model"] == svc.MODEL_NARRATIVE
+
+
+def test_topics_and_suggested_content_stay_on_haiku():
+    """The siblings did NOT move: topics/entities is internal JSON that never
+    reaches a client, and suggested content is admin-only."""
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _text('{"topics": [], "entities": []}')
+    with patch("app.services.content_analysis_service.anthropic_client", return_value=mock_client), \
+            patch("app.services.content_analysis_service.record_llm_call") as rec:
+        svc._topics_entities(_client(), "corpus text")
+    assert mock_client.messages.create.call_args.kwargs["model"] == svc.MODEL
+    assert rec.call_args.kwargs["model"] == svc.MODEL
+
+    mock_client.messages.create.return_value = _text('{"suggestions": []}')
+    with patch("app.services.content_analysis_service.anthropic_client", return_value=mock_client), \
+            patch("app.services.content_analysis_service.record_llm_call") as rec, \
+            patch("app.services.content_analysis_service.pack_context_for", return_value=(None, ())):
+        svc._suggested_content(_client(), [{"topic": "storage", "status": "missing"}])
+    assert mock_client.messages.create.call_args.kwargs["model"] == svc.MODEL
+    assert rec.call_args.kwargs["model"] == svc.MODEL

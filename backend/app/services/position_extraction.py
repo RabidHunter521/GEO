@@ -9,6 +9,7 @@ absent. Additive to the binary brand_detected — never replaces it.
 import re
 import uuid
 
+from app.prompts.position_extraction import build_position_extraction
 from app.services.claude_client import MODEL, anthropic_client
 from app.services.cost_tracker import record_llm_call
 
@@ -19,20 +20,7 @@ def extract_position(
     if not response_text:
         return None
 
-    prompt = f"""An AI assistant was asked to recommend businesses. Below is its answer.
-
-Brand to locate: "{brand_name}"
-
-AI answer:
-\"\"\"
-{response_text[:4000]}
-\"\"\"
-
-If the answer presents businesses as a ranked or ordered list and "{brand_name}" appears in it,
-reply with ONLY the 1-based position number (e.g. 3).
-If the answer is not a ranked list, or "{brand_name}" is not in the list, reply with ONLY: none
-
-Reply with a single number or the word none. Nothing else."""
+    prompt = build_position_extraction(response_text, brand_name)
 
     response = anthropic_client().messages.create(
         model=MODEL,

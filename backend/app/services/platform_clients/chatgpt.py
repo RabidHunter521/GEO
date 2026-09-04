@@ -12,6 +12,22 @@ from app.services.platform_clients.base import (
 MODEL_NAME = "gpt-5-mini"
 
 
+def _search_calls(response) -> int:
+    """Billable web_search tool calls in a Responses API result.
+
+    OpenAI charges per call, and the model does not always search, so this
+    counts rather than assuming one. Defensive: a cost-logging slip must never
+    break a scan, and tests pass mocks whose .output is not iterable.
+    """
+    try:
+        return sum(
+            1 for item in response.output
+            if getattr(item, "type", "") == "web_search_call"
+        )
+    except Exception:
+        return 0
+
+
 class ChatGPTClient:
     platform = "chatgpt"
 
@@ -37,6 +53,7 @@ class ChatGPTClient:
                 model=MODEL_NAME,
                 input_tokens=response.usage.input_tokens,
                 output_tokens=response.usage.output_tokens,
+                search_requests=_search_calls(response),
             )
 
         return query_with_retry(self.platform, _call)

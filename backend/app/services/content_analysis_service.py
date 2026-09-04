@@ -15,7 +15,13 @@ from app.prompts.content_analysis import (
     build_suggested_content,
     build_topics_entities,
 )
-from app.services.claude_client import MODEL, anthropic_client, strip_code_fences, was_truncated
+from app.services.claude_client import (
+    MODEL,
+    MODEL_NARRATIVE,
+    anthropic_client,
+    strip_code_fences,
+    was_truncated,
+)
 from app.services.content_crawler import CrawlResult, crawl_site
 from app.services.cost_tracker import record_llm_call
 from app.services.pack_query_service import pack_context_for
@@ -45,13 +51,18 @@ def _topics_entities(client: Client, corpus: str) -> dict:
 
 
 def _quality_recommendation(client: Client, crawl: CrawlResult) -> str:
+    # Sonnet, not Haiku: this text renders verbatim on /view/[token]/content-plan
+    # under "Our recommendation" — client-visible prose. The sibling calls in
+    # this module stay on Haiku (topics/entities is internal JSON; suggested
+    # content is admin-only).
     response = anthropic_client().messages.create(
-        model=MODEL,
+        model=MODEL_NARRATIVE,
         max_tokens=400,
         messages=[{"role": "user", "content": build_quality_recommendation(client, crawl, *pack_context_for(client))}],
     )
     record_llm_call(
-        service="content_analysis_quality", model=MODEL, response=response, client_id=client.id
+        service="content_analysis_quality", model=MODEL_NARRATIVE, response=response,
+        client_id=client.id,
     )
     return sanitize_text(response.content[0].text.strip())
 
