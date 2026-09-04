@@ -90,8 +90,12 @@ answers; `detect_brand_mention` stays the pure matcher for CRAWLED PAGE TEXT.
 Stance only — a positive but wrong answer still counts, since truthfulness is
 handled separately by `hallucination_flagged`. Weights unchanged. Expect
 existing clients' AI Citability to FALL on their next scan; historical scores
-are not recomputed. `GeoScore` does not store a per-row formula version, so an
-exact historical formula version cannot be established from the row.)
+are not recomputed. `GeoScore.score_version` records the formula version that
+produced each row (migration `1a3fd284901c`). Rows written before that migration
+carry NULL and their formula cannot be established, so they are treated as NOT
+comparable rather than assumed current -- see `scoring_service.scores_comparable`.
+Where two consecutive scores came from different versions, the weekly digest and
+the monthly narrative say so and never attribute the delta to market movement.)
 (v1.1.0: AI Citability = equal-weighted average of per-platform visibility
 across the client's enabled platforms; unavailable platforms are excluded.)
 (v1.2.0: Brand Authority + Content Quality sourcing changed from bare admin
@@ -228,6 +232,14 @@ raw AI responses or internal fields):
                             for existing links)
 /view/[token]/reports     → delivered PDF reports
 /view/[token]/progress    → delivery timeline (published work log only)
+/view/[token]/methodology → how the score is measured (weights, what is
+                            automatic vs human-reviewed, limitations,
+                            version policy). Linked from the Overview score
+                            breakdown, not a tab. Available to prospects.
+                            Content is derived from `app/core/constants.py`
+                            via `methodology_service` -- never retyped, so a
+                            weight change updates the published methodology
+                            in the same commit.
 
 The client-facing nav (ViewTabs) shows six destinations: Overview, Visibility
 (/scan), Reputation, Action Plan (/content-plan), Progress, Reports. Below the

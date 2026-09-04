@@ -41,9 +41,11 @@ from app.models.truth_fact import TruthFact, TruthFactVersion
 from app.schemas.business_impact import ImpactSummaryPublic
 from app.schemas.benchmark_comparison import BenchmarkComparisonPublic
 from app.services import benchmark_comparison_service
+from app.services import methodology_service
 from app.services.benchmark_period import default_benchmark_period
 from app.schemas.client_view import (
     ClientViewBenchmark,
+    ClientViewMethodology,
     ClientViewCausalTrend,
     ClientViewCommitment,
     ClientViewCompetitorTrends,
@@ -1167,3 +1169,18 @@ def get_query_stability(
     is used directly (no public-only projection needed).
     """
     return query_stability_service.calculate_portfolio_stability(client.id, db)
+
+
+@router.get("/methodology", response_model=ClientViewMethodology)
+def get_methodology(
+    client: Client = Depends(require_share_client),
+):
+    """How the score is built, published for the client to check.
+
+    Available to prospects as well: the overview already shows them a score, and
+    a score without its method is exactly what this endpoint exists to stop.
+
+    Content is derived from ``app.core.constants`` in methodology_service, so a
+    weight change cannot leave a stale published methodology behind.
+    """
+    return methodology_service.build_methodology(client.enabled_platforms)

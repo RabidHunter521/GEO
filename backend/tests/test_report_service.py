@@ -70,6 +70,10 @@ def _make_report_data():
         technical_foundations=100.0,
         structured_data=0.0,
         prev_overall_score=65.0,
+        # Two scans under the same formula - the normal case. Tests that care
+        # about a version boundary set these explicitly.
+        score_version="v1.4.0",
+        prev_score_version="v1.4.0",
         trend="up",
         seen_count=6,
         total_count=8,
@@ -877,3 +881,97 @@ def test_pdf_toolchain_actually_renders():
     pdf = weasyprint.HTML(string="<h1>SeenBy</h1><p>render check</p>").write_pdf()
     assert pdf[:5] == b"%PDF-", "WeasyPrint did not emit a PDF"
     assert len(pdf) > 500
+
+
+# --- methodology-change gate --------------------------------------------------
+# When the two scores came from different formula versions, part of the delta is
+# a measurement artifact. Claude cannot know that, so it would write a confident
+# explanation of a decline that never happened.
+
+def test_change_narrative_skips_claude_when_formula_version_changed():
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    data.score_version = "v1.4.0"
+    data.prev_score_version = "v1.3.0"
+    with patch("app.services.report_service.anthropic_client") as mock_client:
+        text = _generate_change_narrative(data)
+    mock_client.assert_not_called()
+    assert "not directly comparable" in text
+    assert "Growth Readiness" in text
+
+
+def test_change_narrative_skips_claude_when_previous_version_unknown():
+    # Rows predating the score_version column cannot be attributed to a formula.
+    # Claude must not explain the delta, but we also must not claim a method
+    # change we cannot establish - so this falls back to the arithmetic only.
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    data.score_version = "v1.4.0"
+    data.prev_score_version = None
+    with patch("app.services.report_service.anthropic_client") as mock_client:
+        text = _generate_change_narrative(data)
+    mock_client.assert_not_called()
+    assert "not directly comparable" not in text
+    assert "72" in text and "65" in text
+
+
+def test_change_narrative_calls_claude_when_versions_match():
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    data.score_version = "v1.4.0"
+    data.prev_score_version = "v1.4.0"
+    fake_msg = MagicMock()
+    fake_msg.content = [MagicMock(text="More questions were seen by AI this month.")]
+    with patch("app.services.report_service.anthropic_client") as mock_client:
+        mock_client.return_value.messages.create.return_value = fake_msg
+        with patch("app.services.report_service.record_llm_call"):
+            text = _generate_change_narrative(data)
+    assert "seen by AI" in text
+
+
+def test_method_change_narrative_uses_client_safe_language():
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    data.score_version = "v1.4.0"
+    data.prev_score_version = "v1.3.0"
+    with patch("app.services.report_service.anthropic_client"):
+        text = _generate_change_narrative(data)
+    lowered = text.lower()
+    for banned in ("cited", "citation rate", "ranking position", "confidence score"):
+        assert banned not in lowered
+    # must not assert a direction for a delta it cannot attribute
+    assert "declin" not in lowered and "dropped" not in lowered
+
+
+# --- methodology appendix -----------------------------------------------------
+# The PDF must not be the one client surface where the method is withheld.
+
+def test_report_includes_methodology_appendix():
+    from app.services.report_service import _build_report_html
+    from app.core.constants import SCORE_WEIGHTS, SCORE_VERSION
+
+    client = MagicMock()
+    client.name = "Acme Corp"
+    client.brand_authority_evidence = None
+    client.content_quality_evidence = None
+    html = _build_report_html(client, _make_report_data())
+
+    assert "How This Score Is Measured" in html
+    assert f"Method version {SCORE_VERSION}" in html
+    # every dimension weight is published, straight from constants
+    for weight in SCORE_WEIGHTS.values():
+        assert f"{round(weight * 100)}%" in html
+    # the reviewed dimensions are labelled as reviewed, not passed off as measured
+    assert "Reviewed by a person" in html
+    assert "Checked automatically" in html
+
+
+def test_methodology_appendix_states_what_the_score_does_not_cover():
+    from app.services.report_service import _methodology_appendix_html
+
+    html = _methodology_appendix_html()
+    assert "What this score does not tell you" in html
+    assert "not a measure of confirmed traffic, leads, or revenue" in html
+    lowered = html.lower()
+    for banned in ("citation rate", "ranking position", "confidence score", "char offset"):
+        assert banned not in lowered

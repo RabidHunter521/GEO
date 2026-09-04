@@ -1441,3 +1441,29 @@ export interface DashboardFilters {
   eventType?: string
   attentionOnly?: boolean
 }
+
+// --- Client view: measurement methodology ------------------------------------
+// Published so a client can check how the score is built. Weights are served
+// from backend constants, never duplicated here.
+
+export interface ClientViewMethodologyDimension {
+  key: string
+  label: string
+  weight_percent: number
+  /** "measured" = automatic (scan or a verified check of the client's own site);
+   *  "reviewed" = researched from public evidence and signed off by a person. */
+  basis: "measured" | "reviewed"
+  description: string
+  evidence_label: string | null
+}
+
+export interface ClientViewMethodology {
+  score_label: string
+  score_version: string
+  dimensions: ClientViewMethodologyDimension[]
+  measured_weight_percent: number
+  reviewed_weight_percent: number
+  platforms: string[]
+  limitations: string[]
+  version_policy: string
+}

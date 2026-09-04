@@ -15,13 +15,25 @@ def get_digest_action(
     prev_ai_citability: float | None,
     db: Session | None = None,
     fallback_tip: str | None = None,
+    comparable: bool = True,
 ) -> str:
+    """Next-action line for the digest.
+
+    `comparable` is False when the two scores came from different scoring
+    formula versions (scoring_service.scores_comparable). Across that boundary
+    part of the delta is a measurement artifact, and Claude has no way to know
+    that - it would confidently explain a decline that did not happen. So the
+    delta-triggered action is skipped entirely and the standard tip is used;
+    the method change itself is disclosed separately in the digest body.
+
+    Defaults to True so callers that do not track versions keep their behaviour.
+    """
     score_change = (
         abs(current_ai_citability - prev_ai_citability)
         if prev_ai_citability is not None
         else 0.0
     )
-    if score_change >= 5.0:
+    if comparable and score_change >= 5.0:
         try:
             return _generate_claude_action(client, current_ai_citability, prev_ai_citability, db)
         except Exception:

@@ -544,3 +544,91 @@ def test_paying_client_still_reaches_deliverable_surfaces(db, path):
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(_saved)
+
+
+# --- methodology --------------------------------------------------------------
+# Published so a client can check how the score is built instead of taking the
+# number on trust. Weights come from constants, never retyped.
+
+def _methodology_client(db):
+    from app.models.client import Client
+
+    c = Client(
+        name="Acme Dental",
+        website="https://acme.com",
+        industry="Dental clinic",
+        share_token="t" * 40,
+        enabled_platforms=["chatgpt", "perplexity"],
+    )
+    db.add(c)
+    db.commit()
+    return c
+
+
+def test_methodology_weights_match_constants(db):
+    from app.core.constants import SCORE_WEIGHTS, SCORE_VERSION
+
+    client = _methodology_client(db)
+    resp = _build_test_client(db).get(
+        f"/api/v1/view/{client.share_token}/methodology"
+    )
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["score_version"] == SCORE_VERSION
+    by_key = {d["key"]: d for d in body["dimensions"]}
+    for key, weight in SCORE_WEIGHTS.items():
+        assert by_key[key]["weight_percent"] == round(weight * 100)
+    assert sum(d["weight_percent"] for d in body["dimensions"]) == 100
+
+
+def test_methodology_separates_measured_from_reviewed(db):
+    client = _methodology_client(db)
+    resp = _build_test_client(db).get(
+        f"/api/v1/view/{client.share_token}/methodology"
+    )
+    app.dependency_overrides.clear()
+
+    body = resp.json()
+    # 60 automatic (AI Citability 40 + two verified site checks at 10 each),
+    # 40 researched and signed off by a person. Only the 40-point AI Citability
+    # dimension comes from the scan itself.
+    assert body["measured_weight_percent"] == 60
+    assert body["reviewed_weight_percent"] == 40
+    assert body["measured_weight_percent"] + body["reviewed_weight_percent"] == 100
+    reviewed = [d for d in body["dimensions"] if d["basis"] == "reviewed"]
+    assert {d["key"] for d in reviewed} == {"brand_authority", "content_quality"}
+    for d in reviewed:
+        assert d["evidence_label"] == "Based on public evidence \u00b7 Reviewed by SeenBy"
+
+
+def test_methodology_lists_only_enabled_platforms(db):
+    client = _methodology_client(db)
+    resp = _build_test_client(db).get(
+        f"/api/v1/view/{client.share_token}/methodology"
+    )
+    app.dependency_overrides.clear()
+
+    platforms = resp.json()["platforms"]
+    assert "Gemini" not in platforms
+    assert len(platforms) == 2
+
+
+def test_methodology_uses_client_safe_language(db):
+    client = _methodology_client(db)
+    resp = _build_test_client(db).get(
+        f"/api/v1/view/{client.share_token}/methodology"
+    )
+    app.dependency_overrides.clear()
+
+    blob = resp.text.lower()
+    for banned in ("citation rate", "ranking position", "confidence score",
+                   "char offset", "token count"):
+        assert banned not in blob
+
+
+def test_methodology_404_for_unknown_token(db):
+    resp = _build_test_client(db).get(f"/api/v1/view/{'z' * 40}/methodology")
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404

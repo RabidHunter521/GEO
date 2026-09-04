@@ -42,7 +42,11 @@ Where a client has an average deal value, SeenBy estimates pipeline from AI-refe
 
 ## Versioning
 
-v1.4.0 labels newly computed Growth Readiness. GeoScore does not persist a per-row score version, so a historical row's exact formula version is not currently available. Historical rows retain their originally computed values; they are not recomputed when the current label changes.
+v1.4.0 labels newly computed Growth Readiness. Every score row now carries the version of the method that produced it. Rows written before that record was introduced carry no version; their exact method cannot be established, so they are treated as not comparable to a current score rather than assumed to share its method.
+
+Historical rows retain their originally computed values; they are not recomputed when the method changes. Where a score and the one before it came from different versions, SeenBy states this in the weekly update and the monthly report, and does not present the difference as a change in the client's standing.
+
+A client-facing summary of this methodology is published on the client view at /view/<token>/methodology and printed at the back of every PDF report. Its figures are derived from the same constants the score is computed from, so a weight change updates the published methodology in the same commit.
 
 ## Limitations
 

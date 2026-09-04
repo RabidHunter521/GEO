@@ -82,3 +82,21 @@ def get_score_band(score: float) -> tuple[str, str]:
         if low <= floored <= high:
             return band, get_score_color(score)
     return "low", get_score_color(score)
+
+
+def scores_comparable(current_version: str | None, prev_version: str | None) -> bool:
+    """True only when two GeoScore rows came from the SAME known formula version.
+
+    A score delta is only a market signal when the formula behind both numbers
+    was identical. When it was not, part of the delta is a methodology artifact
+    (v1.3.0 alone moved AI Citability by up to 50 points for the least-visible
+    clients), and narrating it as a real movement tells the client a story that
+    did not happen.
+
+    NULL means the row predates persisted versioning, so its formula cannot be
+    established. Unknown is never treated as "same as current" - two unknown
+    rows could be any two versions.
+    """
+    if current_version is None or prev_version is None:
+        return False
+    return current_version == prev_version

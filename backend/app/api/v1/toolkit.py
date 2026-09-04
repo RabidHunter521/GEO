@@ -3,6 +3,7 @@ from datetime import datetime, UTC
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.constants import SCORE_VERSION
 from app.core.database import get_db
 from app.core.auth import require_api_key
 from app.models.client import Client
@@ -140,17 +141,33 @@ def verify(client_id: uuid.UUID, db: Session = Depends(get_db)):
         .first()
     )
     if latest_geo:
-        new_overall = compute_geo_score(client, latest_geo.ai_citability)
-        db.add(GeoScore(
-            client_id=client.id,
-            scan_id=latest_geo.scan_id,
-            ai_citability=latest_geo.ai_citability,
-            brand_authority=float(client.brand_authority_score),
-            content_quality=float(client.content_quality_score),
-            technical_foundations=100.0 if client.technical_foundations_verified else 0.0,
-            structured_data=100.0 if client.structured_data_verified else 0.0,
-            overall_score=new_overall,
-        ))
+        technical = 100.0 if client.technical_foundations_verified else 0.0
+        structured = 100.0 if client.structured_data_verified else 0.0
+        brand_authority = float(client.brand_authority_score)
+        content_quality = float(client.content_quality_score)
+        # Only append a history point when a scored dimension actually moved.
+        # Verification is re-runnable and most runs change nothing (llms.txt and
+        # llms-full.txt drive no dimension at all); appending unconditionally put
+        # duplicate points on the client's score history, each one inheriting the
+        # previous row's scan_id and carrying no platform_breakdown.
+        moved = (
+            technical != latest_geo.technical_foundations
+            or structured != latest_geo.structured_data
+            or brand_authority != latest_geo.brand_authority
+            or content_quality != latest_geo.content_quality
+        )
+        if moved:
+            db.add(GeoScore(
+                client_id=client.id,
+                scan_id=latest_geo.scan_id,
+                ai_citability=latest_geo.ai_citability,
+                brand_authority=brand_authority,
+                content_quality=content_quality,
+                technical_foundations=technical,
+                structured_data=structured,
+                overall_score=compute_geo_score(client, latest_geo.ai_citability),
+                score_version=SCORE_VERSION,
+            ))
 
     db.commit()
 

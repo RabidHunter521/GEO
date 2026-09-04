@@ -21,6 +21,7 @@ import type {
   QueryStabilityEntry,
   ImpactSummaryPublic,
   BenchmarkComparisonPublic,
+  ClientViewMethodology,
 } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -103,4 +104,10 @@ export function getViewBusinessImpact(token: string): Promise<ImpactSummaryPubli
 /** Phase 6 cohort comparison. Whitelisted shape — no cohort key, no exact counts. */
 export function getViewBenchmarks(token: string): Promise<BenchmarkComparisonPublic[] | null> {
   return viewFetch<BenchmarkComparisonPublic[]>(token, "/benchmarks")
+}
+
+/** How the score is built. Available to prospects too - the overview already
+ *  shows them a score, and a score without its method is what this prevents. */
+export function getViewMethodology(token: string): Promise<ClientViewMethodology | null> {
+  return viewFetch<ClientViewMethodology>(token, "/methodology")
 }

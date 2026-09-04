@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import structlog
 
-from app.core.constants import PLATFORM_LABELS, SCORE_DISPLAY_LABEL
+from app.core.constants import (
+    PLATFORM_LABELS,
+    SCORE_DISPLAY_LABEL,
+    SCORE_VERSION_CHANGED_NOTE,
+)
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
@@ -21,6 +25,7 @@ from app.services.share_link_service import get_share_link_url
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.headline_battle_service import select_headline_battle
 from app.services.digest_tip_service import select_digest_tip
+from app.services.scoring_service import scores_comparable
 from app.services.ga4_traffic_service import format_breakdown
 from app.core.time import utcnow
 
@@ -50,6 +55,10 @@ class DigestData:
     commitment_line: str | None = None
     # Reassurance line when a high-priority AI statement was confirmed this week.
     protection_line: str | None = None
+    # True when this week's score and last week's came from different scoring
+    # formula versions. The delta is then partly a measurement artifact, so the
+    # trend claim is neutralised and the change is disclosed to the client.
+    method_changed: bool = False
 
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
@@ -168,6 +177,12 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
     current_citability = current_gs.ai_citability
     prev_citability = prev_gs.ai_citability if prev_gs else None
 
+    # A delta only means something when both scores came from the same formula.
+    comparable = prev_gs is None or scores_comparable(
+        current_gs.score_version, prev_gs.score_version
+    )
+    method_changed = prev_gs is not None and not comparable
+
     trend = _compute_trend(current_citability, prev_citability)
     is_first_seen = _detect_first_seen(seen_count, prev_scan, db)
     headline_battle = select_headline_battle(client.id, db)
@@ -176,6 +191,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         current_citability,
         prev_citability,
         fallback_tip=select_digest_tip(client, headline_battle, current_citability),
+        comparable=comparable,
     )
 
     # Best verbatim win + named loss for the body — the most forwardable lines.
@@ -232,6 +248,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         ai_breakdown=ai_breakdown,
         commitment_line=_commitment_line(client, db),
         protection_line=_protection_line(client, db),
+        method_changed=method_changed,
     )
 
 
@@ -340,6 +357,18 @@ def _build_email_html(client: Client, data: DigestData) -> str:
     }
     trend_msg = trend_messages[data.trend]
     trend_color = trend_colors[data.trend]
+    if data.method_changed:
+        # Part of this week's movement comes from the formula change, not the
+        # market. Claiming a direction here would be the same false story the
+        # Claude action is suppressed to avoid.
+        trend_msg = "Here is your SeenBy weekly update."
+        trend_color = trend_colors["flat"]
+    method_note_html = (
+        f"""          <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">
+            {html.escape(SCORE_VERSION_CHANGED_NOTE.format(label=SCORE_DISPLAY_LABEL))}
+          </p>"""
+        if data.method_changed else ""
+    )
 
     # Escape free-text fields (client name, Claude-written action) before they
     # land in the email HTML — an "&" or "<" must not break the markup.
@@ -511,6 +540,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
           <p style="color:{trend_color};font-size:15px;font-weight:600;margin:0 0 24px;">
             {trend_msg}
           </p>
+{method_note_html}
 {commitment_html}
 {protection_html}
 

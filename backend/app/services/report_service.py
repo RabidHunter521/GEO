@@ -19,7 +19,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.config import settings
-from app.core.constants import PLATFORM_LABELS, SCORE_DISPLAY_LABEL
+from app.core.constants import (
+    PLATFORM_LABELS,
+    SCORE_DISPLAY_LABEL,
+    SCORE_VERSION_CHANGED_NOTE,
+)
 
 try:
     import weasyprint  # noqa: F401 — used when generating PDF bytes
@@ -36,7 +40,7 @@ from app.models.toolkit_files import ToolkitFiles
 from app.models.activity_log import ActivityLog
 from app.models.report import Report
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
-from app.services.scoring_service import get_score_band
+from app.services.scoring_service import get_score_band, scores_comparable
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
@@ -52,6 +56,7 @@ from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
 from app.prompts.report import build_change_narrative
 from app.services.language_sanitizer import sanitize_text as _sanitize_text
+from app.services.methodology_service import build_methodology
 
 # Max competitor-won topics surfaced in the Content Gaps section.
 _CONTENT_GAP_LIMIT = 3
@@ -527,6 +532,12 @@ class ReportData:
     ai_breakdown: str | None = None
     platform_breakdown: dict | None = None
     change_narrative: str = ""
+    # Scoring formula versions behind overall_score and prev_overall_score. A
+    # mismatch (or an unknown, i.e. a row written before versioning) means the
+    # month-over-month delta is partly a measurement artifact and must not be
+    # narrated as a market movement.
+    score_version: str | None = None
+    prev_score_version: str | None = None
     score_history: list[TrendPoint] = field(default_factory=list)
     hallucinations: list[HallucinationLine] = field(default_factory=list)
     content_gaps: list[ContentGap] = field(default_factory=list)
@@ -661,6 +672,21 @@ def _fallback_narrative(data: "ReportData") -> str:
     )
 
 
+def _method_change_narrative(data: "ReportData") -> str:
+    """Narrative for a period whose score crossed a formula change.
+
+    States the method change and the current standing, and deliberately makes no
+    claim about direction: the delta mixes real movement with the formula change
+    and the two cannot be separated after the fact.
+    """
+    return (
+        SCORE_VERSION_CHANGED_NOTE.format(label=SCORE_DISPLAY_LABEL)
+        + f" Your {SCORE_DISPLAY_LABEL} for {data.period_label} is "
+        f"{data.overall_score:.0f}, with your brand seen by AI in "
+        f"{data.seen_count} of {data.total_count} tracked questions."
+    )
+
+
 def _generate_change_narrative(
     data: "ReportData",
     client_id: uuid.UUID | None = None,
@@ -669,6 +695,20 @@ def _generate_change_narrative(
     """Claude-written 2-3 sentence "what changed this month" summary. Falls back
     to a deterministic sentence on first report or any API failure — never raises."""
     if data.trend == "first" or data.prev_overall_score is None:
+        return _fallback_narrative(data)
+
+    # Across a formula change the delta is partly a measurement artifact. Claude
+    # is not told which version produced each number and cannot be - so asking it
+    # to explain the movement produces a confident account of a change that did
+    # not happen. Three cases, and the difference between the last two matters:
+    if not scores_comparable(data.score_version, data.prev_score_version):
+        if data.score_version is not None and data.prev_score_version is not None:
+            # Both versions known and different: a formula change definitely
+            # happened, so say so.
+            return _method_change_narrative(data)
+        # One side predates persisted versioning. We cannot establish that the
+        # formula was the same, so Claude must not explain the delta - but we
+        # cannot claim a change occurred either. State the arithmetic, nothing more.
         return _fallback_narrative(data)
 
     try:
@@ -691,6 +731,40 @@ def _generate_change_narrative(
     except Exception:
         logger.warning("change_narrative_generation_failed")
         return _fallback_narrative(data)
+
+
+def _methodology_appendix_html() -> str:
+    """Condensed methodology, printed at the back of every report.
+
+    The same content the client can read at /view/<token>/methodology, so the
+    PDF is not the one surface where the method is withheld. Built from
+    methodology_service (which reads constants), never retyped here.
+    """
+    # Platforms are deliberately not passed: the PDF appendix does not list
+    # them (the platform breakdown has its own section earlier in the report).
+    m = build_methodology()
+    rows = "".join(
+        f"<tr><td>{html.escape(d['label'])}</td>"
+        f"<td class=\"num\">{d['weight_percent']}%</td>"
+        f"<td>{'Checked automatically' if d['basis'] == 'measured' else 'Reviewed by a person'}</td>"
+        f"<td>{html.escape(d['description'])}</td></tr>"
+        for d in m["dimensions"]
+    )
+    limits = "".join(f"<li>{html.escape(line)}</li>" for line in m["limitations"])
+    return f"""
+<h2>How This Score Is Measured</h2>
+<p>{m['measured_weight_percent']}% of your {html.escape(m['score_label'])} score is
+checked automatically, and {m['reviewed_weight_percent']}% is researched from public
+evidence and signed off by a person before it counts.</p>
+<table>
+  <thead><tr><th>Part</th><th class="num">Weight</th><th>How it is produced</th><th>What it covers</th></tr></thead>
+  <tbody>{rows}</tbody>
+</table>
+<p>{html.escape(m['version_policy'])}</p>
+<p><strong>What this score does not tell you</strong></p>
+<ul>{limits}</ul>
+<p style="font-size:9px;color:#6b7280;">Method version {html.escape(m['score_version'])}</p>
+"""
 
 
 def _score_css(color: str) -> str:
@@ -1386,6 +1460,8 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         technical_foundations=current_gs.technical_foundations,
         structured_data=current_gs.structured_data,
         prev_overall_score=prev_gs.overall_score if prev_gs else None,
+        score_version=current_gs.score_version,
+        prev_score_version=prev_gs.score_version if prev_gs else None,
         trend=trend,
         seen_count=seen_count,
         total_count=total_count,
@@ -2029,6 +2105,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     else:
         hallucination_section = ""
 
+    methodology_html = _methodology_appendix_html()
+
     # ── Report v2 sections (Phase 5) ──────────────────────────────────────
     work_log_section = _build_work_log_html(data)
     technical_health_section = _build_technical_health_html(data)
@@ -2155,6 +2233,9 @@ def _build_report_html(client: Client, data: ReportData) -> str:
   <span class="rec-label">Recommended Action</span>
   <p class="rec-body">{safe_recommendation}</p>
 </div>
+
+<!-- ── 13: METHODOLOGY ──────────────────────────────── -->
+{methodology_html}
 
 <div class="report-footer">
   <img src="data:image/png;base64,{_LOGO_B64}" alt="" class="report-footer-logo">

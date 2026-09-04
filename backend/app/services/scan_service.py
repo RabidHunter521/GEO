@@ -10,6 +10,7 @@ from app.core.constants import (
     ACTIVE_SCAN_STALE_MINUTES,
     PLATFORM_LABELS,
     SCAN_PLATFORMS,
+    SCORE_VERSION,
     SCORE_DISPLAY_LABEL,
 )
 from app.models.scan import Scan
@@ -461,6 +462,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             structured_data=100.0 if client.structured_data_verified else 0.0,
             overall_score=overall,
             platform_breakdown=platform_breakdown,
+            score_version=SCORE_VERSION,
         )
         db.add(geo_score)
 

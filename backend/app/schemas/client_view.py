@@ -407,3 +407,26 @@ class ClientViewActivity(BaseModel):
     label: str
     note: str
     created_at: datetime
+
+
+class ClientViewMethodologyDimension(BaseModel):
+    """One scored dimension, with how it is produced stated plainly."""
+    key: str
+    label: str
+    weight_percent: int
+    basis: str  # "measured" | "reviewed"
+    description: str
+    evidence_label: str | None = None
+
+
+class ClientViewMethodology(BaseModel):
+    """How the score is built. Published so a client can check the method
+    rather than take the number on trust."""
+    score_label: str
+    score_version: str
+    dimensions: list[ClientViewMethodologyDimension]
+    measured_weight_percent: int
+    reviewed_weight_percent: int
+    platforms: list[str]
+    limitations: list[str]
+    version_policy: str

@@ -346,3 +346,118 @@ def test_llms_txt_generation_survives_discovery_failure():
                       return_value=MagicMock(**{"messages.create.return_value": resp})), \
          patch.object(toolkit_service, "record_llm_call"):
         assert toolkit_service.generate_llms_txt(c) == "# Acme Dental"
+
+
+# --- score_version stamping + duplicate-row guard -----------------------------
+# Toolkit verification used to append a GeoScore row on EVERY run, with no check
+# that any dimension had actually moved. Re-verifying three times put three
+# identical points on the client's history chart, each carrying the previous
+# row's scan_id and no platform_breakdown.
+
+def _verify_db(fake_client, fake_tf, latest_geo):
+    """Mock session that routes .query(Model) to the right row."""
+    from app.models.geo_score import GeoScore
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_client
+
+    tf_chain = MagicMock()
+    tf_chain.filter.return_value.first.return_value = fake_tf
+    geo_chain = MagicMock()
+    geo_chain.filter.return_value.order_by.return_value.first.return_value = latest_geo
+
+    mock_db.query.side_effect = lambda model: geo_chain if model is GeoScore else tf_chain
+    return mock_db
+
+
+def _scored_client():
+    c = _fake_client()
+    c.brand_authority_score = 50
+    c.content_quality_score = 40
+    return c
+
+
+def _latest_geo(**overrides):
+    from app.models.geo_score import GeoScore
+
+    row = GeoScore(
+        client_id=uuid.uuid4(),
+        scan_id=uuid.uuid4(),
+        ai_citability=40.0,
+        brand_authority=50.0,
+        content_quality=40.0,
+        technical_foundations=0.0,
+        structured_data=0.0,
+        overall_score=34.0,
+        score_version="v1.4.0",
+    )
+    for k, v in overrides.items():
+        setattr(row, k, v)
+    return row
+
+
+def _added_geo_scores(mock_db):
+    from app.models.geo_score import GeoScore
+
+    return [c.args[0] for c in mock_db.add.call_args_list if isinstance(c.args[0], GeoScore)]
+
+
+def test_verify_does_not_append_geo_score_when_no_dimension_moved():
+    app, get_db = _make_app()
+    fake_client = _scored_client()
+    mock_db = _verify_db(fake_client, _fake_toolkit(fake_client.id), _latest_geo())
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.verify_all") as mock_verify:
+        mock_verify.return_value = {
+            "llms_verified": True,
+            "schema_verified": False,
+            "robots_verified": False,
+            "llms_full_verified": False,
+        }
+        resp = TestClient(app).post(f"/api/v1/clients/{fake_client.id}/toolkit/verify")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    # llms.txt alone moves no scored dimension, so history must not gain a point.
+    assert _added_geo_scores(mock_db) == []
+
+
+def test_verify_appends_geo_score_when_a_dimension_moves():
+    app, get_db = _make_app()
+    fake_client = _scored_client()
+    mock_db = _verify_db(fake_client, _fake_toolkit(fake_client.id), _latest_geo())
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.verify_all") as mock_verify:
+        mock_verify.return_value = {
+            "llms_verified": False,
+            "schema_verified": False,
+            "robots_verified": True,
+            "llms_full_verified": False,
+        }
+        resp = TestClient(app).post(f"/api/v1/clients/{fake_client.id}/toolkit/verify")
+    app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    rows = _added_geo_scores(mock_db)
+    assert len(rows) == 1
+    assert rows[0].technical_foundations == 100.0
+
+
+def test_verify_stamps_current_score_version_on_new_row():
+    from app.core.constants import SCORE_VERSION
+
+    app, get_db = _make_app()
+    fake_client = _scored_client()
+    mock_db = _verify_db(fake_client, _fake_toolkit(fake_client.id), _latest_geo())
+    app.dependency_overrides[get_db] = lambda: mock_db
+    with patch("app.api.v1.toolkit.verify_all") as mock_verify:
+        mock_verify.return_value = {
+            "llms_verified": False,
+            "schema_verified": False,
+            "robots_verified": True,
+            "llms_full_verified": False,
+        }
+        TestClient(app).post(f"/api/v1/clients/{fake_client.id}/toolkit/verify")
+    app.dependency_overrides.clear()
+
+    assert _added_geo_scores(mock_db)[0].score_version == SCORE_VERSION

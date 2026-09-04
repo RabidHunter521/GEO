@@ -463,6 +463,16 @@ export default async function ViewOverviewPage({
       {!isProspect && (
         <section className="reveal" style={{ animationDelay: "240ms" }}>
           <SectionHeading>Score Breakdown</SectionHeading>
+          {/* A score the client cannot inspect is a number they have to take on
+              trust. The method is published; link to it from the score itself. */}
+          <p className="-mt-2 mb-3 text-sm text-muted-foreground">
+            <Link
+              href={`/view/${token}/methodology`}
+              className="underline underline-offset-4 hover:text-foreground"
+            >
+              How this score is measured
+            </Link>
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {DIMENSIONS.map((dim) => {
               const raw = score ? (score[dim.key as DimKey & keyof ClientViewScore] as number) : null

@@ -4,6 +4,17 @@ from typing import Final
 SCORE_VERSION: Final = "v1.4.0"
 SCORE_DISPLAY_LABEL: Final = "Growth Readiness"
 
+# Shown wherever a score delta spans a formula change (see
+# scoring_service.scores_comparable). Across that boundary part of the delta is a
+# measurement artifact, so nothing may narrate it as a market movement. This line
+# reports the method change, makes no claim about the client's real position, and
+# never implies a decline.
+SCORE_VERSION_CHANGED_NOTE: Final = (
+    "We improved how {label} is measured this period, so this score is not "
+    "directly comparable to the previous one. The change is to our measurement "
+    "method, not to your standing with AI platforms."
+)
+
 SCORE_WEIGHTS: Final = {
     "ai_citability":         0.40,
     "brand_authority":       0.20,

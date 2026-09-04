@@ -143,3 +143,38 @@ def test_get_score_color_thresholds():
     assert get_score_color(69) == "yellow"
     assert get_score_color(70) == "green"
     assert get_score_color(100) == "green"
+
+
+# --- scores_comparable -------------------------------------------------------
+# Two GeoScore rows may only be compared when both were produced by the SAME
+# known formula version. A delta across a version boundary is partly a
+# methodology artifact, and narrating it as a market movement is the failure
+# this guard exists to prevent.
+
+def test_scores_comparable_true_for_matching_versions():
+    from app.services.scoring_service import scores_comparable
+    assert scores_comparable("v1.4.0", "v1.4.0") is True
+
+
+def test_scores_comparable_false_when_version_changed():
+    from app.services.scoring_service import scores_comparable
+    assert scores_comparable("v1.4.0", "v1.3.0") is False
+
+
+def test_scores_comparable_false_when_previous_version_unknown():
+    # Historical rows predate the score_version column. Unknown must never be
+    # optimistically treated as "same as current".
+    from app.services.scoring_service import scores_comparable
+    assert scores_comparable("v1.4.0", None) is False
+
+
+def test_scores_comparable_false_when_current_version_unknown():
+    from app.services.scoring_service import scores_comparable
+    assert scores_comparable(None, "v1.4.0") is False
+
+
+def test_scores_comparable_false_when_both_unknown():
+    # Two unknowns are not evidence of sameness - they could be any two of
+    # v1.0.0 through v1.4.0.
+    from app.services.scoring_service import scores_comparable
+    assert scores_comparable(None, None) is False

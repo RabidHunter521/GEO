@@ -472,3 +472,28 @@ def test_reap_stale_scans_logs_activity(db):
         .all()
     )
     assert len(logs) == 1
+
+
+def test_run_scan_stamps_current_score_version():
+    # Without a persisted version, a formula change is indistinguishable from a
+    # market movement on the client's history chart.
+    from app.core.constants import SCORE_VERSION
+
+    scan = make_scan()
+    client = make_client(enabled_platforms=["gemini"])
+    stored = [make_result("gemini", brand_detected=True)]
+    mock_db = setup_db(scan, client, stored)
+
+    added_objects = []
+    mock_db.add.side_effect = lambda obj: added_objects.append(obj)
+
+    patcher, _ = patch_platform_client(lambda q: "ACME Corp is a good option.")
+    with patcher, patch("app.services.scan_service.time.sleep"), patch(
+        "app.services.scan_service.extract_position", return_value=None
+    ):
+        run_scan(scan.id, mock_db)
+
+    from app.models.geo_score import GeoScore
+    geo_scores = [o for o in added_objects if isinstance(o, GeoScore)]
+    assert len(geo_scores) == 1
+    assert geo_scores[0].score_version == SCORE_VERSION

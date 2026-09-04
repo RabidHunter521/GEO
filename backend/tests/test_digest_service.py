@@ -318,3 +318,44 @@ def test_digest_html_no_battle_block_when_none():
          patch("app.services.digest_service.send_email", side_effect=lambda **k: captured.update(k)):
         send_client_digest(client.id, db)
     assert "the one move to flip it" not in captured["html_body"].lower()
+
+
+# --- methodology-change gate --------------------------------------------------
+# A score delta that spans a formula change is partly a measurement artifact.
+# Claude must not be asked to explain it as a market movement.
+
+def test_digest_action_skips_claude_when_formula_version_changed():
+    from app.services.claude_action import get_digest_action
+
+    client = _make_client()
+    with patch("app.services.claude_action._generate_claude_action") as gen:
+        action = get_digest_action(
+            client, 30.0, 55.0, fallback_tip="static tip", comparable=False
+        )
+    gen.assert_not_called()
+    assert action == "static tip"
+
+
+def test_digest_action_calls_claude_when_versions_match():
+    from app.services.claude_action import get_digest_action
+
+    client = _make_client()
+    with patch(
+        "app.services.claude_action._generate_claude_action", return_value="claude action"
+    ) as gen:
+        action = get_digest_action(
+            client, 30.0, 55.0, fallback_tip="static tip", comparable=True
+        )
+    gen.assert_called_once()
+    assert action == "claude action"
+
+
+def test_digest_action_defaults_to_comparable_for_callers_without_versions():
+    from app.services.claude_action import get_digest_action
+
+    client = _make_client()
+    with patch(
+        "app.services.claude_action._generate_claude_action", return_value="claude action"
+    ) as gen:
+        get_digest_action(client, 30.0, 55.0, fallback_tip="tip")
+    gen.assert_called_once()
