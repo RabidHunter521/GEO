@@ -71,7 +71,13 @@ class Settings(BaseSettings):
     # Set a cap to 0 to disable it. BUDGET_CLIENT_MONTHLY_USD is a rolling 30-day
     # window per client; BUDGET_GLOBAL_DAILY_USD is the current UTC day across all
     # clients. Both read the llm_call_logs ledger.
-    BUDGET_CLIENT_MONTHLY_USD: float = 20.0
+    # Sized against measured cost after the 2026-09-04 rate fix (a scan is
+    # ~$2.23; all non-scan LLM work for an active client is ~$0.63/month):
+    #   weekly scanning      ~$10.22/client/month  -> ~4x headroom
+    #   twice-weekly         ~$19.81/client/month  -> was 99% of the old $20 cap
+    # Raised 20 -> 40 so a second weekly scan does not start returning 402s.
+    BUDGET_CLIENT_MONTHLY_USD: float = 40.0
+    # $50/day covers batch-scanning ~18 clients in one sitting. Revisit past that.
     BUDGET_GLOBAL_DAILY_USD: float = 50.0
     # Provider circuit breaker: after this many consecutive 429/402 responses
     # from one scan platform (within a short window), stop calling it for the
