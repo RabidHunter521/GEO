@@ -100,3 +100,18 @@ def rate_limit(namespace: str, max_requests: int, window_seconds: int):
             logger.warning("rate_limit_unavailable", namespace=namespace, error=str(exc))
 
     return dependency
+
+
+# Shared budget for every admin route that triggers LLM work (assessments,
+# toolkit files, content analysis/briefs/roadmap articles, deliverables, page
+# audits, report narratives). One namespace on purpose: a burst spread across
+# several of these endpoints still counts against the same window, so the limit
+# cannot be sidestepped by rotating between them.
+#
+# Sits behind require_api_key as depth — the cap that actually bounds spend is
+# budget_service. Scan triggers get their own, tighter namespace instead: a scan
+# costs ~$2.20 against a few cents here, so they should not share a budget.
+# Generous relative to manual admin use, low enough to stop a runaway loop.
+llm_generation_rate_limit = rate_limit(
+    "llm_generate", max_requests=20, window_seconds=60
+)

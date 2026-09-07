@@ -10,6 +10,7 @@ from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.core.constants import ASSESSABLE_DIMENSIONS
 from app.models.client import Client
 from app.models.geo_score import GeoScore
@@ -326,7 +327,7 @@ def _require_dimension(dimension: str) -> None:
 @router.post(
     "/{client_id}/assessments/{dimension}/generate",
     response_model=AssessmentResponse,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate_assessment(client_id: uuid.UUID, dimension: str, db: Session = Depends(get_db)):
     _require_dimension(dimension)

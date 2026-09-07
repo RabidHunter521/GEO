@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.core.constants import MAX_COMPETITORS, WIN_LOSS_CATEGORIES
 from app.models.client import Client
 from app.models.competitor import Competitor
@@ -95,7 +96,7 @@ def get_ai_readiness(client_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.post(
     "/win-loss/{result_id}/brief",
     response_model=ContentBriefResponse,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate_brief(
     client_id: uuid.UUID,

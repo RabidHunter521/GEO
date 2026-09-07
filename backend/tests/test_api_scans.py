@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from app.schemas.scan import ScanDiffQuery, ScanDiffResponse
@@ -561,3 +562,105 @@ def test_get_result_snippet_404_when_no_excerpt():
         app.dependency_overrides.clear()
 
     assert response.status_code == 404
+
+
+def test_trigger_scan_is_rate_limited_per_ip():
+    """Depth behind the API key, and it closes a real race: check_budget reads
+    committed cost rows while execute_scan runs async, so a burst fired together
+    all sees the same pre-scan spend and all passes the cap."""
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+    from app.services.budget_service import BudgetStatus
+    from decimal import Decimal
+
+    class FakeRedis:
+        def __init__(self):
+            self.counts = {}
+
+        def incr(self, key):
+            self.counts[key] = self.counts.get(key, 0) + 1
+            return self.counts[key]
+
+        def expire(self, key, seconds):
+            return True
+
+    mock_client = MagicMock()
+    mock_client.archived_at = None
+    mock_db = MagicMock()
+    mock_db.get.return_value = mock_client
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    def fake_refresh(scan_obj):
+        scan_obj.id = uuid.uuid4()
+        scan_obj.status = "pending"
+        scan_obj.triggered_at = datetime(2026, 1, 1, 0, 0, 0)
+        scan_obj.completed_at = None
+
+    mock_db.refresh = MagicMock(side_effect=fake_refresh)
+
+    ok_budget = BudgetStatus(
+        ok=True, reason=None, client_spend=Decimal("0"), global_spend=Decimal("0"),
+        client_cap=20.0, global_cap=50.0,
+    )
+
+    with patch("workers.tasks.scan_tasks.execute_scan") as mock_task, \
+            patch("app.services.budget_service.check_budget", return_value=ok_budget), \
+            patch("app.core.rate_limit._get_redis", return_value=FakeRedis()):
+        mock_task.delay = MagicMock()
+        def fake_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        client = TestClient(app)
+        codes = [
+            client.post("/api/v1/scans/", json={"client_id": str(uuid.uuid4())}).status_code
+            for _ in range(12)
+        ]
+        app.dependency_overrides.clear()
+
+    # 10 allowed per 60s window, then 429 — never a 5xx.
+    assert codes[:10] == [202] * 10, codes
+    assert codes[10:] == [429, 429], codes
+
+
+def test_trigger_scan_allowed_when_redis_is_down():
+    """The limiter fails open: a Redis outage must not stop scans."""
+    from app.main import app
+    from app.core.database import get_db
+    from app.core.auth import require_api_key
+    from app.services.budget_service import BudgetStatus
+    from decimal import Decimal
+
+    mock_client = MagicMock()
+    mock_client.archived_at = None
+    mock_db = MagicMock()
+    mock_db.get.return_value = mock_client
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    def fake_refresh(scan_obj):
+        scan_obj.id = uuid.uuid4()
+        scan_obj.status = "pending"
+        scan_obj.triggered_at = datetime(2026, 1, 1, 0, 0, 0)
+        scan_obj.completed_at = None
+
+    mock_db.refresh = MagicMock(side_effect=fake_refresh)
+
+    ok_budget = BudgetStatus(
+        ok=True, reason=None, client_spend=Decimal("0"), global_spend=Decimal("0"),
+        client_cap=20.0, global_cap=50.0,
+    )
+
+    with patch("workers.tasks.scan_tasks.execute_scan") as mock_task, \
+            patch("app.services.budget_service.check_budget", return_value=ok_budget), \
+            patch("app.core.rate_limit._get_redis", side_effect=RuntimeError("redis down")):
+        mock_task.delay = MagicMock()
+        def fake_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = fake_get_db
+        app.dependency_overrides[require_api_key] = lambda: None
+        client = TestClient(app)
+        response = client.post("/api/v1/scans/", json={"client_id": str(uuid.uuid4())})
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 202

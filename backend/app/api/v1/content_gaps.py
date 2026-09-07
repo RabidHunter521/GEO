@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.models.client import Client
 from app.models.content_analysis import ContentAnalysis
 from app.schemas.content_gaps import ContentAnalysisResponse
@@ -30,7 +31,7 @@ def get_latest(client_id: uuid.UUID, db: Session = Depends(get_db)):
     "/analyze",
     response_model=ContentAnalysisResponse,
     status_code=202,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def analyze(client_id: uuid.UUID, db: Session = Depends(get_db)):
     from workers.tasks.content_tasks import run_content_analysis

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.core.database import get_db
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
@@ -32,7 +33,7 @@ def _get_deliverable_or_404(
     return d
 
 
-@router.post("", response_model=DeliverableResponse, dependencies=[Depends(require_api_key)])
+@router.post("", response_model=DeliverableResponse, dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)])
 def create(client_id: uuid.UUID, body: DeliverableCreate, db: Session = Depends(get_db)):
     client = _get_client_or_404(client_id, db)
     if body.type not in DELIVERABLE_TYPES:
