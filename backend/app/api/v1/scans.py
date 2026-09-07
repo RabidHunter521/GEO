@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import rate_limit
 from app.core.constants import PLATFORM_LABELS
 from app.models.client import Client
 from app.models.scan import Scan
@@ -23,12 +24,21 @@ from app.services import snippet_service
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
+# Depth behind require_api_key: bounds a burst from a single IP if the admin key
+# ever leaks. It also closes a real race — check_budget reads *committed* cost
+# rows, but execute_scan runs async, so N triggers fired together all see the
+# same pre-scan spend and all pass the cap. has_active_scan only serialises a
+# single client, so that burst is only bounded across clients by this limiter.
+# 10/min is far above manual use (scans are on-demand, one admin) and well
+# below a runaway loop. Fails open if Redis is down, like every other limiter.
+_scan_trigger_rate_limit = rate_limit("scan_trigger", max_requests=10, window_seconds=60)
+
 
 @router.post(
     "/",
     response_model=ScanResponse,
     status_code=202,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(_scan_trigger_rate_limit)],
 )
 def trigger_scan(payload: TriggerScanRequest, db: Session = Depends(get_db)):
     from workers.tasks.scan_tasks import execute_scan

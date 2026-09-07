@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.core.database import get_db
 from app.models.client import Client
 from app.models.page_audit import PageAudit
@@ -20,7 +21,7 @@ def _get_client_or_404(client_id: uuid.UUID, db: Session) -> Client:
     return c
 
 
-@router.post("", response_model=PageAuditResponse, dependencies=[Depends(require_api_key)])
+@router.post("", response_model=PageAuditResponse, dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)])
 def run_audit(client_id: uuid.UUID, body: PageAuditRequest, db: Session = Depends(get_db)):
     client = _get_client_or_404(client_id, db)
     try:

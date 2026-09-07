@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.constants import SCORE_VERSION
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.models.client import Client
 from app.models.activity_log import ActivityLog
 from app.models.toolkit_files import ToolkitFiles
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/clients/{client_id}/toolkit", tags=["toolkit"])
 @router.post(
     "/generate",
     response_model=ToolkitFilesResponse,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate(client_id: uuid.UUID, db: Session = Depends(get_db)):
     client = _get_client_or_404(client_id, db)
@@ -62,7 +63,7 @@ def generate(client_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.post(
     "/generate-llms-full",
     response_model=ToolkitFilesResponse,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate_llms_full(client_id: uuid.UUID, db: Session = Depends(get_db)):
     client = _get_client_or_404(client_id, db)

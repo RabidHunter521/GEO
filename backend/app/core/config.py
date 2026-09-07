@@ -1,5 +1,22 @@
 # backend/app/core/config.py
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# ADMIN_API_KEY is the ONLY control on every endpoint that can spend money
+# (scan triggers, report/deliverable generation). A guessable value is a
+# direct path to someone else's LLM bill, so production refuses to boot on
+# one. Dev and CI are exempt: the committed .env uses a short throwaway key
+# and every API test authenticates with it.
+_MIN_ADMIN_KEY_LENGTH = 32
+# Matched as substrings, not equality: a padded placeholder like
+# "changeme-prod-key-000000000000000" clears the length bar but is no secret.
+_WEAK_ADMIN_KEY_MARKERS = (
+    "changeme", "change-me", "replace-me", "your-admin", "placeholder",
+    "password", "secret", "example",
+)
+# A real key has many distinct characters; `openssl rand -hex 32` yields ~16.
+# This catches padding tricks ("a"*64, "abcabcabc...") that pass on length.
+_MIN_ADMIN_KEY_DISTINCT_CHARS = 10
 
 
 class Settings(BaseSettings):
@@ -69,6 +86,37 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",")]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @model_validator(mode="after")
+    def _validate_admin_api_key(self):
+        """Refuse to start on a weak ADMIN_API_KEY in production.
+
+        Empty is rejected everywhere: require_api_key compares with
+        hmac.compare_digest, so an empty configured key would turn any empty
+        bearer token into a valid credential.
+        """
+        key = (self.ADMIN_API_KEY or "").strip()
+        if not key:
+            raise ValueError("ADMIN_API_KEY must not be empty")
+        if self.ENVIRONMENT.strip().lower() != "production":
+            return self
+        if len(key) < _MIN_ADMIN_KEY_LENGTH:
+            raise ValueError(
+                f"ADMIN_API_KEY must be at least {_MIN_ADMIN_KEY_LENGTH} characters in "
+                f"production (got {len(key)}). Generate one with: openssl rand -hex 32"
+            )
+        lowered = key.lower()
+        marker = next((m for m in _WEAK_ADMIN_KEY_MARKERS if m in lowered), None)
+        if marker:
+            raise ValueError(
+                f"ADMIN_API_KEY looks like a placeholder (contains {marker!r})"
+            )
+        if len(set(key)) < _MIN_ADMIN_KEY_DISTINCT_CHARS:
+            raise ValueError(
+                f"ADMIN_API_KEY has only {len(set(key))} distinct characters; it does "
+                "not look random. Generate one with: openssl rand -hex 32"
+            )
+        return self
 
 
 settings = Settings()

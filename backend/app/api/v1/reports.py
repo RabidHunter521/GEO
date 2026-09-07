@@ -8,6 +8,7 @@ from sqlalchemy import desc
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.models.client import Client
 from app.models.report import Report
 from app.schemas.report import ReportResponse
@@ -48,7 +49,7 @@ def download_scorecard(client_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post(
     "/generate",
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate_report(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)

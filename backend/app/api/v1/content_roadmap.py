@@ -7,6 +7,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
 from app.core.auth import require_api_key
+from app.core.rate_limit import llm_generation_rate_limit
 from app.models.client import Client
 from app.models.content_roadmap import ContentRoadmap
 from app.schemas.content_roadmap import ContentRoadmapResponse
@@ -36,7 +37,7 @@ def get_latest(client_id: uuid.UUID, db: Session = Depends(get_db)):
     "/generate",
     response_model=ContentRoadmapResponse,
     status_code=202,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate(client_id: uuid.UUID, db: Session = Depends(get_db)):
     from workers.tasks.content_tasks import run_content_roadmap
@@ -55,7 +56,7 @@ def generate(client_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.post(
     "/{roadmap_id}/items/{item_index}/content",
     response_model=ContentRoadmapResponse,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_api_key), Depends(llm_generation_rate_limit)],
 )
 def generate_item_content(
     client_id: uuid.UUID,
