@@ -54,6 +54,11 @@ class ClientViewScorePoint(BaseModel):
 class ClientViewTrafficPoint(BaseModel):
     period: date
     ai_visitors: int
+    # How this month's number was produced: "manual" (typed by the SeenBy team
+    # from the client's own analytics) or "ga4" (synced from their property).
+    # The chart presents these as measurement, so it has to be able to say
+    # which months were hand-entered rather than implying all were measured.
+    source: str = "manual"
 
 
 class ClientViewPlatform(BaseModel):
@@ -196,6 +201,13 @@ class ClientViewOverview(BaseModel):
     has_content_plan: bool = False
     # Whether the remediation loop has any tracked items (drives the progress card).
     has_progress: bool = False
+    # Whether the Reputation tab has an actual FINDING to show — a reviewed
+    # accuracy issue, a reviewed factual conflict, or a brand-authority /
+    # technical / structured-data issue. Deliberately NOT satisfied by having
+    # business locations on file: a client's own verified address and opening
+    # hours read back to them is table stakes, not a finding, and a tab that
+    # only ever contains that reads as an empty tab.
+    has_reputation: bool = False
     # Whether any work-log entry has been PUBLISHED (drives the Progress tab).
     # Distinct from has_progress, which is the remediation loop.
     has_work_log: bool = False
