@@ -632,3 +632,108 @@ def test_methodology_404_for_unknown_token(db):
     resp = _build_test_client(db).get(f"/api/v1/view/{'z' * 40}/methodology")
     app.dependency_overrides.clear()
     assert resp.status_code == 404
+
+
+# ── traffic provenance ────────────────────────────────────────────────────────
+
+def test_overview_traffic_points_carry_source(db):
+    """Every traffic point must say how it was produced. The client-facing chart
+    presents these as measurement, so a hand-typed month has to be labelled as
+    one — the wire field is what lets the chart tell the two apart."""
+    from datetime import date
+    from app.models.ai_traffic_snapshot import AiTrafficSnapshot
+
+    client = _make_client(db, is_prospect=False, name="TrafficSourceClient")
+    db.add(AiTrafficSnapshot(
+        id=uuid.uuid4(), client_id=client.id, period=date(2026, 5, 1),
+        ai_visitors=100, source="manual",
+    ))
+    db.add(AiTrafficSnapshot(
+        id=uuid.uuid4(), client_id=client.id, period=date(2026, 6, 1),
+        ai_visitors=140, source="ga4",
+    ))
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        points = res.json()["traffic"]
+        assert [p["source"] for p in points] == ["manual", "ga4"]
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
+# ── reputation tab gating ─────────────────────────────────────────────────────
+
+def test_has_reputation_false_when_only_locations_exist(db):
+    """A verified address alone is the client's own information read back to
+    them, not a finding. It must not light up the Reputation tab."""
+    from app.models.business_location import BusinessLocation
+
+    client = _make_client(db, is_prospect=False, name="NoFindingsClient")
+    db.add(BusinessLocation(
+        id=uuid.uuid4(), client_id=client.id, name="KL Branch",
+        slug="kl-branch", city="Kuala Lumpur", active=True, is_primary=True,
+    ))
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        assert res.json()["has_reputation"] is False
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
+def test_has_reputation_true_with_reviewed_accuracy_item(db):
+    """A reviewed hallucination is a real finding — the tab earns its place."""
+    from app.models.remediation_item import RemediationItem
+
+    client = _make_client(db, is_prospect=False, name="AccuracyClient")
+    db.add(RemediationItem(
+        id=uuid.uuid4(), client_id=client.id, item_type="hallucination",
+        platform="chatgpt", label="Is Acme Dental open on Sundays?",
+        status="flagged",
+    ))
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        assert res.json()["has_reputation"] is True
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)
+
+
+def test_has_reputation_ignores_content_gap_items(db):
+    """content_gap items belong to the Action Plan, not Reputation — the
+    Reputation page filters progress to hallucinations only, so the flag that
+    shows the tab must apply the same filter or it opens an empty tab."""
+    from app.models.remediation_item import RemediationItem
+
+    client = _make_client(db, is_prospect=False, name="ContentGapOnlyClient")
+    db.add(RemediationItem(
+        id=uuid.uuid4(), client_id=client.id, item_type="content_gap",
+        platform="gemini", label="best dental clinic in KL",
+        detail="Competitor A", status="flagged",
+    ))
+    db.commit()
+
+    _saved = dict(app.dependency_overrides)
+    tc = _build_test_client(db)
+    try:
+        res = tc.get(f"/api/v1/view/{client.share_token}/overview")
+        assert res.status_code == 200, res.text
+        assert res.json()["has_reputation"] is False
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(_saved)

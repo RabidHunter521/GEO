@@ -82,6 +82,7 @@ export default async function ClientViewLayout({
             token={token}
             showContentPlan={overview.has_content_plan}
             showProgress={overview.has_work_log}
+            showReputation={overview.has_reputation}
             isProspect={profile.is_prospect}
           />
         </div>

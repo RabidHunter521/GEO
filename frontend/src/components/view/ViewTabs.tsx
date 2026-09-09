@@ -1,10 +1,20 @@
 "use client"
 
 // frontend/src/components/view/ViewTabs.tsx
-// Navigation for the read-only client view: six outcome destinations at `sm`
-// and above (horizontal tabs), a native <select> below `sm`.
+// Navigation for the read-only client view: up to six outcome destinations at
+// `sm` and above (horizontal tabs), a native <select> below `sm`.
 //
-// Competitors is deliberately not one of the six — it's evidence linked from
+// Order is deliberate. Progress sits second, directly after Overview, because
+// a retainer is renewed on proof of work rather than on a score — burying
+// "what we did for you" behind three diagnostic tabs made the product read as
+// a report. It still only appears once there is published work to show.
+//
+// Reputation is conditional for the same reason: for a client with no reviewed
+// findings that page is mostly their own address and opening hours read back
+// to them, and a tab that only ever holds that reads as an empty tab. Four
+// full tabs beat six where two are hollow.
+//
+// Competitors is deliberately never one of them — it's evidence linked from
 // Visibility and Overview rather than a primary destination — but the route
 // stays live for existing links, so neither nav here claims to be "active"
 // when the client is actually on /competitors.
@@ -43,10 +53,17 @@ interface Props {
   token: string
   showContentPlan?: boolean
   showProgress?: boolean
+  showReputation?: boolean
   isProspect?: boolean
 }
 
-export function ViewTabs({ token, showContentPlan, showProgress, isProspect }: Props) {
+export function ViewTabs({
+  token,
+  showContentPlan,
+  showProgress,
+  showReputation,
+  isProspect,
+}: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const base = `/view/${token}`
@@ -75,17 +92,17 @@ export function ViewTabs({ token, showContentPlan, showProgress, isProspect }: P
   }, [])
 
   // Prospects get a deliberately simple view: Overview + Visibility only.
-  // Everything else (Reputation, Action Plan, Progress, Reports, Competitors)
+  // Everything else (Progress, Reputation, Action Plan, Reports, Competitors)
   // is reserved for converted clients. "Our Work" is intentionally
   // admin-only and never surfaced to clients.
   const tabs = isProspect
     ? [OVERVIEW_TAB, SCAN_TAB]
     : [
         OVERVIEW_TAB,
-        SCAN_TAB,
-        REPUTATION_TAB,
-        ...(showContentPlan ? [CONTENT_PLAN_TAB] : []),
         ...(showProgress ? [PROGRESS_TAB] : []),
+        SCAN_TAB,
+        ...(showReputation ? [REPUTATION_TAB] : []),
+        ...(showContentPlan ? [CONTENT_PLAN_TAB] : []),
         REPORTS_TAB,
       ]
 

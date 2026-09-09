@@ -241,9 +241,19 @@ raw AI responses or internal fields):
                             weight change updates the published methodology
                             in the same commit.
 
-The client-facing nav (ViewTabs) shows six destinations: Overview, Visibility
-(/scan), Reputation, Action Plan (/content-plan), Progress, Reports. Below the
-`sm` breakpoint it renders a native `<select>` instead of tabs.
+The client-facing nav (ViewTabs) shows up to six destinations, in this order:
+Overview, Progress, Visibility (/scan), Reputation, Action Plan
+(/content-plan), Reports. Below the `sm` breakpoint it renders a native
+`<select>` instead of tabs.
+
+Progress sits second on purpose — a retainer renews on proof of work, not on a
+score. Three of the six are conditional and hide when they would be empty:
+Progress on `has_work_log`, Action Plan on `has_content_plan`, and Reputation
+on `has_reputation` (a reviewed accuracy item, a reviewed factual conflict, or
+a brand-authority / technical / structured-data issue — NOT merely having
+business locations on file, which is the client's own address read back to
+them). Every hidden route stays live and renders its own empty state, so
+existing links never break.
 
 ## 10. Coding Conventions
 

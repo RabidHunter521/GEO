@@ -509,6 +509,8 @@ export interface ClientViewScorePoint {
 export interface ClientViewTrafficPoint {
   period: string
   ai_visitors: number
+  /** "manual" (typed by the SeenBy team) | "ga4" (synced from the client's property). */
+  source: string
 }
 
 export interface ClientViewPlatform {
@@ -627,6 +629,8 @@ export interface ClientViewOverview {
   has_our_work: boolean
   has_content_plan: boolean
   has_progress: boolean
+  /** Whether the Reputation tab has an actual finding to show (not just locations). */
+  has_reputation: boolean
   has_work_log: boolean
   improvements_last_30d: number
   fixed_this_month: number

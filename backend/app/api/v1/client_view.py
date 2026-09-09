@@ -126,6 +126,15 @@ def _view_platforms(platform_breakdown: dict | None) -> list[ClientViewPlatform]
     return platforms
 
 
+# Dimensions the Reputation page renders (its REPUTATION_DIMENSIONS set in
+# frontend/src/app/view/[token]/reputation/page.tsx). ai_visibility lives on
+# Visibility and content_quality on the Action Plan, so neither counts as a
+# reason to show the Reputation tab.
+_REPUTATION_ISSUE_DIMENSIONS = frozenset(
+    {"brand_authority", "technical_foundations", "structured_data"}
+)
+
+
 # Client-facing label for each remediation kind (never the internal item_type).
 _REMEDIATION_TYPE_LABELS: dict[str, str] = {
     "hallucination": "Inaccurate AI answer",
@@ -450,6 +459,45 @@ def get_overview(
         is not None
     )
 
+    # Does the Reputation tab have an actual finding to show? Mirrors exactly
+    # what that page renders as a finding — reviewed accuracy items, reviewed
+    # factual conflicts, and the three reputation dimensions' issue groups.
+    # Business locations are deliberately excluded: a client's own verified
+    # address and hours are theirs already, so a tab containing only that is
+    # an empty tab wearing a label.
+    has_reputation = False
+    if not client.is_prospect:
+        has_accuracy_items = (
+            db.query(RemediationItem.id)
+            .filter(
+                RemediationItem.client_id == client.id,
+                RemediationItem.item_type == "hallucination",
+            )
+            .first()
+            is not None
+        )
+        has_reviewed_conflicts = (
+            db.query(MisinformationFinding.id)
+            .filter(
+                MisinformationFinding.client_id == client.id,
+                MisinformationFinding.truth_fact_id.isnot(None),
+                MisinformationFinding.status.in_(
+                    ("confirmed", "corrected", "verified_fixed")
+                ),
+            )
+            .first()
+            is not None
+        )
+        # Same source of truth as /issues, so the flag and the page can never
+        # disagree about whether there is anything to read.
+        has_reputation_issues = any(
+            group["dimension"] in _REPUTATION_ISSUE_DIMENSIONS
+            for group in detect_client_issues(client, db)
+        )
+        has_reputation = (
+            has_accuracy_items or has_reviewed_conflicts or has_reputation_issues
+        )
+
     from app.services import work_log_service
     _since_date = (utcnow() - timedelta(days=30)).date()
     improvements_last_30d = work_log_service.published_count_since(client.id, db, _since_date)
@@ -538,7 +586,9 @@ def get_overview(
             for s in reversed(history)  # oldest → newest for charting
         ],
         traffic=[
-            ClientViewTrafficPoint(period=t.period, ai_visitors=t.ai_visitors)
+            ClientViewTrafficPoint(
+                period=t.period, ai_visitors=t.ai_visitors, source=t.source
+            )
             for t in traffic
         ],
         change_narrative=latest_report.change_narrative if latest_report else None,
@@ -552,6 +602,7 @@ def get_overview(
         has_content_plan=has_roadmap or has_gaps or has_action_plan,
         traffic_value=traffic_value,
         has_progress=has_progress,
+        has_reputation=has_reputation,
         has_work_log=has_work_log or has_verified_work,
         improvements_last_30d=improvements_last_30d,
         fixed_this_month=fixed_this_month,
