@@ -1,11 +1,11 @@
 ---
 name: seenby-migrations
-description: Alembic migration runbook for SeenBy — creating, verifying, and shipping schema changes safely. Trigger whenever a task adds/changes a SQLAlchemy model, mentions "migration", "alembic", "schema change", "new table/column", or before deploying schema changes to Supabase. Two real bugs (duplicate revision ID, unregistered test model) came from skipping these steps.
+description: Alembic migration runbook for SeenBy — creating, verifying, and shipping schema changes safely. Trigger whenever a task adds/changes a SQLAlchemy model, mentions "migration", "alembic", "schema change", "new table/column", or before deploying schema changes to production. Two real bugs (duplicate revision ID, unregistered test model) came from skipping these steps.
 ---
 
 # SeenBy Migration Runbook
 
-Postgres via Supabase in prod, SQLite-backed test bootstrap locally. Every schema change = model change + Alembic migration, always both, never raw ALTER TABLE.
+Postgres on the Railway `Postgres` service in prod (NOT Supabase — see CLAUDE.md §8), SQLite-backed test bootstrap locally. Every schema change = model change + Alembic migration, always both, never raw ALTER TABLE.
 
 ## Creating a migration
 
@@ -31,10 +31,10 @@ cd backend && poetry run pytest -q              # test bootstrap creates the tab
 
 - **Duplicate revision IDs** — collision breaks `alembic upgrade` for everyone. Always grep before commit.
 - **Model not registered in test bootstrap** — tests pass without the table until something queries it.
-- **Local ≠ Supabase**: a migration that ran on local SQLite/Postgres is NOT verified for prod. Say so explicitly in your report. Prod migration runs via the `seenby-release` skill runbook — never ad hoc.
+- **Local ≠ prod**: a migration that ran on local SQLite/Postgres is NOT verified for prod. Say so explicitly in your report. Confirm with `railway ssh -s api -- alembic current`. Prod migration runs via the `seenby-release` skill runbook — never ad hoc.
 - **Enum changes** on Postgres need explicit `ALTER TYPE`; autogenerate misses them.
 - Multiple heads after a merge/rebase → `alembic merge` is a last resort; prefer re-parenting your new migration onto the true head.
 
 ## Report format
 
-State: revision ID, parent revision, table/columns touched, RLS yes/no, verification command outputs (heads=1, tests pass), and whether prod (Supabase) has been migrated or still needs it.
+State: revision ID, parent revision, table/columns touched, RLS yes/no, verification command outputs (heads=1, tests pass), and whether prod has been migrated or still needs it.

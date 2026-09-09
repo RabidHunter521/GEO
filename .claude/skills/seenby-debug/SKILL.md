@@ -27,7 +27,7 @@ Rule zero: reproduce or locate evidence BEFORE proposing a fix (superpowers:syst
 4. **Fractional score band bugs**: bands are integer ranges; always go through `get_score_band()` / `getScoreColor()` — a 79.5 handled ad hoc falls through bands.
 5. **Empty local queries**: clients with no city/state/country get NO recommendation/local queries by design — not a bug; scan count will be lower.
 6. **Tests flaking with network calls**: scan-flow tests must mock `enrich_scan_sources` and all platform/LLM clients — see `test_api_provenance.py` conftest patterns.
-7. **"Works locally, broken in prod"**: check whether an Alembic migration was ever applied to Supabase — the repo has a history of locally-verified-only migrations.
+7. **"Works locally, broken in prod"**: check whether an Alembic migration was ever applied to prod — `railway ssh -s api -- alembic current` vs local `alembic heads`. The repo has a history of locally-verified-only migrations. Note the inverse trap too: `backend/.env` may point at a stale Supabase copy, so "broken locally against prod data" can mean you are reading the wrong database entirely (CLAUDE.md §8).
 8. **Digest/alert side effects**: post-commit best-effort blocks catch + rollback + swallow. A missing alert is likely a swallowed exception — check logs, not the scan result.
 
 ## Method

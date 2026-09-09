@@ -14,8 +14,8 @@ SeenBy is an agency-model AI visibility tracking platform. Faris (sole admin) ma
 | Frontend | Next.js 15 + Tailwind + shadcn/ui → Vercel |
 | Backend | FastAPI + SQLAlchemy → Railway |
 | Jobs | Celery + Redis + Beat → Railway |
-| Database | Supabase (PostgreSQL, free tier) |
-| Storage | Supabase Storage (PDF reports) |
+| Database | Railway `Postgres` service (PostgreSQL) |
+| Storage | Cloudflare R2 (PDF reports) |
 | Email | Resend + React Email |
 | PDF | WeasyPrint |
 | Auth | Auth.js v5 (credentials provider) |
@@ -248,7 +248,7 @@ Wizard can be exited after Step 1. Steps 2 and 3 completable later from settings
 
 - Celery Beat triggers 30 days after `clients.created_at`, repeats every 30 days
 - WeasyPrint generates PDF from HTML template
-- PDF saved to Supabase Storage
+- PDF saved to Cloudflare R2
 - Admin panel shows **"Ready for review"** badge on `/clients/[id]/reports`
 - Notification email sent to `contact@seenby.my`
 - Faris clicks **"Send to client"** → Resend dispatches PDF to client's `contact_email`
@@ -337,5 +337,5 @@ After each build phase, verify:
 4. **Competitor intelligence:** Competitor scores visible, overtake flag appears correctly.
 5. **Activity log:** Manual notes save, scan events auto-log.
 6. **Weekly digest:** Trigger Celery task manually for a client with a recent scan, confirm email received at client contact email with correct content.
-7. **Monthly PDF:** Trigger PDF generation task, confirm file saved to Supabase Storage, confirm "Ready for review" badge appears, confirm "Send to client" dispatches email.
+7. **Monthly PDF:** Trigger PDF generation task, confirm file saved to Cloudflare R2, confirm "Ready for review" badge appears, confirm "Send to client" dispatches email.
 8. **Alerts:** Drop score below threshold manually (edit geo_scores row), trigger scan, confirm alert email received.

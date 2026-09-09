@@ -5,7 +5,7 @@ Rules and invariants live in CLAUDE.md — this file is only the map. The
 client-facing definition, assumptions, and limitations of current measurement
 are in [the methodology](methodology.md).
 
-**Stack:** Next.js 15 (`frontend/`) · FastAPI (`backend/app/`) · PostgreSQL (Supabase in prod) via SQLAlchemy + Alembic · Celery + Redis (`backend/workers/`) · Cloudflare R2 (PDFs) · WeasyPrint · Claude/OpenAI/Gemini/Perplexity APIs.
+**Stack:** Next.js 15 (`frontend/`) · FastAPI (`backend/app/`) · PostgreSQL (Railway `Postgres` service in prod — **not** Supabase, see CLAUDE.md §8) via SQLAlchemy + Alembic · Celery + Redis (`backend/workers/`) · Cloudflare R2 (PDFs) · WeasyPrint · Claude/OpenAI/Gemini/Perplexity APIs.
 
 ## Request flow
 
