@@ -2,7 +2,7 @@
 
 Deploy **mechanics** live in the `seenby-release` skill
 (`.claude/skills/seenby-release/SKILL.md`) — pre-flight checks, the Alembic run
-against Supabase, env-var diff, and the post-deploy smoke test. This file is
+against production, env-var diff, and the post-deploy smoke test. This file is
 the per-phase **gate**: what must be true before that runbook is started.
 
 > This checklist was created during Phase 6. The plan assumed it already
@@ -27,10 +27,16 @@ the per-phase **gate**: what must be true before that runbook is started.
 
 - [ ] Single Alembic head
 - [ ] Migration verified statically (`test_*_migration.py`) — a local
-      `alembic upgrade` is **not** acceptable: `backend/.env` points at
-      production Supabase
+      `alembic upgrade` is **not** acceptable, and is not evidence about
+      production either: `backend/.env` points at a stale Supabase copy, not
+      the Railway database production uses. Confirm with
+      `railway ssh -s api -- alembic current`
 - [ ] Downgrade is symmetric and drops tables in FK-safe order
-- [ ] Every new table does `ENABLE ROW LEVEL SECURITY` and `REVOKE ALL … FROM anon`
+- [ ] Every new table does `ENABLE ROW LEVEL SECURITY`
+- [ ] Any `REVOKE … FROM anon` is **role-guarded** — `anon` does not exist on
+      the Railway production database, and a bare `REVOKE` raises
+      `role "anon" does not exist`, which fails `alembic upgrade head` in
+      `start-web.sh` and stops the `api` from booting. See CLAUDE.md §8
 - [ ] No `GRANT` to any role
 - [ ] Rollback target recorded in the phase's runbook
 

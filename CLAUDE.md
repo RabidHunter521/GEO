@@ -15,7 +15,7 @@ For a one-page code map (flows, layers, where to start for common changes), read
 
 Project skills (in `.claude/skills/`): `seenby-workflow` (start of any coding task),
 `seenby-verify` (definition-of-done gate), `seenby-demo-check` (pre-pitch demo audit),
-`seenby-release` (prod deploy + Supabase migration runbook),
+`seenby-release` (prod deploy + migration runbook),
 `seenby-prompts` (any LLM prompt work — standards + checklist),
 `seenby-migrations` (Alembic runbook — revision IDs, RLS, test bootstrap),
 `seenby-phase` (executing multi-task roadmap phases with review gates),
@@ -168,17 +168,39 @@ Admin alerts (score drop / competitor overtake / hallucination):
 - Never expose: confidence scores, char offsets, token counts, 
   raw API responses to any client-facing surface
 
-### Database access posture (settled 2026-07-28)
+### Where production actually lives (verified 2026-09-09)
 
-- The app connects to Supabase as `postgres`, which has `bypassrls = true`.
+**Production Postgres is a Railway service, NOT Supabase.** `api`, `worker`
+and `beat` all connect to `postgres.railway.internal:5432/railway`.
+
+A stale Supabase project (`gppajyntiadezlbbmkry`) still exists and is
+referenced by no service. It holds a *divergent* copy — different client rows
+in both directions, and one Alembic revision behind. **`backend/.env` may
+still point at it**, so a local run "against prod" silently reads the wrong
+database. That produced a confidently wrong diagnosis on 2026-09-09.
+
+To answer any question about production, go through the container:
+
+```bash
+railway ssh -s api -- alembic current   # must equal `alembic heads`
+```
+
+Never cite Supabase, `backend/.env`, or a Supabase MCP query as evidence about
+production.
+
+### Database access posture (settled 2026-07-28, re-verified 2026-09-09)
+
+- The app connects as `postgres`, which is superuser with `bypassrls = true`.
   There is no Supabase client, anon key, PostgREST call or Supabase Auth
   anywhere in the codebase.
-- Supabase's `anon` and `authenticated` roles had full DML — including
-  TRUNCATE — on all 27 tables by default. Migration `d3f7a1c58e02` revoked
-  those and the default privileges that re-granted them on every new table.
-  Do not re-grant them without a real reason: RLS does NOT restrict TRUNCATE,
-  so those grants were a data-loss path that RLS could not cover.
-- **RLS is enabled on every table with ZERO policies.** That is deliberate:
+- The `anon` and `authenticated` roles are a Supabase concept and **do not
+  exist** on the Railway database — only `postgres` and the built-in `pg_*`
+  roles. Migration `d3f7a1c58e02` (which revoked their DML, including the
+  TRUNCATE grant RLS cannot cover) is therefore a no-op there, and is retained
+  for history. Do not re-grant such roles if a Supabase-style database is ever
+  reintroduced.
+- **RLS is enabled on every table with ZERO policies** — confirmed on the real
+  production database: 38 of 38 tables, 0 policies. That is deliberate:
   with no client login there is nothing to write a policy for, and enabled +
   no policy denies every non-bypassing role. It is defence in depth, not the
   active control — the active control is that only `postgres` connects.
@@ -186,6 +208,20 @@ Admin alerts (score drop / competitor overtake / hallucination):
 - **New tables do NOT get RLS automatically.** Every migration creating a
   table must `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` inline, as all
   existing ones do. CI fails the build if any table lacks it.
+- ⚠️ **Never write a bare `REVOKE ... FROM anon` in a new migration.** Existing
+  migrations pair the RLS line with `REVOKE ALL ON TABLE x FROM anon;`. Those
+  ran against Supabase; the Railway database has no `anon` role, so that
+  statement now raises `role "anon" does not exist`. Because `start-web.sh`
+  runs `alembic upgrade head` on every boot, such a migration fails the upgrade
+  and **the `api` service will not start**. Guard it instead:
+
+  ```sql
+  DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE 'REVOKE ALL ON TABLE your_table FROM anon';
+    END IF;
+  END $$;
+  ```
 
 ## 9. Admin Panel Navigation
 

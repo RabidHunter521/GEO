@@ -5,8 +5,9 @@ Localhost → live, ready for real clients. Work top to bottom. Fill in the
 values into Railway and Vercel.
 
 > Architecture: everything that runs code lives on **Railway** (4 services, 2
-> Docker images) in one project. DB on **Supabase**, files on **Cloudflare
-> R2**, email via **Resend**, optional alerts via **Telegram**. The frontend
+> Docker images) in one project, **plus the Postgres database** — it is a
+> Railway service too, not Supabase. Files on **Cloudflare R2**, email via
+> **Resend**, optional alerts via **Telegram**. The frontend
 > talks to the API over Railway's **private network** — the API is never
 > exposed publicly, so there is no `api.seenby.my`.
 
@@ -14,15 +15,15 @@ values into Railway and Vercel.
 |---|---|---|
 | API + worker + beat | Railway (3 services, 1 image) | `backend/bin/start-*.sh`, `backend/Dockerfile` |
 | Admin panel | Railway (1 service) | `frontend/Dockerfile` (Next.js 15 standalone) |
-| PostgreSQL | Supabase (session pooler) | `backend/.env.example` |
+| PostgreSQL | **Railway** (`Postgres` service, private network) | `backend/.env.example` |
 | Redis (Celery broker) | Railway plugin | `REDIS_URL` in `app/core/config.py` |
 | File storage | Cloudflare R2 (2 buckets) | `CLOUDFLARE_R2_*` |
 | Email | Resend (sender `contact@seenby.my`) | `app/services/email_service.py` |
 | Admin alerts | Telegram (optional) | `TELEGRAM_*` |
 
-Accounts needed: Railway, Supabase, Cloudflare, Resend, billing-enabled API
-keys for Anthropic / OpenAI / Gemini / Perplexity, and DNS control for
-`seenby.my`.
+Accounts needed: Railway, Cloudflare, Resend, billing-enabled API keys for
+Anthropic / OpenAI / Gemini / Perplexity, and DNS control for `seenby.my`.
+No Supabase account is required — see the warning in 1.1.
 
 Only the **frontend** service gets a public Railway domain. `api`, `worker`,
 and `beat` should never have public networking enabled — Railway gives every
@@ -33,15 +34,29 @@ automatically, reachable only from other services in the same project.
 
 ## Phase 1 — Provision infrastructure & collect secrets
 
-### 1.1 Supabase (database)
-- New project, region `ap-southeast-1` (Singapore, closest to KL).
-- Settings → Database → Connect → **Session pooler** → copy the `DATABASE_URL`.
-  - ⚠️ Must be the **session pooler** (IPv4). The direct `[project].supabase.co`
-    host is IPv6-only and will fail on Railway.
+### 1.1 PostgreSQL (Railway service)
+- In the Railway project: **New → Database → Add PostgreSQL**. It joins the
+  project's private network automatically as the `Postgres` service.
+- Set `DATABASE_URL` on `api`, `worker` and `beat` to that service's internal
+  URL — `postgresql://postgres:<password>@postgres.railway.internal:5432/railway`.
+  All three must point at the same database.
 - Migrations run automatically on deploy (`alembic upgrade head` in
   `start-web.sh`) — do **not** run them by hand.
-- ⚠️ Free tier **pauses on inactivity**, which silently breaks scheduled digests
-  and reports. Use a paid tier before onboarding real clients.
+
+> ⚠️ **Production does NOT use Supabase.** Earlier revisions of this runbook
+> said it did, and a stale Supabase project (`gppajyntiadezlbbmkry`) still
+> exists holding a divergent copy of the data — different clients, and an
+> Alembic revision behind. It is not referenced by any service. Reading it to
+> answer a question about production gives wrong answers; this cost a full
+> debugging cycle on 2026-09-09. To query production, go through the container:
+>
+> ```bash
+> railway ssh -s api -- alembic current      # must equal `alembic heads`
+> railway ssh -s api -- "python -c \"...\""  # args are joined into a remote bash -c, so pre-quote
+> ```
+>
+> `backend/.env` may still point at the stale Supabase. Treat any local run
+> against it as a local run, never as production.
 
 ### 1.2 Cloudflare R2 (two buckets)
 - Bucket `seenby-reports` → **public access OFF**. (PDFs served only via
@@ -153,7 +168,7 @@ No `api.seenby.my` record — the API is private-network-only (Phase 2).
 
 ## Phase 5 — Operational readiness
 
-- **Backups:** confirm Supabase plan retains backups and doesn't pause.
+- **Backups:** confirm the Railway `Postgres` service has backups enabled and retained.
 - **Uptime:** add a monitor (e.g. UptimeRobot) on `app.seenby.my`. The API has
   no public URL to monitor directly — set a Railway health check path
   (`/health`) on the `api` service (Settings → Healthcheck) and watch its
@@ -175,7 +190,7 @@ and frontend.
 
 | Var | Value | From |
 |---|---|---|
-| `DATABASE_URL` | | Supabase session pooler (1.1) |
+| `DATABASE_URL` | | Railway `Postgres` internal URL (1.1) |
 | `REDIS_URL` | | Railway Redis (2.1) |
 | `ANTHROPIC_API_KEY` | | Anthropic (1.4) — required |
 | `OPENAI_API_KEY` | | OpenAI (1.4) |
@@ -216,7 +231,7 @@ and frontend.
    `cdn.` (logos, public) are real DNS records; `api` is private-network-only
    and never gets a hostname. Apex `seenby.my` is free for a future marketing
    site.
-2. **Paid tiers** — free Supabase/Railway tiers pause and break cron jobs. Real
+2. **Paid tiers** — free Railway tiers pause and break cron jobs. Real
    clients require paid tiers (~$5–20/mo each to start).
 3. **Budget caps** — `$20/client/month`, `$50/day global` are the shipped
    defaults. Confirm they match your unit economics.

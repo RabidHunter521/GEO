@@ -1,8 +1,17 @@
 # VPS Deployment Guide
 
-Single-VPS deploy via Docker Compose. Postgres stays on Supabase, files stay
-on Cloudflare R2 — this VPS only runs compute: frontend, backend API,
-Celery worker, Celery beat, Redis, and Caddy (reverse proxy + auto TLS).
+> ⚠️ **Not the current deployment.** Production runs on Railway — see
+> `docs/DEPLOYMENT.md`. This document describes an alternative single-VPS
+> topology that is not in use. Do not follow it expecting to reach production.
+
+Single-VPS deploy via Docker Compose. Postgres stays on your managed database,
+files stay on Cloudflare R2 — this VPS only runs compute: frontend, backend
+API, Celery worker, Celery beat, Redis, and Caddy (reverse proxy + auto TLS).
+
+> The managed database is the Railway `Postgres` service, **not** Supabase. A
+> stale Supabase project still exists holding a divergent copy; pointing a
+> `.env.production` at it would run this VPS against the wrong data. See
+> CLAUDE.md §8.
 
 Repo files this relies on: `docker-compose.yml`, `Caddyfile`,
 `backend/.env.production.example`, `frontend/.env.production.example`,
@@ -90,7 +99,7 @@ nano frontend/.env.production   # fill in real AUTH_SECRET, ADMIN_PASSWORD, etc.
 ```
 
 Pull the real values from wherever you currently keep them (password manager,
-existing `.env` files, Supabase/Cloudflare dashboards). The full key list is
+existing `.env` files, Railway/Cloudflare dashboards). The full key list is
 in the `seenby-release` skill.
 
 `ADMIN_API_KEY` must be identical in both files — it's how the frontend
@@ -113,8 +122,8 @@ docker compose logs -f backend-web   # watch migrations run, confirm no errors
 ```
 
 `backend-web`'s startup script runs `alembic upgrade head` automatically —
-watch this log on first boot especially, since it's live against your
-Supabase database. If it fails, **do not** proceed; fix the migration issue
+watch this log on first boot especially, since it's live against your real
+database. If it fails, **do not** proceed; fix the migration issue
 first (see the `seenby-release` skill's migration section for the general
 runbook — same rules apply here, just triggered by container start instead
 of a manual `alembic upgrade head`).
@@ -155,8 +164,8 @@ docker compose restart backend-web  # restart one service
 docker compose down                 # stop everything (volumes persist)
 ```
 
-Backups: your data lives in Supabase (has its own backup schedule — confirm
-it in the Supabase dashboard) and Cloudflare R2. The VPS itself is stateless
+Backups: your data lives in the managed Postgres (confirm its backup schedule
+in the provider's dashboard) and Cloudflare R2. The VPS itself is stateless
 compute; if it dies, a fresh server + `git clone` + real `.env.production`
 files + `docker compose up -d --build` fully recovers you. Nothing
 irreplaceable lives on the VPS except the Redis queue (in-flight Celery

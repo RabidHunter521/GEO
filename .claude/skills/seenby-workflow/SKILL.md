@@ -44,4 +44,4 @@ Invoke the `seenby-verify` skill. All gates must pass before you say "done".
 
 ## 6. Report honestly
 
-Lead with what changed and the verification evidence. If anything was skipped or is unverified (e.g., needs a live scan or real Postgres), say so explicitly — unverified-but-probably-fine has bitten this project before (migration ran locally, never against Supabase).
+Lead with what changed and the verification evidence. If anything was skipped or is unverified (e.g., needs a live scan or real Postgres), say so explicitly — unverified-but-probably-fine has bitten this project before (migration ran locally, never against prod).

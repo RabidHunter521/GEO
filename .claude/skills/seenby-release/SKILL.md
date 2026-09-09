@@ -1,11 +1,17 @@
 ---
 name: seenby-release
-description: Production deploy runbook for SeenBy — pre-flight checks, Alembic migration against the real Supabase Postgres, env var diff, and post-deploy smoke test. Trigger on "deploy", "release", "push to prod", "run the migration on Supabase", or any production database change.
+description: Production deploy runbook for SeenBy — pre-flight checks, Alembic migration against the real production Postgres, env var diff, and post-deploy smoke test. Trigger on "deploy", "release", "push to prod", "run the migration", or any production database change.
 ---
 
 # SeenBy Release Runbook
 
-Prod DB is **Supabase Postgres**. The #1 historical failure mode of this project is "migration ran locally, assumed done in prod" — this runbook exists to make that impossible. Never claim a release step is done without the command output.
+Prod DB is the **Railway `Postgres` service** (`postgres.railway.internal:5432/railway`), used by `api`, `worker` and `beat`. It is **not Supabase** — a stale Supabase project still exists holding a divergent copy, and `backend/.env` may still point at it. Never cite it, or any local run, as evidence about production; read production through the container instead:
+
+```bash
+railway ssh -s api -- alembic current   # must equal `alembic heads`
+```
+
+The #1 historical failure mode of this project is "migration ran locally, assumed done in prod" — this runbook exists to make that impossible. Never claim a release step is done without the command output.
 
 ## 1. Pre-flight (local)
 
@@ -48,7 +54,7 @@ it unattended with no review gate:
 
 Read that SQL. If it contains anything destructive (DROP, ALTER ... TYPE, NOT
 NULL on a populated column, data backfill), **stop** — it will run the moment
-the new `api` boots. Confirm a same-day Supabase backup exists first.
+the new `api` boots. Confirm a same-day Railway Postgres backup exists first.
 
 Run `alembic upgrade head` manually ONLY when you deliberately want the schema
 to land ahead of the code (rare — additive index/column that a later deploy
@@ -56,7 +62,7 @@ needs). If you do, say so in the release notes; the automatic run afterwards
 is a harmless no-op once the revision is already stamped.
 
 Rules:
-- Supabase: **session pooler on port 5432**, not transaction pooling on 6543 — DDL through pgbouncer transaction pooling can misbehave. (The pooler *host* is correct and required; Railway can't reach the IPv6-only direct host. It's the port that matters.)
+- The database is on Railway's private network, so it is only reachable from inside the project — use `railway ssh -s api` (or `railway run`) rather than trying to connect from your machine.
 - Verify the schema actually landed — check `pg_indexes` / `information_schema`, don't trust the exit code.
 - Rollback: `alembic downgrade -1` — but prefer forward fixes; downgrades on prod data are last resort.
 

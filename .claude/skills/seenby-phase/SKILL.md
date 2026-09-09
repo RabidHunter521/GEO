@@ -39,7 +39,7 @@ Update the project memory with: tasks done (n/total), commit SHAs, spec deviatio
 
 - All plan tasks committed + reviewed.
 - Full `seenby-verify` (all gates, not just per-diff ones).
-- Update memory: phase complete, note what is verified vs assumed (e.g. "migration ran locally, NOT yet on Supabase").
+- Update memory: phase complete, note what is verified vs assumed (e.g. "migration ran locally, NOT yet on prod").
 - Merge via superpowers:finishing-a-development-branch. Prod deploy only via `seenby-release`.
 
 ## Anti-patterns that have cost us before
@@ -47,4 +47,4 @@ Update the project memory with: tasks done (n/total), commit SHAs, spec deviatio
 - Starting to code before reading the memory/plan → duplicate or conflicting work.
 - Batching 3 tasks into one commit → review can't isolate a regression.
 - "Tests pass" without pasting output → they didn't run.
-- Claiming done while prod migration is unverified → say "verified locally, Supabase pending" every time.
+- Claiming done while prod migration is unverified → say "verified locally, prod pending" every time.
