@@ -9,8 +9,8 @@ Starts both dev servers for the SeenBy SAAS project. Always check ports first �
 
 ## Paths
 
-- **Project root**: `c:\Users\IrfanFaris\OneDrive - NVD ASIA LIMITED\Desktop\SEENBY SAAS`
-- **Poetry**: `C:\Users\IrfanFaris\AppData\Roaming\Python\Scripts\poetry.exe`
+- **Project root**: the current working directory (the repo root — do not hardcode it)
+- **Poetry**: `poetry` on `PATH` (see `docs/ops/new-machine-setup.md` if it is missing)
 - **Frontend dir**: `<root>\frontend`
 - **Backend dir**: `<root>\backend`
 
@@ -25,17 +25,21 @@ Get-NetTCPConnection -LocalPort 3000,8000 -ErrorAction SilentlyContinue | Select
 - Port 3000 listening → frontend already up, skip it
 - Port 8000 listening → backend already up, skip it
 
+Redis must be reachable at the `REDIS_URL` in `backend/.env` (default
+`localhost:6379`). If it is not running: `docker compose up -d redis`.
+
 ## Step 2 — Start frontend (if not running)
 
 ```powershell
-Start-Process powershell -ArgumentList '-NoExit', '-Command', "cd 'c:\Users\IrfanFaris\OneDrive - NVD ASIA LIMITED\Desktop\SEENBY SAAS\frontend'; npm run dev"
+$root = (Get-Location).Path
+Start-Process powershell -ArgumentList '-NoExit', '-Command', "cd '$root\frontend'; npm run dev"
 ```
 
 ## Step 3 — Start backend (if not running)
 
 ```powershell
-$poetry = 'C:\Users\IrfanFaris\AppData\Roaming\Python\Scripts\poetry.exe'
-Start-Process powershell -ArgumentList '-NoExit', '-Command', "cd 'c:\Users\IrfanFaris\OneDrive - NVD ASIA LIMITED\Desktop\SEENBY SAAS\backend'; & '$poetry' run uvicorn app.main:app --reload --port 8000"
+$root = (Get-Location).Path
+Start-Process powershell -ArgumentList '-NoExit', '-Command', "cd '$root\backend'; poetry run uvicorn app.main:app --reload --port 8000"
 ```
 
 ## Step 4 — Verify

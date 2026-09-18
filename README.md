@@ -46,10 +46,12 @@ docs/        All project documentation (see below)
 | `docs/demo/` | Demo walkthrough script |
 | `docs/marketing/` | Marketing content drafts (social, etc.) |
 | `docs/templates/` | Client-facing templates (proposals, SOPs, onboarding) |
-| `docs/ops/` | Operational runbooks (release checklist, privacy) |
+| `docs/ops/` | Operational runbooks (release checklist, privacy, [new machine setup](docs/ops/new-machine-setup.md)) |
 | `docs/plans/`, `docs/superpowers/plans/`, `docs/superpowers/specs/` | Dated design/implementation plans, kept as a historical record of how each feature was built |
 
 ## Running locally
+
+First time on a machine? Follow [`docs/ops/new-machine-setup.md`](docs/ops/new-machine-setup.md).
 
 ```bash
 cd frontend && npm run dev      # http://localhost:3000

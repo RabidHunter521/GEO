@@ -9,7 +9,7 @@
     },
     {
       "name": "backend",
-      "runtimeExecutable": "C:\\Users\\IrfanFaris\\AppData\\Roaming\\Python\\Scripts\\poetry.exe",
+      "runtimeExecutable": "poetry",
       "runtimeArgs": ["run", "uvicorn", "app.main:app", "--reload", "--port", "8000"],
       "cwd": "backend",
       "port": 8000
