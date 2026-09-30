@@ -59,7 +59,7 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen bg-background lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <main className="relative flex flex-col overflow-hidden bg-app-wash px-4 py-6 sm:px-8">
+      <main className="relative flex flex-col overflow-hidden bg-app-wash px-4 py-6 sm:px-8 short:py-4">
         <div
           aria-hidden
           className="animate-drift pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl"
@@ -75,26 +75,26 @@ export default function LoginPage() {
           </a>
         </header>
 
-        <div className="relative flex flex-1 items-center justify-center py-10">
+        <div className="relative flex flex-1 items-center justify-center py-10 short:py-4">
           <Card className="reveal w-full max-w-md border-border/60 shadow-brand-lg">
-            <CardHeader className="space-y-4 pb-4">
+            <CardHeader className="space-y-4 pb-4 short:space-y-3 tiny:pt-5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo.png"
                 alt="SeenBy"
-                className="h-14 w-14 rounded-2xl shadow-brand"
+                className="h-14 w-14 rounded-2xl shadow-brand short:h-11 short:w-11 tiny:h-9 tiny:w-9 tiny:rounded-xl"
               />
               <div className="space-y-1.5">
-                <CardTitle className="font-display text-3xl tracking-tight">
+                <CardTitle className="font-display text-3xl tracking-tight short:text-2xl">
                   {salutation} <span aria-hidden>👋</span>
                 </CardTitle>
-                <CardDescription className="text-base">
+                <CardDescription className="text-base short:text-sm">
                   Sign in to your SeenBy workspace.
                 </CardDescription>
               </div>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4 tiny:space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="username">Username</Label>
                   <Input
@@ -104,7 +104,7 @@ export default function LoginPage() {
                     autoComplete="username"
                     autoFocus
                     required
-                    className="h-11"
+                    className="h-11 tiny:h-10"
                   />
                 </div>
                 <div className="space-y-2">
@@ -116,7 +116,7 @@ export default function LoginPage() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       required
-                      className="h-11 pr-11"
+                      className="h-11 pr-11 tiny:h-10"
                     />
                     <button
                       type="button"
@@ -142,7 +142,7 @@ export default function LoginPage() {
                     <span>{error}</span>
                   </div>
                 )}
-                <Button type="submit" className="h-11 w-full text-base" disabled={loading}>
+                <Button type="submit" className="h-11 w-full text-base tiny:h-10" disabled={loading}>
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
