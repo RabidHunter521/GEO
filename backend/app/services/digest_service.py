@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import structlog
 
+from app.core.constants import COMPANY_IDENTITY_LINE
 from app.core.constants import (
     PLATFORM_LABELS,
     SCORE_DISPLAY_LABEL,
@@ -60,6 +61,10 @@ class DigestData:
     # trend claim is neutralised and the change is disclosed to the client.
     method_changed: bool = False
 
+
+
+# SSM identity line for the digest footer (constants.COMPANY_*).
+_COMPANY_IDENTITY_HTML = html.escape(COMPANY_IDENTITY_LINE)
 
 def send_client_digest(client_id: uuid.UUID, db: Session) -> bool:
     """Returns True if digest was sent, False if skipped."""
@@ -560,7 +565,8 @@ def _build_email_html(client: Client, data: DigestData) -> str:
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             Tracked by SeenBy &middot;
             <a href="mailto:contact@seenby.my"
-               style="color:#9ca3af;text-decoration:none;">contact@seenby.my</a>
+               style="color:#9ca3af;text-decoration:none;">contact@seenby.my</a><br>
+            {_COMPANY_IDENTITY_HTML}
           </p>
         </td></tr>
 

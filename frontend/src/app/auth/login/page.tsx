@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card"
 import { salutationForHour } from "@/lib/greeting"
 import { BrandPanel } from "./BrandPanel"
+import { COMPANY_LEGAL_NAME, COMPANY_REGISTRATION_NUMBER } from "@/lib/company"
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
@@ -160,7 +161,7 @@ export default function LoginPage() {
         <footer className="relative flex flex-col items-center justify-between gap-1 text-xs text-muted-foreground sm:flex-row">
           <span>Admin access only</span>
           <span>
-            © {new Date().getFullYear()} SeenBy ·{" "}
+            © {new Date().getFullYear()} {COMPANY_LEGAL_NAME} ({COMPANY_REGISTRATION_NUMBER}) ·{" "}
             <a href="https://seenby.my" className="hover:text-foreground">
               seenby.my
             </a>

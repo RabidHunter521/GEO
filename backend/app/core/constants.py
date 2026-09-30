@@ -643,3 +643,14 @@ SHARE_VIEW_VISIT_GAP_MINUTES: Final = 30
 # Expiry choices offered when generating a client view link (days).
 # None (not listed) = the link never expires.
 SHARE_LINK_EXPIRY_DAYS_OPTIONS: Final = (7, 30, 90)
+
+
+# Legal entity behind the SeenBy trading name. Malaysian businesses are expected
+# to show their SSM registration number on business documents and their
+# website, so this line appears in every client-facing footer (PDF report,
+# scorecard, emails, client view). Mirrored in frontend src/lib/company.ts.
+COMPANY_LEGAL_NAME: Final = "P&I Digital Solution"
+COMPANY_REGISTRATION_NUMBER: Final = "202603129117"
+COMPANY_IDENTITY_LINE: Final = (
+    f"SeenBy is a service of {COMPANY_LEGAL_NAME} ({COMPANY_REGISTRATION_NUMBER})"
+)

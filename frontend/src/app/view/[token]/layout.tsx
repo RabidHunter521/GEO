@@ -7,6 +7,7 @@ import { ExternalLink } from "lucide-react"
 import { getViewOverview, recordViewVisit } from "@/lib/view-api"
 import { auth } from "../../../../auth"
 import { isAuthenticatedAdmin } from "@/lib/session-guard"
+import { COMPANY_IDENTITY_LINE } from "@/lib/company"
 import { ViewTabs } from "@/components/view/ViewTabs"
 
 export const dynamic = "force-dynamic"
@@ -111,6 +112,7 @@ export default async function ClientViewLayout({
           </a>{" "}
           — AI visibility tracking
         </p>
+        <p className="mt-1 text-center text-xs text-muted-foreground">{COMPANY_IDENTITY_LINE}</p>
       </footer>
     </div>
   )
