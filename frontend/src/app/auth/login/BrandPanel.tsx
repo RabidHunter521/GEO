@@ -90,7 +90,7 @@ function SampleScoreCard() {
   return (
     <div
       aria-hidden
-      className="reveal w-full max-w-sm rounded-2xl bg-card p-6 text-card-foreground shadow-brand-lg ring-1 ring-white/10"
+      className="reveal w-full max-w-sm rounded-2xl bg-card p-6 short:p-5 text-card-foreground shadow-brand-lg ring-1 ring-white/10"
       style={{ animationDelay: "250ms" }}
     >
       <div className="flex items-center justify-between">
@@ -113,7 +113,7 @@ function SampleScoreCard() {
         </div>
       </div>
 
-      <div className="mt-6 space-y-3 border-t pt-5">
+      <div className="mt-6 space-y-3 border-t pt-5 short:mt-4 short:space-y-2 short:pt-4 tiny:hidden">
         <p className="text-xs font-medium text-muted-foreground">Visibility frequency</p>
         {SAMPLE_PLATFORMS.map((p) => (
           <div key={p.label} className="flex items-center gap-3">
@@ -135,7 +135,7 @@ function SampleScoreCard() {
 
 export function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-brand-panel lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16">
+    <aside className="relative hidden overflow-hidden bg-brand-panel lg:flex lg:flex-col lg:justify-between lg:p-12 xl:p-16 short:lg:p-10 tiny:lg:p-8">
       <div
         aria-hidden
         className="animate-drift pointer-events-none absolute -left-24 top-1/3 h-96 w-96 rounded-full bg-primary/20 blur-3xl"
@@ -145,16 +145,16 @@ export function BrandPanel() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-foreground/60">
           Malaysia&apos;s GEO agency
         </p>
-        <h2 className="mt-4 max-w-md text-balance font-display text-5xl font-bold leading-[1.05] tracking-tight text-primary-foreground">
+        <h2 className="mt-4 max-w-md text-balance font-display text-5xl short:mt-3 short:text-4xl font-bold leading-[1.05] tracking-tight text-primary-foreground">
           Your business, <span className="text-primary">seen by AI.</span>
         </h2>
-        <p className="mt-4 max-w-sm text-base text-primary-foreground/70">
+        <p className="mt-4 max-w-sm text-base text-primary-foreground/70 short:mt-3 short:text-sm">
           AI visibility tracking across ChatGPT, Perplexity, Gemini and Claude — for
           Malaysian businesses.
         </p>
       </div>
 
-      <div className="relative flex justify-center py-10">
+      <div className="relative flex justify-center py-10 short:py-5 tiny:py-3">
         <SampleScoreCard />
       </div>
 

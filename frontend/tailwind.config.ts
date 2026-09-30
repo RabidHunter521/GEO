@@ -9,6 +9,13 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      // Viewport-HEIGHT breakpoints for layouts that must fit one screen
+      // (login). Laptops at 125–150% display scaling can have <600px of
+      // browser height. short ≤800px, tiny ≤620px.
+      screens: {
+        short: { raw: "(max-height: 800px)" },
+        tiny: { raw: "(max-height: 620px)" },
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
