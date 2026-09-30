@@ -74,6 +74,9 @@ export default auth((req) => {
 })
 
 export const config = {
-  // Everything except NextAuth's own routes and static assets
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  // Everything except NextAuth's own routes and static assets. logo.png and
+  // platforms/ are public brand images the login page itself renders; without
+  // the exclusion an anonymous request is redirected to /auth/login and the
+  // <img> receives HTML instead of a PNG.
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|logo\\.png|platforms/).*)"],
 }
