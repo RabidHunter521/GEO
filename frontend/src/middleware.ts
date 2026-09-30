@@ -57,6 +57,12 @@ export default auth((req) => {
     return proceed()
   }
 
+  // Invite / reset links: the one-time token in the URL is the credential and
+  // the invitee has no account yet. Reachable signed in or not.
+  if (req.nextUrl.pathname.startsWith("/auth/invite/")) {
+    return proceed()
+  }
+
   // Not `!!req.auth`: Auth.js can hand back an error-populated auth object
   // instead of null, which an existence check reads as "logged in" and lets an
   // anonymous request straight into the admin panel. Assert a real identity.

@@ -14,6 +14,8 @@ link is issued. Refuses to touch an owner who is already set up — use
 "Reset" on the Team page for that.
 """
 import argparse
+import importlib
+import pkgutil
 import sys
 import uuid
 
@@ -24,11 +26,21 @@ from app.services import user_service
 from app.services.user_invite_email import link_url, send_invite_email
 
 
+def _load_all_models() -> None:
+    # Run standalone, nothing else imports the model modules; relationships
+    # between them only resolve once every one is registered.
+    import app.models as models
+
+    for mod in pkgutil.iter_modules(models.__path__):
+        importlib.import_module(f"app.models.{mod.name}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("email")
     parser.add_argument("name")
     args = parser.parse_args(argv)
+    _load_all_models()
 
     db = SessionLocal()
     try:

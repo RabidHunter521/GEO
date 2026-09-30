@@ -1,19 +1,22 @@
 // frontend/src/lib/api.ts
 // SERVER-ONLY: Do not import this file from client components ("use client").
-// Accesses process.env.ADMIN_API_KEY which is a server-side env var.
+// Authenticates every call as the signed-in admin (src/lib/api-token.ts).
 //
 // The import below turns that from a convention into a BUILD ERROR: if this
 // module is ever pulled into a client bundle, the build fails instead of
 // silently shipping a module that reaches for admin credentials.
 import "server-only"
+import { adminAuthHeader } from "@/lib/api-token"
 import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
-function apiHeaders(): HeadersInit {
+// Who is calling: a per-request token for the signed-in admin (see
+// api-token.ts). Throws when nobody is signed in, so admin calls fail closed.
+async function apiHeaders(): Promise<HeadersInit> {
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.ADMIN_API_KEY}`,
+    Authorization: await adminAuthHeader(),
   }
 }
 
@@ -58,7 +61,7 @@ async function extractDetail(res: Response): Promise<string | undefined> {
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: { ...apiHeaders(), ...init?.headers },
+    headers: { ...(await apiHeaders()), ...init?.headers },
     cache: "no-store",
   })
   if (res.status === 204) return undefined as T
@@ -138,7 +141,7 @@ export async function uploadClientLogo(id: string, formData: FormData): Promise<
   // Multipart upload — must NOT set Content-Type (fetch sets the boundary).
   const res = await fetch(`${BASE}/api/v1/clients/${id}/logo`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env.ADMIN_API_KEY}` },
+    headers: { Authorization: await adminAuthHeader() },
     body: formData,
     cache: "no-store",
   })

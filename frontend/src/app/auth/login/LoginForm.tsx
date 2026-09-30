@@ -17,13 +17,13 @@ import { salutationForHour } from "@/lib/greeting"
 import { BrandPanel } from "./BrandPanel"
 import { COMPANY_LEGAL_NAME, COMPANY_REGISTRATION_NUMBER } from "@/lib/company"
 
-export function LoginForm({ totpEnabled }: { totpEnabled: boolean }) {
+export function LoginForm({ welcome }: { welcome: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   // Local time of day, resolved after mount: the server runs UTC and would
   // render the wrong salutation (same pattern as HomeGreeting). No name here —
-  // the admin's display name is its username, which must not be shown to an
+  // the admin's display name is personal data that must not be shown to an
   // anonymous visitor.
   const [salutation, setSalutation] = useState("Welcome back")
   useEffect(() => setSalutation(salutationForHour(new Date().getHours())), [])
@@ -35,18 +35,14 @@ export function LoginForm({ totpEnabled }: { totpEnabled: boolean }) {
     const data = new FormData(e.currentTarget)
     try {
       const result = await signIn("credentials", {
-        username: data.get("username") as string,
+        email: data.get("email") as string,
         password: data.get("password") as string,
-        code: totpEnabled ? ((data.get("code") as string) ?? "") : "",
+        code: (data.get("code") as string) ?? "",
         callbackUrl: "/home",
         redirect: false,
       })
       if (result?.error) {
-        setError(
-          totpEnabled
-            ? "Invalid username, password or authenticator code"
-            : "Invalid username or password",
-        )
+        setError("Invalid email, password or authenticator code")
         setLoading(false)
       } else if (result?.url) {
         // Navigating away — leave the button in its loading state.
@@ -100,12 +96,21 @@ export function LoginForm({ totpEnabled }: { totpEnabled: boolean }) {
               </div>
             </CardHeader>
             <CardContent>
+              {welcome && (
+                <p
+                  role="status"
+                  className="mb-4 rounded-lg border border-score-strong/25 bg-score-strong-bg px-3 py-2.5 text-sm text-score-strong"
+                >
+                  Your account is ready. Sign in with your email, password and the code
+                  from your authenticator app.
+                </p>
+              )}
               <form onSubmit={handleSubmit} className="space-y-4 tiny:space-y-2.5">
                 <div className="space-y-2 tiny:space-y-1">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
-                    id="username"
-                    name="username"
+                    id="email"
+                    name="email"
                     type="text"
                     autoComplete="username"
                     autoFocus
@@ -139,25 +144,22 @@ export function LoginForm({ totpEnabled }: { totpEnabled: boolean }) {
                     </button>
                   </div>
                 </div>
-                {totpEnabled && (
-                  <div className="space-y-2 tiny:space-y-1">
-                    <Label htmlFor="code" className="flex items-center gap-1.5">
-                      <ShieldCheck className="h-4 w-4 text-primary" aria-hidden />
-                      Authenticator code
-                    </Label>
-                    <Input
-                      id="code"
-                      name="code"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      pattern="[0-9 ]{6,7}"
-                      maxLength={7}
-                      placeholder="6-digit code"
-                      required
-                      className="h-11 tracking-[0.3em] tiny:h-10"
-                    />
-                  </div>
-                )}
+                <div className="space-y-2 tiny:space-y-1">
+                  <Label htmlFor="code" className="flex items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-primary" aria-hidden />
+                    Authenticator code
+                  </Label>
+                  <Input
+                    id="code"
+                    name="code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9 ]{6,7}"
+                    maxLength={7}
+                    placeholder="6-digit code"
+                    className="h-11 tracking-[0.3em] tiny:h-10"
+                  />
+                </div>
                 {error && (
                   <div
                     role="alert"
