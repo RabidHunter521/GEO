@@ -120,6 +120,8 @@ class ClientResponse(BaseModel):
     share_token: str | None = None
     ga4_property_id: str | None = None
     share_token_created_at: datetime | None = None
+    share_last_viewed_at: datetime | None = None
+    share_view_count: int = 0
     created_at: datetime
     archived_at: datetime | None = None
     is_prospect: bool = False
@@ -130,6 +132,12 @@ class ClientResponse(BaseModel):
     benchmark_opt_out: bool = False
 
     model_config = {"from_attributes": True}
+
+    @field_validator("share_view_count", mode="before")
+    @classmethod
+    def _unflushed_count_is_zero(cls, v):
+        # A just-created, not-yet-flushed Client has no column default applied.
+        return 0 if v is None else v
 
 
 class ShareTokenResponse(BaseModel):

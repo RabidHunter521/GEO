@@ -4,7 +4,9 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ExternalLink } from "lucide-react"
-import { getViewOverview } from "@/lib/view-api"
+import { getViewOverview, recordViewVisit } from "@/lib/view-api"
+import { auth } from "../../../../auth"
+import { isAuthenticatedAdmin } from "@/lib/session-guard"
 import { ViewTabs } from "@/components/view/ViewTabs"
 
 export const dynamic = "force-dynamic"
@@ -30,6 +32,10 @@ export default async function ClientViewLayout({
   if (!overview) {
     notFound()
   }
+
+  // An admin opening the link (e.g. to check it before sending) must not show
+  // up as "the client opened it".
+  await recordViewVisit(token, isAuthenticatedAdmin(await auth()))
 
   const { profile } = overview
   const host = profile.website?.replace(/^https?:\/\//, "").replace(/\/$/, "")

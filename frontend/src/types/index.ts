@@ -47,6 +47,8 @@ export interface Client {
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
+  share_last_viewed_at: string | null
+  share_view_count: number
   // GA4 property for automated AI-referral traffic sync; null = manual mode.
   ga4_property_id: string | null
   created_at: string

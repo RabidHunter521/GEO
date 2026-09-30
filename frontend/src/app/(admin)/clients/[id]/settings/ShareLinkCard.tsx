@@ -4,7 +4,7 @@
 // Admin controls for the read-only client view link: generate, copy,
 // regenerate (rotates the token), and revoke.
 import { useEffect, useState, useTransition } from "react"
-import { Copy, ExternalLink, Link2, RefreshCw, Trash2 } from "lucide-react"
+import { Copy, Eye, ExternalLink, Link2, RefreshCw, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { generateShareLinkAction, revokeShareLinkAction } from "./actions"
 import { copyToClipboard } from "@/lib/utils"
+import { timeAgo } from "@/lib/relative-time"
 import type { Client } from "@/types"
 
 export function ShareLinkCard({ client }: { client: Client }) {
@@ -107,6 +108,20 @@ export function ShareLinkCard({ client }: { client: Client }) {
               })}
             </p>
           )}
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Eye className="h-3.5 w-3.5" aria-hidden />
+            {client.share_last_viewed_at ? (
+              <span>
+                <span className="font-medium text-foreground">
+                  Client last opened the link {timeAgo(client.share_last_viewed_at)}
+                </span>
+                {" · "}
+                {client.share_view_count} visit{client.share_view_count === 1 ? "" : "s"} in total
+              </span>
+            ) : (
+              <span>Not opened by the client yet</span>
+            )}
+          </p>
           <div className="mt-3 flex gap-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>

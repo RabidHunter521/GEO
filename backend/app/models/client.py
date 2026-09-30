@@ -60,6 +60,13 @@ class Client(Base):
     # to re-copy the link from settings at any time. NULL = no active link.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # When the client last opened their view link, and how many separate visits
+    # they have made (a visit = an open more than SHARE_VIEW_VISIT_GAP_MINUTES
+    # after the previous one). Admin previews are not counted. Admin-only.
+    share_last_viewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    share_view_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     # GA4 property for automated AI-referral traffic sync. NULL = manual mode.
     ga4_property_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)

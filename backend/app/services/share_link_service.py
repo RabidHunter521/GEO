@@ -1,9 +1,10 @@
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.constants import SHARE_VIEW_VISIT_GAP_MINUTES
 from app.models.client import Client
 from app.models.activity_log import ActivityLog
 
@@ -47,3 +48,26 @@ def revoke_share_token(client: Client, db: Session) -> None:
         note=f"Client view link revoked for '{client.name}'.",
     ))
     db.commit()
+
+
+def record_share_view(client: Client, db: Session, now: datetime | None = None) -> bool:
+    """Record that the client opened their view link. Returns True if this
+    counted as a new visit.
+
+    Every call refreshes ``share_last_viewed_at``; only an open more than
+    SHARE_VIEW_VISIT_GAP_MINUTES after the previous one counts as a new visit
+    and is written to the activity log, so browsing between tabs is one visit.
+    """
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    last = client.share_last_viewed_at
+    is_new_visit = last is None or now - last > timedelta(minutes=SHARE_VIEW_VISIT_GAP_MINUTES)
+    client.share_last_viewed_at = now
+    if is_new_visit:
+        client.share_view_count = (client.share_view_count or 0) + 1
+        db.add(ActivityLog(
+            client_id=client.id,
+            event_type="share_link_opened",
+            note=f"'{client.name}' opened their client view link (visit {client.share_view_count}).",
+        ))
+    db.commit()
+    return is_new_visit

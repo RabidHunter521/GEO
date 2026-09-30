@@ -492,7 +492,7 @@ KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "report_sent", "review_snapshot_added", "roadmap_generated",
     "scan_blocked_budget", "scan_completed", "scan_failed",
     "scan_platform_unavailable", "share_link_generated", "share_link_regenerated",
-    "share_link_revoked", "site_audit_run", "toolkit_generated",
+    "share_link_opened", "share_link_revoked", "site_audit_run", "toolkit_generated",
     "toolkit_verified", "traffic_updated", "truth_vault_seeded",
     "work_log_published",
 })
@@ -530,6 +530,7 @@ EVENT_TIERS: Final = {
     "share_link_generated": EVENT_TIER_NOTABLE,
     "share_link_regenerated": EVENT_TIER_NOTABLE,
     "share_link_revoked": EVENT_TIER_NOTABLE,
+    "share_link_opened": EVENT_TIER_NOTABLE,
     # routine — the expected heartbeat
     "scan_completed": EVENT_TIER_ROUTINE,
     "digest_sent": EVENT_TIER_ROUTINE,
@@ -580,6 +581,7 @@ EVENT_CATEGORIES: Final = {
     "share_link_generated": "admin",
     "share_link_regenerated": "admin",
     "share_link_revoked": "admin",
+    "share_link_opened": "admin",
     "traffic_updated": "admin",
     "assessment_generated": "admin",
     "assessment_accepted": "admin",
@@ -629,5 +631,11 @@ EVENT_LINK_ROUTES: Final = {
     "share_link_generated": "/settings",
     "share_link_regenerated": "/settings",
     "share_link_revoked": "/settings",
+    "share_link_opened": "/settings",
     "location_added": "/settings",
 }
+
+
+# A client-view "visit": opens of the share link closer together than this
+# count as one visit (page navigation re-renders the view many times).
+SHARE_VIEW_VISIT_GAP_MINUTES: Final = 30
