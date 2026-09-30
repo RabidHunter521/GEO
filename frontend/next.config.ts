@@ -24,6 +24,17 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
         ],
       },
+      {
+        // Client view pages carry their credential (the share token) in the
+        // URL. no-referrer keeps it from leaking to any site the client clicks
+        // through to; noindex keeps a forwarded link out of search engines.
+        // Listed after the global rule so these values win.
+        source: "/view/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ]
   },
   async redirects() {

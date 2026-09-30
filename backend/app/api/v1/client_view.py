@@ -340,6 +340,7 @@ def require_non_prospect_share_client(
 def _view_headers(response: Response) -> None:
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    response.headers["Referrer-Policy"] = "no-referrer"
 
 
 # Per-IP budget across the whole view surface. A normal page load hits several

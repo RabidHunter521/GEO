@@ -119,3 +119,12 @@ def test_view_fields_exposed_to_admin_not_client_view(db):
         if isinstance(fields, dict):
             assert "share_view_count" not in fields, name
             assert "share_last_viewed_at" not in fields, name
+
+
+def test_view_responses_are_noindex_and_no_referrer(db, tc):
+    c = _client(db)
+    res = tc.get(f"/api/v1/view/{c.share_token}/overview")
+    assert res.status_code == 200, res.text
+    assert "noindex" in res.headers["X-Robots-Tag"]
+    assert res.headers["Referrer-Policy"] == "no-referrer"
+    assert "no-store" in res.headers["Cache-Control"]
