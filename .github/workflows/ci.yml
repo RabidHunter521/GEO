@@ -46,6 +46,7 @@ jobs:
           DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/unused
           ADMIN_API_KEY: ci-test-key
           ANTHROPIC_API_KEY: sk-ci-not-a-real-key
+          RESEND_API_KEY: re_ci_not_a_real_key
         run: poetry run pytest -q
 
   # The chain-integrity tests above run without a database. This job is the
@@ -85,6 +86,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seenby_migrations
           ADMIN_API_KEY: ci-test-key
           ANTHROPIC_API_KEY: sk-ci-not-a-real-key
+          RESEND_API_KEY: re_ci_not_a_real_key
         run: |
           poetry run alembic upgrade head
           poetry run alembic current
@@ -119,6 +121,7 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/seenby_migrations
           ADMIN_API_KEY: ci-test-key
           ANTHROPIC_API_KEY: sk-ci-not-a-real-key
+          RESEND_API_KEY: re_ci_not_a_real_key
         run: |
           poetry run alembic downgrade base
           poetry run alembic upgrade head
