@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "totp:secret": "node scripts/generate-totp-secret.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

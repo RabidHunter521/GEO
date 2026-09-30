@@ -1,5 +1,6 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
+import { verifyTotp } from "@/lib/totp"
 
 // Constant-time string comparison without node:crypto so this file stays
 // edge-compatible (it is imported by middleware.ts).
@@ -27,6 +28,13 @@ const loginAttempts = new Map<string, { count: number; firstAt: number }>()
 // for an admin fat-fingering their own login a few times.
 const MAX_GLOBAL_FAILED_ATTEMPTS = 20
 let globalFailures: { count: number; firstAt: number } | null = null
+
+// Two-factor: when ADMIN_TOTP_SECRET (base32) is set, a valid 6-digit code from
+// the admin's authenticator app is required after the password. Unset = the
+// password alone, so a deploy can never lock the admin out before the secret
+// is configured. The last accepted time step is remembered so a code that was
+// just used (e.g. shoulder-surfed) cannot be replayed within its 30 s window.
+let lastAcceptedTotpStep = -1
 
 function isLockedOut(key: string): boolean {
   if (
@@ -69,6 +77,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
+        code: { label: "Authenticator code", type: "text" },
       },
       async authorize(credentials) {
         const adminUser = process.env.ADMIN_USERNAME
@@ -86,6 +95,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
         if (safeEqual(username, adminUser) && safeEqual(password, adminPass)) {
+          const totpSecret = process.env.ADMIN_TOTP_SECRET
+          if (totpSecret) {
+            const code = typeof credentials?.code === "string" ? credentials.code : ""
+            const step = await verifyTotp(totpSecret, code).catch(() => null)
+            if (step === null || step <= lastAcceptedTotpStep) {
+              recordFailure(username)
+              return null
+            }
+            lastAcceptedTotpStep = step
+          }
           loginAttempts.delete(username) // success resets the per-user counter
           globalFailures = null // …and the global backstop
           return {
