@@ -4,8 +4,8 @@ import { LoginForm } from "./LoginForm"
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string }>
+  searchParams: Promise<{ welcome?: string; ended?: string }>
 }) {
-  const { welcome } = await searchParams
-  return <LoginForm welcome={welcome === "1"} />
+  const { welcome, ended } = await searchParams
+  return <LoginForm welcome={welcome === "1"} ended={ended === "1"} />
 }

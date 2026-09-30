@@ -3,6 +3,7 @@ import { auth } from "../../../auth"
 import { Sidebar, MobileSidebar } from "@/components/layout/Sidebar"
 import { getSuggestedWorkLogCount } from "@/lib/api"
 import { isAuthenticatedAdmin } from "@/lib/session-guard"
+import { getCurrentAdmin } from "@/lib/current-admin"
 
 export default async function ClientsLayout({
   children,
@@ -25,11 +26,13 @@ export default async function ClientsLayout({
     suggestedCount = 0
   }
 
+  const { isOwner } = await getCurrentAdmin()
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar suggestedCount={suggestedCount} />
+      <Sidebar suggestedCount={suggestedCount} isOwner={isOwner} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <MobileSidebar suggestedCount={suggestedCount} />
+        <MobileSidebar suggestedCount={suggestedCount} isOwner={isOwner} />
         <main className="flex-1 overflow-y-auto bg-app-wash p-4 md:p-6 lg:p-8">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>

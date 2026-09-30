@@ -34,6 +34,11 @@ export const ADMIN_GLOBAL_NAV: readonly NavItem[] = [
   { href: "/review-queue", label: "Review Queue" },
 ] as const
 
+/** Owner-only global destinations, rendered after ADMIN_GLOBAL_NAV. */
+export const ADMIN_OWNER_NAV: readonly NavItem[] = [
+  { href: "/team", label: "Team" },
+] as const
+
 /**
  * Client-scoped sub-routes, grouped by outcome rather than by feature area.
  * `href` values are relative to `/clients/[id]` and map 1:1 onto existing

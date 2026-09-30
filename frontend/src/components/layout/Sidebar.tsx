@@ -30,10 +30,11 @@ import {
   Workflow,
   ShieldCheck,
   Radar,
+  UserCog,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { ADMIN_GLOBAL_NAV, CLIENT_NAV_GROUPS, isNavItemActive } from "@/lib/navigation"
+import { ADMIN_GLOBAL_NAV, ADMIN_OWNER_NAV, CLIENT_NAV_GROUPS, isNavItemActive } from "@/lib/navigation"
 
 type IconType = ComponentType<{ className?: string }>
 
@@ -60,6 +61,7 @@ export const GLOBAL_NAV_ICONS: Record<string, IconType> = {
   "/gap-matrix": Table2,
   "/benchmarks": Gauge,
   "/review-queue": Inbox,
+  "/team": UserCog,
 }
 
 /** Icons for client-scoped sub-routes, keyed by the relative href used in CLIENT_NAV_GROUPS. */
@@ -96,8 +98,8 @@ function Brand() {
 }
 
 function NavLinks({
-  onNavigate, suggestedCount = 0,
-}: { onNavigate?: () => void; suggestedCount?: number }) {
+  onNavigate, suggestedCount = 0, isOwner = false,
+}: { onNavigate?: () => void; suggestedCount?: number; isOwner?: boolean }) {
   const pathname = usePathname()
   const clientMatch = pathname.match(/^\/clients\/([^/]+)/)
   const clientId = clientMatch?.[1]
@@ -117,7 +119,7 @@ function NavLinks({
 
   return (
     <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
-      {ADMIN_GLOBAL_NAV.map((item) => {
+      {[...ADMIN_GLOBAL_NAV, ...(isOwner ? ADMIN_OWNER_NAV : [])].map((item) => {
         const active =
           item.href === "/clients" ? pathname === "/clients" && !clientId : pathname === item.href
         const Icon = GLOBAL_NAV_ICONS[item.href]
@@ -207,7 +209,7 @@ function SignOutButton() {
 }
 
 /** Desktop rail — hidden on small screens */
-export function Sidebar({ suggestedCount }: { suggestedCount?: number }) {
+export function Sidebar({ suggestedCount, isOwner }: { suggestedCount?: number; isOwner?: boolean }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-bg))] backdrop-blur md:flex">
       {/* Subtle top gradient wash echoing brand */}
@@ -215,14 +217,14 @@ export function Sidebar({ suggestedCount }: { suggestedCount?: number }) {
       <div className="relative flex h-16 items-center border-b border-[hsl(var(--sidebar-border))] px-5">
         <Brand />
       </div>
-      <NavLinks suggestedCount={suggestedCount} />
+      <NavLinks suggestedCount={suggestedCount} isOwner={isOwner} />
       <SignOutButton />
     </aside>
   )
 }
 
 /** Mobile top bar + slide-over drawer — visible only on small screens */
-export function MobileSidebar({ suggestedCount }: { suggestedCount?: number }) {
+export function MobileSidebar({ suggestedCount, isOwner }: { suggestedCount?: number; isOwner?: boolean }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -247,7 +249,7 @@ export function MobileSidebar({ suggestedCount }: { suggestedCount?: number }) {
                   </Button>
                 </DialogPrimitive.Close>
               </div>
-              <NavLinks onNavigate={() => setOpen(false)} suggestedCount={suggestedCount} />
+              <NavLinks onNavigate={() => setOpen(false)} suggestedCount={suggestedCount} isOwner={isOwner} />
               <SignOutButton />
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>

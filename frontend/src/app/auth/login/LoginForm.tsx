@@ -17,7 +17,7 @@ import { salutationForHour } from "@/lib/greeting"
 import { BrandPanel } from "./BrandPanel"
 import { COMPANY_LEGAL_NAME, COMPANY_REGISTRATION_NUMBER } from "@/lib/company"
 
-export function LoginForm({ welcome }: { welcome: boolean }) {
+export function LoginForm({ welcome, ended }: { welcome: boolean; ended: boolean }) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -96,6 +96,12 @@ export function LoginForm({ welcome }: { welcome: boolean }) {
               </div>
             </CardHeader>
             <CardContent>
+              {ended && (
+                <p role="status" className="mb-4 rounded-lg border bg-muted px-3 py-2.5 text-sm text-muted-foreground">
+                  You&apos;ve been signed out. If this keeps happening, ask the account owner to
+                  check your access.
+                </p>
+              )}
               {welcome && (
                 <p
                   role="status"

@@ -6,8 +6,9 @@
 // module is ever pulled into a client bundle, the build fails instead of
 // silently shipping a module that reaches for admin credentials.
 import "server-only"
+import { redirect } from "next/navigation"
 import { adminAuthHeader } from "@/lib/api-token"
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -65,6 +66,8 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
   })
   if (res.status === 204) return undefined as T
+  // The API no longer accepts this admin (deactivated / sign-in reset).
+  if (res.status === 401) redirect("/auth/session-ended")
   if (!res.ok) {
     const detail = await extractDetail(res)
     const statusLine = `API ${init?.method ?? "GET"} ${path} → ${res.status}`
@@ -911,4 +914,22 @@ export function getDashboardFeed(
   return apiFetch<DashboardFeedResponse>(
     `/api/v1/dashboard/feed?${dashboardQuery(filters, { offset: String(offset), limit: "50" })}`,
   )
+}
+
+// ── Team (owner only) ────────────────────────────────────────────────────────
+
+export function getTeam(): Promise<TeamMember[]> {
+  return apiFetch<TeamMember[]>("/api/v1/users")
+}
+
+export function inviteTeamMember(body: { email: string; name: string; role: TeamRole }): Promise<TeamLinkIssued> {
+  return apiFetch<TeamLinkIssued>("/api/v1/users/invite", { method: "POST", body: JSON.stringify(body) })
+}
+
+export function resetTeamMember(id: string): Promise<TeamLinkIssued> {
+  return apiFetch<TeamLinkIssued>(`/api/v1/users/${id}/reset`, { method: "POST" })
+}
+
+export function setTeamMemberActive(id: string, active: boolean): Promise<TeamMember> {
+  return apiFetch<TeamMember>(`/api/v1/users/${id}/${active ? "activate" : "deactivate"}`, { method: "POST" })
 }

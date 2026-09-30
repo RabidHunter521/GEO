@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { ADMIN_GLOBAL_NAV, CLIENT_NAV_GROUPS } from "@/lib/navigation"
+import { ADMIN_GLOBAL_NAV, ADMIN_OWNER_NAV, CLIENT_NAV_GROUPS } from "@/lib/navigation"
 import { CLIENT_NAV_ICONS, GLOBAL_NAV_ICONS } from "@/components/layout/Sidebar"
 
 /**
@@ -17,7 +17,7 @@ import { CLIENT_NAV_ICONS, GLOBAL_NAV_ICONS } from "@/components/layout/Sidebar"
  */
 describe("nav icon coverage", () => {
   it("has an icon for every global nav destination", () => {
-    for (const item of ADMIN_GLOBAL_NAV) {
+    for (const item of [...ADMIN_GLOBAL_NAV, ...ADMIN_OWNER_NAV]) {
       expect(GLOBAL_NAV_ICONS[item.href], `missing icon for ${item.href}`).toBeDefined()
     }
   })
@@ -33,13 +33,15 @@ describe("nav icon coverage", () => {
   it("does not carry icon entries for routes nav no longer lists", () => {
     // A stale entry is harmless at runtime, but it's a sign the two lists
     // have drifted and is worth catching before it hides a real rename.
-    const globalHrefs: Set<string> = new Set(ADMIN_GLOBAL_NAV.map((item): string => item.href))
+    const globalHrefs: Set<string> = new Set(
+      [...ADMIN_GLOBAL_NAV, ...ADMIN_OWNER_NAV].map((item): string => item.href),
+    )
     const clientHrefs: Set<string> = new Set(
       CLIENT_NAV_GROUPS.flatMap((group) => group.items.map((item): string => item.href)),
     )
 
     for (const href of Object.keys(GLOBAL_NAV_ICONS)) {
-      expect(globalHrefs.has(href), `${href} has an icon but is not in ADMIN_GLOBAL_NAV`).toBe(true)
+      expect(globalHrefs.has(href), `${href} has an icon but is not in ADMIN_GLOBAL_NAV / ADMIN_OWNER_NAV`).toBe(true)
     }
     for (const href of Object.keys(CLIENT_NAV_ICONS)) {
       expect(clientHrefs.has(href), `${href} has an icon but is not in CLIENT_NAV_GROUPS`).toBe(true)
