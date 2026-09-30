@@ -13,7 +13,7 @@ build.
 
 - **Frontend** — Next.js 15, shadcn/ui
 - **Backend** — FastAPI (Python)
-- **Database** — PostgreSQL (Supabase in production)
+- **Database** — PostgreSQL (Railway `Postgres` service in production)
 - **Background jobs** — Celery + Redis
 - **Production hosting** — Railway (API, worker, beat, frontend) — see
   [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
@@ -37,7 +37,7 @@ docs/        All project documentation (see below)
 
 | Folder | What's in it |
 |---|---|
-| `docs/DEPLOYMENT.md` | Production deploy runbook (Railway + Supabase) |
+| `docs/DEPLOYMENT.md` | Production deploy runbook (Railway) |
 | `docs/architecture.md` | One-page code map — flows, layers, where to start |
 | `docs/mvp-scope.md` | What's in / out of scope for the MVP |
 | `docs/FEATURES.md` | Full feature overview |

@@ -1,8 +1,8 @@
 """Static checks for the Phase 6 benchmark migration.
 
 The migration uses Postgres-only DDL (ROW LEVEL SECURITY, plpgsql triggers)
-that cannot run against the SQLite test database, and `backend/.env` points at
-production Supabase so a real `alembic upgrade` here would migrate production.
+that cannot run against the SQLite test database, and `backend/.env` may point
+at a real shared database, so a real `alembic upgrade` from a test is unsafe.
 The project's convention — see `test_measurement_migration.py` — is therefore
 to verify structure statically and run the real upgrade/downgrade against
 Postgres in the `seenby-release` runbook instead.

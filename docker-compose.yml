@@ -1,5 +1,5 @@
-# Production stack for a single-VPS deploy. Postgres (Supabase) and file
-# storage (Cloudflare R2) are external — only compute runs here.
+# Production stack for a single-VPS deploy. Postgres and file storage
+# (Cloudflare R2) are external — only compute runs here.
 #
 # Usage: docker compose up -d --build
 # Logs:  docker compose logs -f [service]

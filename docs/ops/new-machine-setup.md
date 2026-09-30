@@ -92,7 +92,8 @@ Put each file back at the same relative path:
 - `.claude/settings.local.json`
 
 Then fix `DATABASE_URL` in `backend/.env`. The old copy pointed at a stale
-Supabase project that is **not** production (see CLAUDE.md §8). Point it at a
+Supabase project that was **never** production and is being deleted (see
+CLAUDE.md §8). Point it at a
 local Postgres or a throwaway database. Production is only ever reached through
 `railway ssh`, never through a local `.env`.
 
