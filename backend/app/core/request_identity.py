@@ -25,6 +25,11 @@ def current_user_id() -> uuid.UUID | None:
     return _current_user_id.get()
 
 
+def is_owner_or_system() -> bool:
+    """The owner, or the system caller (the legacy single-admin login)."""
+    return current_role() in (None, "owner")
+
+
 def current_role() -> str | None:
     """"owner" | "staff" for a signed-in admin; None for a system caller."""
     return _current_role.get()

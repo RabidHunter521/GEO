@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.database import get_db
+from app.core import request_identity
 from app.core.auth import require_api_key
 from app.core.rate_limit import llm_generation_rate_limit
 from app.core.constants import ASSESSABLE_DIMENSIONS
@@ -245,6 +246,11 @@ def archive_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
+    # Archiving a client ends their service (the view link stops working), so
+    # only the owner can do it. Prospects are cold-outreach leads any admin
+    # may clear out.
+    if not c.is_prospect and not request_identity.is_owner_or_system():
+        raise HTTPException(status_code=403, detail="Only the owner can archive a client")
     # Naive UTC to match the rest of the schema (columns are timestamp-without-tz)
     c.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()

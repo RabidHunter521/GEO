@@ -99,6 +99,5 @@ def require_owner(_: None = Depends(require_api_key)) -> None:
     The system caller (raw key) counts as the owner: today that is the legacy
     single-admin login, which is the owner.
     """
-    role = request_identity.current_role()
-    if role is not None and role != "owner":
+    if not request_identity.is_owner_or_system():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can do this")

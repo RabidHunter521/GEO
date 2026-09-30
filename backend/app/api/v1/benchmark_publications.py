@@ -12,7 +12,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.auth import require_api_key
+from app.core.auth import require_api_key, require_owner
 from app.core.database import get_db
 from app.schemas.benchmark_publication import (
     PublicationApprove,
@@ -47,7 +47,7 @@ def list_publications(db: Session = Depends(get_db)):
     return [PublicationResponse.from_model(item) for item in service.list_publications(db)]
 
 
-@router.post("", response_model=PublicationResponse, status_code=201)
+@router.post("", response_model=PublicationResponse, status_code=201, dependencies=[Depends(require_owner)])
 def create_publication(body: PublicationCreate, db: Session = Depends(get_db)):
     publication = _run(
         service.create_publication,
@@ -63,7 +63,7 @@ def create_publication(body: PublicationCreate, db: Session = Depends(get_db)):
     return PublicationResponse.from_model(publication)
 
 
-@router.post("/{publication_id}/approve", response_model=PublicationResponse)
+@router.post("/{publication_id}/approve", response_model=PublicationResponse, dependencies=[Depends(require_owner)])
 def approve_publication(
     publication_id: uuid.UUID, body: PublicationApprove, db: Session = Depends(get_db)
 ):
@@ -71,13 +71,13 @@ def approve_publication(
     return PublicationResponse.from_model(publication)
 
 
-@router.post("/{publication_id}/publish", response_model=PublicationResponse)
+@router.post("/{publication_id}/publish", response_model=PublicationResponse, dependencies=[Depends(require_owner)])
 def publish_publication(publication_id: uuid.UUID, db: Session = Depends(get_db)):
     publication = _run(service.publish_publication, db, publication_id)
     return PublicationResponse.from_model(publication)
 
 
-@router.post("/{publication_id}/withdraw", response_model=PublicationResponse)
+@router.post("/{publication_id}/withdraw", response_model=PublicationResponse, dependencies=[Depends(require_owner)])
 def withdraw_publication(
     publication_id: uuid.UUID, body: PublicationWithdraw, db: Session = Depends(get_db)
 ):

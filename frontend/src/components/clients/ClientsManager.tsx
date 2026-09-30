@@ -32,11 +32,13 @@ import type { ClientListItem } from "@/types"
 
 interface Props {
   clients: ClientListItem[]
+  // Archiving a client is owner-only (the API enforces it too).
+  canArchive: boolean
 }
 
 type SelectionMode = "none" | "remove" | "scan"
 
-export function ClientsManager({ clients }: Props) {
+export function ClientsManager({ clients, canArchive }: Props) {
   const [selectionMode, setSelectionMode] = useState<SelectionMode>("none")
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -217,10 +219,12 @@ export function ClientsManager({ clients }: Props) {
                 <RefreshCw className="h-4 w-4 mr-1" />
                 Scan clients
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setSelectionMode("remove")}>
-                <Trash2 className="h-4 w-4 mr-1" />
-                Remove client
-              </Button>
+              {canArchive && (
+                <Button variant="outline" size="sm" onClick={() => setSelectionMode("remove")}>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remove client
+                </Button>
+              )}
             </div>
           )}
         </div>
