@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+
+// api.ts authenticates each call as the signed-in admin (api-token.ts, which
+// needs an Auth.js session); these tests only care about the URLs requested.
+vi.mock("@/lib/api-token", () => ({ adminAuthHeader: async () => "Bearer test-token" }))
 import { deactivateBusinessLocation, getAllTruthFacts } from "../api"
 import { primaryReplacementCandidates } from "../truth-vault"
 import type { BusinessLocation } from "@/types"
