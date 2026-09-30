@@ -645,6 +645,13 @@ SHARE_VIEW_VISIT_GAP_MINUTES: Final = 30
 SHARE_LINK_EXPIRY_DAYS_OPTIONS: Final = (7, 30, 90)
 
 
+# The single workspace every client and admin belongs to until independent
+# agencies get their own. Fixed so the migration and the app agree on it.
+# Starts with a letter on purpose: SQLite (the test DB) gives an all-digit
+# hex UUID numeric affinity and stores it as REAL, breaking FK matches.
+DEFAULT_WORKSPACE_ID: Final = "a0000000-0000-4000-8000-000000000001"
+DEFAULT_WORKSPACE_NAME: Final = "SeenBy"
+
 # Legal entity behind the SeenBy trading name. Malaysian businesses are expected
 # to show their SSM registration number on business documents and their
 # website, so this line appears in every client-facing footer (PDF report,

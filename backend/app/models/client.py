@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, Integer, Text, JSON, text
+from sqlalchemy import String, Boolean, ForeignKey, Integer, Text, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
-from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS
+from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS, DEFAULT_WORKSPACE_ID
 from app.core.time import utcnow
 
 
@@ -58,6 +58,15 @@ class Client(Base):
     )
     # Read-only client view link. Plaintext by design: the admin must be able
     # to re-copy the link from settings at any time. NULL = no active link.
+    # Owning workspace. Every client is in DEFAULT_WORKSPACE_ID until
+    # independent agencies get their own workspaces.
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+        default=lambda: uuid.UUID(DEFAULT_WORKSPACE_ID),
+    )
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # Optional expiry for the view link. NULL = never expires. An expired link
