@@ -116,11 +116,11 @@ function QueryList({
         {variant === "seen" ? (
           <CheckCircle className="h-3.5 w-3.5 text-score-strong shrink-0" />
         ) : (
-          <XCircle className="h-3.5 w-3.5 text-score-watch shrink-0" />
+          <XCircle className="h-3.5 w-3.5 text-score-watch-fg shrink-0" />
         )}
         <p
           className={`text-xs font-semibold ${
-            variant === "seen" ? "text-score-strong" : "text-score-watch"
+            variant === "seen" ? "text-score-strong" : "text-score-watch-fg"
           }`}
         >
           {title}

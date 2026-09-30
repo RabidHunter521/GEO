@@ -61,7 +61,7 @@ export function SiteAuditCard({
             <span>
               <span className="font-semibold text-score-strong">{audit.passed}</span> passed
               {" · "}
-              <span className="font-semibold text-score-watch">{audit.warned}</span> to improve
+              <span className="font-semibold text-score-watch-fg">{audit.warned}</span> to improve
               {" · "}
               <span className="font-semibold text-destructive">{audit.failed}</span> to fix
               {audit.unknown > 0 && (

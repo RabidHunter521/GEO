@@ -16,7 +16,7 @@ import type { GuaranteeProgress } from "@/types"
 const STATE_STYLE: Record<GuaranteeProgress["state"], { label: string; cls: string }> = {
   met:             { label: "Target met",     cls: "border-score-strong/40 bg-score-strong-bg text-score-strong" },
   on_track:        { label: "On track",       cls: "border-score-strong/40 bg-score-strong-bg text-score-strong" },
-  at_risk:         { label: "Behind pace",    cls: "border-score-watch/40 bg-score-watch-bg text-score-watch" },
+  at_risk:         { label: "Behind pace",    cls: "border-score-watch/40 bg-score-watch-bg text-score-watch-fg" },
   deadline_passed: { label: "Deadline passed", cls: "border-destructive/40 bg-destructive/10 text-destructive" },
 }
 

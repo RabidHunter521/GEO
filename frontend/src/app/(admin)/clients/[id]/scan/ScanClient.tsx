@@ -130,7 +130,7 @@ function QuerySegmentSummary({
           </span>
         )}
         {newlyLost.length > 0 && (
-          <span className="rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 font-medium text-score-watch">
+          <span className="rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 font-medium text-score-watch-fg">
             {newlyLost.length} newly lost since last scan
           </span>
         )}
@@ -575,7 +575,7 @@ function ResultsTable({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2 text-xs text-score-watch hover:text-score-watch hover:bg-score-watch-bg"
+                      className="h-7 px-2 text-xs text-score-watch-fg hover:text-score-watch-fg hover:bg-score-watch-bg"
                       onClick={() => onFlag(r.id)}
                       disabled={flaggingId === r.id}
                     >

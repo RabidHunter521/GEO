@@ -7,8 +7,8 @@ import { ClientRoadmapList } from "@/components/view/ClientRoadmapList"
 
 const TOPIC_STATUS: Record<string, { label: string; cls: string }> = {
   strong: { label: "Strong", cls: "bg-score-strong-bg text-score-strong border-score-strong/25" },
-  weak: { label: "Needs work", cls: "bg-score-watch-bg text-score-watch border-score-watch/30" },
-  missing: { label: "Missing", cls: "bg-score-low-bg text-score-low border-score-low/25" },
+  weak: { label: "Needs work", cls: "bg-score-watch-bg text-score-watch-fg border-score-watch/30" },
+  missing: { label: "Missing", cls: "bg-score-low-bg text-score-low-fg border-score-low/25" },
 }
 
 export default async function ViewContentPlanPage({
@@ -81,7 +81,7 @@ export default async function ViewContentPlanPage({
                       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${meta.cls}`}
                     >
                       {t.topic}
-                      <span className="opacity-70">· {meta.label}</span>
+                      <span className="font-normal">· {meta.label}</span>
                     </span>
                   )
                 })}

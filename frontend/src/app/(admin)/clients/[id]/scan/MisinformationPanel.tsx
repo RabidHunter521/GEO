@@ -20,8 +20,8 @@ import {
 } from "./actions"
 
 const SEVERITY_CHIP: Record<MisinformationFinding["severity"], string> = {
-  high: "bg-score-low-bg text-score-low",
-  medium: "bg-score-watch-bg text-score-watch",
+  high: "bg-score-low-bg text-score-low-fg",
+  medium: "bg-score-watch-bg text-score-watch-fg",
   low: "bg-muted text-muted-foreground",
 }
 
@@ -35,10 +35,10 @@ const STATUS_LABEL: Record<MisinformationStatus, string> = {
 }
 
 const STATUS_CHIP: Record<MisinformationStatus, string> = {
-  suggested: "bg-score-watch-bg text-score-watch",
-  confirmed: "bg-score-low-bg text-score-low",
+  suggested: "bg-score-watch-bg text-score-watch-fg",
+  confirmed: "bg-score-low-bg text-score-low-fg",
   dismissed: "bg-muted text-muted-foreground",
-  corrected: "bg-score-watch-bg text-score-watch",
+  corrected: "bg-score-watch-bg text-score-watch-fg",
   candidate_fixed: "bg-score-strong-bg text-score-strong",
   verified_fixed: "bg-score-strong-bg text-score-strong",
 }
@@ -91,7 +91,7 @@ export function MisinformationPanel({
         )}
       </div>
 
-      {error && <p className="text-xs text-score-low">{error}</p>}
+      {error && <p className="text-xs text-score-low-fg">{error}</p>}
 
       {findings.length === 0 ? (
         <p className="text-sm text-muted-foreground">

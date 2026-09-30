@@ -28,7 +28,7 @@ function StatusChip({ status }: { status: SiteAuditStatus }) {
     )
   if (status === "warn")
     return (
-      <span className="flex items-center gap-1 text-xs font-medium text-score-watch">
+      <span className="flex items-center gap-1 text-xs font-medium text-score-watch-fg">
         <AlertTriangle className="h-3.5 w-3.5" /> Improve
       </span>
     )

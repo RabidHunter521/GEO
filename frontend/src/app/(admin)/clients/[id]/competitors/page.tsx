@@ -120,7 +120,7 @@ export default async function CompetitorsPage({ params }: Props) {
         {winningCount > 0 && (
           <Badge
             variant="outline"
-            className="gap-1.5 text-score-watch border-score-watch/30 bg-score-watch-bg"
+            className="gap-1.5 text-score-watch-fg border-score-watch/30 bg-score-watch-bg"
           >
             <AlertTriangle className="h-3.5 w-3.5" />
             {winningCount} competitor{winningCount > 1 ? "s" : ""} winning
@@ -202,7 +202,7 @@ export default async function CompetitorsPage({ params }: Props) {
                   <p className="text-xs text-muted-foreground">visibility frequency</p>
                 </div>
                 {comp.is_winning ? (
-                  <Badge className="gap-1 shrink-0 border-score-watch/30 bg-score-watch-bg text-score-watch">
+                  <Badge className="gap-1 shrink-0 border-score-watch/30 bg-score-watch-bg text-score-watch-fg">
                     <AlertTriangle className="h-3 w-3" />
                     Your competitors are winning here
                   </Badge>
@@ -224,7 +224,7 @@ export default async function CompetitorsPage({ params }: Props) {
                       key={p}
                       className={`rounded-full border px-2.5 py-1 text-xs tabular-nums ${
                         winning
-                          ? "border-score-watch/30 bg-score-watch-bg text-score-watch font-medium"
+                          ? "border-score-watch/30 bg-score-watch-bg text-score-watch-fg font-medium"
                           : "bg-muted/30"
                       }`}
                     >

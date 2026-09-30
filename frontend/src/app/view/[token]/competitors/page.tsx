@@ -197,7 +197,7 @@ export default async function ViewCompetitorsPage({
           className="reveal rounded-xl border border-score-watch/40 bg-score-watch-bg p-4"
           style={{ animationDelay: "90ms" }}
         >
-          <p className="flex items-center gap-2 text-sm font-semibold text-score-watch">
+          <p className="flex items-center gap-2 text-sm font-semibold text-score-watch-fg">
             <TriangleAlert className="h-4 w-4" />
             Your competitors are winning here
           </p>
@@ -215,7 +215,7 @@ export default async function ViewCompetitorsPage({
           className="reveal rounded-xl border border-score-watch/40 bg-score-watch-bg p-4"
           style={{ animationDelay: "105ms" }}
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-score-watch">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-score-watch-fg">
             The battle to win next
           </p>
           <p className="mt-2 text-sm text-foreground">
@@ -273,7 +273,7 @@ export default async function ViewCompetitorsPage({
               </p>
             )}
             {c.winning_platform_labels.length > 0 && (
-              <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-score-watch">
+              <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-score-watch-fg">
                 <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
                 Your competitors are winning here:{" "}
                 {c.winning_platform_labels.join(", ")}

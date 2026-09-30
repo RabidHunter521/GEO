@@ -37,7 +37,7 @@ export function ProofCardList({ cards }: { cards: ClientViewProofCard[] }) {
                 <span
                   className={cn(
                     "text-xs font-semibold",
-                    isWin ? "text-score-strong" : "text-score-watch",
+                    isWin ? "text-score-strong" : "text-score-watch-fg",
                   )}
                 >
                   {isWin ? "Seen by AI" : "Opportunity"}

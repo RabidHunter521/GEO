@@ -726,7 +726,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
 
         {contentRecommendation && (
           <div className="rounded-md border bg-muted/10 px-4 py-3 flex gap-3">
-            <Lightbulb className="h-4 w-4 shrink-0 text-score-watch mt-0.5" />
+            <Lightbulb className="h-4 w-4 shrink-0 text-score-watch-fg mt-0.5" />
             <div>
               <p className="text-sm font-medium">
                 Content Quality suggestion{" "}

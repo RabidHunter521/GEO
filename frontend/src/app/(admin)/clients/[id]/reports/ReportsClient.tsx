@@ -211,7 +211,7 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
                       Sent {formatDate(report.sent_at)}
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="border-score-watch/30 bg-score-watch-bg text-score-watch">
+                    <Badge variant="outline" className="border-score-watch/30 bg-score-watch-bg text-score-watch-fg">
                       Ready for review
                     </Badge>
                   )}

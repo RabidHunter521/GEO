@@ -135,7 +135,7 @@ export default async function ClientOverviewPage({
         <div className="pointer-events-none absolute -left-8 -top-8 h-48 w-48 rounded-full bg-primary/[0.06] blur-2xl" />
         <ScoreRing score={geoScore ? geoScore.overall_score : null} />
         <div className="relative flex-1">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
             {PRODUCT_LANGUAGE.readiness}
           </p>
           {geoScore ? (
@@ -170,7 +170,7 @@ export default async function ClientOverviewPage({
       {/* Seen by AI — per platform */}
       {geoScore?.platform_breakdown && (
         <div>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
             Seen by AI — by Platform
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -220,7 +220,7 @@ export default async function ClientOverviewPage({
 
       {/* 5-dimension breakdown */}
       <div>
-        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+        <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Readiness Breakdown
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -269,7 +269,7 @@ export default async function ClientOverviewPage({
       {/* Measurement — stability + impact (Phase 5 Task 8) */}
       {(stability.length > 0 || impact.length > 0) && (
         <div>
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
             Measurement
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -307,7 +307,7 @@ export default async function ClientOverviewPage({
             {trafficChange && (
               <p className={cn(
                 "mt-1 flex items-center gap-1 text-xs font-semibold",
-                trafficChange.up ? "text-score-strong" : "text-score-watch",
+                trafficChange.up ? "text-score-strong" : "text-score-watch-fg",
               )}>
                 {trafficChange.up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                 {trafficChange.label}
@@ -349,7 +349,7 @@ export default async function ClientOverviewPage({
           minute: "2-digit",
         })
         return (
-          <p className={cn("text-xs", isStale ? "text-score-watch font-medium" : "text-muted-foreground/50")}>
+          <p className={cn("text-xs", isStale ? "text-score-watch-fg font-medium" : "text-muted-foreground/50")}>
             Score computed {formatted}
             {isStale && (
               <span className="ml-1">

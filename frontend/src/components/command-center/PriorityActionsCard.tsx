@@ -27,8 +27,8 @@ const DIMENSION_HREF: Record<string, string> = {
 }
 
 const PRIORITY_CLASS: Record<CommandCenterAction["priority"], string> = {
-  high: "bg-score-low-bg text-score-low border-score-low/25",
-  medium: "bg-score-watch-bg text-score-watch border-score-watch/30",
+  high: "bg-score-low-bg text-score-low-fg border-score-low/25",
+  medium: "bg-score-watch-bg text-score-watch-fg border-score-watch/30",
   low: "bg-muted text-muted-foreground",
 }
 
@@ -41,7 +41,7 @@ function dimensionHref(clientId: string, reason: string): string {
 export function PriorityActionsCard({ actions, clientId }: Props) {
   return (
     <div className="rounded-lg border bg-card p-5">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
         Priority Actions
       </h2>
       {actions.length === 0 ? (

@@ -174,7 +174,7 @@ export default async function ViewScanPage({
             </span>
           )}
           {segments.newlyLost.length > 0 && (
-            <span className="rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 font-medium text-score-watch">
+            <span className="rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 font-medium text-score-watch-fg">
               {segments.newlyLost.length} newly lost since last scan
             </span>
           )}

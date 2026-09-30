@@ -73,7 +73,7 @@ export function WinLossSection({ clientId, data }: Props) {
         <span className="rounded-full bg-score-strong-bg px-3 py-1 text-xs font-medium text-score-strong">
           Won {summary.won ?? 0}
         </span>
-        <span className="rounded-full bg-score-watch-bg px-3 py-1 text-xs font-medium text-score-watch">
+        <span className="rounded-full bg-score-watch-bg px-3 py-1 text-xs font-medium text-score-watch-fg">
           Your competitors are winning here ({summary.lost ?? 0})
         </span>
         <span className="rounded-full border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
@@ -92,7 +92,7 @@ export function WinLossSection({ clientId, data }: Props) {
             <h4
               className={`mb-2 text-xs font-semibold uppercase tracking-wide ${
                 outcome === "lost"
-                  ? "text-score-watch"
+                  ? "text-score-watch-fg"
                   : outcome === "won"
                     ? "text-score-strong"
                     : "text-muted-foreground"
@@ -180,7 +180,7 @@ function WinLossRow({
       </div>
 
       {entry.competitors_seen.length > 0 && (
-        <p className="mt-2 text-xs text-score-watch">
+        <p className="mt-2 text-xs text-score-watch-fg">
           Seen by AI instead: {entry.competitors_seen.join(", ")}
         </p>
       )}

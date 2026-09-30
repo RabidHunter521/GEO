@@ -95,7 +95,7 @@ export function EvidenceLadder({
       {summary.caveats && summary.caveats.length > 0 && (
         <div className="mt-1 space-y-0.5">
           {summary.caveats.map((caveat, i) => (
-            <p key={i} className="text-[10px] leading-relaxed text-muted-foreground/60">
+            <p key={i} className="text-xs leading-relaxed text-muted-foreground">
               {caveat}
             </p>
           ))}

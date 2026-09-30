@@ -19,8 +19,8 @@ const STATUSES: { value: RemediationStatus; label: string }[] = [
 ]
 
 const STATUS_CHIP: Record<RemediationStatus, string> = {
-  flagged: "bg-score-low-bg text-score-low",
-  in_progress: "bg-score-watch-bg text-score-watch",
+  flagged: "bg-score-low-bg text-score-low-fg",
+  in_progress: "bg-score-watch-bg text-score-watch-fg",
   corrected: "bg-score-strong-bg text-score-strong",
 }
 

@@ -16,8 +16,8 @@ import {
 import type { ClientViewRoadmapItem } from "@/types"
 
 const PRIORITY_CLASS: Record<string, string> = {
-  high: "bg-score-low-bg text-score-low border-score-low/25",
-  medium: "bg-score-watch-bg text-score-watch border-score-watch/30",
+  high: "bg-score-low-bg text-score-low-fg border-score-low/25",
+  medium: "bg-score-watch-bg text-score-watch-fg border-score-watch/30",
   low: "bg-muted text-muted-foreground border-border",
 }
 

@@ -19,7 +19,7 @@ function EventIcon({ type }: { type: string }) {
     case "scan_completed":
       return <CheckCircle className={`${cls} text-score-strong`} />
     case "scan_failed":
-      return <XCircle className={`${cls} text-score-low`} />
+      return <XCircle className={`${cls} text-score-low-fg`} />
     case "toolkit_generated":
       return <Wrench className={`${cls} text-primary`} />
     case "toolkit_verified":
@@ -33,9 +33,9 @@ function EventIcon({ type }: { type: string }) {
     case "report_sent":
       return <FileText className={`${cls} text-score-strong`} />
     case "alert_sent":
-      return <Bell className={`${cls} text-score-low`} />
+      return <Bell className={`${cls} text-score-low-fg`} />
     case "hallucination_flagged":
-      return <AlertTriangle className={`${cls} text-score-watch`} />
+      return <AlertTriangle className={`${cls} text-score-watch-fg`} />
     case "content_analyzed":
       return <Search className={`${cls} text-primary`} />
     default:

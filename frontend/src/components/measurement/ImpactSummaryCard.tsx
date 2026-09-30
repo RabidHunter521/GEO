@@ -24,7 +24,7 @@ export function ImpactSummaryCard({
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         Business Impact Evidence
       </p>
-      <p className="mt-1 text-[10px] text-muted-foreground/60">
+      <p className="mt-1 text-xs text-muted-foreground">
         Values are separated by evidence level
       </p>
 
@@ -38,7 +38,7 @@ export function ImpactSummaryCard({
             )}
             <EvidenceLadder summary={summary} />
             {summary.window_start && summary.window_end && (
-              <p className="mt-1 text-[10px] text-muted-foreground/60">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Window: {summary.window_start} to {summary.window_end}
               </p>
             )}
@@ -47,7 +47,7 @@ export function ImpactSummaryCard({
       </div>
 
       {"calculation_version" in summaries[0] && (summaries[0] as ImpactSummary).calculation_version && (
-        <p className="mt-3 text-[10px] text-muted-foreground/60">
+        <p className="mt-3 text-xs text-muted-foreground">
           {(summaries[0] as ImpactSummary).calculation_version}
         </p>
       )}

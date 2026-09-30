@@ -182,7 +182,7 @@ export default async function ActionApprovalPage({
         </header>
 
         {query.error && (
-          <p className="rounded-md border border-score-low/25 bg-score-low-bg px-4 py-3 text-sm text-score-low">
+          <p className="rounded-md border border-score-low/25 bg-score-low-bg px-4 py-3 text-sm text-score-low-fg">
             We could not record that decision. Please check the confirmation box and try again.
           </p>
         )}

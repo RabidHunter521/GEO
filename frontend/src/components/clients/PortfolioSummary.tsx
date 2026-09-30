@@ -64,12 +64,12 @@ export function PortfolioSummary({ clients, now }: Props) {
       label: "Declined",
       icon: TrendingDown,
       iconBg: declined > 0 ? "bg-score-low-bg" : "bg-muted",
-      iconColor: declined > 0 ? "text-score-low" : "text-muted-foreground",
+      iconColor: declined > 0 ? "text-score-low-fg" : "text-muted-foreground",
       value: (
         <span
           className={cn(
             "font-display text-2xl font-bold",
-            declined > 0 ? "text-score-low" : "",
+            declined > 0 ? "text-score-low-fg" : "",
           )}
         >
           {declined}
@@ -80,12 +80,12 @@ export function PortfolioSummary({ clients, now }: Props) {
       label: "Needs attention",
       icon: AlertTriangle,
       iconBg: needsAttention > 0 ? "bg-score-watch-bg" : "bg-muted",
-      iconColor: needsAttention > 0 ? "text-score-watch" : "text-muted-foreground",
+      iconColor: needsAttention > 0 ? "text-score-watch-fg" : "text-muted-foreground",
       value: (
         <span
           className={cn(
             "font-display text-2xl font-bold",
-            needsAttention > 0 ? "text-score-watch" : "",
+            needsAttention > 0 ? "text-score-watch-fg" : "",
           )}
         >
           {needsAttention}

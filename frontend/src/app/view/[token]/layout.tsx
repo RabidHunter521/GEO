@@ -43,6 +43,12 @@ export default async function ClientViewLayout({
 
   return (
     <div className="min-h-screen bg-app-wash">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-3 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <header className="border-b bg-card">
         <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
@@ -95,7 +101,9 @@ export default async function ClientViewLayout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</main>
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1400px] px-4 py-6 outline-none sm:px-6">
+        {children}
+      </main>
 
       <footer className="border-t py-6">
         <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
