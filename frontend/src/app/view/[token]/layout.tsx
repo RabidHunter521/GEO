@@ -42,7 +42,7 @@ export default async function ClientViewLayout({
   const host = profile.website?.replace(/^https?:\/\//, "").replace(/\/$/, "")
 
   return (
-    <div className="min-h-screen bg-app-wash">
+    <div className="client-view min-h-screen bg-app-wash">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-3 focus:text-sm focus:font-medium focus:text-primary-foreground"

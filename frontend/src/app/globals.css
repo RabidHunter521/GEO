@@ -171,6 +171,14 @@
   .bar-low    { background-color: hsl(var(--score-low)); }
   .bar-primary { background-color: hsl(var(--primary)); }
 
+  /* Client view (/view/[token]): body copy is at least 16px. text-sm (14px)
+     is the admin panel's density; clients mostly read on phones. Captions and
+     meta (text-xs) stay small by design. */
+  .client-view .text-sm {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
   /* Hide the scrollbar on a horizontally-scrollable strip (e.g. mobile tab
      bars) while keeping it scrollable — the edge-fade gradients are the
      intended affordance for "there's more", not a visible scrollbar track. */
