@@ -59,6 +59,57 @@ def generate_llms_full_txt(client: Client) -> str:
     return _strip_code_fences(response.content[0].text)
 
 
+# Schema.org types the generated graph uses for supporting data. Any other
+# typed node is the business itself: Organization, LocalBusiness, or an industry
+# subtype such as Dentist or LegalService.
+_NON_ENTITY_TYPES = frozenset({
+    "WebSite", "WebPage", "FAQPage", "Question", "Answer", "SpeakableSpecification",
+    "PostalAddress", "GeoCoordinates", "OpeningHoursSpecification", "PropertyValue",
+    "ContactPoint", "ImageObject",
+})
+
+
+def _is_business_node(node: dict) -> bool:
+    types = node.get("@type")
+    types = types if isinstance(types, list) else [types]
+    return any(isinstance(t, str) and t not in _NON_ENTITY_TYPES for t in types)
+
+
+def apply_legal_identity(schema_json: str, client: Client) -> str:
+    """Stamp the client's registered legal name and SSM number onto every
+    business node of a generated JSON-LD file.
+
+    Deterministic, not prompt-driven: an identifier must be copied exactly, never
+    paraphrased by a model. No-op when neither field is set or the JSON is not
+    parseable (the caller validates JSON separately).
+    """
+    legal_name = client.legal_name.strip() if isinstance(client.legal_name, str) else ""
+    reg_no = (
+        client.registration_number.strip() if isinstance(client.registration_number, str) else ""
+    )
+    if not legal_name and not reg_no:
+        return schema_json
+    try:
+        doc = json.loads(schema_json)
+    except json.JSONDecodeError:
+        return schema_json
+
+    nodes = doc.get("@graph", [doc]) if isinstance(doc, dict) else doc
+    for node in nodes if isinstance(nodes, list) else []:
+        if not isinstance(node, dict) or not _is_business_node(node):
+            continue
+        if legal_name:
+            node["legalName"] = legal_name
+        if reg_no:
+            node["identifier"] = {
+                "@type": "PropertyValue",
+                "propertyID": "SSM",
+                "name": "Companies Commission of Malaysia (SSM) registration number",
+                "value": reg_no,
+            }
+    return json.dumps(doc, indent=2, ensure_ascii=False)
+
+
 def generate_schema_json(client: Client) -> str:
     prompt = build_schema_json(client)
     for attempt in range(2):
@@ -75,7 +126,7 @@ def generate_schema_json(client: Client) -> str:
         raw = _strip_code_fences(response.content[0].text)
         try:
             json.loads(raw)
-            return raw
+            return apply_legal_identity(raw, client)
         except json.JSONDecodeError:
             if attempt == 1:
                 raise ValueError(

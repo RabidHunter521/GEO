@@ -9,6 +9,8 @@ export async function updateClientAction(
   id: string,
   data: {
     name?: string
+    legal_name?: string | null
+    registration_number?: string | null
     website?: string
     industry?: string
     description?: string

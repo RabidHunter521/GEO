@@ -32,6 +32,9 @@ export interface Client {
   country: string | null
   phone: string | null
   contact_email: string | null
+  // Admin-only legal identity (SSM). Never shown in the client view.
+  legal_name: string | null
+  registration_number: string | null
   logo_url: string | null
   brand_authority_score: number
   brand_authority_evidence: string | null

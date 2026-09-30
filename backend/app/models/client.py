@@ -74,6 +74,12 @@ class Client(Base):
     ga4_property_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Registered legal entity (e.g. "Klinik Acme Sdn. Bhd.") and SSM number.
+    # Admin-only: used for invoicing/contracts and emitted in the client's
+    # schema.json (legalName / identifier) to help AI models resolve the right
+    # entity. Never exposed in the client view and never used in scan queries.
+    legal_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    registration_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Free-text admin notes (CRM-style). Admin-only — never exposed in client view.
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Prospect = a not-yet-paying lead scanned for cold outreach. Kept out of

@@ -276,6 +276,9 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           country: (fd.get("country") as string) || undefined,
           phone: (fd.get("phone") as string) || undefined,
           contact_email: (fd.get("contact_email") as string) || undefined,
+          // Empty clears these (null), unlike the fields above.
+          legal_name: ((fd.get("legal_name") as string) ?? "").trim() || null,
+          registration_number: ((fd.get("registration_number") as string) ?? "").trim() || null,
           brand_authority_score: fd.get("brand_authority_score")
             ? Number(fd.get("brand_authority_score"))
             : undefined,
@@ -510,6 +513,34 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
             defaultValue={client.contact_email ?? ""}
             placeholder="e.g. hello@clientdomain.com"
           />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="s-legal-name">Registered legal name</Label>
+            <Input
+              id="s-legal-name"
+              name="legal_name"
+              maxLength={255}
+              defaultValue={client.legal_name ?? ""}
+              placeholder="e.g. Klinik Acme Sdn. Bhd."
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="s-reg-no">SSM registration number</Label>
+            <Input
+              id="s-reg-no"
+              name="registration_number"
+              maxLength={64}
+              defaultValue={client.registration_number ?? ""}
+              placeholder="e.g. 202301012345 (1501234-X)"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Admin only — for invoices and contracts. Also added to this client&apos;s
+            schema.json (legalName / identifier) the next time you generate the
+            toolkit, which helps AI assistants match the business to the right
+            company. Never shown in the client view or used in scan questions.
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label>Logo</Label>

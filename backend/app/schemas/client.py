@@ -52,6 +52,12 @@ class ClientUpdate(BaseModel):
     enabled_platforms: list[str] | None = None
     is_prospect: bool | None = None
     internal_notes: str | None = None
+    legal_name: str | None = Field(default=None, max_length=255)
+    # SSM formats: 12-digit new format, optionally with the old number in
+    # brackets, e.g. "202301012345 (1501234-X)".
+    registration_number: str | None = Field(
+        default=None, max_length=64, pattern=r"^[0-9A-Za-z()\- ]*$"
+    )
     # GA4 property id (digits) for AI-referral traffic sync; None = manual mode.
     ga4_property_id: str | None = Field(default=None, max_length=32)
     # Industry intelligence pack. `industry_pack_version` is deliberately ABSENT:
@@ -132,6 +138,8 @@ class ClientResponse(BaseModel):
     archived_at: datetime | None = None
     is_prospect: bool = False
     internal_notes: str | None = None
+    legal_name: str | None = None
+    registration_number: str | None = None
     industry_pack: str | None = None
     industry_subcategory: str | None = None
     industry_pack_version: str | None = None

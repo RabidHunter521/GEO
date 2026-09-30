@@ -117,6 +117,8 @@ export function updateClient(
       | "enabled_platforms"
       | "is_prospect"
       | "internal_notes"
+      | "legal_name"
+      | "registration_number"
       | "ga4_property_id"
       | "benchmark_opt_out"
     >
