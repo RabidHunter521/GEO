@@ -95,3 +95,38 @@ pages, per-workspace alert/cost settings, per-workspace branding.
 9. **Docs + cut-over.** CLAUDE.md §1/§9, DEPLOYMENT (owner bootstrap),
    release notes. After Faris's owner account works in production: remove
    the raw ADMIN_API_KEY bearer from admin routes and the env login.
+
+## Ledger (2026-09-30)
+
+| # | Task | Commit(s) |
+|---|---|---|
+| 1 | Schema (migration b956747aed6c) | c663e0a |
+| 2 | Account service | fdad62f |
+| 3 | Auth API, invite email, owner bootstrap | d418747 |
+| 4 | Per-request identity | fc31487 |
+| 5 | Frontend sign-in, per-user token, invite page | a1a6242, 2c3daa9 |
+| 6 | Owner-only actions | 1c8da6b |
+| 7 | Team page | 0e64669 |
+| 8 | Who did what | b998b63, 369c5d6 |
+| 9 | Docs (this) | — |
+
+Deviations:
+- Cut-over needs no terminal: while signed in with the legacy login you are
+  the owner, so the Team page can invite your own owner account.
+  `scripts/create_owner` stays as the fallback.
+- DEFAULT_WORKSPACE_ID starts with a letter: SQLite stores an all-digit
+  hex UUID as REAL, which broke FK matches in tests.
+- Staff may archive prospects (cold leads); paying clients are owner-only.
+- An API 401 for a signed-in admin ends the session (/auth/session-ended).
+- Scan events are written by Celery and read as "System".
+
+Verified: backend 2190 tests; frontend 151 unit tests, typecheck, build;
+migration upgrade/downgrade/re-upgrade on Postgres with seeded data;
+end to end on production builds: legacy login → owner setup → legacy login
+refused; invite/accept validation; replayed code; staff restrictions;
+deactivation signs the admin out; self-invite cut-over from the Team page.
+NOT verified: production (migration runs on the next api boot).
+
+Remaining (task 9b, after the owner account works in production): remove
+the raw ADMIN_API_KEY bearer from admin routes (keep it only for the
+service-only /auth routes) and delete the legacy env login code.
