@@ -62,3 +62,36 @@ Grounding (verified in code, not from memory):
 
 Waived: per-component Storybook pages (item 6 of the a11y list) — open-ended;
 proposed as a follow-up phase once the axe harness shows where inconsistency is.
+
+## Ledger (2026-09-30)
+
+| # | Task | Commit(s) |
+|---|---|---|
+| 1 | Link open tracking | b777838 (migration 12960c0a6720) |
+| 2 | Link expiry | 019e3b9 (migration 283e6ea1f8c7) |
+| 3 | no-referrer / noindex headers | 1cb90ff |
+| 4 | Company identity in footers | b26f935 |
+| 5 | Client legal identity + schema.json | 104c6ad (migration b16c2c6690fe) |
+| 6 | Admin TOTP 2FA | a9b8552 |
+| 7 | Supabase references removed | 3797976 |
+| — | Pre-existing CI reds: next critical advisory, missing RESEND_API_KEY | 0d35c13, deb08c6 |
+| 8–10 | Contrast/colour-alone/skip link; axe + 375px CI gate | c33cea4, 973c309, eebb342 |
+| 11 | Loading skeletons, 16px client-view body text | 25b2acc |
+
+Deviations:
+- Regenerating a link keeps visit history (it describes the client, not a token).
+- Regenerate keeps its one confirmation dialog: it breaks the link the client has.
+- Truth Vault legal-name fact not added; schema.json gets the identity directly.
+- No invoices exist, so no invoice footer.
+
+Verified: backend 2133 tests (CI env), ruff clean, one alembic head, frontend
+typecheck + 151 unit tests + build, axe/375px gate 16/16 locally, 2FA end to end
+on a production build. NOT verified: the new `a11y` CI job on GitHub (CI runs
+on PRs / master only), migrations on production (run on next api boot).
+
+Open, not in this phase:
+- The Alembic chain cannot build an empty database (first revision assumes
+  pre-existing tables), so CI `migrations` stays red. Needs a baseline
+  migration checked against production's real schema via `railway ssh`.
+- Overview "Wins" can list the same AI quote twice (seen on Medilink demo).
+- Per-component Storybook pages (a11y item 6) — waived, follow-up phase.
