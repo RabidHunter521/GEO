@@ -120,9 +120,10 @@ export default async function ActivityPage({ params, searchParams }: Props) {
                   {presentActivityNote(entry.note)}
                 </p>
               </div>
-              <p className="text-xs text-muted-foreground shrink-0 mt-0.5 tabular-nums">
-                {formatDate(entry.created_at)}
-              </p>
+              <div className="shrink-0 mt-0.5 text-right text-xs text-muted-foreground">
+                <p className="tabular-nums">{formatDate(entry.created_at)}</p>
+                <p>{entry.actor_name ? `by ${entry.actor_name}` : "System"}</p>
+              </div>
             </div>
           )
         })}

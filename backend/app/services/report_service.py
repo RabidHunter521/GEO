@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
 from app.core.config import settings
+from app.core import request_identity
 from app.core.constants import (
     PLATFORM_LABELS,
     SCORE_DISPLAY_LABEL,
@@ -2522,6 +2523,7 @@ def send_report_email(report_id: uuid.UUID, db: Session) -> bool:
     })
 
     report.sent_at = utcnow()
+    report.sent_by_user_id = request_identity.current_user_id()
     db.add(ActivityLog(
         client_id=report.client_id,
         event_type="report_sent",
