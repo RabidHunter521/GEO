@@ -20,13 +20,38 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { generateShareLinkAction, revokeShareLinkAction } from "./actions"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { copyToClipboard } from "@/lib/utils"
-import { timeAgo } from "@/lib/relative-time"
+import { parseUtc, timeAgo } from "@/lib/relative-time"
+
+// Mirrors SHARE_LINK_EXPIRY_DAYS_OPTIONS in backend app/core/constants.py.
+const EXPIRY_OPTIONS = [
+  { value: "never", label: "Never expires" },
+  { value: "7", label: "Expires in 7 days" },
+  { value: "30", label: "Expires in 30 days" },
+  { value: "90", label: "Expires in 90 days" },
+] as const
+
+function expiryStatus(expiresAt: string | null): { text: string; expired: boolean } {
+  if (!expiresAt) return { text: "Never expires", expired: false }
+  const msLeft = parseUtc(expiresAt).getTime() - Date.now()
+  if (msLeft <= 0) return { text: "Expired — the client sees a 'link inactive' page. Regenerate to send a new one.", expired: true }
+  const days = Math.ceil(msLeft / 86_400_000)
+  return { text: `Expires in ${days} day${days === 1 ? "" : "s"}`, expired: false }
+}
 import type { Client } from "@/types"
 
 export function ShareLinkCard({ client }: { client: Client }) {
   const [token, setToken] = useState(client.share_token)
   const [createdAt, setCreatedAt] = useState(client.share_token_created_at)
+  const [expiresAt, setExpiresAt] = useState(client.share_token_expires_at)
+  const [expiry, setExpiry] = useState<string>("never")
   const [isPending, startTransition] = useTransition()
 
   // window is unavailable during SSR of this client component
@@ -38,10 +63,14 @@ export function ShareLinkCard({ client }: { client: Client }) {
   function handleGenerate() {
     startTransition(async () => {
       try {
-        const res = await generateShareLinkAction(client.id)
+        const res = await generateShareLinkAction(
+          client.id,
+          expiry === "never" ? null : Number(expiry),
+        )
         const isRotation = token !== null
         setToken(res.share_token)
         setCreatedAt(res.share_token_created_at)
+        setExpiresAt(res.share_token_expires_at)
         toast.success(
           isRotation
             ? "Link regenerated — the old link no longer works"
@@ -59,6 +88,7 @@ export function ShareLinkCard({ client }: { client: Client }) {
         await revokeShareLinkAction(client.id)
         setToken(null)
         setCreatedAt(null)
+        setExpiresAt(null)
         toast.success("Client view link revoked")
       } catch {
         toast.error("Could not revoke the client view link")
@@ -106,6 +136,10 @@ export function ShareLinkCard({ client }: { client: Client }) {
                 month: "short",
                 year: "numeric",
               })}
+              {" · "}
+              <span className={expiryStatus(expiresAt).expired ? "font-medium text-destructive" : undefined}>
+                {expiryStatus(expiresAt).text}
+              </span>
             </p>
           )}
           <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -122,7 +156,8 @@ export function ShareLinkCard({ client }: { client: Client }) {
               <span>Not opened by the client yet</span>
             )}
           </p>
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
+            <ExpirySelect value={expiry} onChange={setExpiry} disabled={isPending} />
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button type="button" variant="outline" size="sm" disabled={isPending}>
@@ -135,7 +170,8 @@ export function ShareLinkCard({ client }: { client: Client }) {
                   <AlertDialogTitle>Regenerate client view link?</AlertDialogTitle>
                   <AlertDialogDescription>
                     The old link will stop working immediately. You&apos;ll need
-                    to send the new link to the client.
+                    to send the new link to the client. The new link:{" "}
+                    {EXPIRY_OPTIONS.find((o) => o.value === expiry)?.label.toLowerCase()}.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -169,17 +205,39 @@ export function ShareLinkCard({ client }: { client: Client }) {
           </div>
         </>
       ) : (
-        <Button
-          type="button"
-          size="sm"
-          className="mt-3"
-          onClick={handleGenerate}
-          disabled={isPending}
-        >
-          <Link2 className="mr-1.5 h-3.5 w-3.5" />
-          Generate client view link
-        </Button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ExpirySelect value={expiry} onChange={setExpiry} disabled={isPending} />
+          <Button type="button" size="sm" onClick={handleGenerate} disabled={isPending}>
+            <Link2 className="mr-1.5 h-3.5 w-3.5" />
+            Generate client view link
+          </Button>
+        </div>
       )}
     </div>
+  )
+}
+
+function ExpirySelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  disabled: boolean
+}) {
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className="h-9 w-[170px] text-xs" aria-label="Link expiry">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {EXPIRY_OPTIONS.map((o) => (
+          <SelectItem key={o.value} value={o.value} className="text-xs">
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

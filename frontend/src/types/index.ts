@@ -47,6 +47,7 @@ export interface Client {
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
+  share_token_expires_at: string | null
   share_last_viewed_at: string | null
   share_view_count: number
   // GA4 property for automated AI-referral traffic sync; null = manual mode.
@@ -70,6 +71,7 @@ export interface Client {
 export interface ShareTokenResponse {
   share_token: string
   share_token_created_at: string
+  share_token_expires_at: string | null
 }
 
 export interface ClientListItem extends Client {

@@ -60,6 +60,9 @@ class Client(Base):
     # to re-copy the link from settings at any time. NULL = no active link.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Optional expiry for the view link. NULL = never expires. An expired link
+    # returns the same uniform 404 as a revoked one.
+    share_token_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     # When the client last opened their view link, and how many separate visits
     # they have made (a visit = an open more than SHARE_VIEW_VISIT_GAP_MINUTES
     # after the previous one). Admin previews are not counted. Admin-only.

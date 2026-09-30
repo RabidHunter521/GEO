@@ -2,7 +2,12 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.constants import SCAN_PLATFORMS, DEFAULT_SCAN_CADENCE_DAYS, INDUSTRY_PACK_KEYS
+from app.core.constants import (
+    SCAN_PLATFORMS,
+    DEFAULT_SCAN_CADENCE_DAYS,
+    INDUSTRY_PACK_KEYS,
+    SHARE_LINK_EXPIRY_DAYS_OPTIONS,
+)
 
 # Lightweight email check — full RFC validation needs the email-validator
 # package, which we deliberately avoid adding for an admin-entered field.
@@ -120,6 +125,7 @@ class ClientResponse(BaseModel):
     share_token: str | None = None
     ga4_property_id: str | None = None
     share_token_created_at: datetime | None = None
+    share_token_expires_at: datetime | None = None
     share_last_viewed_at: datetime | None = None
     share_view_count: int = 0
     created_at: datetime
@@ -140,9 +146,22 @@ class ClientResponse(BaseModel):
         return 0 if v is None else v
 
 
+class ShareTokenRequest(BaseModel):
+    # One of SHARE_LINK_EXPIRY_DAYS_OPTIONS, or None for a link that never expires.
+    expires_in_days: int | None = None
+
+    @field_validator("expires_in_days")
+    @classmethod
+    def _allowed_expiry(cls, v):
+        if v is not None and v not in SHARE_LINK_EXPIRY_DAYS_OPTIONS:
+            raise ValueError(f"expires_in_days must be one of {SHARE_LINK_EXPIRY_DAYS_OPTIONS} or null")
+        return v
+
+
 class ShareTokenResponse(BaseModel):
     share_token: str
     share_token_created_at: datetime
+    share_token_expires_at: datetime | None = None
 
 
 class ClientListItem(ClientResponse):

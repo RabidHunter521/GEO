@@ -318,7 +318,11 @@ def require_share_client(
     if not 20 <= len(token) <= 64:
         raise HTTPException(status_code=404, detail="Not found")
     client = db.query(Client).filter(Client.share_token == token).first()
-    if not client or client.archived_at is not None:
+    if (
+        not client
+        or client.archived_at is not None
+        or share_link_service.share_link_is_expired(client)
+    ):
         raise HTTPException(status_code=404, detail="Not found")
     return client
 

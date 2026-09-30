@@ -639,3 +639,7 @@ EVENT_LINK_ROUTES: Final = {
 # A client-view "visit": opens of the share link closer together than this
 # count as one visit (page navigation re-renders the view many times).
 SHARE_VIEW_VISIT_GAP_MINUTES: Final = 30
+
+# Expiry choices offered when generating a client view link (days).
+# None (not listed) = the link never expires.
+SHARE_LINK_EXPIRY_DAYS_OPTIONS: Final = (7, 30, 90)

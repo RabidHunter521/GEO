@@ -165,9 +165,13 @@ export function getCommandCenter(clientId: string): Promise<CommandCenter> {
   return apiFetch<CommandCenter>(`/api/v1/clients/${clientId}/command-center`)
 }
 
-export function generateShareToken(clientId: string): Promise<ShareTokenResponse> {
+export function generateShareToken(
+  clientId: string,
+  expiresInDays: number | null = null,
+): Promise<ShareTokenResponse> {
   return apiFetch<ShareTokenResponse>(`/api/v1/clients/${clientId}/share-token`, {
     method: "POST",
+    body: JSON.stringify({ expires_in_days: expiresInDays }),
   })
 }
 

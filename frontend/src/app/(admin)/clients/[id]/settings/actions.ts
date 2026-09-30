@@ -65,8 +65,8 @@ export async function updateTrafficAction(id: string, period: string, ai_visitor
   return snapshot
 }
 
-export async function generateShareLinkAction(id: string) {
-  const token = await generateShareToken(id)
+export async function generateShareLinkAction(id: string, expiresInDays: number | null = null) {
+  const token = await generateShareToken(id, expiresInDays)
   revalidatePath(`/clients/${id}`)
   revalidatePath(`/clients/${id}/settings`)
   return token
