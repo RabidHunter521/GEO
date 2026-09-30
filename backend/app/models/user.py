@@ -5,10 +5,11 @@ from sqlalchemy import Boolean, ForeignKey, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.constants import USER_ROLES
 from app.core.time import utcnow
 from app.models.base import Base
 
-USER_ROLES = ("owner", "staff")
+__all__ = ["User", "USER_ROLES"]
 
 
 class User(Base):

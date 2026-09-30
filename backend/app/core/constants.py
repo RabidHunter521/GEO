@@ -661,3 +661,19 @@ COMPANY_REGISTRATION_NUMBER: Final = "202603129117"
 COMPANY_IDENTITY_LINE: Final = (
     f"SeenBy is a service of {COMPANY_LEGAL_NAME} ({COMPANY_REGISTRATION_NUMBER})"
 )
+
+
+# ── Team accounts ────────────────────────────────────────────────────────────
+# owner: everything, incl. managing users, archiving clients, benchmark
+# publishing. staff: everything else (scans, reports, content work).
+USER_ROLES: Final = ("owner", "staff")
+USER_INVITE_TTL_HOURS: Final = 48
+USER_PASSWORD_MIN_LENGTH: Final = 12
+USER_PASSWORD_MAX_LENGTH: Final = 128
+# Consecutive failed logins before the account is locked, and for how long.
+USER_MAX_FAILED_LOGINS: Final = 5
+USER_LOCKOUT_MINUTES: Final = 15
+# Authenticator codes: 30 s steps, one step of clock drift either way.
+TOTP_STEP_SECONDS: Final = 30
+TOTP_DRIFT_STEPS: Final = 1
+TOTP_ISSUER: Final = "SeenBy"
