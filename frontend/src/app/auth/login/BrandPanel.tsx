@@ -22,8 +22,8 @@ const RING_CLASS: Record<ScoreColor, string> = {
 }
 const TEXT_CLASS: Record<ScoreColor, string> = {
   green: "text-score-strong",
-  yellow: "text-score-watch",
-  red: "text-score-low",
+  yellow: "text-score-watch-fg",
+  red: "text-score-low-fg",
 }
 const BAR_CLASS: Record<ScoreColor, string> = {
   green: "bar-strong",

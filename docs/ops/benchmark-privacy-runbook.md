@@ -187,8 +187,8 @@ git diff --check
 
 ### Requires a real Postgres — NOT runnable from this workspace
 
-`backend/.env` points at a real shared database (a stale Supabase copy — see
-CLAUDE.md §8), so none of the following may be run locally. Execute them in
+`backend/.env` may point at a real shared database (see CLAUDE.md §8), so none
+of the following may be run locally. Execute them in
 CI's throwaway Postgres or a scratch database. Note that this database is NOT
 production, so results from it prove nothing about prod either.
 

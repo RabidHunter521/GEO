@@ -77,8 +77,8 @@ const BAND_LABEL: Record<string, string> = {
 // label reinforces the ring color instead of floating as neutral text.
 const BAND_CHIP: Record<ScoreColor, string> = {
   green: "bg-score-strong-bg text-score-strong",
-  yellow: "bg-score-watch-bg text-score-watch",
-  red: "bg-score-low-bg text-score-low",
+  yellow: "bg-score-watch-bg text-score-watch-fg",
+  red: "bg-score-low-bg text-score-low-fg",
 }
 
 // Score-aware breakdown bar fill — a row of identical violet bars hides which
@@ -100,13 +100,13 @@ const PLATFORM_ACCENT_CLASS: Record<ScoreColor, string> = {
 }
 const PLATFORM_TEXT_CLASS: Record<ScoreColor, string> = {
   green: "text-score-strong",
-  yellow: "text-score-watch",
-  red: "text-score-low",
+  yellow: "text-score-watch-fg",
+  red: "text-score-low-fg",
 }
 
 const PRIORITY_CLASS: Record<string, string> = {
-  high: "bg-score-low-bg text-score-low border-score-low/25",
-  medium: "bg-score-watch-bg text-score-watch border-score-watch/30",
+  high: "bg-score-low-bg text-score-low-fg border-score-low/25",
+  medium: "bg-score-watch-bg text-score-watch-fg border-score-watch/30",
   low: "bg-muted text-muted-foreground border-border",
 }
 
@@ -505,7 +505,7 @@ export default async function ViewOverviewPage({
                         )}
                       </p>
                     </div>
-                    <ScoreBadge score={raw} />
+                    <ScoreBadge score={raw} showBand className="shrink-0" />
                   </div>
                   <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
@@ -567,7 +567,7 @@ export default async function ViewOverviewPage({
                     key={`${group.dimension}-${issue}`}
                     className="flex items-start gap-2 text-sm text-muted-foreground"
                   >
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-watch" />
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-score-watch-fg" />
                     {issue}
                   </li>
                 )),

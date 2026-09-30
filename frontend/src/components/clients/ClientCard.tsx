@@ -59,7 +59,7 @@ function DeltaIndicator({ client }: { client: ClientListItem }) {
     <span
       className={cn(
         "text-xs font-semibold tabular-nums",
-        rounded > 0 ? "text-score-strong" : "text-score-low",
+        rounded > 0 ? "text-score-strong" : "text-score-low-fg",
       )}
     >
       {rounded > 0 ? `+${rounded}` : `${rounded}`}

@@ -44,19 +44,20 @@ automatically, reachable only from other services in the same project.
   `start-web.sh`) — do **not** run them by hand.
 
 > ⚠️ **Production does NOT use Supabase.** Earlier revisions of this runbook
-> said it did, and a stale Supabase project (`gppajyntiadezlbbmkry`) still
-> exists holding a divergent copy of the data — different clients, and an
-> Alembic revision behind. It is not referenced by any service. Reading it to
-> answer a question about production gives wrong answers; this cost a full
-> debugging cycle on 2026-09-09. To query production, go through the container:
+> said it did. A stale Supabase project (`gppajyntiadezlbbmkry`) held a
+> divergent copy of the data and was referenced by no service; it is being
+> decommissioned (dumped, then deleted — 2026-09-30). Reading it to answer a
+> question about production gave wrong answers and cost a full debugging cycle
+> on 2026-09-09. To query production, go through the container:
 >
 > ```bash
 > railway ssh -s api -- alembic current      # must equal `alembic heads`
 > railway ssh -s api -- "python -c \"...\""  # args are joined into a remote bash -c, so pre-quote
 > ```
 >
-> `backend/.env` may still point at the stale Supabase. Treat any local run
-> against it as a local run, never as production.
+> An old `backend/.env` may still have a `*.supabase.com` `DATABASE_URL`.
+> Replace it with a local Postgres; a local run is never evidence about
+> production.
 
 ### 1.2 Cloudflare R2 (two buckets)
 - Bucket `seenby-reports` → **public access OFF**. (PDFs served only via

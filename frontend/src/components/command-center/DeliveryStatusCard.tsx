@@ -20,7 +20,7 @@ export function DeliveryStatusCard({ summary, clientId }: Props) {
 
   return (
     <div className="rounded-lg border bg-card p-5">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
         Delivery Status
       </h2>
       <div className="space-y-1">

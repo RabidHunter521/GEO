@@ -32,6 +32,9 @@ export interface Client {
   country: string | null
   phone: string | null
   contact_email: string | null
+  // Admin-only legal identity (SSM). Never shown in the client view.
+  legal_name: string | null
+  registration_number: string | null
   logo_url: string | null
   brand_authority_score: number
   brand_authority_evidence: string | null
@@ -47,6 +50,9 @@ export interface Client {
   enabled_platforms: Platform[]
   share_token: string | null
   share_token_created_at: string | null
+  share_token_expires_at: string | null
+  share_last_viewed_at: string | null
+  share_view_count: number
   // GA4 property for automated AI-referral traffic sync; null = manual mode.
   ga4_property_id: string | null
   created_at: string
@@ -68,6 +74,7 @@ export interface Client {
 export interface ShareTokenResponse {
   share_token: string
   share_token_created_at: string
+  share_token_expires_at: string | null
 }
 
 export interface ClientListItem extends Client {

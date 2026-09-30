@@ -117,6 +117,8 @@ export function updateClient(
       | "enabled_platforms"
       | "is_prospect"
       | "internal_notes"
+      | "legal_name"
+      | "registration_number"
       | "ga4_property_id"
       | "benchmark_opt_out"
     >
@@ -165,9 +167,13 @@ export function getCommandCenter(clientId: string): Promise<CommandCenter> {
   return apiFetch<CommandCenter>(`/api/v1/clients/${clientId}/command-center`)
 }
 
-export function generateShareToken(clientId: string): Promise<ShareTokenResponse> {
+export function generateShareToken(
+  clientId: string,
+  expiresInDays: number | null = null,
+): Promise<ShareTokenResponse> {
   return apiFetch<ShareTokenResponse>(`/api/v1/clients/${clientId}/share-token`, {
     method: "POST",
+    body: JSON.stringify({ expires_in_days: expiresInDays }),
   })
 }
 

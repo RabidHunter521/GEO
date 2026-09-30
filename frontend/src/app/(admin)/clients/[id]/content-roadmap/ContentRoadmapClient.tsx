@@ -27,8 +27,8 @@ interface Props {
 }
 
 const PRIORITY_STYLE: Record<string, string> = {
-  high: "border-score-low/30 bg-score-low-bg text-score-low",
-  medium: "border-score-watch/30 bg-score-watch-bg text-score-watch",
+  high: "border-score-low/30 bg-score-low-bg text-score-low-fg",
+  medium: "border-score-watch/30 bg-score-watch-bg text-score-watch-fg",
   low: "border-muted-foreground/30 text-muted-foreground",
 }
 
@@ -102,7 +102,7 @@ function RoadmapItemCard({
             <p className="text-xs text-muted-foreground leading-relaxed">{item.rationale}</p>
           )}
           {item.competitors_winning.length > 0 && (
-            <p className="text-xs text-score-low">
+            <p className="text-xs text-score-low-fg">
               Your competitors are winning here: {item.competitors_winning.join(", ")}
             </p>
           )}

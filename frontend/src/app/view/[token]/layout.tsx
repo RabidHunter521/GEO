@@ -4,7 +4,10 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { ExternalLink } from "lucide-react"
-import { getViewOverview } from "@/lib/view-api"
+import { getViewOverview, recordViewVisit } from "@/lib/view-api"
+import { auth } from "../../../../auth"
+import { isAuthenticatedAdmin } from "@/lib/session-guard"
+import { COMPANY_IDENTITY_LINE } from "@/lib/company"
 import { ViewTabs } from "@/components/view/ViewTabs"
 
 export const dynamic = "force-dynamic"
@@ -31,11 +34,21 @@ export default async function ClientViewLayout({
     notFound()
   }
 
+  // An admin opening the link (e.g. to check it before sending) must not show
+  // up as "the client opened it".
+  await recordViewVisit(token, isAuthenticatedAdmin(await auth()))
+
   const { profile } = overview
   const host = profile.website?.replace(/^https?:\/\//, "").replace(/\/$/, "")
 
   return (
-    <div className="min-h-screen bg-app-wash">
+    <div className="client-view min-h-screen bg-app-wash">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-3 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <header className="border-b bg-card">
         <div className="mx-auto max-w-[1400px] px-4 pt-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
@@ -88,7 +101,9 @@ export default async function ClientViewLayout({
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</main>
+      <main id="main-content" tabIndex={-1} className="mx-auto max-w-[1400px] px-4 py-6 outline-none sm:px-6">
+        {children}
+      </main>
 
       <footer className="border-t py-6">
         <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
@@ -105,6 +120,7 @@ export default async function ClientViewLayout({
           </a>{" "}
           — AI visibility tracking
         </p>
+        <p className="mt-1 text-center text-xs text-muted-foreground">{COMPANY_IDENTITY_LINE}</p>
       </footer>
     </div>
   )

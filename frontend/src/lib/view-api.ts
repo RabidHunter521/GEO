@@ -111,3 +111,21 @@ export function getViewBenchmarks(token: string): Promise<BenchmarkComparisonPub
 export function getViewMethodology(token: string): Promise<ClientViewMethodology | null> {
   return viewFetch<ClientViewMethodology>(token, "/methodology")
 }
+
+/**
+ * Tell the API the client opened their view (drives "Client last opened the
+ * link 2 days ago" in admin). Admin previews pass `adminPreview` and are not
+ * counted. Best-effort: never throws, never blocks the page for long.
+ */
+export async function recordViewVisit(token: string, adminPreview: boolean): Promise<void> {
+  try {
+    await fetch(`${BASE}/api/v1/view/${encodeURIComponent(token)}/visit`, {
+      method: "POST",
+      cache: "no-store",
+      headers: adminPreview ? { "X-SeenBy-Admin-Preview": "1" } : undefined,
+      signal: AbortSignal.timeout(2000),
+    })
+  } catch {
+    // Tracking must never break the client view.
+  }
+}

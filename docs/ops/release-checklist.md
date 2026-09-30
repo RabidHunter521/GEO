@@ -28,8 +28,8 @@ the per-phase **gate**: what must be true before that runbook is started.
 - [ ] Single Alembic head
 - [ ] Migration verified statically (`test_*_migration.py`) — a local
       `alembic upgrade` is **not** acceptable, and is not evidence about
-      production either: `backend/.env` points at a stale Supabase copy, not
-      the Railway database production uses. Confirm with
+      production either: `backend/.env` is never the Railway database
+      production uses. Confirm with
       `railway ssh -s api -- alembic current`
 - [ ] Downgrade is symmetric and drops tables in FK-safe order
 - [ ] Every new table does `ENABLE ROW LEVEL SECURITY`

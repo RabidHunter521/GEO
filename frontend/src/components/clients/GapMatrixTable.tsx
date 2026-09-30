@@ -89,7 +89,7 @@ function CellContent({ cell }: { cell: GapCell | undefined }) {
     const competitorVisibility = cell.top_competitor_visibility ?? 0
     const gap = competitorVisibility - cell.client_visibility
     const severe = gap >= SEVERE_GAP_PTS
-    const gapColor = severe ? "text-score-low" : "text-score-watch"
+    const gapColor = severe ? "text-score-low-fg" : "text-score-watch-fg"
     return (
       <div className="flex flex-col gap-1">
         <span className={cn("flex items-center gap-1.5 font-medium text-xs", gapColor)}>
@@ -115,7 +115,7 @@ function CellContent({ cell }: { cell: GapCell | undefined }) {
             <span
               className={cn(
                 "ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
-                severe ? "bg-score-low-bg text-score-low" : "bg-score-watch-bg text-score-watch",
+                severe ? "bg-score-low-bg text-score-low-fg" : "bg-score-watch-bg text-score-watch-fg",
               )}
             >
               −{Math.round(gap)}pts
@@ -135,7 +135,7 @@ function CellContent({ cell }: { cell: GapCell | undefined }) {
     <div className="flex flex-col gap-1">
       <span
         className={`flex items-center gap-1.5 font-medium text-xs ${
-          seen ? "text-score-strong" : "text-score-watch"
+          seen ? "text-score-strong" : "text-score-watch-fg"
         }`}
       >
         {seen ? (

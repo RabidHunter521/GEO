@@ -8,10 +8,9 @@ Single-VPS deploy via Docker Compose. Postgres stays on your managed database,
 files stay on Cloudflare R2 — this VPS only runs compute: frontend, backend
 API, Celery worker, Celery beat, Redis, and Caddy (reverse proxy + auto TLS).
 
-> The managed database is the Railway `Postgres` service, **not** Supabase. A
-> stale Supabase project still exists holding a divergent copy; pointing a
-> `.env.production` at it would run this VPS against the wrong data. See
-> CLAUDE.md §8.
+> The managed database is the Railway `Postgres` service, **not** Supabase. An
+> old Supabase project with a divergent copy is being decommissioned; never
+> point a `.env.production` at a `*.supabase.com` host. See CLAUDE.md §8.
 
 Repo files this relies on: `docker-compose.yml`, `Caddyfile`,
 `backend/.env.production.example`, `frontend/.env.production.example`,

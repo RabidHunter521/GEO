@@ -9,13 +9,13 @@ import type { MetricValue } from "@/types"
 
 const SCORE_COLOR_CLASS: Record<string, string> = {
   green: "text-score-strong",
-  yellow: "text-score-watch",
-  red: "text-score-low",
+  yellow: "text-score-watch-fg",
+  red: "text-score-low-fg",
 }
 
 const DELTA_COLOR_CLASS: Record<DeltaDirection, string> = {
   up: "text-score-strong",
-  down: "text-score-watch",
+  down: "text-score-watch-fg",
   flat: "text-muted-foreground/70",
 }
 
@@ -47,7 +47,7 @@ export function OutcomeMetricCard({ label, metric, variant, unit = "", deltaUnit
 
   return (
     <div className="rounded-lg border bg-card p-4">
-      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">{label}</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
       {value === null ? (
         <p className="mt-2 font-display text-2xl font-semibold text-muted-foreground">—</p>
       ) : (

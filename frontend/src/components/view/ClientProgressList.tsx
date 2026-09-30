@@ -16,12 +16,12 @@ type Status = ClientViewProgressItem["status"]
 
 const STATUS_STYLE: Record<Status, { chip: string; icon: typeof CheckCircle2; label: string }> = {
   flagged: {
-    chip: "bg-score-low-bg text-score-low border-score-low/25",
+    chip: "bg-score-low-bg text-score-low-fg border-score-low/25",
     icon: AlertTriangle,
     label: "Flagged",
   },
   in_progress: {
-    chip: "bg-score-watch-bg text-score-watch border-score-watch/30",
+    chip: "bg-score-watch-bg text-score-watch-fg border-score-watch/30",
     icon: Loader2,
     label: "In progress",
   },

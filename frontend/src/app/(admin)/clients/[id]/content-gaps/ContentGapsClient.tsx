@@ -21,12 +21,12 @@ const STATUS_STYLE = {
   },
   weak: {
     label: "Weak topics",
-    badge: "border-score-watch/30 bg-score-watch-bg text-score-watch",
+    badge: "border-score-watch/30 bg-score-watch-bg text-score-watch-fg",
     help: "Covered briefly — worth expanding.",
   },
   missing: {
     label: "Missing topics",
-    badge: "border-score-low/30 bg-score-low-bg text-score-low",
+    badge: "border-score-low/30 bg-score-low-bg text-score-low-fg",
     help: "Not covered yet — your biggest content opportunities.",
   },
 } as const
@@ -156,7 +156,7 @@ export function ContentGapsClient({ clientId, initialAnalysis }: Props) {
                   <p className="text-xs text-muted-foreground mt-0.5 mb-3">{meta.help}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {topics.length === 0 ? (
-                      <span className="text-xs text-muted-foreground/60">None</span>
+                      <span className="text-xs text-muted-foreground">None</span>
                     ) : (
                       topics.map((t) => (
                         <Badge
@@ -187,10 +187,10 @@ export function ContentGapsClient({ clientId, initialAnalysis }: Props) {
               <div className="space-y-3">
                 {suggestions.map((s: SuggestedContentItem, i: number) => (
                   <div key={`${s.topic}-${i}`} className="rounded-md border bg-muted/10 px-4 py-3 flex gap-3">
-                    <Lightbulb className="h-4 w-4 shrink-0 text-score-watch mt-0.5" />
+                    <Lightbulb className="h-4 w-4 shrink-0 text-score-watch-fg mt-0.5" />
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="border-score-low/30 bg-score-low-bg text-score-low">
+                        <Badge variant="outline" className="border-score-low/30 bg-score-low-bg text-score-low-fg">
                           {s.topic}
                         </Badge>
                         <p className="text-sm font-medium">{s.title}</p>
@@ -258,7 +258,7 @@ export function ContentGapsClient({ clientId, initialAnalysis }: Props) {
             )}
             {analysis.content_quality_recommendation && (
               <div className="rounded-md border bg-muted/10 px-4 py-3 flex gap-3">
-                <Lightbulb className="h-4 w-4 shrink-0 text-score-watch mt-0.5" />
+                <Lightbulb className="h-4 w-4 shrink-0 text-score-watch-fg mt-0.5" />
                 <div>
                   <p className="text-sm font-medium">SeenBy content recommendation</p>
                   <p className="text-sm text-muted-foreground leading-relaxed mt-1">

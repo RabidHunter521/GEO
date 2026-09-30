@@ -4,8 +4,8 @@ import type { QueryStabilityEntry, StabilityState } from "@/types"
 const STATE_CONFIG: Record<StabilityState, { label: string; color: string; bg: string }> = {
   stable:       { label: "Stable",            color: "text-score-strong", bg: "bg-score-strong-bg" },
   repeated:     { label: "Repeated",          color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-950/30" },
-  emerging:     { label: "Emerging",          color: "text-score-watch",  bg: "bg-score-watch-bg" },
-  volatile:     { label: "Volatile",          color: "text-score-low",    bg: "bg-score-low-bg" },
+  emerging:     { label: "Emerging",          color: "text-score-watch-fg",  bg: "bg-score-watch-bg" },
+  volatile:     { label: "Volatile",          color: "text-score-low-fg",    bg: "bg-score-low-bg" },
   insufficient: { label: "Insufficient data", color: "text-muted-foreground", bg: "bg-muted" },
 }
 
@@ -90,7 +90,7 @@ export function StabilityCard({
         })}
       </div>
 
-      <p className="mt-3 text-[10px] text-muted-foreground/60">
+      <p className="mt-3 text-xs text-muted-foreground">
         {version}
       </p>
     </div>

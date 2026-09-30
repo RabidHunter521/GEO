@@ -54,6 +54,11 @@ from app.services.guarantee_service import get_client_commitment
 from app.services.headline_battle_service import select_headline_battle
 from app.services.benchmark_service import compute_industry_benchmark
 from app.core.constants import REMEDIATION_STATUS_LABELS
+from app.core.constants import (
+    COMPANY_IDENTITY_LINE,
+    COMPANY_LEGAL_NAME,
+    COMPANY_REGISTRATION_NUMBER,
+)
 from app.prompts.report import build_change_narrative
 from app.services.language_sanitizer import sanitize_text as _sanitize_text
 from app.services.methodology_service import build_methodology
@@ -85,6 +90,9 @@ logger = structlog.get_logger()
 # render — no network fetch of a static asset mid-generation.
 _LOGO_FILE = Path(__file__).resolve().parent.parent / "assets" / "logo-64.png"
 _LOGO_B64 = base64.b64encode(_LOGO_FILE.read_bytes()).decode("ascii")
+
+# SSM identity line for every client-facing footer (constants.COMPANY_*).
+_COMPANY_IDENTITY_HTML = html.escape(COMPANY_IDENTITY_LINE)
 
 # ── CSS ─────────────────────────────────────────────────────────────────────
 
@@ -145,11 +153,11 @@ _CSS = """
     font-family: 'Inter', -apple-system, sans-serif;
     font-size: 8pt;
     color: #94a3b8;
-    content: "Confidential";
+    content: "Confidential \\00B7  {company_identity_css}";
     padding-left: 2cm;
     vertical-align: middle;
     border-top: 1px solid #e2e8f0;
-    width: 50%;
+    width: 70%;
   }
   @bottom-right {
     box-sizing: border-box;
@@ -161,7 +169,7 @@ _CSS = """
     vertical-align: middle;
     text-align: right;
     border-top: 1px solid #e2e8f0;
-    width: 50%;
+    width: 30%;
   }
 }
 
@@ -380,7 +388,9 @@ td:first-child { font-weight: 600; }
 .won-back-note { font-size: 10pt; color: #166534; font-weight: 600; margin-bottom: 10px; }
 .report-footer { margin-top: 40px; font-size: 8pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; align-items: flex-start; gap: 8px; }
 .report-footer-logo { width: 14px; height: 14px; border-radius: 4px; margin-top: 1px; flex-shrink: 0; }
-"""
+""".replace(
+    "{company_identity_css}", f"{COMPANY_LEGAL_NAME} ({COMPANY_REGISTRATION_NUMBER})"
+)
 
 
 @dataclass
@@ -2153,7 +2163,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
   {f'<p class="cover-narrative">{safe_narrative}</p>' if safe_narrative else ""}
 
   <div class="cover-footer">
-    Report generated {generated_date} &middot; contact@seenby.my
+    Report generated {generated_date} &middot; contact@seenby.my<br>
+    {_COMPANY_IDENTITY_HTML}
   </div>
 </div>
 
@@ -2241,7 +2252,8 @@ def _build_report_html(client: Client, data: ReportData) -> str:
   <img src="data:image/png;base64,{_LOGO_B64}" alt="" class="report-footer-logo">
   <p style="margin:0;">
     This report was generated automatically by SeenBy. Manual dimension scores (Brand Authority,
-    Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my
+    Content Quality) are assessed by the SeenBy team. Contact: contact@seenby.my<br>
+    {_COMPANY_IDENTITY_HTML}
   </p>
 </div>
 
@@ -2383,7 +2395,8 @@ def _build_scorecard_html(
 
   <div class="sc-foot">
     AI visibility across ChatGPT, Perplexity, Gemini and Claude.
-    Tracked by SeenBy &middot; contact@seenby.my
+    Tracked by SeenBy &middot; contact@seenby.my<br>
+    {_COMPANY_IDENTITY_HTML}
   </div>
 </body>
 </html>"""
@@ -2572,7 +2585,8 @@ def _build_report_email_html(client: Client, report: Report, period_label: str) 
                     border-top:1px solid #f3f4f6;padding-top:16px;">
             Tracked by SeenBy &middot;
             <a href="mailto:contact@seenby.my"
-               style="color:#9ca3af;text-decoration:none;">contact@seenby.my</a>
+               style="color:#9ca3af;text-decoration:none;">contact@seenby.my</a><br>
+            {_COMPANY_IDENTITY_HTML}
           </p>
         </td></tr>
       </table>

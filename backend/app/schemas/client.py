@@ -2,7 +2,12 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
-from app.core.constants import SCAN_PLATFORMS, DEFAULT_SCAN_CADENCE_DAYS, INDUSTRY_PACK_KEYS
+from app.core.constants import (
+    SCAN_PLATFORMS,
+    DEFAULT_SCAN_CADENCE_DAYS,
+    INDUSTRY_PACK_KEYS,
+    SHARE_LINK_EXPIRY_DAYS_OPTIONS,
+)
 
 # Lightweight email check — full RFC validation needs the email-validator
 # package, which we deliberately avoid adding for an admin-entered field.
@@ -47,6 +52,12 @@ class ClientUpdate(BaseModel):
     enabled_platforms: list[str] | None = None
     is_prospect: bool | None = None
     internal_notes: str | None = None
+    legal_name: str | None = Field(default=None, max_length=255)
+    # SSM formats: 12-digit new format, optionally with the old number in
+    # brackets, e.g. "202301012345 (1501234-X)".
+    registration_number: str | None = Field(
+        default=None, max_length=64, pattern=r"^[0-9A-Za-z()\- ]*$"
+    )
     # GA4 property id (digits) for AI-referral traffic sync; None = manual mode.
     ga4_property_id: str | None = Field(default=None, max_length=32)
     # Industry intelligence pack. `industry_pack_version` is deliberately ABSENT:
@@ -120,10 +131,15 @@ class ClientResponse(BaseModel):
     share_token: str | None = None
     ga4_property_id: str | None = None
     share_token_created_at: datetime | None = None
+    share_token_expires_at: datetime | None = None
+    share_last_viewed_at: datetime | None = None
+    share_view_count: int = 0
     created_at: datetime
     archived_at: datetime | None = None
     is_prospect: bool = False
     internal_notes: str | None = None
+    legal_name: str | None = None
+    registration_number: str | None = None
     industry_pack: str | None = None
     industry_subcategory: str | None = None
     industry_pack_version: str | None = None
@@ -131,10 +147,29 @@ class ClientResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
+    @field_validator("share_view_count", mode="before")
+    @classmethod
+    def _unflushed_count_is_zero(cls, v):
+        # A just-created, not-yet-flushed Client has no column default applied.
+        return 0 if v is None else v
+
+
+class ShareTokenRequest(BaseModel):
+    # One of SHARE_LINK_EXPIRY_DAYS_OPTIONS, or None for a link that never expires.
+    expires_in_days: int | None = None
+
+    @field_validator("expires_in_days")
+    @classmethod
+    def _allowed_expiry(cls, v):
+        if v is not None and v not in SHARE_LINK_EXPIRY_DAYS_OPTIONS:
+            raise ValueError(f"expires_in_days must be one of {SHARE_LINK_EXPIRY_DAYS_OPTIONS} or null")
+        return v
+
 
 class ShareTokenResponse(BaseModel):
     share_token: str
     share_token_created_at: datetime
+    share_token_expires_at: datetime | None = None
 
 
 class ClientListItem(ClientResponse):

@@ -126,7 +126,7 @@ export function ClientFilterBar({ clients, filters, onChange, visibleCount }: Pr
         className="h-9 gap-1.5 text-sm"
         onClick={() => set("scanDue", !filters.scanDue)}
       >
-        <AlertCircle className={cn("h-3.5 w-3.5", filters.scanDue ? "text-score-watch" : "text-muted-foreground")} />
+        <AlertCircle className={cn("h-3.5 w-3.5", filters.scanDue ? "text-score-watch-fg" : "text-muted-foreground")} />
         Scan due
       </Button>
 

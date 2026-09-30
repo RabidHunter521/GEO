@@ -138,7 +138,7 @@ function AIReadinessRow({
             : "No schema markup"}
         </span>
         {site.blocked_ai_bots.length > 0 && (
-          <span className="flex items-center gap-1.5 rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 text-score-watch">
+          <span className="flex items-center gap-1.5 rounded-full border border-score-watch/30 bg-score-watch-bg px-2.5 py-1 text-score-watch-fg">
             <ShieldAlert className="h-3.5 w-3.5" />
             Blocks: {site.blocked_ai_bots.join(", ")}
           </span>

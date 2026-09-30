@@ -16,7 +16,7 @@ import type { PageAudit, PageAuditListItem } from "@/types"
 
 const SCORE_CLASSES: Record<string, string> = {
   green: "border-score-strong/30 bg-score-strong-bg text-score-strong",
-  yellow: "border-score-watch/30 bg-score-watch-bg text-score-watch",
+  yellow: "border-score-watch/30 bg-score-watch-bg text-score-watch-fg",
   red: "border-destructive/30 bg-destructive/10 text-destructive",
 }
 
@@ -34,7 +34,7 @@ function ScoreChip({ score }: { score: number }) {
 
 function StatusIcon({ status }: { status: "pass" | "warn" | "fail" }) {
   if (status === "pass") return <CheckCircle className="h-3.5 w-3.5 text-score-strong shrink-0" />
-  if (status === "warn") return <AlertTriangle className="h-3.5 w-3.5 text-score-watch shrink-0" />
+  if (status === "warn") return <AlertTriangle className="h-3.5 w-3.5 text-score-watch-fg shrink-0" />
   return <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
 }
 

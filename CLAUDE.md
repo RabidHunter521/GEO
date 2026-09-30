@@ -173,11 +173,13 @@ Admin alerts (score drop / competitor overtake / hallucination):
 **Production Postgres is a Railway service, NOT Supabase.** `api`, `worker`
 and `beat` all connect to `postgres.railway.internal:5432/railway`.
 
-A stale Supabase project (`gppajyntiadezlbbmkry`) still exists and is
-referenced by no service. It holds a *divergent* copy — different client rows
-in both directions, and one Alembic revision behind. **`backend/.env` may
-still point at it**, so a local run "against prod" silently reads the wrong
-database. That produced a confidently wrong diagnosis on 2026-09-09.
+A stale Supabase project (`gppajyntiadezlbbmkry`), referenced by no service,
+held a *divergent* copy — different client rows in both directions, and one
+Alembic revision behind. It produced a confidently wrong diagnosis on
+2026-09-09. Decommissioning started 2026-09-30: repo references removed; Faris
+dumps it, then deletes it. Until then, and on any machine whose `backend/.env`
+still has a `*.supabase.com` URL, a local run "against prod" silently reads
+the wrong database.
 
 To answer any question about production, go through the container:
 

@@ -60,10 +60,26 @@ class Client(Base):
     # to re-copy the link from settings at any time. NULL = no active link.
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True, index=True)
     share_token_created_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Optional expiry for the view link. NULL = never expires. An expired link
+    # returns the same uniform 404 as a revoked one.
+    share_token_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # When the client last opened their view link, and how many separate visits
+    # they have made (a visit = an open more than SHARE_VIEW_VISIT_GAP_MINUTES
+    # after the previous one). Admin previews are not counted. Admin-only.
+    share_last_viewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    share_view_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     # GA4 property for automated AI-referral traffic sync. NULL = manual mode.
     ga4_property_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     archived_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Registered legal entity (e.g. "Klinik Acme Sdn. Bhd.") and SSM number.
+    # Admin-only: used for invoicing/contracts and emitted in the client's
+    # schema.json (legalName / identifier) to help AI models resolve the right
+    # entity. Never exposed in the client view and never used in scan queries.
+    legal_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    registration_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Free-text admin notes (CRM-style). Admin-only — never exposed in client view.
     internal_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Prospect = a not-yet-paying lead scanned for cold outreach. Kept out of

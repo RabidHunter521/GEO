@@ -89,14 +89,14 @@ export function PeriodSummary({ summary, hasEvidence, hasProgress, hasActions }:
               title="Risks"
               items={summary.risks}
               icon={AlertTriangle}
-              iconClass="text-score-low"
+              iconClass="text-score-low-fg"
               evidence={hasProgress ? { href: "#progress", label: "View evidence" } : undefined}
             />
             <ListBlock
               title="Work Underway"
               items={summary.work_underway}
               icon={Loader2}
-              iconClass="text-score-watch"
+              iconClass="text-score-watch-fg"
               evidence={hasProgress ? { href: "#progress", label: "View evidence" } : undefined}
             />
             <ListBlock

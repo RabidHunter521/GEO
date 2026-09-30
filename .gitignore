@@ -51,3 +51,6 @@ graphify-out/
 /*.pdf
 /snap-*.yml
 docs/ops/pre-migration-backups/
+
+# Local Redis snapshots
+dump.rdb

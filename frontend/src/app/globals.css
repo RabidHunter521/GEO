@@ -42,6 +42,13 @@
     --score-strong-bg: 152 55% 94%;
     --score-watch-bg: 38 90% 94%;
     --score-low-bg: 0 80% 96%;
+    /* TEXT variants. The fills above are tuned to read as a traffic light in
+       bars and rings, but amber and red text at those lightnesses fail WCAG
+       AA (2.5:1 and 4.35:1 on white). These clear 4.5:1 on both white and
+       their own -bg tint (amber 5.6/5.1, red 5.9/5.2). Use text-score-*-fg
+       for any text; the plain tokens stay for fills and borders. */
+    --score-watch-fg: 32 92% 32%;
+    --score-low-fg: 0 75% 44%;
 
     /* Soft brand shadow for elevated surfaces */
     --shadow-brand: 0 8px 30px -12px hsl(250 90% 60% / 0.18);
@@ -163,6 +170,14 @@
   .bar-watch  { background-color: hsl(var(--score-watch)); }
   .bar-low    { background-color: hsl(var(--score-low)); }
   .bar-primary { background-color: hsl(var(--primary)); }
+
+  /* Client view (/view/[token]): body copy is at least 16px. text-sm (14px)
+     is the admin panel's density; clients mostly read on phones. Captions and
+     meta (text-xs) stay small by design. */
+  .client-view .text-sm {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
 
   /* Hide the scrollbar on a horizontally-scrollable strip (e.g. mobile tab
      bars) while keeping it scrollable — the edge-fade gradients are the

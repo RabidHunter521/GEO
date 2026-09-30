@@ -15,7 +15,7 @@ from app.core.constants import ASSESSABLE_DIMENSIONS
 from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
-from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem, ShareTokenResponse
+from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem, ShareTokenRequest, ShareTokenResponse
 from app.schemas.geo_score import GeoScoreResponse
 from app.schemas.benchmark import IndustryBenchmarkResponse
 from app.schemas.assessment import AcceptRequest, AssessmentResponse
@@ -255,14 +255,19 @@ def archive_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
     response_model=ShareTokenResponse,
     dependencies=[Depends(require_api_key)],
 )
-def create_or_rotate_share_token(client_id: uuid.UUID, db: Session = Depends(get_db)):
+def create_or_rotate_share_token(
+    client_id: uuid.UUID,
+    body: ShareTokenRequest | None = None,
+    db: Session = Depends(get_db),
+):
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    generate_share_token(c, db)
+    generate_share_token(c, db, expires_in_days=body.expires_in_days if body else None)
     return ShareTokenResponse(
         share_token=c.share_token,
         share_token_created_at=c.share_token_created_at,
+        share_token_expires_at=c.share_token_expires_at,
     )
 
 

@@ -54,6 +54,8 @@ const config: Config = {
           strong: "hsl(var(--score-strong))",
           watch: "hsl(var(--score-watch))",
           low: "hsl(var(--score-low))",
+          "watch-fg": "hsl(var(--score-watch-fg))",
+          "low-fg": "hsl(var(--score-low-fg))",
           "strong-bg": "hsl(var(--score-strong-bg))",
           "watch-bg": "hsl(var(--score-watch-bg))",
           "low-bg": "hsl(var(--score-low-bg))",

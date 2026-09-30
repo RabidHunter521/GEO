@@ -10,7 +10,8 @@ import ipaddress
 from datetime import date, datetime, timedelta
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
+import structlog
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
 
@@ -42,6 +43,7 @@ from app.schemas.business_impact import ImpactSummaryPublic
 from app.schemas.benchmark_comparison import BenchmarkComparisonPublic
 from app.services import benchmark_comparison_service
 from app.services import methodology_service
+from app.services import share_link_service
 from app.services.benchmark_period import default_benchmark_period
 from app.schemas.client_view import (
     ClientViewBenchmark,
@@ -303,6 +305,9 @@ def _verification_claim(action: OutcomeAction) -> str | None:
     return claim if isinstance(claim, str) and claim.strip() else None
 
 
+logger = structlog.get_logger()
+
+
 def require_share_client(
     token: str = Path(...),
     db: Session = Depends(get_db),
@@ -313,7 +318,11 @@ def require_share_client(
     if not 20 <= len(token) <= 64:
         raise HTTPException(status_code=404, detail="Not found")
     client = db.query(Client).filter(Client.share_token == token).first()
-    if not client or client.archived_at is not None:
+    if (
+        not client
+        or client.archived_at is not None
+        or share_link_service.share_link_is_expired(client)
+    ):
         raise HTTPException(status_code=404, detail="Not found")
     return client
 
@@ -331,6 +340,7 @@ def require_non_prospect_share_client(
 def _view_headers(response: Response) -> None:
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    response.headers["Referrer-Policy"] = "no-referrer"
 
 
 # Per-IP budget across the whole view surface. A normal page load hits several
@@ -348,6 +358,25 @@ router = APIRouter(
     tags=["client-view"],
     dependencies=[Depends(_view_headers), Depends(_view_rate_limit)],
 )
+
+
+@router.post("/visit", status_code=204)
+def record_visit(
+    client: Client = Depends(require_share_client),
+    db: Session = Depends(get_db),
+    x_seenby_admin_preview: str | None = Header(default=None),
+):
+    """Called by the view shell on each page render so the admin can see when
+    the client last opened their link. Admin previews send the preview header
+    and are not counted. Best-effort: a failure never breaks the client view."""
+    if x_seenby_admin_preview:
+        return Response(status_code=204)
+    try:
+        share_link_service.record_share_view(client, db)
+    except Exception:  # noqa: BLE001 — tracking must never break the view
+        db.rollback()
+        logger.warning("share_view_record_failed", client_id=str(client.id))
+    return Response(status_code=204)
 
 
 @router.get("/overview", response_model=ClientViewOverview)
