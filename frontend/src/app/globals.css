@@ -50,6 +50,9 @@
     /* Sidebar — slightly tinted off-white, distinct from main bg */
     --sidebar-bg: 252 50% 98%;
     --sidebar-border: 252 30% 89%;
+
+    /* Near-black brand ink — the landing page's (seenby.my) dark surface */
+    --brand-ink: 0 0% 3%;
   }
 }
 
@@ -126,6 +129,21 @@
     box-shadow: var(--shadow-brand);
   }
 
+  /* Dark brand surface with violet glow — mirrors the landing page hero.
+     Used by the login brand panel. */
+  .bg-brand-panel {
+    background-color: hsl(var(--brand-ink));
+    background-image:
+      radial-gradient(40rem 32rem at 110% -10%, hsl(250 90% 60% / 0.45), transparent 60%),
+      radial-gradient(36rem 30rem at -20% 110%, hsl(272 85% 62% / 0.30), transparent 60%);
+  }
+
+  /* Slow ambient drift for decorative background blobs. Disabled under
+     reduced motion (see below). */
+  .animate-drift {
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+
   /* Stronger shadow for hero/feature surfaces */
   .shadow-brand-lg {
     box-shadow: var(--shadow-brand-lg);
@@ -157,6 +175,15 @@
   }
 }
 
+@keyframes drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(6rem, 4rem) scale(1.15);
+  }
+}
+
 @keyframes reveal-up {
   from {
     opacity: 0;
@@ -174,6 +201,9 @@
   .reveal {
     animation: none;
     opacity: 1;
+  }
+  .animate-drift {
+    animation: none;
   }
   .card-lift {
     transition: none;
