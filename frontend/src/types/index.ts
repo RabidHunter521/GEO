@@ -300,6 +300,8 @@ export interface ActivityLogEntry {
   event_type: string
   note: string
   created_at: string
+  // Admin-only: who caused it. null = System (background work, scripts).
+  actor_name: string | null
 }
 
 export interface Report {
@@ -1405,6 +1407,7 @@ export interface DashboardFeedItem {
   tier: DashboardEventTier
   category: string | null
   link_path: string
+  actor_name: string | null
 }
 
 export interface DashboardFeedResponse {
@@ -1479,4 +1482,29 @@ export interface ClientViewMethodology {
   platforms: string[]
   limitations: string[]
   version_policy: string
+}
+
+// ── Team (admin accounts) ────────────────────────────────────────────────────
+export type TeamRole = "owner" | "staff"
+export type TeamMemberStatus = "active" | "invited" | "deactivated"
+
+export interface TeamMember {
+  id: string
+  email: string
+  name: string
+  role: TeamRole
+  workspace_id: string
+  is_active: boolean
+  status: TeamMemberStatus
+  last_login_at: string | null
+  invite_expires_at: string | null
+  created_at: string
+}
+
+export interface TeamLinkIssued {
+  user: TeamMember
+  // One-time setup link, shown to the owner so it can be shared by hand if
+  // the email didn't go out.
+  link: string
+  emailed: boolean
 }

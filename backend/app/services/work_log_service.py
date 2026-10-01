@@ -13,6 +13,7 @@ import structlog
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from app.core import request_identity
 from app.core.constants import (
     WORK_LOG_CATEGORIES,
     WORK_LOG_CATEGORY_LABELS,
@@ -111,6 +112,7 @@ def create_manual(
         status="published",
         entry_date=entry_date,
         published_at=utcnow(),
+        published_by_user_id=request_identity.current_user_id(),
     )
     db.add(entry)
     db.commit()
@@ -132,6 +134,9 @@ def update_entry(entry: WorkLogEntry, patch: dict, db: Session) -> WorkLogEntry:
         if new_status != entry.status:
             entry.status = new_status
             entry.published_at = utcnow() if new_status == "published" else None
+            entry.published_by_user_id = (
+                request_identity.current_user_id() if new_status == "published" else None
+            )
     db.commit()
     db.refresh(entry)
     return entry

@@ -34,6 +34,8 @@ beautifulsoup4 = "^4.12"
 lxml = "^6.0"
 python-multipart = ">=0.0.31,<0.1"
 google-analytics-data = "^0.18"
+argon2-cffi = "^25"
+pyotp = "^2.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"

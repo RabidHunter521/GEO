@@ -50,3 +50,6 @@ class WorkLogEntry(Base):
     entry_date: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     published_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    published_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )

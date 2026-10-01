@@ -396,6 +396,7 @@ export function DashboardClient({ filters, summary, initialFeed, clients }: Prop
                       <p className="truncate text-sm">{presentActivityNote(item.note)}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {item.client_name} · {formatUtc(item.created_at)}
+                        {item.actor_name && ` · by ${item.actor_name}`}
                       </p>
                     </div>
                   </Link>

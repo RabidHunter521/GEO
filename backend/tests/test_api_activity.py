@@ -38,14 +38,16 @@ def test_list_activity_returns_entries_newest_first():
 
     mock_db = MagicMock()
     mock_db.get.return_value = _fake_client(client_id)
+    # Rows are (entry, actor name); None = System.
     (
         mock_db.query.return_value
+        .outerjoin.return_value
         .filter.return_value
         .order_by.return_value
         .offset.return_value
         .limit.return_value
         .all.return_value
-    ) = [newer, older]
+    ) = [(newer, "Siti"), (older, None)]
 
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)
@@ -57,6 +59,8 @@ def test_list_activity_returns_entries_newest_first():
     assert len(data) == 2
     assert data[0]["event_type"] == "toolkit_generated"
     assert data[1]["event_type"] == "scan_completed"
+    assert data[0]["actor_name"] == "Siti"
+    assert data[1]["actor_name"] is None
 
 
 def test_list_activity_returns_empty_list_when_no_entries():

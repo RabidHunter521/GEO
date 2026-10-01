@@ -1,3 +1,4 @@
+import { adminAuthHeader } from "@/lib/api-token"
 import { NextRequest } from "next/server"
 
 export async function GET(
@@ -9,7 +10,7 @@ export async function GET(
   const res = await fetch(
     `${base}/api/v1/scans/${scanId}/results/${resultId}/snippet.png`,
     {
-      headers: { Authorization: `Bearer ${process.env.ADMIN_API_KEY}` },
+      headers: { Authorization: await adminAuthHeader() },
       cache: "no-store",
     },
   )

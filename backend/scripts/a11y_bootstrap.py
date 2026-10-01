@@ -26,6 +26,16 @@ def main() -> None:
         importlib.import_module(f"app.models.{mod.name}")
     Base.metadata.create_all(engine)
 
+    # The Alembic migration inserts the default workspace; create_all does not.
+    from app.core.constants import DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_NAME
+    from app.models.workspace import Workspace
+    import uuid
+
+    with SessionLocal() as db:
+        if db.get(Workspace, uuid.UUID(DEFAULT_WORKSPACE_ID)) is None:
+            db.add(Workspace(id=uuid.UUID(DEFAULT_WORKSPACE_ID), name=DEFAULT_WORKSPACE_NAME))
+            db.commit()
+
     from scripts import seed_medilink_premium
 
     seed_medilink_premium.main()

@@ -6,7 +6,15 @@ Behavioral guidelines for this project. Built on top of the base CLAUDE.md princ
 
 SeenBy is an agency-model AI visibility tracking platform.
 - Stack: Next.js 15 + FastAPI + PostgreSQL + Celery + Redis
-- You (Faris) are the only admin. There is no client-facing login in MVP.
+- Faris is the owner. Staff admins sign in with their own accounts (invited
+  from `/team`, email + password + mandatory authenticator app). Roles:
+  owner (everything) and staff (everything except managing the team,
+  archiving paying clients and benchmark publishing). There is still no
+  client-facing login in MVP.
+- One workspace ("SeenBy") today; `workspaces` / `workspace_id` exist so
+  independent agencies can get their own later. That agency phase (scoping
+  every route and global page by workspace) is reseller work — confirm with
+  Faris first (§11). Plan: `docs/superpowers/plans/2026-09-30-team-accounts.md`.
 - All scans are on-demand, manually triggered by you.
 - Clients receive reports via email only — no dashboard access.
 
@@ -235,6 +243,7 @@ Exact structure — do not add pages without updating this:
 /gap-matrix              → cross-client competitor gap matrix
 /benchmarks              → portfolio cohort benchmarks (Phase 6)
 /review-queue            → cross-client work-log inbox (pending suggestions)
+/team                    → admin accounts: invite, reset, deactivate (owner only)
 
 Global (non-client-scoped) admin pages live at the TOP LEVEL, inside the
 `src/app/(admin)/` route group so they share the sidebar + auth layout.
@@ -255,7 +264,9 @@ the URL. `/clients/gap-matrix` permanently redirects to `/gap-matrix`.
 /clients/[id]/reports    → reports
 /clients/[id]/activity   → activity log
 /clients/[id]/settings   → client settings (incl. client view link controls)
-/auth/login              → admin login only
+/auth/login              → admin login only (email + password + authenticator code)
+/auth/invite/[token]     → one-time invite / reset link: set password + connect 2FA (public, 48 h)
+/auth/session-ended      → clears the session when the API rejects the admin
 
 Public read-only client view (no login — gated by 256-bit share token in the
 URL; uniform 404 on invalid/revoked/archived; whitelisted schemas only, never

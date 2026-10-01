@@ -1,4 +1,5 @@
 // frontend/src/app/clients/[id]/settings/page.tsx
+import { getCurrentAdmin } from "@/lib/current-admin"
 import { getClient, getCompetitors, getContentGaps, getControlQueries, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 import { ShareLinkCard } from "./ShareLinkCard"
@@ -11,6 +12,7 @@ export default async function SettingsPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const admin = await getCurrentAdmin()
   const [client, competitors, trafficHistory, controlQueries] = await Promise.all([
     getClient(id),
     getCompetitors(id),
@@ -41,7 +43,8 @@ export default async function SettingsPage({
         clientId={client.id}
         initialNotes={client.internal_notes ?? ""}
       />
-      <DangerZoneCard client={client} />
+      {/* Owner-only for clients; any admin may clear out a prospect. */}
+      {(admin.isOwner || client.is_prospect) && <DangerZoneCard client={client} />}
     </div>
   )
 }

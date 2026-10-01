@@ -59,6 +59,28 @@ automatically, reachable only from other services in the same project.
 > Replace it with a local Postgres; a local run is never evidence about
 > production.
 
+### 1.1b Admin accounts (team) — first sign-in after the release
+
+The release that adds team accounts creates the `users` table empty. Until
+the first account is set up, the old single-admin login (`ADMIN_USERNAME` /
+`ADMIN_PASSWORD`) keeps working. To switch over:
+
+1. Sign in the old way and open **Team** in the sidebar.
+2. Invite yourself with **Role: Owner**. The one-time link is emailed and
+   also shown on the page.
+3. Open it, choose a password, scan the QR code with an authenticator app,
+   and confirm with a code.
+4. From that moment the old login is refused; everyone signs in with their
+   own account. Invite staff from the same page.
+
+Fallback if the Team page is unreachable:
+`railway ssh -s api -- python -m scripts.create_owner <email> "<Name>"`
+prints the link.
+
+No new environment variable: per-request user tokens are signed with a key
+derived from `ADMIN_API_KEY`. `ADMIN_TOTP_SECRET` only applied to the old
+login and can be deleted after the switch.
+
 ### 1.2 Cloudflare R2 (two buckets)
 - Bucket `seenby-reports` → **public access OFF**. (PDFs served only via
   short-lived presigned URLs.)

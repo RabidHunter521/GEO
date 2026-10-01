@@ -16,6 +16,7 @@ class DashboardFeedItem(BaseModel):
     tier: str            # attention | notable | routine
     category: str | None  # None for unmapped (future) event types
     link_path: str       # absolute admin path, e.g. /clients/<id>/scan
+    actor_name: str | None = None  # who caused it; None = System
 
 
 class DashboardFeedResponse(BaseModel):

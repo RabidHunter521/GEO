@@ -645,6 +645,13 @@ SHARE_VIEW_VISIT_GAP_MINUTES: Final = 30
 SHARE_LINK_EXPIRY_DAYS_OPTIONS: Final = (7, 30, 90)
 
 
+# The single workspace every client and admin belongs to until independent
+# agencies get their own. Fixed so the migration and the app agree on it.
+# Starts with a letter on purpose: SQLite (the test DB) gives an all-digit
+# hex UUID numeric affinity and stores it as REAL, breaking FK matches.
+DEFAULT_WORKSPACE_ID: Final = "a0000000-0000-4000-8000-000000000001"
+DEFAULT_WORKSPACE_NAME: Final = "SeenBy"
+
 # Legal entity behind the SeenBy trading name. Malaysian businesses are expected
 # to show their SSM registration number on business documents and their
 # website, so this line appears in every client-facing footer (PDF report,
@@ -654,3 +661,19 @@ COMPANY_REGISTRATION_NUMBER: Final = "202603129117"
 COMPANY_IDENTITY_LINE: Final = (
     f"SeenBy is a service of {COMPANY_LEGAL_NAME} ({COMPANY_REGISTRATION_NUMBER})"
 )
+
+
+# ── Team accounts ────────────────────────────────────────────────────────────
+# owner: everything, incl. managing users, archiving clients, benchmark
+# publishing. staff: everything else (scans, reports, content work).
+USER_ROLES: Final = ("owner", "staff")
+USER_INVITE_TTL_HOURS: Final = 48
+USER_PASSWORD_MIN_LENGTH: Final = 12
+USER_PASSWORD_MAX_LENGTH: Final = 128
+# Consecutive failed logins before the account is locked, and for how long.
+USER_MAX_FAILED_LOGINS: Final = 5
+USER_LOCKOUT_MINUTES: Final = 15
+# Authenticator codes: 30 s steps, one step of clock drift either way.
+TOTP_STEP_SECONDS: Final = 30
+TOTP_DRIFT_STEPS: Final = 1
+TOTP_ISSUER: Final = "SeenBy"

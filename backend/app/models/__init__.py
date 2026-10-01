@@ -23,6 +23,9 @@ from app.models.benchmark_publication import (
 )
 from app.models.misinformation_finding import MisinformationFinding
 
+from app.models.workspace import Workspace
+from app.models.user import User, USER_ROLES
+
 __all__ = [
     "OUTCOME_ACTION_STATUSES",
     "OUTCOME_ACTION_TYPES",
@@ -42,4 +45,7 @@ __all__ = [
     "ApprovedPublicationImmutableError",
     "BenchmarkPublication",
     "MisinformationFinding",
+    "Workspace",
+    "User",
+    "USER_ROLES",
 ]

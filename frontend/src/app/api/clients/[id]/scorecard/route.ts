@@ -1,6 +1,7 @@
 // Server-side proxy for the one-page Scorecard PDF. The backend endpoint is
-// gated by ADMIN_API_KEY (a server-only env var), so the browser can't call it
-// directly — this route attaches the key and streams the PDF back as a download.
+// admin-only, so the browser can't call it
+// directly. This route calls it as the signed-in admin and streams the PDF back.
+import { adminAuthHeader } from "@/lib/api-token"
 import { NextRequest, NextResponse } from "next/server"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
@@ -11,7 +12,7 @@ export async function GET(
 ) {
   const { id } = await params
   const res = await fetch(`${BASE}/api/v1/clients/${id}/reports/scorecard`, {
-    headers: { Authorization: `Bearer ${process.env.ADMIN_API_KEY}` },
+    headers: { Authorization: await adminAuthHeader() },
     cache: "no-store",
   })
 
