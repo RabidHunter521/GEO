@@ -269,3 +269,19 @@ def set_active(db: Session, user: User, active: bool) -> None:
         user.invite_token_hash = None
         user.invite_expires_at = None
     db.commit()
+
+
+def change_role(db: Session, user: User, role: str) -> None:
+    if role not in USER_ROLES:
+        raise UserError(f"Role must be one of {', '.join(USER_ROLES)}.")
+    user.role = role
+    db.commit()
+
+
+def delete_user(db: Session, user: User) -> None:
+    """Permanently remove a deactivated account. Their past activity keeps
+    their name (ActivityLog.actor_name); the email can be invited again."""
+    if user.is_active:
+        raise UserError("Deactivate this admin before deleting them.")
+    db.delete(user)
+    db.commit()

@@ -2,7 +2,14 @@
 // Team management server actions. The API enforces owner-only; errors carry
 // the API's own message (e.g. "An account with that email already exists").
 import { revalidatePath } from "next/cache"
-import { ApiError, inviteTeamMember, resetTeamMember, setTeamMemberActive } from "@/lib/api"
+import {
+  ApiError,
+  deleteTeamMember,
+  inviteTeamMember,
+  resetTeamMember,
+  setTeamMemberActive,
+  setTeamMemberRole,
+} from "@/lib/api"
 import type { TeamLinkIssued, TeamRole } from "@/types"
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -28,6 +35,20 @@ export async function resetAction(id: string): Promise<Result<TeamLinkIssued>> {
 export async function setActiveAction(id: string, active: boolean): Promise<Result<null>> {
   return run(async () => {
     await setTeamMemberActive(id, active)
+    return null
+  })
+}
+
+export async function setRoleAction(id: string, role: TeamRole): Promise<Result<null>> {
+  return run(async () => {
+    await setTeamMemberRole(id, role)
+    return null
+  })
+}
+
+export async function deleteAction(id: string): Promise<Result<null>> {
+  return run(async () => {
+    await deleteTeamMember(id)
     return null
   })
 }

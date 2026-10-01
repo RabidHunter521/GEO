@@ -7,7 +7,6 @@ from app.core.database import get_db
 from app.core.auth import require_api_key
 from app.models.client import Client
 from app.models.activity_log import ActivityLog
-from app.models.user import User
 from app.schemas.activity import ActivityLogEntry
 
 router = APIRouter(prefix="/clients/{client_id}/activity", tags=["activity"])
@@ -28,8 +27,7 @@ def list_activity(
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
     rows = (
-        db.query(ActivityLog, User.name)
-        .outerjoin(User, ActivityLog.actor_user_id == User.id)
+        db.query(ActivityLog)
         .filter(ActivityLog.client_id == client_id)
         .order_by(desc(ActivityLog.created_at))
         .offset(skip)
@@ -42,7 +40,7 @@ def list_activity(
             event_type=entry.event_type,
             note=entry.note,
             created_at=entry.created_at,
-            actor_name=actor_name,
+            actor_name=entry.actor_name,
         )
-        for entry, actor_name in rows
+        for entry in rows
     ]

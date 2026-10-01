@@ -28,7 +28,6 @@ from app.core.constants import (
 )
 from app.core.time import utcnow
 from app.models.activity_log import ActivityLog
-from app.models.user import User
 from app.models.client import Client
 from app.models.geo_score import GeoScore
 from app.models.llm_call_log import LlmCallLog
@@ -96,9 +95,8 @@ def get_feed(
     offset: int = 0,
 ) -> DashboardFeedResponse:
     q = (
-        db.query(ActivityLog, Client.name, User.name)
+        db.query(ActivityLog, Client.name)
         .join(Client, ActivityLog.client_id == Client.id)
-        .outerjoin(User, ActivityLog.actor_user_id == User.id)
         .filter(Client.archived_at.is_(None))
         .filter(
             ActivityLog.created_at >= period.start,
@@ -133,9 +131,9 @@ def get_feed(
             tier=_tier(entry.event_type),
             category=EVENT_CATEGORIES.get(entry.event_type),
             link_path=_link_path(entry.client_id, entry.event_type),
-            actor_name=actor_name,
+            actor_name=entry.actor_name,
         )
-        for entry, name, actor_name in rows
+        for entry, name in rows
     ]
     return DashboardFeedResponse(
         items=items, total=total, has_more=offset + len(items) < total

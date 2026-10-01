@@ -20,8 +20,9 @@ def _fake_client(client_id, archived=False):
     return m
 
 
-def _fake_entry(event_type="scan_completed", note="Test note", day=4):
+def _fake_entry(event_type="scan_completed", note="Test note", day=4, actor_name=None):
     m = MagicMock()
+    m.actor_name = actor_name
     m.id = uuid.uuid4()
     m.event_type = event_type
     m.note = note
@@ -33,21 +34,19 @@ def test_list_activity_returns_entries_newest_first():
     """Two entries returned in the order the mock provides (newest first)."""
     app, get_db = _make_app()
     client_id = uuid.uuid4()
-    newer = _fake_entry("toolkit_generated", "Toolkit generated", day=4)
+    newer = _fake_entry("toolkit_generated", "Toolkit generated", day=4, actor_name="Siti")
     older = _fake_entry("scan_completed", "Scan completed", day=3)
 
     mock_db = MagicMock()
     mock_db.get.return_value = _fake_client(client_id)
-    # Rows are (entry, actor name); None = System.
     (
         mock_db.query.return_value
-        .outerjoin.return_value
         .filter.return_value
         .order_by.return_value
         .offset.return_value
         .limit.return_value
         .all.return_value
-    ) = [(newer, "Siti"), (older, None)]
+    ) = [newer, older]
 
     app.dependency_overrides[get_db] = lambda: mock_db
     http = TestClient(app)

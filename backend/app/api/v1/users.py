@@ -27,6 +27,10 @@ class InviteRequest(BaseModel):
     role: str = "staff"
 
 
+class RoleChange(BaseModel):
+    role: str
+
+
 class LinkIssued(BaseModel):
     user: UserListItem
     link: str
@@ -120,17 +124,7 @@ def _set_active(db: Session, user_id: uuid.UUID, active: bool) -> UserListItem:
         if user.id == request_identity.current_user_id():
             raise HTTPException(status_code=409, detail="You can't deactivate your own account")
         if user.role == "owner":
-            other_owners = (
-                db.query(User)
-                .filter(
-                    User.workspace_id == user.workspace_id,
-                    User.role == "owner",
-                    User.is_active.is_(True),
-                    User.id != user.id,
-                )
-                .count()
-            )
-            if other_owners == 0:
+            if _other_active_owners(db, user) == 0:
                 raise HTTPException(status_code=409, detail="The workspace must keep at least one owner")
     user_service.set_active(db, user, active)
     return _item(user)
@@ -144,3 +138,44 @@ def deactivate(user_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.post("/{user_id}/activate", response_model=UserListItem)
 def activate(user_id: uuid.UUID, db: Session = Depends(get_db)):
     return _set_active(db, user_id, True)
+
+
+def _other_active_owners(db: Session, user: User) -> int:
+    return (
+        db.query(User)
+        .filter(
+            User.workspace_id == user.workspace_id,
+            User.role == "owner",
+            User.is_active.is_(True),
+            User.id != user.id,
+        )
+        .count()
+    )
+
+
+@router.patch("/{user_id}/role", response_model=UserListItem)
+def change_role(user_id: uuid.UUID, body: RoleChange, db: Session = Depends(get_db)):
+    """Works for active, invited and deactivated admins. A pending invite's
+    link stays valid; a signed-in admin gets the new role on their next
+    request (the role is read from the database every time)."""
+    user = _get_in_workspace(db, user_id)
+    if user.id == request_identity.current_user_id():
+        raise HTTPException(status_code=409, detail="You can't change your own role")
+    if user.role == "owner" and body.role != "owner" and user.is_active and _other_active_owners(db, user) == 0:
+        raise HTTPException(status_code=409, detail="The workspace must keep at least one owner")
+    try:
+        user_service.change_role(db, user, body.role)
+    except user_service.UserError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _item(user)
+
+
+@router.delete("/{user_id}", status_code=204)
+def delete(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    user = _get_in_workspace(db, user_id)
+    if user.id == request_identity.current_user_id():
+        raise HTTPException(status_code=409, detail="You can't delete your own account")
+    try:
+        user_service.delete_user(db, user)
+    except user_service.UserError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

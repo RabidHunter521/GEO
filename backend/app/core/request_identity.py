@@ -14,11 +14,17 @@ from contextvars import ContextVar
 
 _current_user_id: ContextVar[uuid.UUID | None] = ContextVar("current_user_id", default=None)
 _current_role: ContextVar[str | None] = ContextVar("current_role", default=None)
+_current_name: ContextVar[str | None] = ContextVar("current_name", default=None)
 
 
-def set_current(user_id: uuid.UUID | None, role: str | None) -> None:
+def set_current(user_id: uuid.UUID | None, role: str | None, name: str | None = None) -> None:
     _current_user_id.set(user_id)
     _current_role.set(role)
+    _current_name.set(name)
+
+
+def current_name() -> str | None:
+    return _current_name.get()
 
 
 def current_user_id() -> uuid.UUID | None:
