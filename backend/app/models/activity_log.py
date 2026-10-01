@@ -21,6 +21,9 @@ class ActivityLog(Base):
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    # The actor's name at the time, kept so history still reads "by Siti"
+    # after Siti's account is deleted (actor_user_id then becomes NULL).
+    actor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
@@ -31,3 +34,4 @@ def _stamp_actor(_mapper, _connection, entry: ActivityLog) -> None:
     there is no current user and the actor stays NULL = "System"."""
     if entry.actor_user_id is None:
         entry.actor_user_id = request_identity.current_user_id()
+        entry.actor_name = request_identity.current_name()

@@ -933,3 +933,11 @@ export function resetTeamMember(id: string): Promise<TeamLinkIssued> {
 export function setTeamMemberActive(id: string, active: boolean): Promise<TeamMember> {
   return apiFetch<TeamMember>(`/api/v1/users/${id}/${active ? "activate" : "deactivate"}`, { method: "POST" })
 }
+
+export function setTeamMemberRole(id: string, role: TeamRole): Promise<TeamMember> {
+  return apiFetch<TeamMember>(`/api/v1/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) })
+}
+
+export function deleteTeamMember(id: string): Promise<void> {
+  return apiFetch<void>(`/api/v1/users/${id}`, { method: "DELETE" })
+}

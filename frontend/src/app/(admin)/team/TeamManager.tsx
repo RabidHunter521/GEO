@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Check, Copy, KeyRound, Mail, UserPlus, UserX, UserCheck } from "lucide-react"
+import { ArrowDownUp, Check, Copy, KeyRound, Mail, Trash2, UserPlus, UserX, UserCheck } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -28,7 +28,7 @@ import {
 import { copyToClipboard } from "@/lib/utils"
 import { timeAgo } from "@/lib/relative-time"
 import type { TeamLinkIssued, TeamMember, TeamRole } from "@/types"
-import { inviteAction, resetAction, setActiveAction } from "./actions"
+import { deleteAction, inviteAction, resetAction, setActiveAction, setRoleAction } from "./actions"
 
 const STATUS_BADGE: Record<TeamMember["status"], { label: string; className: string }> = {
   active: { label: "Active", className: "bg-score-strong-bg text-score-strong border-score-strong/25" },
@@ -147,6 +147,19 @@ function MemberRow({
       if (res.ok) onIssued(res.data)
       else toast.error(res.error)
     })
+  const otherRole: TeamRole = member.role === "owner" ? "staff" : "owner"
+  const setRole = () =>
+    start(async () => {
+      const res = await setRoleAction(member.id, otherRole)
+      if (res.ok) toast.success(`${member.name} is now ${otherRole === "owner" ? "an owner" : "staff"}`)
+      else toast.error(res.error)
+    })
+  const remove = () =>
+    start(async () => {
+      const res = await deleteAction(member.id)
+      if (res.ok) toast.success(`${member.name} was deleted`)
+      else toast.error(res.error)
+    })
   const setActive = (active: boolean) =>
     start(async () => {
       const res = await setActiveAction(member.id, active)
@@ -179,6 +192,37 @@ function MemberRow({
         {/* Not on your own row: resetting yourself would lock you out, and the
             API refuses to deactivate the caller. */}
         {isSelf && <span className="text-xs text-muted-foreground">This is you</span>}
+        {!isSelf && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="outline" size="sm" disabled={pending}>
+                <ArrowDownUp className="mr-1.5 h-3.5 w-3.5" />
+                {otherRole === "owner" ? "Make owner" : "Make staff"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Make {member.name} {otherRole === "owner" ? "an owner" : "staff"}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {otherRole === "owner"
+                    ? "Owners can also manage the team, archive clients and publish benchmarks."
+                    : "Staff can't manage the team, archive clients or publish benchmarks."}{" "}
+                  {member.status === "invited"
+                    ? "Their invite link keeps working."
+                    : "It applies from their next click."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={setRole}>
+                  {otherRole === "owner" ? "Make owner" : "Make staff"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         {member.is_active && !isSelf && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -228,10 +272,38 @@ function MemberRow({
             </AlertDialogContent>
           </AlertDialog>
         ) : (
-          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => setActive(true)}>
-            <UserCheck className="mr-1.5 h-3.5 w-3.5" />
-            Reactivate
-          </Button>
+          <>
+            <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => setActive(true)}>
+              <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+              Reactivate
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm" disabled={pending} className="text-destructive hover:text-destructive">
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {member.name} permanently?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Their account is removed and can&apos;t be restored. Past activity still shows
+                    their name. You can invite the same email again later.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={remove}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
         )}
       </div>
     </li>
@@ -248,7 +320,7 @@ export function TeamManager({ members, currentUserId }: { members: TeamMember[];
         <p className="mt-1 text-sm text-muted-foreground">
           Everyone who can sign in to the admin panel. Each person has their own password and
           authenticator app. Staff can do everything except manage the team, archive clients and
-          publish benchmarks.
+          publish benchmarks. Change someone&apos;s role at any time; deactivate them before deleting.
         </p>
       </div>
 

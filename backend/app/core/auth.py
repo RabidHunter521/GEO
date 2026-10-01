@@ -89,7 +89,7 @@ async def require_api_key(
     if presented.count(".") != 2:
         raise _unauthorized("Invalid API key")
     user = _user_from_token(presented, db)
-    request_identity.set_current(user.id, user.role)
+    request_identity.set_current(user.id, user.role, user.name)
 
 
 def require_owner(_: None = Depends(require_api_key)) -> None:
