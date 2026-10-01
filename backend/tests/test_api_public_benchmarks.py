@@ -13,6 +13,7 @@ from app.main import app
 
 from tests.test_benchmark_publication_service import all_required_packs
 from tests.test_benchmark_snapshot_service import PERIOD_END, PERIOD_START
+from tests.auth_helpers import owner_headers
 
 SLUG = "sea-ai-visibility-index-2026-07"
 
@@ -32,9 +33,8 @@ def api(db):
 
 @pytest.fixture
 def auth_headers():
-    from app.core.config import settings
 
-    return {"Authorization": f"Bearer {settings.ADMIN_API_KEY}"}
+    return owner_headers()
 
 
 def draft_body(**overrides):

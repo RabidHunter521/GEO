@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.api.v1.router import router
 from app.core.config import settings
 from app.core.database import engine
-from app.core.logging import configure_logging
+from app.core.logging import configure_logging, redact_path
 
 configure_logging()
 logger = structlog.get_logger()
@@ -38,7 +38,7 @@ async def request_context(request: Request, call_next):
     structlog.contextvars.bind_contextvars(
         request_id=request_id,
         method=request.method,
-        path=request.url.path,
+        path=redact_path(request.url.path),
     )
     start = time.perf_counter()
     response = await call_next(request)

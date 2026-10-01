@@ -11,6 +11,7 @@ from app.main import app
 
 from tests.test_benchmark_snapshot_service import PERIOD_END, PERIOD_START
 from tests.test_market_intelligence_service import population
+from tests.auth_helpers import owner_headers
 
 PERIOD_PARAMS = {"period_start": PERIOD_START.isoformat(), "period_end": PERIOD_END.isoformat()}
 ROUTES = ("source-influence", "query-demand", "pack-signals")
@@ -31,9 +32,8 @@ def api(db):
 
 @pytest.fixture
 def auth_headers():
-    from app.core.config import settings
 
-    return {"Authorization": f"Bearer {settings.ADMIN_API_KEY}"}
+    return owner_headers()
 
 
 @pytest.mark.parametrize("route", ROUTES)

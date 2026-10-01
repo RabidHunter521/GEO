@@ -46,7 +46,8 @@ def test_invite_lists_and_emails(db, tc):
     assert body["user"]["status"] == "invited" and body["user"]["role"] == "staff"
     tc.sent.assert_called_once()
     listed = tc.get("/api/v1/users", headers=_h(owner)).json()
-    assert {u["email"]: u["status"] for u in listed} == {"owner@seenby.my": "active", "siti@seenby.my": "invited"}
+    statuses = {u["email"]: u["status"] for u in listed}
+    assert statuses["owner@seenby.my"] == "active" and statuses["siti@seenby.my"] == "invited"
     assert all("password_hash" not in u and "totp_secret" not in u for u in listed)
 
 
@@ -82,11 +83,10 @@ def test_deactivate_and_reactivate(db, tc):
 
 def test_owner_safety_rails(db, tc):
     owner = _user(db, role="owner")
-    assert tc.post(f"/api/v1/users/{owner.id}/deactivate", headers=_h(owner)).status_code == 409
-    # Via the system key (no caller identity): still can't remove the last owner.
-    assert tc.post(
-        f"/api/v1/users/{owner.id}/deactivate", headers={"Authorization": f"Bearer {KEY}"}
-    ).status_code == 409
+    assert tc.post(f"/api/v1/users/{owner.id}/deactivate", headers=_h(owner)).status_code == 409  # yourself
+    # Only an active owner can call these and never on themselves, so a
+    # workspace can't end up without an active owner; the server-side
+    # last-owner check stays as a backstop.
     second = _user(db, role="owner")
     assert tc.post(f"/api/v1/users/{second.id}/deactivate", headers=_h(owner)).status_code == 200
 
@@ -134,11 +134,11 @@ def test_role_change_rails(db, tc):
     assert _role(tc, owner, owner, "staff").status_code == 409  # not yourself
     staff = _user(db, role="staff")
     assert _role(tc, owner, staff, "god").status_code == 400
-    # Demoting the last active owner is refused, even via the system key.
+    # The shared key can't manage the team at all.
     res = tc.patch(
-        f"/api/v1/users/{owner.id}/role", json={"role": "staff"}, headers={"Authorization": f"Bearer {KEY}"}
+        f"/api/v1/users/{staff.id}/role", json={"role": "owner"}, headers={"Authorization": f"Bearer {KEY}"}
     )
-    assert res.status_code == 409
+    assert res.status_code == 401
 
 
 def test_role_change_on_a_deactivated_admin(db, tc):

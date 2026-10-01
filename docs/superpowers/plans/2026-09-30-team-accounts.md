@@ -130,3 +130,20 @@ NOT verified: production (migration runs on the next api boot).
 Remaining (task 9b, after the owner account works in production): remove
 the raw ADMIN_API_KEY bearer from admin routes (keep it only for the
 service-only /auth routes) and delete the legacy env login code.
+
+## Task 9b — cut-over cleanup (2026-10-01)
+
+Done after production showed the owner account set up (invite accepted
+10:38:10Z) and signing in (POST /auth/login 200 at 10:39Z).
+- Admin routes accept only per-user tokens; the raw ADMIN_API_KEY is
+  accepted only by the service routes (/auth/login, /auth/link/*) via
+  require_service_key. No "no_users" fallback.
+- Frontend: env login, ADMIN_TOTP_SECRET path, totp.ts and the secret
+  generator removed; api-token never falls back to the raw key.
+- Logs: invite tokens and client-view share tokens are redacted (first 6
+  chars kept) in both the request log and uvicorn's access log. Production
+  logs before this release contain full tokens; the invite seen there was
+  already used, and share links can be regenerated if wanted.
+- Tests authenticate as a seeded test owner (tests/auth_helpers.py).
+- The last-owner rail is now unreachable (only an active owner can act, never
+  on themselves); kept as a backstop.

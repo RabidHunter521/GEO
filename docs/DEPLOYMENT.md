@@ -59,27 +59,25 @@ automatically, reachable only from other services in the same project.
 > Replace it with a local Postgres; a local run is never evidence about
 > production.
 
-### 1.1b Admin accounts (team) — first sign-in after the release
+### 1.1b Admin accounts (team)
 
-The release that adds team accounts creates the `users` table empty. Until
-the first account is set up, the old single-admin login (`ADMIN_USERNAME` /
-`ADMIN_PASSWORD`) keeps working. To switch over:
+Every admin signs in with their own account: email, password and an
+authenticator code (mandatory). The owner invites people from **Team**; an
+invite is a one-time link (48 h) where they set a password and connect 2FA.
 
-1. Sign in the old way and open **Team** in the sidebar.
-2. Invite yourself with **Role: Owner**. The one-time link is emailed and
-   also shown on the page.
-3. Open it, choose a password, scan the QR code with an authenticator app,
-   and confirm with a code.
-4. From that moment the old login is refused; everyone signs in with their
-   own account. Invite staff from the same page.
+- **First owner on a fresh database:**
+  `railway ssh -s api -- python -m scripts.create_owner <email> "<Name>"`
+  prints (and emails) the setup link.
+- **Locked out / lost phone:** another owner uses **Reset sign-in** on the
+  Team page; if no owner can sign in, re-run `create_owner` for an existing
+  owner who hasn't finished setup, or ask for a database-level reset.
+- Per-request user tokens are signed with a key derived from
+  `ADMIN_API_KEY`; the raw key is accepted only by the sign-in / invite
+  routes, never by admin routes.
 
-Fallback if the Team page is unreachable:
-`railway ssh -s api -- python -m scripts.create_owner <email> "<Name>"`
-prints the link.
-
-No new environment variable: per-request user tokens are signed with a key
-derived from `ADMIN_API_KEY`. `ADMIN_TOTP_SECRET` only applied to the old
-login and can be deleted after the switch.
+(History: until 2026-10-01 a single env login, `ADMIN_USERNAME` /
+`ADMIN_PASSWORD` / `ADMIN_TOTP_SECRET`, was the only admin. Those variables
+are no longer read and can be deleted from the frontend service.)
 
 ### 1.2 Cloudflare R2 (two buckets)
 - Bucket `seenby-reports` → **public access OFF**. (PDFs served only via
@@ -109,7 +107,6 @@ login and can be deleted after the switch.
 ```bash
 openssl rand -hex 32     # ADMIN_API_KEY  (shared frontend ↔ backend, must match)
 openssl rand -hex 32     # AUTH_SECRET    (next-auth)
-openssl rand -base64 24  # ADMIN_PASSWORD (your login)
 ```
 
 ### 1.6 Telegram alerts (optional, recommended for solo ops)
@@ -241,8 +238,6 @@ and frontend.
 |---|---|---|
 | `NEXTAUTH_URL` | `https://app.seenby.my` | Phase 2 |
 | `AUTH_SECRET` | | generated (1.5) |
-| `ADMIN_USERNAME` | | your choice |
-| `ADMIN_PASSWORD` | | generated (1.5) |
 | `API_BASE_URL` | `http://api.railway.internal:8000` | Railway private network (Phase 2) — not a public URL |
 | `ADMIN_API_KEY` | | **same as backend** (1.5) |
 

@@ -16,6 +16,7 @@ from app.services.benchmark_cohort_service import eligible_members_for_period
 from app.services.benchmark_snapshot_service import generate_ladder_snapshots
 
 from tests.test_benchmark_comparison_service import APPROVED_AT
+from tests.auth_helpers import owner_headers
 from tests.test_benchmark_snapshot_service import (
     PERIOD_END,
     PERIOD_START,
@@ -42,9 +43,8 @@ def api(db):
 
 @pytest.fixture
 def auth_headers():
-    from app.core.config import settings
 
-    return {"Authorization": f"Bearer {settings.ADMIN_API_KEY}"}
+    return owner_headers()
 
 
 def published_cohort_with_subject(db, *, subject_score=95.0, share=True):

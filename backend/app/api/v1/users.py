@@ -1,7 +1,6 @@
 """Team management (owner only): list, invite, reset, deactivate admins.
 
-Everything is scoped to the caller's workspace. The system caller (legacy
-single-admin login) acts in the default workspace.
+Everything is scoped to the caller's workspace.
 """
 import uuid
 
@@ -11,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.core import request_identity
 from app.core.auth import require_owner
-from app.core.constants import DEFAULT_WORKSPACE_ID
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.user import UserListItem
@@ -37,14 +35,13 @@ class LinkIssued(BaseModel):
     emailed: bool
 
 
-def _caller(db: Session) -> User | None:
-    uid = request_identity.current_user_id()
-    return db.get(User, uid) if uid else None
+def _caller(db: Session) -> User:
+    # require_owner guarantees a signed-in owner.
+    return db.get(User, request_identity.current_user_id())
 
 
 def _workspace_id(db: Session) -> uuid.UUID:
-    caller = _caller(db)
-    return caller.workspace_id if caller else uuid.UUID(DEFAULT_WORKSPACE_ID)
+    return _caller(db).workspace_id
 
 
 def _status(user: User) -> str:
@@ -101,7 +98,7 @@ def invite(body: InviteRequest, db: Session = Depends(get_db)):
         )
     except user_service.UserError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    emailed = send_invite_email(user, raw, invited_by=caller.name if caller else None)
+    emailed = send_invite_email(user, raw, invited_by=caller.name)
     return LinkIssued(user=_item(user), link=link_url(raw), emailed=emailed)
 
 

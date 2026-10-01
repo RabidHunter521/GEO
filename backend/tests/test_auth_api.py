@@ -51,13 +51,19 @@ def test_all_auth_routes_need_the_service_credential(tc):
     assert tc.get("/api/v1/auth/link/x").status_code == 401
 
 
-def test_login_says_no_users_until_an_account_is_set_up(db, tc):
+def test_no_legacy_fallback_signal(db, tc):
+    # The old "no accounts yet, use the env login" answer is gone: a login
+    # that doesn't match an account is simply refused.
     res = tc.post("/api/v1/auth/login", json={"email": "a@b.c", "password": "x", "code": ""}, headers=KEY)
-    assert res.status_code == 409 and res.json()["detail"] == "no_users"
-    # A pending invite still doesn't count.
-    us.create_invite(db, workspace_id=WS, email="p@seenby.my", name="P")
-    res = tc.post("/api/v1/auth/login", json={"email": "a@b.c", "password": "x", "code": ""}, headers=KEY)
-    assert res.status_code == 409
+    assert res.status_code == 401
+
+
+def test_user_tokens_cannot_call_service_routes(db, tc):
+    from tests.auth_helpers import owner_headers
+
+    assert tc.post(
+        "/api/v1/auth/login", json={"email": "a@b.c", "password": "x"}, headers=owner_headers()
+    ).status_code == 401
 
 
 def test_link_flow_then_login(db, tc):

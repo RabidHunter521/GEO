@@ -50,6 +50,11 @@ def db() -> Session:
 
     session.add(Workspace(id=_uuid.UUID(DEFAULT_WORKSPACE_ID), name=DEFAULT_WORKSPACE_NAME))
     session.commit()
+    # A signed-up owner so API tests can authenticate (tests/auth_helpers.py).
+    from tests.auth_helpers import seed_test_owner
+
+    seed_test_owner(session)
+    session.commit()
     yield session
     session.close()
     Base.metadata.drop_all(engine)

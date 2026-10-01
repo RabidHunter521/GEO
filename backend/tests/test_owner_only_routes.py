@@ -49,9 +49,10 @@ def test_staff_can_clear_out_prospects(db, tc):
     assert tc.delete(f"/api/v1/clients/{p.id}", headers=_auth(_token(staff))).status_code == 204
 
 
-def test_legacy_system_key_still_archives(db, tc):
+def test_shared_key_is_refused_on_admin_routes(db, tc):
     c = _client(db)
-    assert tc.delete(f"/api/v1/clients/{c.id}", headers=_auth(KEY)).status_code == 204
+    assert tc.delete(f"/api/v1/clients/{c.id}", headers=_auth(KEY)).status_code == 401
+    assert tc.get("/api/v1/clients", headers=_auth(KEY)).status_code == 401
 
 
 def test_benchmark_publishing_is_owner_only(db, tc):

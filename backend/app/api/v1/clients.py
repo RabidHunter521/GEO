@@ -249,7 +249,7 @@ def archive_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
     # Archiving a client ends their service (the view link stops working), so
     # only the owner can do it. Prospects are cold-outreach leads any admin
     # may clear out.
-    if not c.is_prospect and not request_identity.is_owner_or_system():
+    if not c.is_prospect and not request_identity.is_owner():
         raise HTTPException(status_code=403, detail="Only the owner can archive a client")
     # Naive UTC to match the rest of the schema (columns are timestamp-without-tz)
     c.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)

@@ -1,10 +1,9 @@
 """Who is making the current request.
 
 Set by require_api_key for the duration of one API request:
-- a signed user token  → that admin's User id
-- the raw service key  → None ("system": the legacy single-admin login,
-  the invite page, or any server-to-server call)
-Celery tasks and scripts never set it, so they are also "system".
+- a signed user token → that admin's User id
+Service routes (sign-in, invite links), Celery tasks and scripts never set
+it: no current user = "System".
 
 Read by anything that records an actor (e.g. ActivityLog), so call sites
 don't have to pass the user around.
@@ -31,11 +30,10 @@ def current_user_id() -> uuid.UUID | None:
     return _current_user_id.get()
 
 
-def is_owner_or_system() -> bool:
-    """The owner, or the system caller (the legacy single-admin login)."""
-    return current_role() in (None, "owner")
+def is_owner() -> bool:
+    return current_role() == "owner"
 
 
 def current_role() -> str | None:
-    """"owner" | "staff" for a signed-in admin; None for a system caller."""
+    """"owner" | "staff" for a signed-in admin; None outside an admin request."""
     return _current_role.get()
