@@ -218,15 +218,6 @@ def is_usable(user: User) -> bool:
     return bool(user.is_active and user.password_hash and user.totp_confirmed_at and user.totp_secret)
 
 
-def has_usable_users(db: Session) -> bool:
-    """True once at least one account can sign in. Until then the frontend
-    may fall back to the legacy single-admin environment login."""
-    return any(
-        is_usable(u)
-        for u in db.query(User).filter(User.is_active.is_(True), User.totp_confirmed_at.isnot(None))
-    )
-
-
 def authenticate(db: Session, email: str, password: str, code: str, now: datetime | None = None) -> LoginResult:
     now = now or _now()
     user = db.query(User).filter(User.email == normalize_email(email or "")).first()

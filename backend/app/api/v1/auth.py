@@ -1,28 +1,24 @@
 """Admin sign-in and invite links.
 
 Called by the Next.js server, never by a browser: every route requires the
-service credential (require_api_key). The invite page is server-rendered by
+service credential (require_service_key). The invite page is server-rendered by
 Next, which is why even the link routes go through here.
 """
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
-from app.core.auth import require_api_key
+from app.core.auth import require_service_key
 from app.core.database import get_db
 from app.schemas.user import LinkAcceptRequest, LinkInfo, LoginRequest, UserPublic
 from app.services import user_service
 
-router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_api_key)])
+router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_service_key)])
 
 _INVALID = "Invalid email, password or authenticator code"
 
 
 @router.post("/login", response_model=UserPublic)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    # Until the first account is fully set up, tell the frontend so it can use
-    # the legacy single-admin login instead. After that, the legacy login is off.
-    if not user_service.has_usable_users(db):
-        raise HTTPException(status_code=409, detail="no_users")
     result = user_service.authenticate(db, body.email, body.password, body.code)
     if result.user is None:
         # Same answer for wrong password, wrong code, unknown email and a

@@ -4,9 +4,9 @@
 // A signed-in admin gets a fresh 5-minute user token per request (HS256,
 // aud "seenby-api"), so the API knows WHO is calling. The signing key is
 // HMAC-SHA256(ADMIN_API_KEY, "seenby-user-token-v1") — mirrored in backend
-// app/core/auth.py user_token_key(); the raw key itself never signs tokens.
-// A legacy single-admin session (before any user account exists) still uses
-// the raw ADMIN_API_KEY. No session → throws: admin API calls fail closed.
+// app/core/auth.py user_token_key(); the raw key itself never signs tokens
+// and is not accepted on admin routes. No session → throws: admin API calls
+// fail closed.
 import "server-only"
 import { SignJWT } from "jose"
 import { auth } from "../../auth"
@@ -54,6 +54,6 @@ export async function adminAuthHeader(): Promise<string> {
   const session = await auth()
   if (!isAuthenticatedAdmin(session)) throw new NotSignedInError()
   const user = session!.user
-  if (user.legacy || !user.id || !user.workspaceId) return `Bearer ${apiKey}`
+  if (!user.id || !user.workspaceId) throw new NotSignedInError()
   return `Bearer ${await mintUserToken(user.id, user.workspaceId, apiKey)}`
 }

@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.time import utcnow
+from tests.auth_helpers import owner_headers
 
 
 @pytest.fixture
@@ -23,8 +24,7 @@ def client(db):
 
 @pytest.fixture
 def auth_headers():
-    from app.core.config import settings
-    return {"Authorization": f"Bearer {settings.ADMIN_API_KEY}"}
+    return owner_headers()
 
 
 def _seed(db, status="suggested"):

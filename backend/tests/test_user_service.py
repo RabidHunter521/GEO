@@ -166,14 +166,6 @@ def test_reset_clears_password_and_2fa_and_issues_new_link(db):
     assert us.authenticate(db, user.email, "a new long password", _code(secret, t2), now=t2).reason == "ok"
 
 
-def test_has_usable_users(db):
-    assert us.has_usable_users(db) is False
-    us.create_invite(db, workspace_id=WS, email="p@seenby.my", name="P")
-    assert us.has_usable_users(db) is False  # a pending invite doesn't count
-    _active_user(db)
-    assert us.has_usable_users(db) is True
-
-
 def test_invite_ttl_constant_is_applied(db):
     user, _ = us.create_invite(db, workspace_id=WS, email="a@seenby.my", name="A")
     delta = user.invite_expires_at - user.created_at

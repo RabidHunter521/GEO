@@ -1,17 +1,15 @@
 """Admin API authentication.
 
-Two credentials are accepted on every admin route:
+Admin routes accept only a short-lived signed user token (HS256 JWT) minted
+per request by the Next.js server for the admin who is signed in. Claims:
+sub (user id), wid (workspace id), aud "seenby-api", iat, exp (≤ 15 min). The
+signing key is derived from ADMIN_API_KEY with a fixed label, so it is never
+the raw key itself. The user is re-loaded on every request, so deactivating
+an admin takes effect immediately, and the role comes from the database,
+never from the token.
 
-1. A short-lived signed user token (HS256 JWT) minted per request by the
-   Next.js server for the admin who is signed in. Claims: sub (user id),
-   wid (workspace id), aud "seenby-api", iat, exp (≤ 15 min). The signing key
-   is derived from ADMIN_API_KEY with a fixed label, so it is never the raw
-   key itself. The user is re-loaded on every request, so deactivating an
-   admin takes effect immediately, and the role comes from the database,
-   never from the token.
-2. The raw ADMIN_API_KEY — the "system" caller: the legacy single-admin
-   login and server-to-server calls. To be removed from admin routes once
-   every admin signs in with their own account (team-accounts plan, task 9).
+The raw ADMIN_API_KEY authenticates only the service routes that run before
+anyone is signed in (sign-in and invite links): require_service_key.
 """
 import hashlib
 import hmac
@@ -73,31 +71,33 @@ def _user_from_token(token: str, db: Session):
     return user
 
 
+def require_service_key(
+    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> None:
+    """The Next.js server itself, before any admin is signed in."""
+    if not credentials or not hmac.compare_digest(credentials.credentials, settings.ADMIN_API_KEY):
+        raise _unauthorized("Invalid service credential")
+
+
 async def require_api_key(
     credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
     db: Session = Depends(get_db),
 ) -> None:
+    """Every admin route: a signed-in admin's user token. (Name kept from
+    when this was a shared key, to avoid touching every route.)"""
     # async on purpose: the identity is stored in a contextvar, and only a
     # dependency running in the request's own task can set one that the
     # (threadpool-run) endpoint then sees.
     if not credentials:
         raise _unauthorized("Missing Authorization header")
-    presented = credentials.credentials
-    if hmac.compare_digest(presented, settings.ADMIN_API_KEY):
-        request_identity.set_current(None, None)
-        return
-    if presented.count(".") != 2:
-        raise _unauthorized("Invalid API key")
-    user = _user_from_token(presented, db)
+    if credentials.credentials.count(".") != 2:
+        raise _unauthorized("Invalid token")
+    user = _user_from_token(credentials.credentials, db)
     request_identity.set_current(user.id, user.role, user.name)
 
 
 def require_owner(_: None = Depends(require_api_key)) -> None:
     """Owner-only actions. Authenticates first (FastAPI caches require_api_key
-    per request, so listing both on a route does not run it twice).
-
-    The system caller (raw key) counts as the owner: today that is the legacy
-    single-admin login, which is the owner.
-    """
-    if not request_identity.is_owner_or_system():
+    per request, so listing both on a route does not run it twice)."""
+    if not request_identity.is_owner():
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the owner can do this")

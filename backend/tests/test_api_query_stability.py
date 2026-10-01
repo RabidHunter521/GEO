@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.auth_helpers import owner_headers
 
 
 def _make_client(db, *, is_prospect=False, name="Acme Dental"):
@@ -49,9 +50,8 @@ def admin_client(db):
 
 @pytest.fixture
 def auth_headers():
-    from app.core.config import settings
 
-    return {"Authorization": f"Bearer {settings.ADMIN_API_KEY}"}
+    return owner_headers()
 
 
 # ── Admin endpoint ──────────────────────────────────────────────────────────

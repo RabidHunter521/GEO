@@ -5,15 +5,12 @@ declare module "next-auth" {
   interface User {
     role?: "owner" | "staff"
     workspaceId?: string
-    // True for the legacy single-admin env login (before any account exists).
-    legacy?: boolean
   }
   interface Session {
     user: {
       id: string
       role: "owner" | "staff"
       workspaceId: string
-      legacy: boolean
     } & DefaultSession["user"]
   }
 }
@@ -23,6 +20,5 @@ declare module "@auth/core/jwt" {
     uid?: string
     role?: "owner" | "staff"
     workspaceId?: string
-    legacy?: boolean
   }
 }

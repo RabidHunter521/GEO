@@ -14,7 +14,7 @@ right-hand column are the only way to recover them.
 | Path | What it is | If lost |
 |---|---|---|
 | `backend/.env` | API keys (Anthropic, Gemini, OpenAI, Perplexity, Resend), Cloudflare R2, `ADMIN_API_KEY`, `DATABASE_URL`, `REDIS_URL` | Copy from Railway: `railway variables -s api`. Rotate anything you cannot find. |
-| `frontend/.env.local` | `AUTH_SECRET`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `API_BASE_URL`, `ADMIN_API_KEY` | `railway variables -s frontend`; `AUTH_SECRET` can be regenerated for local use. |
+| `frontend/.env.local` | `AUTH_SECRET`, `API_BASE_URL`, `ADMIN_API_KEY` | `railway variables -s frontend`; `AUTH_SECRET` can be regenerated for local use. Sign in locally with an account: create one with `python -m scripts.create_owner` against your local database. |
 | `docs/ops/pre-migration-backups/` | JSON snapshots of the production DB taken before risky migrations | Not recoverable. Back these up. |
 | `.claude/settings.local.json` | Claude Code permission allowlist + local env overrides | Recreate by accepting prompts; see step 7. |
 | `~/.claude/` (user home) | Claude Code memory for this project, global skills, agents, `settings.json`, RTK config | Memory is not recoverable. Back the whole folder up. |

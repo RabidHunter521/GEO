@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from tests.auth_helpers import owner_headers
 
 
 # --- shared helpers ------------------------------------------------------------
@@ -94,9 +95,8 @@ def admin_client(db):
 
 @pytest.fixture
 def auth_headers():
-    from app.core.config import settings
 
-    return {"Authorization": f"Bearer {settings.ADMIN_API_KEY}"}
+    return owner_headers()
 
 
 def test_admin_endpoint_requires_authentication(admin_client, db):

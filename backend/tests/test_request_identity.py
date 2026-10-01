@@ -62,8 +62,8 @@ def _get(tc, token):
     return tc.get("/who", headers={"Authorization": f"Bearer {token}"})
 
 
-def test_raw_key_is_the_system_caller(tc):
-    assert _get(tc, KEY).json() == {"user_id": None, "role": None}
+def test_raw_key_is_refused(tc):
+    assert _get(tc, KEY).status_code == 401
 
 
 def test_valid_token_identifies_the_user_with_role_from_db(db, tc):
@@ -120,11 +120,12 @@ def test_owner_gate(db, tc):
     post = lambda t: tc.post("/owner-only", headers={"Authorization": f"Bearer {t}"})  # noqa: E731
     assert post(_token(owner)).status_code == 200
     assert post(_token(staff)).status_code == 403
-    assert post(KEY).status_code == 200  # system caller = legacy owner login
+    assert post(KEY).status_code == 401  # the shared key is not an admin
     assert tc.post("/owner-only").status_code == 401
 
 
 def test_identity_does_not_leak_between_requests(db, tc):
-    u = _user(db)
-    assert _get(tc, _token(u)).json()["user_id"] == str(u.id)
-    assert _get(tc, KEY).json()["user_id"] is None
+    a, b = _user(db, role="owner"), _user(db, role="staff")
+    assert _get(tc, _token(a)).json() == {"user_id": str(a.id), "role": "owner"}
+    assert _get(tc, _token(b)).json() == {"user_id": str(b.id), "role": "staff"}
+    assert _get(tc, _token(a)).json()["user_id"] == str(a.id)
