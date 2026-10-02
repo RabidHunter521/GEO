@@ -67,6 +67,10 @@ POST via api/v1/scans.py
   `work_log_service` — administrator-reviewed factual-risk workflow,
   authority asset tracking, page citability audits, and the cross-client
   Review Queue.
+- `attribution_service` — tracked WhatsApp link (`/wa/[token]`) and the
+  "how did you hear about us?" webhook (`/hooks/heard-about-us`); stores every
+  signal, and writes an `attributed` conversion event only when an AI
+  assistant is matched (landing referrer / utm, or a self-reported answer).
 - `language_sanitizer` — programmatic banned-language defense; the CLAUDE.md §2 table is law on every client-facing string.
 
 ## Frontend layout

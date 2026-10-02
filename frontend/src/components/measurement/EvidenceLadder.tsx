@@ -28,8 +28,12 @@ export function EvidenceLadder({
   summary: ImpactSummary | ImpactSummaryPublic
 }) {
   const symbol = CURRENCY_SYMBOLS[summary.currency] ?? summary.currency + " "
+  // Count-only evidence (e.g. AI-attributed WhatsApp clicks, which carry no
+  // money value) is still evidence, so a row shows when it has events.
   const hasAnyValue = EVIDENCE_LEVELS.some(
-    (l) => (summary[l.field as keyof typeof summary] as number) > 0
+    (l) =>
+      (summary[l.field as keyof typeof summary] as number) > 0 ||
+      (summary.event_count_by_level?.[l.key] ?? 0) > 0
   )
 
   if (!hasAnyValue) {
@@ -73,7 +77,7 @@ export function EvidenceLadder({
                   <span className="ml-1.5 text-xs text-muted-foreground">(estimated)</span>
                 )}
               </p>
-              {eventCount > 0 && (
+              {eventCount > 0 && value !== 0 && (
                 <p className="text-xs text-muted-foreground">
                   {eventCount} {eventCount === 1 ? "event" : "events"}
                 </p>
@@ -85,7 +89,9 @@ export function EvidenceLadder({
                 isEstimated ? "italic text-muted-foreground" : "text-foreground",
               )}
             >
-              {formatCurrency(value, symbol)}
+              {value === 0 && eventCount > 0
+                ? `${eventCount} ${eventCount === 1 ? "event" : "events"}`
+                : formatCurrency(value, symbol)}
             </p>
           </div>
         )

@@ -35,8 +35,12 @@ from app.models.conversion_event import ConversionEvent
 
 
 EvidenceLevel = Literal["observed", "attributed", "assisted", "estimated"]
-ConversionEventType = Literal["lead", "booking", "call", "purchase", "form_submit"]
-ConversionEventSource = Literal["ga4", "crm", "call_tracking", "booking_platform", "manual"]
+ConversionEventType = Literal["lead", "booking", "call", "purchase", "form_submit", "whatsapp_click"]
+# whatsapp_link / lead_form are written by attribution_service (tracked
+# WhatsApp link, "how did you hear about us?" webhook), never imported.
+ConversionEventSource = Literal[
+    "ga4", "crm", "call_tracking", "booking_platform", "manual", "whatsapp_link", "lead_form"
+]
 
 
 class ConversionEventCreate(BaseModel):

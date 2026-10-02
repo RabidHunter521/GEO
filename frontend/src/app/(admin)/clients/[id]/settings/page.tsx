@@ -1,8 +1,9 @@
 // frontend/src/app/clients/[id]/settings/page.tsx
 import { getCurrentAdmin } from "@/lib/current-admin"
-import { getClient, getCompetitors, getContentGaps, getControlQueries, getTrafficHistory } from "@/lib/api"
+import { getAttribution, getClient, getCompetitors, getContentGaps, getControlQueries, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 import { ShareLinkCard } from "./ShareLinkCard"
+import { AttributionCard } from "./AttributionCard"
 import { DangerZoneCard } from "./DangerZoneCard"
 import { InternalNotesCard } from "@/components/clients/InternalNotesCard"
 
@@ -29,6 +30,9 @@ export default async function SettingsPage({
     // no analysis yet — hint simply won't show
   }
 
+  // Lead tracking setup — the card simply doesn't render if this fails.
+  const attribution = await getAttribution(id).catch(() => null)
+
   return (
     <div className="max-w-2xl space-y-6">
       <SettingsForm
@@ -39,6 +43,7 @@ export default async function SettingsPage({
         controlQueries={controlQueries}
       />
       <ShareLinkCard client={client} />
+      {attribution && <AttributionCard clientId={client.id} initial={attribution} />}
       <InternalNotesCard
         clientId={client.id}
         initialNotes={client.internal_notes ?? ""}

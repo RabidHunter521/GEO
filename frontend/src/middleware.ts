@@ -57,6 +57,13 @@ export default auth((req) => {
     return proceed()
   }
 
+  // Lead-source attribution, hit by the client's customers and form tools,
+  // never by an admin: the tracked WhatsApp link (click token in the URL) and
+  // the inbound webhook (per-client secret, checked by the backend).
+  if (req.nextUrl.pathname.startsWith("/wa/") || req.nextUrl.pathname === "/hooks/heard-about-us") {
+    return proceed()
+  }
+
   // Invite / reset links: the one-time token in the URL is the credential and
   // the invitee has no account yet. Reachable signed in or not.
   if (req.nextUrl.pathname.startsWith("/auth/invite/")) {
