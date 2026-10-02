@@ -6,6 +6,7 @@
 // module is ever pulled into a client bundle, the build fails instead of
 // silently shipping a module that reaches for admin credentials.
 import "server-only"
+import type { AiMirrorResponse } from "@/types"
 import { redirect } from "next/navigation"
 import { adminAuthHeader } from "@/lib/api-token"
 import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole } from "@/types"
@@ -289,6 +290,10 @@ export function getCompetitorIntelligence(clientId: string): Promise<CompetitorI
 
 export function getWinLoss(clientId: string): Promise<WinLossResponse> {
   return apiFetch<WinLossResponse>(`/api/v1/clients/${clientId}/competitors/win-loss`)
+}
+
+export function getAiMirror(clientId: string): Promise<AiMirrorResponse> {
+  return apiFetch<AiMirrorResponse>(`/api/v1/clients/${clientId}/competitors/mirror`)
 }
 
 export function generateContentBrief(clientId: string, resultId: string): Promise<ContentBrief> {
