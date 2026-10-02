@@ -476,6 +476,14 @@ class AuthorityProgress:
 
 
 @dataclass
+class PlacementLine:
+    """A won placement, already worded client-safe (placement_service)."""
+    domain: str
+    text: str
+    verified: bool = False
+
+
+@dataclass
 class SourcesTrend:
     share_now: float
     share_then: float | None = None
@@ -583,6 +591,7 @@ class ReportData:
     technical_health: "TechnicalHealth | None" = None
     content_delivered: "ContentDelivered | None" = None
     authority_progress: "AuthorityProgress | None" = None
+    placements_secured: list["PlacementLine"] = field(default_factory=list)
     sources_trend: "SourcesTrend | None" = None
     before_after: list["BeforeAfterCard"] = field(default_factory=list)
     misinformation: "MisinformationSummary | None" = None
@@ -1109,6 +1118,59 @@ def _gather_authority_progress(
     )
 
 
+def _gather_placements_secured(
+    client: Client, db: Session, since, until=None
+) -> list[PlacementLine]:
+    """Placements won this period: in-flight outreach never reaches a client.
+
+    Like authority progress, period membership comes from the PUBLISHED work
+    log, so nothing Faris has not approved reaches the report: a target is in
+    if its "placed" entry ("placement:<id>:placed") or its verified delivery
+    item's entry ("outcome_action:<action_id>") was published in the period.
+    The "AI now sees you" sentence additionally needs that verified entry to
+    be published at all -- a listing alone is never claimed as AI visibility.
+    """
+    from app.models.placement_target import PlacementTarget
+    from app.services import placement_service, work_log_service
+
+    since_date = since.date() if hasattr(since, "date") else since
+    until_date = until.date() if hasattr(until, "date") else until
+
+    def _refs(entries) -> tuple[set[str], set[str]]:
+        placed, actions = set(), set()
+        for e in entries:
+            parts = (e.source_ref or "").split(":")
+            if len(parts) == 3 and parts[0] == "placement" and parts[2] == "placed":
+                placed.add(parts[1])
+            elif len(parts) == 2 and parts[0] == "outcome_action":
+                actions.add(parts[1])
+        return placed, actions
+
+    placed_now, verified_now = _refs(
+        work_log_service.published_entries(client.id, db, since=since_date, until=until_date))
+    _, verified_ever = _refs(
+        work_log_service.published_entries(client.id, db, until=until_date))
+
+    targets = (
+        db.query(PlacementTarget)
+        .filter(PlacementTarget.client_id == client.id,
+                PlacementTarget.status.in_(("placed", "verified")))
+        .order_by(PlacementTarget.placed_at.asc(), PlacementTarget.domain.asc())
+        .all()
+    )
+    lines: list[PlacementLine] = []
+    for t in targets:
+        action_id = str(t.outcome_action_id) if t.outcome_action_id else None
+        verified = t.status == "verified" and action_id in verified_ever
+        if str(t.id) in placed_now or (verified and action_id in verified_now):
+            lines.append(PlacementLine(
+                domain=t.domain,
+                text=placement_service.client_proof_line(t, db, verified),
+                verified=verified,
+            ))
+    return lines
+
+
 def _gather_sources_trend(client: Client, db: Session, since) -> SourcesTrend | None:
     """Client share-of-source over the period + sources no longer missing them.
 
@@ -1450,6 +1512,9 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         "content_delivered", lambda: _gather_content_delivered(client, db, since), None)
     authority_progress = _safe(
         "authority_progress", lambda: _gather_authority_progress(client, db, since, now), None)
+    placements_secured = _safe(
+        "placements_secured",
+        lambda: _gather_placements_secured(client, db, since, now), [])
     sources_trend = _safe(
         "sources_trend", lambda: _gather_sources_trend(client, db, since), None)
     before_after = _safe(
@@ -1532,6 +1597,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         technical_health=technical_health,
         content_delivered=content_delivered,
         authority_progress=authority_progress,
+        placements_secured=placements_secured,
         sources_trend=sources_trend,
         misinformation=misinformation,
         before_after=before_after,
@@ -1737,6 +1803,17 @@ def _build_authority_progress_html(data: ReportData) -> str:
         items = "".join(f"<li>{html.escape(d)}</li>" for d in a.review_deltas)
         parts.append(f"<ul>{items}</ul>")
     return f'<h2>Authority Progress</h2><div class="stat-card">{"".join(parts)}</div>'
+
+
+def _build_placements_html(data: ReportData) -> str:
+    if not data.placements_secured:
+        return ""
+    items = "".join(f"<li>{html.escape(p.text)}</li>" for p in data.placements_secured)
+    return (
+        '<h2>Placements Secured</h2><div class="stat-card">'
+        '<div class="stat-sub">Third-party pages AI answers draw on that now list you:</div>'
+        f"<ul>{items}</ul></div>"
+    )
 
 
 def _build_sources_trend_html(data: ReportData) -> str:
@@ -2150,6 +2227,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     technical_health_section = _build_technical_health_html(data)
     content_delivered_section = _build_content_delivered_html(data)
     authority_progress_section = _build_authority_progress_html(data)
+    placements_section = _build_placements_html(data)
     sources_trend_section = _build_sources_trend_html(data)
     before_after_section = _build_before_after_html(data)
     misinformation_section = _build_misinformation_html(data)
@@ -2249,6 +2327,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
 {technical_health_section}
 {content_delivered_section}
 {authority_progress_section}
+{placements_section}
 {sources_trend_section}
 {before_after_section}
 {misinformation_section}

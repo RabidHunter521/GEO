@@ -612,6 +612,35 @@ def target_detail(target: PlacementTarget, db: Session) -> dict:
     return data
 
 
+def client_proof_line(target: PlacementTarget, db: Session, verified: bool) -> str:
+    """Client-safe wording for a won placement (monthly PDF).
+
+    The count is the target row's own answers_count -- the answers that drew
+    on the page in the last scan before it named the client -- so the number
+    and the page come from one record. "verified" adds the proof question,
+    which is the client's own tracked question, never an AI answer.
+    """
+    n = target.answers_count or 0
+    kind = "buyer questions" if set(target.query_categories or []) & _BUYER_CATEGORIES else "questions"
+    if n > 1:
+        reach = f"AI answers drew on {n} times"
+    elif n == 1:
+        reach = "an AI answer drew on"
+    else:
+        reach = "AI answers draw on"
+    line = f"Now listed on {target.domain}, a page {reach} for your {kind}."
+    if verified:
+        proof = (
+            db.get(ScanQueryResult, target.representative_result_id)
+            if target.representative_result_id else None
+        )
+        line += (
+            f' AI now sees you when asked "{proof.query_text}".' if proof
+            else " AI answers now see you for the question it was tracked against."
+        )
+    return line
+
+
 # ── outreach drafts (approved facts only) ───────────────────────────────────
 
 class PlacementBudgetError(RuntimeError):
