@@ -128,3 +128,73 @@ def test_google_requests_are_priced_per_request():
 
     assert float(_compute_cost("dataforseo-google-aio", 0, 0, 1)) == pytest.approx(0.0026)
     assert float(_compute_cost("dataforseo-google-ai-mode", 0, 0, 1)) == pytest.approx(0.004)
+
+
+# ── Task 2: the scan records whether an answer was shown ───────────────────
+
+def _run_one(platform_client, tracked_samples=()):
+    import uuid
+
+    from app.services.scan_service import _run_platform_queries
+
+    scan = MagicMock(id=uuid.uuid4())
+    client = MagicMock(id=uuid.uuid4())
+    client.name = "Acme Dental"
+    queries = [{"query_text": "best dental clinic in KL", "category": "recommendation"}]
+    with patch("app.services.scan_service.time.sleep"), \
+            patch("app.services.scan_service.extract_position", return_value=2) as pos:
+        rows, usages = _run_platform_queries(
+            platform_client.platform, platform_client, scan, client, [], [], queries,
+            list(tracked_samples),
+        )
+    return rows, usages, pos
+
+
+def _sample():
+    import uuid
+    return {"query_text": "best dental clinic in KL", "category": "recommendation",
+            "tracked_query_id": uuid.uuid4(), "sample_index": 1, "prompt_version": "v1"}
+
+
+def test_scan_stores_a_missing_overview_as_not_seen_with_no_quote():
+    with _post("aio_absent"):
+        rows, usages, pos = _run_one(GoogleAIOverviewClient("login", "pw"))
+
+    [row] = rows
+    assert row.platform == "google_aio"
+    assert row.answer_shown is False
+    assert row.brand_detected is False
+    assert row.response_text == ""
+    assert row.sources_captured is True and row.sources == []
+    assert row.recommendation_position is None
+    pos.assert_not_called()
+    assert usages[0].search_requests == 1  # the request is still cost-logged
+
+
+def test_scan_stores_a_shown_overview_with_its_sources():
+    with _post("aio_present"):
+        rows, _, _ = _run_one(GoogleAIOverviewClient("login", "pw"))
+
+    [row] = rows
+    assert row.answer_shown is True and row.brand_detected is True
+    assert [s.domain for s in row.sources] == ["klguide.example", "brightsmile.my"]
+
+
+def test_google_surfaces_skip_repeat_samples():
+    with _post("aio_present") as post:
+        rows, _, _ = _run_one(GoogleAIOverviewClient("login", "pw"), [_sample()])
+
+    assert len(rows) == 1 and post.call_count == 1
+
+
+def test_llm_platform_rows_leave_answer_shown_unset():
+    from app.services.platform_clients.base import PlatformResult
+
+    llm = MagicMock(platform="chatgpt")
+    llm.query.return_value = PlatformResult(
+        text="Acme Dental is great.", model="gpt-5-mini", input_tokens=1, output_tokens=1,
+    )
+    rows, _, _ = _run_one(llm, [_sample()])
+
+    assert len(rows) == 2  # repeat samples still run for LLM platforms
+    assert all(r.answer_shown is None for r in rows)

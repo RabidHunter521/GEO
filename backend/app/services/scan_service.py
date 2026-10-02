@@ -207,6 +207,7 @@ def _run_platform_queries(
             response_text=response_text,
             brand_detected=detected,
             recommendation_position=position,
+            answer_shown=result.answer_shown,
         )
         _attach_sources(sqr, result)
         results.append(sqr)
@@ -221,6 +222,10 @@ def _run_platform_queries(
     # recorded from the real platform response, not left at the "unknown"
     # default, since these rows are what future stability analysis (Task 4)
     # reads.
+    # A surface that returns the same page for the same search (Google) gains
+    # nothing from repeats and trips the vendor's duplicate-task limits.
+    if not getattr(platform_client, "supports_repeat_samples", True):
+        tracked_query_samples = ()
     for q in tracked_query_samples:
         try:
             result = platform_client.query(q["query_text"])
@@ -267,6 +272,7 @@ def _run_platform_queries(
             prompt_version=q["prompt_version"],
             model_name=result.model,
             observed_at=utcnow(),
+            answer_shown=result.answer_shown,
         )
         # Sources feed query stability's source-agreement dimension, which
         # until now always compared empty sets for these samples.
@@ -288,6 +294,7 @@ def _run_platform_queries(
             response_text=result.text,
             brand_detected=detect_brand_in_answer(result.text, client.name),
             is_control=True,
+            answer_shown=result.answer_shown,
         ))
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
@@ -305,6 +312,7 @@ def _run_platform_queries(
                 query_text=q["query_text"],
                 response_text=response_text,
                 brand_detected=detected,
+                answer_shown=result.answer_shown,
             ))
             time.sleep(_INTER_QUERY_DELAY_SECONDS)
 

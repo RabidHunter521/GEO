@@ -80,6 +80,13 @@ class ScanQueryResult(Base):
     # sources" apart from "sources never recorded".
     sources_captured: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
+    # Whether the surface showed an AI answer at all. NULL = the surface
+    # always answers (every LLM platform, and every row before Google AI
+    # surfaces). False = Google showed no AI Overview for this question: a
+    # real observation counted as Not seen by AI, but never quoted, never
+    # fact-checked, never position-extracted (see has_answer()).
+    answer_shown: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     tracked_query: Mapped["TrackedQuery | None"] = relationship(  # noqa: F821 — ruff false-positive on SQLAlchemy string forward-ref
         "TrackedQuery",
         back_populates="scan_query_results",
@@ -97,3 +104,13 @@ class ScanQueryResult(Base):
         "MisinformationFinding",
         cascade="all, delete-orphan",
     )
+
+
+def has_answer(result) -> bool:
+    """True when the row holds an AI answer someone could read.
+
+    False only for a Google search that showed no AI Overview. Anything that
+    quotes, fact-checks or extracts from response_text must check this; counts
+    of Seen / Not seen by AI must not (no overview is Not seen by AI).
+    """
+    return getattr(result, "answer_shown", None) is not False
