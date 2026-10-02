@@ -13,7 +13,7 @@ from datetime import datetime
 from app.core.constants import (
     COMPETITOR_QUERY_TEMPLATES,
     QUERY_TEMPLATES,
-    SCAN_PLATFORMS,
+    SCORED_PLATFORMS,
 )
 from app.models.scan_query_result import ScanQueryResult
 from app.services.scoring_service import (
@@ -24,7 +24,9 @@ from app.services.scoring_service import (
 from app.models.geo_score import GeoScore
 from app.core.constants import ACTION_IMPACT_MAX_PER_ACTION, ACTION_PRIORITY_BANDS, SCORE_WEIGHTS
 
-PLATFORMS = list(SCAN_PLATFORMS)  # ["chatgpt", "perplexity", "gemini", "claude"]
+# Demo answers are written per LLM platform (see _PLATFORM_OPENERS). The Google
+# AI surfaces are reported-only and have no seeded answers.
+PLATFORMS = list(SCORED_PLATFORMS)
 
 # Per-platform "AI voice" opener, used so identical templates don't read
 # verbatim-identically across platforms.
