@@ -2,7 +2,7 @@ import pytest
 import sys
 from unittest.mock import MagicMock
 from sqlalchemy import create_engine
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
@@ -15,6 +15,16 @@ from app.models import client, competitor, scan, scan_query_result, scan_query_s
 @compiles(JSONB, "sqlite")
 def _compile_jsonb_sqlite(type_, compiler, **kw):
     return "JSON"
+
+
+# SQLite gives a column declared "UUID" NUMERIC affinity, so a random uuid4
+# whose hex is all digits plus one "e" (e.g. 12345678...789e12) is silently
+# stored as a float and reads back as one -- a ~1-in-a-million-per-uuid flake
+# that surfaced as "'float' object has no attribute 'replace'". CHAR(32) has
+# TEXT affinity and stores the hex verbatim. Postgres has a real UUID type.
+@compiles(UUID, "sqlite")
+def _compile_uuid_sqlite(type_, compiler, **kw):
+    return "CHAR(32)"
 
 # Mock resend module if not installed
 if "resend" not in sys.modules:
