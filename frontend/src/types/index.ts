@@ -1566,3 +1566,57 @@ export interface TeamLinkIssued {
   link: string
   emailed: boolean
 }
+
+// ── Lead-source attribution ──────────────────────────────────────────────
+// Mirrors app/schemas/attribution.py. Admin-only: AI-matched signals reach
+// the client view only as "attributed" rows on the evidence ladder.
+export type AttributionChannel = "whatsapp_click" | "heard_about_us"
+export type AnswerEventType = "lead" | "booking" | "call" | "purchase" | "form_submit"
+
+export interface AttributionChannelSummary {
+  total: number
+  ai_attributed: number
+  by_platform: Record<string, number>
+}
+
+export interface AttributionSignal {
+  id: string
+  channel: AttributionChannel
+  occurred_at: string
+  ai_platform: string | null
+  match_reason: "referrer" | "utm" | "self_reported" | null
+  source: "tracked_link" | "webhook" | "manual"
+  raw_value: string | null
+}
+
+export interface AttributionOverview {
+  whatsapp_number: string | null
+  whatsapp_message: string | null
+  tracking_enabled: boolean
+  tracked_link_url: string
+  website_snippet: string
+  webhook_url: string
+  webhook_secret_set: boolean
+  webhook_secret_created_at: string | null
+  window_days: number
+  whatsapp_clicks: AttributionChannelSummary
+  heard_about_us: AttributionChannelSummary
+  recent: AttributionSignal[]
+}
+
+export interface AttributionSettingInput {
+  whatsapp_number: string | null
+  whatsapp_message: string | null
+  tracking_enabled: boolean
+}
+
+export interface ManualAnswerInput {
+  answer: string
+  event_type: AnswerEventType
+  value_minor: number
+}
+
+export interface WebhookSecretIssued {
+  webhook_secret: string
+  webhook_secret_created_at: string
+}

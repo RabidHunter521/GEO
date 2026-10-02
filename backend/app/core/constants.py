@@ -132,6 +132,36 @@ AI_REFERRER_DOMAINS: Final = {
     "claude.ai":            "Claude",
     "you.com":              "You.com",
 }
+# "How did you hear about us?" answers that count as an AI assistant, matched
+# as whole words/phrases (case-insensitive). Order matters: the first match
+# wins, so specific products come before the generic "ai" catch-all. A bare
+# "google" is deliberately NOT here — that is ordinary search, not AI.
+AI_SELF_REPORT_KEYWORDS: Final = (
+    ("ai overview",            "Google AI Overviews"),
+    ("ai overviews",           "Google AI Overviews"),
+    ("ai mode",                "Google AI Mode"),
+    ("meta ai",                "Meta AI"),
+    ("chatgpt",                "ChatGPT"),
+    ("chat gpt",               "ChatGPT"),
+    ("openai",                 "ChatGPT"),
+    ("gpt",                    "ChatGPT"),
+    ("perplexity",             "Perplexity"),
+    ("gemini",                 "Gemini"),
+    ("bard",                   "Gemini"),
+    ("claude",                 "Claude"),
+    ("copilot",                "Copilot"),
+    ("deepseek",               "DeepSeek"),
+    ("grok",                   "Grok"),
+    ("ai",                     "AI assistant"),
+    ("artificial intelligence", "AI assistant"),
+    ("chatbot",                "AI assistant"),
+)
+# Repeat WhatsApp clicks from the same visitor on the same link inside this
+# window count once — a customer tapping the button twice is one enquiry.
+WHATSAPP_CLICK_DEDUPE_MINUTES: Final = 30
+# Hosts a tracked WhatsApp redirect may send a visitor to. The tracked link
+# never redirects anywhere else, so it cannot be used as an open redirect.
+WHATSAPP_REDIRECT_HOSTS: Final = ("wa.me", "api.whatsapp.com", "web.whatsapp.com")
 # Default review cadence — drives the "next scan due" reminder on /clients.
 # Reminder only; nothing auto-scans (MVP runs on-demand scans only).
 DEFAULT_SCAN_CADENCE_DAYS: Final = 30

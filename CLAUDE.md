@@ -303,6 +303,16 @@ raw AI responses or internal fields):
                             weight change updates the published methodology
                             in the same commit.
 
+Public lead-source attribution endpoints (Next.js route handlers, not pages;
+hit by a client's customers and form tools, never by an admin). Setup and
+results live in a card on `/clients/[id]/settings`:
+/wa/[token]               → tracked WhatsApp link: records the click, then
+                            302s to WhatsApp only (never anywhere else)
+/hooks/heard-about-us     → inbound "how did you hear about us?" webhook
+                            (per-client secret, idempotent on submission_id)
+AI-matched clicks/answers are written to `conversion_events` at the
+`attributed` evidence level only — never `observed`.
+
 The client-facing nav (ViewTabs) shows up to six destinations, in this order:
 Overview, Progress, Visibility (/scan), Reputation, Action Plan
 (/content-plan), Reports. Below the `sm` breakpoint it renders a native
