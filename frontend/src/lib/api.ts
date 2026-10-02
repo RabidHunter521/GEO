@@ -6,9 +6,10 @@
 // module is ever pulled into a client bundle, the build fails instead of
 // silently shipping a module that reaches for admin credentials.
 import "server-only"
+import type { AiMirrorResponse } from "@/types"
 import { redirect } from "next/navigation"
 import { adminAuthHeader } from "@/lib/api-token"
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -290,6 +291,10 @@ export function getCompetitorIntelligence(clientId: string): Promise<CompetitorI
 
 export function getWinLoss(clientId: string): Promise<WinLossResponse> {
   return apiFetch<WinLossResponse>(`/api/v1/clients/${clientId}/competitors/win-loss`)
+}
+
+export function getAiMirror(clientId: string): Promise<AiMirrorResponse> {
+  return apiFetch<AiMirrorResponse>(`/api/v1/clients/${clientId}/competitors/mirror`)
 }
 
 export function generateContentBrief(clientId: string, resultId: string): Promise<ContentBrief> {
@@ -870,6 +875,34 @@ export function getBusinessImpact(clientId: string, dateFrom?: string, dateTo?: 
   if (dateTo) params.set("date_to", dateTo)
   const qs = params.toString()
   return apiFetch<ImpactSummary[]>(`/api/v1/clients/${clientId}/business-impact${qs ? `?${qs}` : ""}`)
+}
+
+// ── Lead-source attribution (WhatsApp clicks + "how did you hear") ──────
+
+export function getAttribution(clientId: string): Promise<AttributionOverview> {
+  return apiFetch<AttributionOverview>(`/api/v1/clients/${clientId}/attribution`)
+}
+
+export function updateAttribution(clientId: string, body: AttributionSettingInput): Promise<AttributionOverview> {
+  return apiFetch<AttributionOverview>(`/api/v1/clients/${clientId}/attribution`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  })
+}
+
+export function rotateAttributionWebhookSecret(clientId: string): Promise<WebhookSecretIssued> {
+  return apiFetch<WebhookSecretIssued>(`/api/v1/clients/${clientId}/attribution/webhook-secret`, {
+    method: "POST",
+  })
+}
+
+export function logAttributionAnswer(
+  clientId: string, body: ManualAnswerInput,
+): Promise<{ status: string; ai_attributed: boolean }> {
+  return apiFetch(`/api/v1/clients/${clientId}/attribution/answers`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
 }
 
 // ── Benchmarks (Phase 6) ─────────────────────────────────────────────────

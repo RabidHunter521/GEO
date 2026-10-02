@@ -10,6 +10,7 @@ from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.schemas.ai_mirror import AiMirrorResponse
 from app.schemas.ai_readiness import CompetitorAIReadinessResponse
 from app.schemas.competitor import (
     CompetitorCreate,
@@ -20,6 +21,7 @@ from app.schemas.competitor import (
     WinLossResponse,
 )
 from app.schemas.provenance import ShareOfSourceHistoryPoint, ShareOfSourceResponse
+from app.services import ai_mirror_service
 from app.services.ai_readiness_service import compute_competitor_ai_readiness
 from app.services.brand_detection import detect_brand_in_answer
 from app.services.competitor_intelligence_service import (
@@ -51,6 +53,20 @@ def get_intelligence(client_id: uuid.UUID, db: Session = Depends(get_db)):
 def get_win_loss(client_id: uuid.UUID, db: Session = Depends(get_db)):
     _get_client_or_404(client_id, db)
     return compute_win_loss(client_id, db)
+
+
+@router.get(
+    "/mirror",
+    response_model=AiMirrorResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def get_ai_mirror(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Day-one AI Mirror: the client next to their top competitor, as the
+    latest scan's answers describe them. Admin view keeps flagged answers and
+    the full stored text so the team can check every quote."""
+    client = _get_client_or_404(client_id, db)
+    mirror = ai_mirror_service.build_ai_mirror(client, db, include_flagged=True)
+    return ai_mirror_service.to_admin_response(mirror)
 
 
 @router.get(

@@ -13,6 +13,7 @@ import {
   getViewQueryStability,
   getViewBusinessImpact,
   getViewBenchmarks,
+  getViewMirror,
 } from "@/lib/view-api"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import { ScoreRing } from "@/components/score/ScoreRing"
@@ -23,6 +24,7 @@ import { AiPipelineValueCard } from "@/components/view/AiPipelineValueCard"
 import { ClientProgressList } from "@/components/view/ClientProgressList"
 import { PeriodSummary } from "@/components/view/PeriodSummary"
 import { ProofCardList } from "@/components/view/ProofCardList"
+import { AiMirrorTeaser } from "@/components/mirror/AiMirrorTeaser"
 import { DimensionInfo } from "@/components/view/DimensionInfo"
 import { PlatformIcon } from "@/components/view/PlatformIcon"
 import { SectionHeading } from "@/components/view/SectionHeading"
@@ -141,6 +143,8 @@ export default async function ViewOverviewPage({
   // per-platform visibility. The deeper breakdown, benchmark, action plan and
   // trends are reserved for converted clients (who have manual + competitor data).
   const isProspect = overview.profile.is_prospect
+  // Clients only: the mirror endpoint returns the uniform 404 for prospects.
+  const mirror = isProspect ? null : await getViewMirror(token).catch(() => null)
 
   const score = overview.latest_score
   const band = score ? getScoreBand(score.overall_score) : null
@@ -300,6 +304,9 @@ export default async function ViewOverviewPage({
           <ProofCardList cards={overview.proof_cards} />
         </section>
       )}
+
+      {/* 2.3 AI Mirror — the client next to their top competitor (clients only) */}
+      {!isProspect && <AiMirrorTeaser token={token} mirror={mirror} />}
 
       {/* 2.35 Our commitment — the guarantee, collapsed to client-safe states */}
       {!isProspect && overview.commitment && (

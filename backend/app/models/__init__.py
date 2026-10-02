@@ -7,6 +7,8 @@ from app.models.business_location import BusinessLocation
 from app.models.truth_fact import TruthFact, TruthFactVersion, TRUTH_FACT_VERSION_STATUSES
 from app.models.tracked_query import TrackedQuery
 from app.models.conversion_event import ConversionEvent
+from app.models.attribution_setting import AttributionSetting
+from app.models.attribution_signal import AttributionSignal
 from app.models.search_query_signal import SearchQuerySignal
 from app.models.benchmark_cohort import (
     BenchmarkCohort,
@@ -28,6 +30,8 @@ from app.models.user import User, USER_ROLES
 from app.models.client_win import ClientWin
 
 __all__ = [
+    "AttributionSetting",
+    "AttributionSignal",
     "OUTCOME_ACTION_STATUSES",
     "OUTCOME_ACTION_TYPES",
     "OutcomeAction",

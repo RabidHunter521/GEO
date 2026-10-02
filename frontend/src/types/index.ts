@@ -730,6 +730,48 @@ export interface ClientViewCompetitorTrends {
   series: ClientViewTrendSeries[]
 }
 
+// ── AI Mirror (day-one) ──────────────────────────────────────────────────────
+// Mirrors backend/app/schemas/ai_mirror.py. The client-view shapes carry
+// verbatim excerpts and counts only; the admin shapes add the full stored
+// answer and the inaccuracy flag.
+export type MirrorSideStatus = "seen" | "not_seen" | "no_answer"
+
+export interface ClientViewMirrorSide {
+  name: string
+  question: string | null
+  status: MirrorSideStatus
+  excerpts: string[]
+}
+
+export interface ClientViewMirrorPlatform<S extends ClientViewMirrorSide = ClientViewMirrorSide> {
+  platform_label: string
+  same_question: boolean
+  you: S
+  competitor: S
+  buyer_answers_total: number
+  buyer_answers_you: number
+  buyer_answers_competitor: number
+}
+
+export interface ClientViewMirror<P extends ClientViewMirrorPlatform = ClientViewMirrorPlatform> {
+  status: "ready" | "no_scan" | "no_competitors"
+  checked_at: string | null
+  competitor_name: string | null
+  competitor_basis: "buyer_answers" | "visibility" | null
+  platforms: P[]
+}
+
+export interface AiMirrorSide extends ClientViewMirrorSide {
+  response_text: string | null
+  flagged_inaccurate: boolean
+}
+
+export interface AiMirrorPlatform extends ClientViewMirrorPlatform<AiMirrorSide> {
+  platform: string
+}
+
+export type AiMirrorResponse = ClientViewMirror<AiMirrorPlatform>
+
 export interface ClientViewReport {
   id: string
   period_start: string
@@ -1526,4 +1568,58 @@ export interface TeamLinkIssued {
   // the email didn't go out.
   link: string
   emailed: boolean
+}
+
+// ── Lead-source attribution ──────────────────────────────────────────────
+// Mirrors app/schemas/attribution.py. Admin-only: AI-matched signals reach
+// the client view only as "attributed" rows on the evidence ladder.
+export type AttributionChannel = "whatsapp_click" | "heard_about_us"
+export type AnswerEventType = "lead" | "booking" | "call" | "purchase" | "form_submit"
+
+export interface AttributionChannelSummary {
+  total: number
+  ai_attributed: number
+  by_platform: Record<string, number>
+}
+
+export interface AttributionSignal {
+  id: string
+  channel: AttributionChannel
+  occurred_at: string
+  ai_platform: string | null
+  match_reason: "referrer" | "utm" | "self_reported" | null
+  source: "tracked_link" | "webhook" | "manual"
+  raw_value: string | null
+}
+
+export interface AttributionOverview {
+  whatsapp_number: string | null
+  whatsapp_message: string | null
+  tracking_enabled: boolean
+  tracked_link_url: string
+  website_snippet: string
+  webhook_url: string
+  webhook_secret_set: boolean
+  webhook_secret_created_at: string | null
+  window_days: number
+  whatsapp_clicks: AttributionChannelSummary
+  heard_about_us: AttributionChannelSummary
+  recent: AttributionSignal[]
+}
+
+export interface AttributionSettingInput {
+  whatsapp_number: string | null
+  whatsapp_message: string | null
+  tracking_enabled: boolean
+}
+
+export interface ManualAnswerInput {
+  answer: string
+  event_type: AnswerEventType
+  value_minor: number
+}
+
+export interface WebhookSecretIssued {
+  webhook_secret: string
+  webhook_secret_created_at: string
 }

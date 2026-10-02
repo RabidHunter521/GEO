@@ -37,6 +37,7 @@ const REPORTS_TAB = { segment: "/reports", label: "Reports" } as const
 // about than a small explicit map for the handful of routes this applies to.
 const NON_TAB_ROUTE_LABELS: Record<string, string> = {
   competitors: "Competitors",
+  mirror: "AI Mirror",
 }
 
 function labelForUnknownPath(pathname: string, base: string): string {

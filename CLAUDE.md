@@ -287,6 +287,11 @@ raw AI responses or internal fields):
 /view/[token]/competitors → competitor comparison (linked from Overview and
                             Visibility, not a primary tab — route stays live
                             for existing links)
+/view/[token]/mirror      → day-one AI Mirror: verbatim excerpts of what each
+                            AI said about the client next to their top
+                            competitor (same scan, same platform), plus
+                            same-denominator buyer-question counts. Linked
+                            from Overview, not a tab. Clients only.
 /view/[token]/reports     → delivered PDF reports
 /view/[token]/progress    → delivery timeline (published work log only)
 /view/[token]/methodology → how the score is measured (weights, what is
@@ -297,6 +302,16 @@ raw AI responses or internal fields):
                             via `methodology_service` -- never retyped, so a
                             weight change updates the published methodology
                             in the same commit.
+
+Public lead-source attribution endpoints (Next.js route handlers, not pages;
+hit by a client's customers and form tools, never by an admin). Setup and
+results live in a card on `/clients/[id]/settings`:
+/wa/[token]               → tracked WhatsApp link: records the click, then
+                            302s to WhatsApp only (never anywhere else)
+/hooks/heard-about-us     → inbound "how did you hear about us?" webhook
+                            (per-client secret, idempotent on submission_id)
+AI-matched clicks/answers are written to `conversion_events` at the
+`attributed` evidence level only — never `observed`.
 
 The client-facing nav (ViewTabs) shows up to six destinations, in this order:
 Overview, Progress, Visibility (/scan), Reputation, Action Plan

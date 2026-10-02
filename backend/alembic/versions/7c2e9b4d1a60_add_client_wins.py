@@ -6,7 +6,7 @@ whether the client is told. Off by default, so no existing client receives
 anything until an admin turns it on.
 
 Revision ID: 7c2e9b4d1a60
-Revises: 344f3422e114
+Revises: 43b801757a66
 Create Date: 2026-10-02
 
 """
@@ -19,7 +19,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '7c2e9b4d1a60'
-down_revision: Union[str, None] = '344f3422e114'
+down_revision: Union[str, None] = '43b801757a66'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
