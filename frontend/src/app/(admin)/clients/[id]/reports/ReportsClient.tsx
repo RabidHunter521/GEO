@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { FileText, Download, Send, Loader2 } from "lucide-react"
+import { FileText, Download, Send, Loader2, Presentation } from "lucide-react"
 import { ScoreBadge } from "@/components/score/ScoreBadge"
 import type { Report } from "@/types"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
@@ -128,6 +128,28 @@ export function ReportsClient({ clientId, initialReports, contactEmail }: Props)
             >
               <Download className="h-4 w-4 mr-2" />
               Scorecard PDF
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`/api/clients/${clientId}/review-deck`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Slides covering the last 90 days, for the renewal conversation"
+            >
+              <Presentation className="h-4 w-4 mr-2" />
+              90-day review
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={`/api/clients/${clientId}/review-deck?mode=case_study`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="The same slides with the client's name, domain and competitors withheld"
+            >
+              <Presentation className="h-4 w-4 mr-2" />
+              Case study
             </a>
           </Button>
           <Button
