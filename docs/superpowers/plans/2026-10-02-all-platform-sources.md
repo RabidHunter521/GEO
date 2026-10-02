@@ -26,10 +26,14 @@ Growth Readiness); no new client-facing page; no UI scraping of consumer apps.
    (`scan_service.py` sample loop, ~line 196–241). But
    `query_stability_service` uses `source_domains` as an agreement dimension
    (`_DIMENSIONS`, line ~149). Every sample therefore has `frozenset()` → the
-   source dimension always agrees 100% → **stability is inflated today, and
-   that stability is client-facing** (`client_view.py:1239`
-   `/query-stability`). Turning capture on naively would then make stability
-   "drop" for no real reason. Task 9 fixes both.
+   source dimension always agrees 100%. **Corrected 2026-10-02:** this does
+   NOT inflate client-visible stability — `score` is the MINIMUM across
+   dimensions, so a constant 1.0 can never raise it or change the state, and
+   no frontend renders the per-dimension `agreement` breakdown. It is a
+   meaningless entry in the API payload only. The real hazard is Task 6:
+   once capture is on, legacy empty-set samples and new populated samples
+   disagree and stability would DROP for no real reason. **Task 9 must ship
+   in the same release as Task 6** — never deploy Task 6 alone.
 3. **Trend discontinuity** — `share_of_source_snapshots` has no record of
    which platforms fed it. The first all-platform scan would produce a jump in
    the admin trend, the monthly PDF's sources section
@@ -221,9 +225,9 @@ not comparable; benchmark ignores v1 rows. Banned-language scan passes
 - The source-domain dimension is evaluated only when every compared sample
   has captured sources; otherwise it is omitted from `agreement` and from the
   score (not counted as agreeing).
-- Note in the ledger: client-visible stability scores for existing tracked
-  queries will change on next read, because the inflating always-agrees
-  dimension is removed. That is a correction, not a regression.
+- Release coupling: Task 6 and Task 9 deploy together (see finding 2).
+  Client-visible stability scores should be unchanged by this pair; verify
+  on the demo client before and after.
 
 **Done when:** tests: legacy-only samples → no source dimension; mixed
 legacy/new → no source dimension; all-captured → dimension present and
