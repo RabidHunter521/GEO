@@ -339,7 +339,7 @@ def test_reasons_explain_the_score_in_plain_language():
     ))
     text = " | ".join(reasons)
     assert "3 answers drew on this page in the latest scan" in text
-    assert "2 of 4 AI platforms (ChatGPT, Gemini)" in text
+    assert "Used by 2 AI platforms (ChatGPT, Gemini)" in text
     assert "buyer questions" in text
     assert "1 tracked competitor listed" in text
     assert "listicle" in text

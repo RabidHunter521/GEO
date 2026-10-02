@@ -41,6 +41,9 @@ _TOKEN_COST: dict[str, dict[str, float]] = {
     # Was $1.00 output — sonar bills $1 in / $2.50 out.
     "sonar":                     {"input": 1.00 / 1_000_000, "output": 2.50 / 1_000_000},
     "gemini-2.5-flash-lite":     {"input": 0.10 / 1_000_000, "output": 0.40 / 1_000_000},
+    # Google AI surfaces via DataForSEO: no tokens, billed per request (below).
+    "dataforseo-google-aio":     {"input": 0.0, "output": 0.0},
+    "dataforseo-google-ai-mode": {"input": 0.0, "output": 0.0},
 }
 
 # USD per web search / grounded request, billed ON TOP of tokens. Every scan
@@ -59,6 +62,12 @@ _SEARCH_COST: dict[str, float] = {
     "gpt-5-mini":                10.00 / 1_000,  # OpenAI web_search, per tool call
     "sonar":                      5.00 / 1_000,  # Perplexity, per request
     "gemini-2.5-flash-lite":     35.00 / 1_000,  # Google Search grounding, per prompt
+    # DataForSEO live endpoints, per request, verified 2026-10-02
+    # (dataforseo.com/pricing). AI Overviews = organic live advanced ($2.00/1k)
+    # + async overview loading ($0.60/1k, refunded when no async overview
+    # exists), so this is an upper bound like Gemini's.
+    "dataforseo-google-aio":      2.60 / 1_000,
+    "dataforseo-google-ai-mode":  4.00 / 1_000,
 }
 
 

@@ -43,6 +43,10 @@ class PlatformResult:
     output_tokens: int
     citations: tuple[SourceCitation, ...] = ()
     search_requests: int = 0
+    # None = the surface always answers (every LLM platform). False = the
+    # surface showed no AI answer for this question (Google AI Overviews):
+    # a real observation, never a quote and never an error.
+    answer_shown: bool | None = None
 
 
 def collect_citations(

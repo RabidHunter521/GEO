@@ -1,0 +1,23 @@
+{
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "tasks": [{
+    "status_code": 20000,
+    "status_message": "Ok.",
+    "path": ["v3", "serp", "google", "ai_mode", "live", "advanced"],
+    "result": [{
+      "keyword": "best dental clinic in KL",
+      "type": "ai_mode",
+      "item_types": ["ai_overview"],
+      "items": [{
+        "type": "ai_overview",
+        "rank_group": 1,
+        "rank_absolute": 1,
+        "markdown": "For dental care in KL, **Bright Smile** in Mont Kiara is a popular choice. Acme Dental is also worth a look.",
+        "references": [
+          {"type": "ai_overview_reference", "source": "Bright Smile", "domain": "brightsmile.my", "url": "https://brightsmile.my/", "title": "Bright Smile Dental", "text": "..."}
+        ]
+      }]
+    }]
+  }]
+}

@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     PERPLEXITY_API_KEY: str = ""
+    # Google AI Overviews + AI Mode (DataForSEO SERP API, basic auth).
+    DATAFORSEO_LOGIN: str = ""
+    DATAFORSEO_PASSWORD: str = ""
     ADMIN_API_KEY: str
     ALLOWED_ORIGINS: str = "http://localhost:3000"
     FRONTEND_BASE_URL: str = "http://localhost:3000"

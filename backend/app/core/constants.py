@@ -167,13 +167,26 @@ WHATSAPP_REDIRECT_HOSTS: Final = ("wa.me", "api.whatsapp.com", "web.whatsapp.com
 DEFAULT_SCAN_CADENCE_DAYS: Final = 30
 PLATFORM_GEMINI: Final = "gemini"
 
-SCAN_PLATFORMS: Final = ["chatgpt", "perplexity", "gemini", "claude"]
+SCAN_PLATFORMS: Final = [
+    "chatgpt", "perplexity", "gemini", "claude", "google_aio", "google_ai_mode",
+]
 PLATFORM_LABELS: Final = {
-    "chatgpt":    "ChatGPT",
-    "perplexity": "Perplexity",
-    "gemini":     "Gemini",
-    "claude":     "Claude",
+    "chatgpt":        "ChatGPT",
+    "perplexity":     "Perplexity",
+    "gemini":         "Gemini",
+    "claude":         "Claude",
+    "google_aio":     "Google AI Overviews",
+    "google_ai_mode": "Google AI Mode",
 }
+# Platforms whose visibility feeds AI Citability (CLAUDE.md §4). The Google
+# surfaces are reported everywhere but not yet scored: adding them here changes
+# the formula, so it needs a SCORE_VERSION bump and a §4 update.
+SCORED_PLATFORMS: Final = ("chatgpt", "perplexity", "gemini", "claude")
+# Where and how the Google AI surfaces are observed (DataForSEO). Malaysia is
+# location code 2458; English; mobile, which is how most Malaysians search.
+GOOGLE_SERP_LOCATION_CODE: Final = 2458
+GOOGLE_SERP_LANGUAGE_CODE: Final = "en"
+GOOGLE_SERP_DEVICE: Final = "mobile"
 
 # AI crawlers checked by the competitor AI-readiness feature. Matches the bot
 # list toolkit_service.generate_robots_txt() already allow-lists for clients.
@@ -362,6 +375,9 @@ PLACEMENT_CATEGORY_WEIGHTS: Final = {
     "marketplace": 0.5, "review": 0.4, "social": 0.4, "reference": 0.3,
 }
 # Answers in the latest scan at which the reach factor saturates.
+# Distinct AI platforms at which a page's breadth signal is full. Fixed rather
+# than the platform count, so adding a platform never re-ranks every target.
+PLACEMENT_BREADTH_SATURATION: Final = 4
 PLACEMENT_REACH_SATURATION: Final = 8
 
 WORK_LOG_CATEGORIES: Final = ("technical", "content", "authority", "visibility", "correction")

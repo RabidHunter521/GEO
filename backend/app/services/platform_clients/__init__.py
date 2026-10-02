@@ -7,6 +7,8 @@ from app.services.platform_clients.base import (
 from app.services.platform_clients.chatgpt import ChatGPTClient
 from app.services.platform_clients.claude import ClaudeClient
 from app.services.platform_clients.gemini import GeminiClient
+from app.services.platform_clients.google_ai_mode import GoogleAIModeClient
+from app.services.platform_clients.google_ai_overview import GoogleAIOverviewClient
 from app.services.platform_clients.perplexity import PerplexityClient
 
 __all__ = [
@@ -25,4 +27,8 @@ def get_platform_client(platform: str) -> PlatformClient:
         return PerplexityClient(api_key=settings.PERPLEXITY_API_KEY)
     if platform == "claude":
         return ClaudeClient(api_key=settings.ANTHROPIC_API_KEY)
+    if platform == "google_aio":
+        return GoogleAIOverviewClient(settings.DATAFORSEO_LOGIN, settings.DATAFORSEO_PASSWORD)
+    if platform == "google_ai_mode":
+        return GoogleAIModeClient(settings.DATAFORSEO_LOGIN, settings.DATAFORSEO_PASSWORD)
     raise ValueError(f"Unknown scan platform: {platform}")
