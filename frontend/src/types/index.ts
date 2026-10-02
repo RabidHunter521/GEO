@@ -878,6 +878,18 @@ export interface BrandShare {
   share_pct: number
 }
 
+export interface DomainAnswers {
+  domain: string
+  answers: number
+}
+
+export interface PlatformSourceBreakdown {
+  platform: Platform
+  total_third_party_sources: number
+  client_share_pct: number
+  top_domains: DomainAnswers[]
+}
+
 export interface ShareOfSource {
   last_scan_at: string | null
   total_third_party_sources: number
@@ -885,6 +897,7 @@ export interface ShareOfSource {
   competitor_shares: BrandShare[]
   acquisition_list: AcquisitionSource[]
   flip_targets: AcquisitionSource[]
+  by_platform: PlatformSourceBreakdown[]
 }
 
 export interface ShareOfSourceHistoryPoint {

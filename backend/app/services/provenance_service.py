@@ -29,6 +29,8 @@ from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
 from app.schemas.provenance import (
     AcquisitionSource,
     BrandShare,
+    DomainAnswers,
+    PlatformSourceBreakdown,
     ShareOfSourceHistoryPoint,
     ShareOfSourceResponse,
     SourcePresence,
@@ -354,6 +356,46 @@ def _summarize(
     )
 
 
+_TOP_DOMAINS_PER_PLATFORM = 5
+
+
+def _platform_breakdown(scan_id: uuid.UUID, db: Session) -> list[PlatformSourceBreakdown]:
+    """Per-platform view of the same pool _collect_sources reads: which
+    third-party domains each platform leaned on, and the client's share of
+    that platform's unique sources. Shows where to chase placements: platforms
+    draw on very different kinds of sites."""
+    pairs = (
+        db.query(ScanQuerySource, ScanQueryResult.platform)
+        .join(ScanQueryResult, ScanQueryResult.id == ScanQuerySource.scan_query_result_id)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQuerySource.source_type == "third_party",
+            ScanQuerySource.fetch_status == "ok",
+        )
+        .all()
+    )
+    urls: dict[str, dict[str, bool]] = defaultdict(dict)
+    domain_counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for row, platform in pairs:
+        urls[platform][row.url] = bool((row.present_brands or {}).get("client"))
+        domain_counts[platform][row.domain] += 1
+
+    breakdown = []
+    for platform in sorted(urls):
+        unique = urls[platform]
+        top = sorted(domain_counts[platform].items(), key=lambda kv: (-kv[1], kv[0]))
+        breakdown.append(PlatformSourceBreakdown(
+            platform=platform,
+            total_third_party_sources=len(unique),
+            client_share_pct=round(sum(unique.values()) / len(unique) * 100, 1),
+            top_domains=[
+                DomainAnswers(domain=d, answers=n) for d, n in top[:_TOP_DOMAINS_PER_PLATFORM]
+            ],
+        ))
+    return breakdown
+
+
 def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceResponse:
     """Admin read model: Share-of-Source + acquisition list from the latest scan.
 
@@ -374,7 +416,9 @@ def compute_share_of_source(client_id: uuid.UUID, db: Session) -> ShareOfSourceR
     unique = _collect_sources(latest.id, db)
     competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
     client = db.get(Client, client_id)
-    return _summarize(unique, competitors, client, last_scan_at)
+    summary = _summarize(unique, competitors, client, last_scan_at)
+    summary.by_platform = _platform_breakdown(latest.id, db)
+    return summary
 
 
 def _detect_flips(

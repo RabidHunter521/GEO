@@ -294,3 +294,46 @@ def test_history_marks_the_point_where_coverage_changed(db):
     history = ps.get_share_of_source_history(client.id, db)
 
     assert [p.coverage_changed for p in history] == [False, False, True, False]
+
+
+# ── Task 10 (all-platform sources): per-platform view for the admin ──────────
+
+def test_share_of_source_breaks_sources_down_by_platform(db):
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed", completed_at=utcnow())
+    db.add_all([client, scan])
+
+    def _row(platform, sources):
+        sqr = ScanQueryResult(scan_id=scan.id, platform=platform, category="recommendation",
+                              query_text="best dentist", response_text="…", brand_detected=False,
+                              sources_captured=True)
+        for rank, (url, domain, client_present) in enumerate(sources, start=1):
+            sqr.sources.append(ScanQuerySource(
+                url=url, domain=domain, title=None, rank=rank, source_type="third_party",
+                fetch_status="ok", present_brands={"client": client_present, "competitors": []}))
+        db.add(sqr)
+
+    _row("gemini", [("https://facebook.com/a", "facebook.com", False),
+                    ("https://yelp.com/a", "yelp.com", True)])
+    _row("gemini", [("https://facebook.com/a", "facebook.com", False)])
+    _row("chatgpt", [("https://forbes.com/a", "forbes.com", False)])
+    db.commit()
+
+    resp = ps.compute_share_of_source(client.id, db)
+    by = {p.platform: p for p in resp.by_platform}
+
+    assert [p.platform for p in resp.by_platform] == ["chatgpt", "gemini"]
+    assert by["gemini"].total_third_party_sources == 2
+    assert by["gemini"].client_share_pct == 50.0
+    assert [(d.domain, d.answers) for d in by["gemini"].top_domains] == [
+        ("facebook.com", 2), ("yelp.com", 1)
+    ]
+    assert by["chatgpt"].client_share_pct == 0.0
+    assert [d.domain for d in by["chatgpt"].top_domains] == ["forbes.com"]
+
+
+def test_by_platform_is_empty_without_sources(db):
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    db.add(client)
+    db.commit()
+    assert ps.compute_share_of_source(client.id, db).by_platform == []
