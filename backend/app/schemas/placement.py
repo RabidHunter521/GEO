@@ -43,3 +43,8 @@ class PatchPlacementRequest(BaseModel):
     # Pursuing/placed/verified are reached through delivery and proof, never
     # set by hand.
     status: Literal["open", "dismissed"]
+
+
+class PatchDraftRequest(BaseModel):
+    subject: str | None = None
+    body: str | None = None

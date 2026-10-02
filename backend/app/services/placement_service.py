@@ -6,6 +6,7 @@ This module owns discovery (refresh_targets, run after every scan), the
 deterministic priority score, and the target lifecycle. It reads only what
 provenance enrichment already recorded -- no fetches happen here.
 """
+import json
 import math
 import re
 import uuid
@@ -24,11 +25,18 @@ from app.core.constants import (
 )
 from app.core.time import utcnow
 from app.models.authority_asset import AuthorityAsset
+from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.placement_target import PlacementTarget
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
+from app.prompts import placement_outreach
 from app.services.brand_detection import detect_brand_mention
+from app.services.budget_service import check_budget
+from app.services.claude_client import MODEL_NARRATIVE, anthropic_client, strip_code_fences, was_truncated
+from app.services.cost_tracker import record_llm_call
+from app.services.language_sanitizer import sanitize_text
+from app.services.pack_query_service import approved_facts_for
 from app.services.provenance_service import normalize_domain
 from app.services.url_safety import UnsafeUrlError, safe_get
 
@@ -500,3 +508,192 @@ def target_detail(target: PlacementTarget, db: Session) -> dict:
         ),
     )
     return data
+
+
+# ── outreach drafts (approved facts only) ───────────────────────────────────
+
+class PlacementBudgetError(RuntimeError):
+    """The client or global LLM spend cap is reached; no call was made."""
+
+
+_MAX_DRAFTS_KEPT = 5
+_OUTREACH_MAX_TOKENS = 800
+_ASK_BY_CATEGORY = {"listicle": "add_to_list", "news": "story_pitch"}
+# Claim words a model likes to add that must come from the facts if used.
+_CLAIM_WORDS = (
+    "award", "certified", "accredited", "licensed", "rated", "rating", "guarantee",
+    "years of experience", "#1", "number one", "leading", "top-rated", "voted",
+)
+_NUMBER = re.compile(r"\d+")
+
+
+def _fact_value(value) -> str:
+    if isinstance(value, dict):
+        return ", ".join(f"{k}: {v}" for k, v in value.items() if v not in (None, ""))
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    return str(value)
+
+
+def _fact_lines(client: Client, db: Session) -> list[str]:
+    return [
+        f"{f.fact_type}/{f.fact_key}: {_fact_value(f.value)}"
+        for f in approved_facts_for(client, db)
+    ]
+
+
+def _profile(client: Client) -> str:
+    location = ", ".join(p for p in (client.city, client.state, client.country) if p)
+    lines = [
+        f"Business: {client.name}",
+        f"Industry: {client.industry}",
+        f"Website: {client.website}",
+        f"Location: {location}" if location else "",
+        f"Phone: {client.phone}" if client.phone else "",
+        f"Description: {client.description}" if client.description else "",
+    ]
+    return "\n".join(line for line in lines if line)
+
+
+def grounding_issues(draft_text: str, grounded_text: str) -> list[str]:
+    """Numbers and claim words in a draft that the supplied facts, profile and
+    page do not contain. Any issue flags the draft for editing before use."""
+    corpus = grounded_text.lower()
+    lowered = draft_text.lower()
+    issues = [
+        f'Number "{number}" is not in the approved facts or the page'
+        for number in dict.fromkeys(_NUMBER.findall(draft_text))
+        if not re.search(rf"(?<!\d){re.escape(number)}(?!\d)", corpus)
+    ]
+    issues.extend(
+        f'Claim "{word}" is not in the approved facts'
+        for word in _CLAIM_WORDS
+        if word in lowered and word not in corpus
+    )
+    return issues
+
+
+def _store_draft(target: PlacementTarget, draft: dict, db: Session) -> dict:
+    target.outreach_drafts = [*(target.outreach_drafts or []), draft][-_MAX_DRAFTS_KEPT:]
+    db.commit()
+    return draft
+
+
+def _directory_checklist(client: Client, facts: list[str], analysis: dict) -> dict:
+    location = ", ".join(p for p in (client.city, client.state, client.country) if p)
+    core = [
+        ("Business name", client.name),
+        ("Website", client.website),
+        ("Phone", client.phone),
+        ("Location", location),
+        ("Category", client.industry),
+        ("Description", client.description),
+    ]
+    fields = [{"label": label, "value": value} for label, value in core if value]
+    fields += [{"label": "Approved fact", "value": line} for line in facts]
+    contact = analysis.get("contact") or {}
+    return {
+        "id": str(uuid.uuid4()),
+        "kind": "checklist",
+        "created_at": utcnow().isoformat(),
+        "fields": fields,
+        "gaps": [label for label, value in core if not value],
+        "submit_at": contact.get("submission_links") or contact.get("contact_pages") or [],
+        "edited": False,
+    }
+
+
+def generate_outreach(target: PlacementTarget, db: Session) -> dict | None:
+    """Create one outreach draft for a target and store it (latest 5 kept).
+
+    Directories get a deterministic submission checklist from the profile and
+    approved facts (no model call; missing fields listed as gaps). Other pages
+    get a Claude-written email grounded ONLY in the profile and approved
+    Truth Vault facts, then checked: any number or credential not in those
+    facts or the page flags the draft for editing. Returns None when
+    generation fails (nothing stored; caller shows a retryable error).
+    Raises PlacementBudgetError before calling when a spend cap is reached.
+    """
+    client = db.get(Client, target.client_id)
+    facts = _fact_lines(client, db)
+    analysis = target.page_analysis or {}
+
+    if target.category == "directory":
+        return _store_draft(target, _directory_checklist(client, facts, analysis), db)
+
+    budget = check_budget(client.id, db)
+    if not budget.ok:
+        raise PlacementBudgetError(budget.reason or "Spend cap reached")
+
+    ask = _ASK_BY_CATEGORY.get(target.category, "inclusion")
+    proof = db.get(ScanQueryResult, target.representative_result_id) if target.representative_result_id else None
+    questions = [proof.query_text] if proof else []
+    page = {
+        "title": analysis.get("title") or target.title,
+        "site_name": analysis.get("site_name"),
+        "url": target.url,
+        "entries": analysis.get("entries") or [],
+    }
+    profile = _profile(client)
+    prompt = placement_outreach.build_prompt(
+        client_profile=profile, facts=facts, page=page, ask=ask, questions=questions,
+    )
+    try:
+        response = anthropic_client().messages.create(
+            model=MODEL_NARRATIVE,
+            max_tokens=_OUTREACH_MAX_TOKENS,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        record_llm_call(
+            service="placement_outreach", model=MODEL_NARRATIVE, response=response,
+            client_id=client.id, db=db,
+        )
+        was_truncated(response, "placement_outreach")
+        payload = json.loads(strip_code_fences(response.content[0].text))
+        subject = sanitize_text(str(payload["subject"]).strip())
+        body = sanitize_text(str(payload["body"]).strip())
+        if not subject or not body:
+            raise ValueError("draft missing subject or body")
+    except Exception as exc:
+        logger.warning("placement_outreach_failed", target_id=str(target.id), error=str(exc))
+        return None
+
+    grounded = "\n".join([
+        profile, *facts, str(page["title"] or ""), str(page["site_name"] or ""),
+        *page["entries"], *questions,
+    ])
+    issues = grounding_issues(f"{subject}\n{body}", grounded)
+    draft = {
+        "id": str(uuid.uuid4()),
+        "kind": "email",
+        "created_at": utcnow().isoformat(),
+        "ask": ask,
+        "to": (analysis.get("contact") or {}).get("emails", []),
+        "subject": subject[:200],
+        "body": body,
+        "grounding_issues": issues,
+        "needs_edit": bool(issues),
+        "model": MODEL_NARRATIVE,
+        "prompt_version": placement_outreach.VERSION,
+        "edited": False,
+    }
+    return _store_draft(target, draft, db)
+
+
+def update_draft(target: PlacementTarget, draft_id: str, subject: str | None, body: str | None, db: Session) -> dict | None:
+    """Save an admin's edit of an email draft. An edited draft is the admin's
+    text: grounding issues no longer apply to it."""
+    drafts = [dict(d) for d in (target.outreach_drafts or [])]
+    for draft in drafts:
+        if draft.get("id") != draft_id:
+            continue
+        if subject is not None:
+            draft["subject"] = subject[:200]
+        if body is not None:
+            draft["body"] = body
+        draft["edited"] = True
+        draft["needs_edit"] = False
+        target.outreach_drafts = drafts
+        db.commit()
+        return draft
+    return None

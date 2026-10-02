@@ -21,6 +21,7 @@ from app.prompts import (
     citability,
     deliverables,
     misinformation,
+    placement_outreach,
 )
 
 # service name → {version, model}
@@ -64,6 +65,9 @@ REGISTRY: dict[str, dict[str, str]] = {
     # misinformation_service discards any finding Claude did not quote verbatim,
     # and every finding is admin-reviewed before it reaches a client surface.
     "misinformation_detection":    {"version": misinformation.DETECTION_VERSION,   "model": MODEL},
+    # Sonnet: outward-facing email sent (by a person) under the agency's or
+    # client's name; low volume. Grounding check + admin edit gate it.
+    "placement_outreach":          {"version": placement_outreach.VERSION,         "model": MODEL_NARRATIVE},
 }
 
 

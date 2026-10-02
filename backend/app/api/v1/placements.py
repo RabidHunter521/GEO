@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.models.client import Client
 from app.models.placement_target import PlacementTarget
 from app.schemas.placement import (
+    PatchDraftRequest,
     PatchPlacementRequest,
     PlacementTargetDetail,
     PlacementTargetOut,
@@ -62,4 +63,33 @@ def patch_target(
         placement_service.set_status(target, body.status, db)
     except placement_service.PlacementTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return placement_service.target_detail(target, db)
+
+
+@router.post(
+    "/{target_id}/drafts", response_model=PlacementTargetDetail, dependencies=[Depends(require_api_key)]
+)
+def create_draft(client_id: uuid.UUID, target_id: uuid.UUID, db: Session = Depends(get_db)):
+    target = _get_target_or_404(client_id, target_id, db)
+    try:
+        draft = placement_service.generate_outreach(target, db)
+    except placement_service.PlacementBudgetError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if draft is None:
+        raise HTTPException(status_code=502, detail="Draft generation failed. Try again.")
+    return placement_service.target_detail(target, db)
+
+
+@router.patch(
+    "/{target_id}/drafts/{draft_id}",
+    response_model=PlacementTargetDetail,
+    dependencies=[Depends(require_api_key)],
+)
+def edit_draft(
+    client_id: uuid.UUID, target_id: uuid.UUID, draft_id: str, body: PatchDraftRequest,
+    db: Session = Depends(get_db),
+):
+    target = _get_target_or_404(client_id, target_id, db)
+    if placement_service.update_draft(target, draft_id, body.subject, body.body, db) is None:
+        raise HTTPException(status_code=404, detail="Draft not found")
     return placement_service.target_detail(target, db)
