@@ -7,6 +7,8 @@ from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
 from app.services import scan_service
 from app.services.platform_clients.base import PlatformResult, SourceCitation
+from app.core.constants import GROUNDING_REDIRECT_HOSTS
+from app.services.provenance_service import canonical_source_url
 
 
 def _client(db):
@@ -69,3 +71,57 @@ def test_capture_writes_pending_sources_for_perplexity_client_queries(db):
     assert sources, "expected captured sources"
     assert all(s.fetch_status == "pending" and s.source_type is None for s in sources)
     assert all(s.domain == "g2.com" for s in sources)
+
+
+# ── Task 1 (all-platform sources): URL canonicalisation + domain hint ────────
+
+
+def test_canonical_source_url_strips_utm_params():
+    # ChatGPT appends ?utm_source=openai to every cited URL; without stripping,
+    # one page would count as two sources for dedupe and flip matching.
+    assert (
+        canonical_source_url("https://g2.com/acme?utm_source=openai")
+        == "https://g2.com/acme"
+    )
+    assert (
+        canonical_source_url("https://g2.com/acme?utm_source=x&utm_medium=y&utm_campaign=z")
+        == "https://g2.com/acme"
+    )
+
+
+def test_canonical_source_url_keeps_non_utm_params_in_order():
+    assert (
+        canonical_source_url("https://x.com/p?id=7&utm_source=openai&page=2")
+        == "https://x.com/p?id=7&page=2"
+    )
+
+
+def test_canonical_source_url_strips_fragment():
+    assert canonical_source_url("https://x.com/p#reviews") == "https://x.com/p"
+    assert canonical_source_url("https://x.com/p?id=1#:~:text=acme") == "https://x.com/p?id=1"
+
+
+def test_canonical_source_url_leaves_clean_url_unchanged():
+    url = "https://www.yelp.com/biz/acme-dental-kuala-lumpur"
+    assert canonical_source_url(url) == url
+
+
+def test_canonical_source_url_returns_unparseable_input_unchanged():
+    assert canonical_source_url("") == ""
+    assert canonical_source_url("not a url") == "not a url"
+
+
+def test_source_citation_domain_hint_defaults_to_none():
+    c = SourceCitation(url="https://g2.com/acme", title="G2", rank=1)
+    assert c.domain_hint is None
+
+
+def test_gemini_grounding_redirect_host_is_registered():
+    assert "vertexaisearch.cloud.google.com" in GROUNDING_REDIRECT_HOSTS
+
+
+def test_canonical_source_url_keeps_encoding_of_untouched_params():
+    assert (
+        canonical_source_url("https://x.com/s?q=acme%20dental&utm_source=openai")
+        == "https://x.com/s?q=acme%20dental"
+    )

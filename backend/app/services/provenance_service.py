@@ -8,7 +8,7 @@ Sources are captured inline during a scan (scan_service). This module owns:
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import structlog
 from bs4 import BeautifulSoup
@@ -45,6 +45,29 @@ def normalize_domain(url: str) -> str:
     if not host or " " in host or "." not in host:
         return ""
     return host[4:] if host.startswith("www.") else host
+
+
+def canonical_source_url(url: str) -> str:
+    """Source URL with utm_* tracking params and the fragment removed.
+
+    Platforms decorate the same page differently (ChatGPT appends
+    ?utm_source=openai; answers deep-link with #:~:text= fragments), so one
+    page would otherwise count as several sources for dedupe and flip
+    matching. Other query params are kept in order. Input that isn't a
+    parseable absolute URL is returned unchanged.
+    """
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return url
+    # Filter raw segments rather than decode/re-encode, so kept params stay
+    # byte-identical (urlencode would turn %20 into + and the like).
+    kept = [
+        seg for seg in parsed.query.split("&")
+        if seg and not seg.split("=", 1)[0].lower().startswith("utm_")
+    ]
+    return urlunparse(parsed._replace(query="&".join(kept), fragment=""))
 
 
 def classify_source_type(

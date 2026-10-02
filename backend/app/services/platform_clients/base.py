@@ -19,6 +19,9 @@ class SourceCitation:
     url: str
     title: str | None
     rank: int  # 1-based position in the platform's source list
+    # Real domain when `url` is a grounding redirect (GROUNDING_REDIRECT_HOSTS)
+    # whose host says nothing about the source; None for ordinary URLs.
+    domain_hint: str | None = None
 
 
 @dataclass(frozen=True)
