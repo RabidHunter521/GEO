@@ -36,3 +36,7 @@ class ShareOfSourceHistoryPoint(BaseModel):
     computed_at: str
     client_share_pct: float
     total_third_party_sources: int
+    # True when this point's capture version or platforms differ from the
+    # previous point's: the source pool changed, so the move into this point
+    # is a new baseline, not a change in standing.
+    coverage_changed: bool = False

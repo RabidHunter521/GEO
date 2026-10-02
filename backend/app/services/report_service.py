@@ -480,6 +480,9 @@ class SourcesTrend:
     share_now: float
     share_then: float | None = None
     flips: list[str] = field(default_factory=list)
+    # Set when the latest two snapshots measured different source pools; the
+    # figure is then a new baseline and nothing is compared.
+    coverage_note: str | None = None
 
 
 @dataclass
@@ -1116,6 +1119,7 @@ def _gather_sources_trend(client: Client, db: Session, since) -> SourcesTrend | 
     includes them.
     """
     from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
+    from app.services.provenance_service import sources_comparable
     snaps = (
         db.query(ShareOfSourceSnapshot)
         .filter(ShareOfSourceSnapshot.client_id == client.id)
@@ -1127,6 +1131,13 @@ def _gather_sources_trend(client: Client, db: Session, since) -> SourcesTrend | 
         return None
     now = snaps[0]
     then = snaps[1] if len(snaps) > 1 else None
+    if then is not None and not sources_comparable(then, now):
+        # A different source pool (more platforms tracked, or a changed
+        # method) -- any difference is about coverage, not the client.
+        return SourcesTrend(
+            share_now=now.client_share_pct,
+            coverage_note=_sources_coverage_note(then, now),
+        )
     flips: list[str] = []
     if then is not None:
         then_absent = {
@@ -1141,6 +1152,20 @@ def _gather_sources_trend(client: Client, db: Session, since) -> SourcesTrend | 
         share_then=then.client_share_pct if then else None,
         flips=flips,
     )
+
+
+def _sources_coverage_note(then, now) -> str:
+    """One client-safe sentence on why the sources figure is a new baseline.
+    Platform names come from the recorded snapshot platforms, never assumed."""
+    added = sorted(set(now.source_platforms or []) - set(then.source_platforms or []))
+    removed = set(then.source_platforms or []) - set(now.source_platforms or [])
+    if added and not removed:
+        labels = [PLATFORM_LABELS.get(p, p.title()) for p in added]
+        names = labels[0] if len(labels) == 1 else f"{', '.join(labels[:-1])} and {labels[-1]}"
+        return (f"We now also track the sources {names} draw from, "
+                f"so this figure starts a new baseline.")
+    return ("How we track the sources AI answers draw from changed since the last "
+            "report, so this figure starts a new baseline.")
 
 
 _MAX_FIXED_STORIES = 3
@@ -1721,6 +1746,8 @@ def _build_sources_trend_html(data: ReportData) -> str:
     if s.share_then is None:
         line = (f"Your business appears in {s.share_now:.0f}% of the sources AI answers "
                 f"drew from.")
+        if s.coverage_note:
+            line += f" {html.escape(s.coverage_note)}"
     else:
         line = (f"Your business appears in {s.share_now:.0f}% of the sources AI answers "
                 f"drew from, versus {s.share_then:.0f}% previously.")

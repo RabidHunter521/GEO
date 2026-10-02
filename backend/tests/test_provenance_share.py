@@ -1,6 +1,9 @@
 import uuid
+from datetime import datetime, timedelta
 
+from app.core.constants import SOURCE_CAPTURE_VERSION
 from app.models.activity_log import ActivityLog
+from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
@@ -235,3 +238,59 @@ def test_history_empty_for_client_with_no_snapshots(db):
     db.add(client)
     db.commit()
     assert ps.get_share_of_source_history(client.id, db) == []
+
+
+# ── Task 8 (all-platform sources): trend comparability ──────────────────────
+
+
+def test_snapshot_records_capture_version_and_platforms(db):
+    client, _ = _seed_enriched(db)
+    scan = db.query(Scan).filter(Scan.client_id == client.id).first()
+    # A second platform that was captured but drew on no sources still counts
+    # as covered: "no sources" is part of the pool definition.
+    db.add(ScanQueryResult(scan_id=scan.id, platform="claude", category="recommendation",
+                           query_text="best crm", response_text="…", brand_detected=False,
+                           sources_captured=True))
+    # Competitor rows never feed share-of-source.
+    db.add(ScanQueryResult(scan_id=scan.id, platform="gemini", category="comparison",
+                           query_text="acme vs rival", response_text="…", brand_detected=False,
+                           competitor_id=db.query(Competitor).first().id, sources_captured=True))
+    db.commit()
+
+    snap = ps.compute_and_persist_snapshot(scan.id, client.id, db)
+
+    assert snap.source_capture_version == SOURCE_CAPTURE_VERSION
+    assert snap.source_platforms == ["claude", "perplexity"]
+
+
+def _snap(version, platforms):
+    return ShareOfSourceSnapshot(source_capture_version=version, source_platforms=platforms)
+
+
+def test_sources_comparable_requires_same_version_and_platforms():
+    v2 = SOURCE_CAPTURE_VERSION
+    assert ps.sources_comparable(_snap(v2, ["chatgpt", "gemini"]), _snap(v2, ["chatgpt", "gemini"]))
+    assert not ps.sources_comparable(_snap("v1", ["perplexity"]), _snap(v2, ["perplexity"]))
+    assert not ps.sources_comparable(_snap(v2, ["chatgpt"]), _snap(v2, ["chatgpt", "gemini"]))
+
+
+def test_history_marks_the_point_where_coverage_changed(db):
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    db.add(client)
+    base = datetime(2026, 9, 1)
+    coverage = [("v1", ["perplexity"]), ("v1", ["perplexity"]),
+                ("v2", ["chatgpt", "perplexity"]), ("v2", ["chatgpt", "perplexity"])]
+    for i, (version, platforms) in enumerate(coverage):
+        scan = Scan(id=uuid.uuid4(), client_id=client.id, status="completed",
+                    completed_at=base + timedelta(days=i))
+        db.add(scan)
+        db.add(ShareOfSourceSnapshot(
+            client_id=client.id, scan_id=scan.id, computed_at=base + timedelta(days=i),
+            total_third_party_sources=5, client_share_pct=10.0 * i,
+            source_capture_version=version, source_platforms=platforms,
+        ))
+    db.commit()
+
+    history = ps.get_share_of_source_history(client.id, db)
+
+    assert [p.coverage_changed for p in history] == [False, False, True, False]

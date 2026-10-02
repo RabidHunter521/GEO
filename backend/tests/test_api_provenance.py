@@ -70,7 +70,8 @@ def test_history_returns_points(monkeypatch):
     resp = http.get(f"/api/v1/clients/{client_id}/competitors/provenance/history")
     app.dependency_overrides.clear()
     assert resp.status_code == 200
-    assert resp.json() == [{"computed_at": "2026-07-01T00:00:00Z", "client_share_pct": 25.0, "total_third_party_sources": 4}]
+    assert resp.json() == [{"computed_at": "2026-07-01T00:00:00Z", "client_share_pct": 25.0,
+                            "total_third_party_sources": 4, "coverage_changed": False}]
 
 
 def test_history_client_not_found_404():

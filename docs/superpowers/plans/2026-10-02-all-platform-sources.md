@@ -209,7 +209,16 @@ share-of-source trend component + `types/index.ts`, tests.
   Perplexity, so this month's figure starts a new baseline."*
 - Benchmarks: `_share_of_source` uses only snapshots at the current
   `SOURCE_CAPTURE_VERSION`; older ones return None (excluded, not mixed).
-- Flip detection: skip when the previous snapshot isn't comparable.
+- ~~Flip detection: skip when the previous snapshot isn't comparable.~~
+  **Deviation (2026-10-02):** kept unchanged. A flip is verified by
+  re-fetching the page and finding the client now named on it, which is true
+  whichever platform surfaced the URL; suppressing it would hide real wins.
+  The PDF's "no longer on your missing-sources list" line DOES depend on the
+  pool and is suppressed across a coverage change.
+- Note: tracked-query samples are client-owned rows, so from Task 6 their
+  sources also feed Share-of-Source and enrichment (more samples of the same
+  questions). This is part of why v1 -> v2 is not comparable even for a
+  Perplexity-only client.
 
 **Done when:** tests: v1→v2 pair → no delta, no flips, baseline line present;
 v2→v2 same platforms → delta as today; platform toggled off between scans →

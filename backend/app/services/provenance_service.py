@@ -14,7 +14,11 @@ import structlog
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
-from app.core.constants import GROUNDING_REDIRECT_HOSTS, MAX_SOURCE_FETCHES_PER_SCAN
+from app.core.constants import (
+    GROUNDING_REDIRECT_HOSTS,
+    MAX_SOURCE_FETCHES_PER_SCAN,
+    SOURCE_CAPTURE_VERSION,
+)
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
@@ -417,6 +421,46 @@ def _detect_flips(
     db.commit()
 
 
+def sources_comparable(a: ShareOfSourceSnapshot, b: ShareOfSourceSnapshot) -> bool:
+    """Whether two snapshots measured the same source pool.
+
+    Moving from Perplexity-only capture (v1) to every platform (v2), or a
+    client enabling/disabling a platform, changes WHICH answers' sources are
+    pooled -- so a share difference between such snapshots says nothing about
+    the client's standing and must never be shown as movement."""
+    return (
+        a.source_capture_version == b.source_capture_version
+        and sorted(a.source_platforms or []) == sorted(b.source_platforms or [])
+    )
+
+
+def _captured_platforms(scan_id: uuid.UUID, db: Session) -> list[str]:
+    """Platforms whose client-owned answers in this scan had sources recorded
+    (explicitly flagged, or carrying source rows from before the flag)."""
+    flagged = (
+        db.query(ScanQueryResult.platform)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+            ScanQueryResult.sources_captured.is_(True),
+        )
+        .distinct()
+        .all()
+    )
+    with_rows = (
+        db.query(ScanQueryResult.platform)
+        .join(ScanQuerySource, ScanQuerySource.scan_query_result_id == ScanQueryResult.id)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+        )
+        .distinct()
+        .all()
+    )
+    return sorted({p for (p,) in flagged} | {p for (p,) in with_rows})
+
+
 def compute_and_persist_snapshot(
     scan_id: uuid.UUID, client_id: uuid.UUID, db: Session
 ) -> ShareOfSourceSnapshot | None:
@@ -448,6 +492,8 @@ def compute_and_persist_snapshot(
             client_share_pct=summary.client_share.share_pct if summary.client_share else 0.0,
             competitor_shares=[cs.model_dump(mode="json") for cs in summary.competitor_shares],
             acquisition_list=[a.model_dump(mode="json") for a in summary.acquisition_list],
+            source_capture_version=SOURCE_CAPTURE_VERSION,
+            source_platforms=_captured_platforms(scan_id, db),
         )
         db.add(snapshot)
         db.commit()
@@ -484,6 +530,7 @@ def get_share_of_source_history(
             computed_at=r.computed_at.isoformat() + "Z",
             client_share_pct=r.client_share_pct,
             total_third_party_sources=r.total_third_party_sources,
+            coverage_changed=i > 0 and not sources_comparable(rows[i - 1], r),
         )
-        for r in rows
+        for i, r in enumerate(rows)
     ]

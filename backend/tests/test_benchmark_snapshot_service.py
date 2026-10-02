@@ -303,3 +303,51 @@ def test_cohort_is_created_with_the_configured_floor(db):
     cohort = get_or_create_cohort(db, spec_for())
     assert cohort.min_member_count >= 10
     assert cohort.cohort_key == spec_for().cohort_key
+
+
+# ── All-platform sources (Task 8): only current-method share-of-source ──────
+
+def test_share_of_source_metric_ignores_snapshots_from_an_older_capture_method(db):
+    from app.core.constants import SOURCE_CAPTURE_VERSION
+    from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
+    from app.services import benchmark_snapshot_service as bss
+
+    client = Client(name="Peer", website="https://peer.example", industry="Healthcare")
+    db.add(client)
+    db.commit()
+
+    def _snap(version, share, day):
+        scan = Scan(client_id=client.id, status="completed", completed_at=datetime(2026, 7, day))
+        db.add(scan)
+        db.flush()
+        db.add(ShareOfSourceSnapshot(
+            client_id=client.id, scan_id=scan.id, computed_at=datetime(2026, 7, day),
+            total_third_party_sources=10, client_share_pct=share,
+            source_capture_version=version, source_platforms=["perplexity"],
+        ))
+        db.commit()
+
+    # The latest snapshot in the window is v1: Perplexity-only, so it must
+    # not be pooled with other clients' all-platform figures.
+    _snap(SOURCE_CAPTURE_VERSION, 40.0, 10)
+    _snap("v1", 90.0, 20)
+    assert bss._share_of_source(db, client.id, PERIOD_START, PERIOD_END) == 40.0
+
+
+def test_share_of_source_metric_is_none_with_only_older_method_snapshots(db):
+    from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
+    from app.services import benchmark_snapshot_service as bss
+
+    client = Client(name="Peer", website="https://peer2.example", industry="Healthcare")
+    db.add(client)
+    db.commit()
+    scan = Scan(client_id=client.id, status="completed", completed_at=MID_PERIOD)
+    db.add(scan)
+    db.flush()
+    db.add(ShareOfSourceSnapshot(
+        client_id=client.id, scan_id=scan.id, computed_at=MID_PERIOD,
+        total_third_party_sources=10, client_share_pct=55.0,
+        source_capture_version="v1", source_platforms=["perplexity"],
+    ))
+    db.commit()
+    assert bss._share_of_source(db, client.id, PERIOD_START, PERIOD_END) is None

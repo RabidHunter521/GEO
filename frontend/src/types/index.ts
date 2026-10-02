@@ -891,6 +891,9 @@ export interface ShareOfSourceHistoryPoint {
   computed_at: string
   client_share_pct: number
   total_third_party_sources: number
+  // True when this point measured a different source pool from the previous
+  // one (more platforms tracked, or a changed method): a new baseline.
+  coverage_changed: boolean
 }
 
 export interface SiteAIReadiness {
