@@ -343,6 +343,18 @@ AUTHORITY_ASSET_CATALOG: Final = [
 # --- Retainer packaging: client work log (Phase 5) --------------------------
 # Manual-first delivery timeline. Auto-triggers write "suggested" rows only;
 # nothing is client-visible until the admin explicitly publishes it.
+# --- Placement engine (docs/superpowers/plans/2026-10-02-placement-engine.md) ---
+# open: found, not worked | pursuing: an Outcome Action exists | placed: the
+# page now names the client | verified: the action's question now sees the
+# client | stale: absent from recent scans | dismissed: admin ruled it out.
+PLACEMENT_STATUSES: Final = ("open", "pursuing", "placed", "verified", "stale", "dismissed")
+PLACEMENT_CATEGORIES: Final = (
+    "listicle", "directory", "news", "review", "social", "marketplace", "reference", "other",
+)
+# A target absent from this many consecutive scans becomes stale (kept, and
+# reopened if it reappears).
+PLACEMENT_STALE_AFTER_SCANS: Final = 3
+
 WORK_LOG_CATEGORIES: Final = ("technical", "content", "authority", "visibility", "correction")
 WORK_LOG_STATUSES: Final = ("suggested", "published", "dismissed")
 WORK_LOG_CATEGORY_LABELS: Final = {
