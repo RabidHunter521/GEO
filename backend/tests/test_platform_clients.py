@@ -469,3 +469,15 @@ def test_gemini_malformed_response_yields_no_citations_without_raising():
     # _gemini_response() is a MagicMock: candidates is not a real list.
     result = _gemini_query(_gemini_response())
     assert result.citations == ()
+
+
+def test_claude_web_search_count_read_from_sdk_constructed_usage():
+    # anthropic 0.50 has no typed `server_tool_use` on Usage and keeps it as a
+    # plain dict. Reading it as an attribute silently returned 0, so Claude
+    # web-search charges were never cost-logged.
+    from app.services.claude_client import web_search_requests
+
+    message = _anthropic_message([_text("Acme.", ("https://g2.com/acme", "G2"))])
+    assert isinstance(message.usage.server_tool_use, dict)
+    assert web_search_requests(message) == 1
+    assert _claude_query(message).search_requests == 1

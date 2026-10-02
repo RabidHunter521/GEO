@@ -61,11 +61,19 @@ def web_search_requests(response) -> int:
     prompts and the Claude scan platform pass a web_search tool; every other
     call reports 0 and costs nothing extra.
 
+    anthropic 0.50 has no typed `server_tool_use` on Usage and keeps it as a
+    plain dict, so it is read as a dict OR an object (newer SDKs type it).
+    Reading it only as an attribute silently returned 0 for every real call.
+
     Defensive by design: the field is absent on older SDK shapes and on the
     mocks used in tests, and a cost-logging slip must never break a scan.
     """
     try:
-        count = response.usage.server_tool_use.web_search_requests
+        stu = response.usage.server_tool_use
+        if isinstance(stu, dict):
+            count = stu.get("web_search_requests")
+        else:
+            count = stu.web_search_requests
     except Exception:
         return 0
     return count if isinstance(count, int) and count >= 0 else 0
