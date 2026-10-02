@@ -42,8 +42,8 @@ def test_platform_breakdown_per_platform_visibility():
         _result("claude", True), _result("claude", True),
     ]
     breakdown = compute_platform_breakdown(results)
-    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok"}
-    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok"}
+    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok", "scored": True}
+    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok", "scored": True}
 
 
 def test_platform_breakdown_ignores_competitor_results():
@@ -57,7 +57,7 @@ def test_platform_breakdown_ignores_competitor_results():
 
 def test_platform_breakdown_marks_failed_platforms_unavailable():
     breakdown = compute_platform_breakdown([_result("gemini", True)], failed_platforms=["claude"])
-    assert breakdown["claude"] == {"visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable"}
+    assert breakdown["claude"] == {"visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable", "scored": True}
 
 
 def test_citability_averages_across_platforms():

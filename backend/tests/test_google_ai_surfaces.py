@@ -198,3 +198,77 @@ def test_llm_platform_rows_leave_answer_shown_unset():
 
     assert len(rows) == 2  # repeat samples still run for LLM platforms
     assert all(r.answer_shown is None for r in rows)
+
+
+# ── Task 3: the score stays bit-identical ──────────────────────────────────
+
+def _row(platform, seen, shown=None):
+    from app.models.scan_query_result import ScanQueryResult
+    return ScanQueryResult(platform=platform, category="recommendation", query_text="q",
+                           response_text="" if shown is False else "a", brand_detected=seen,
+                           answer_shown=shown, is_control=False)
+
+
+def _llm_rows():
+    return [
+        _row("chatgpt", True), _row("chatgpt", False),
+        _row("perplexity", True), _row("perplexity", True),
+        _row("gemini", False), _row("gemini", False),
+        _row("claude", True), _row("claude", False),
+    ]
+
+
+def test_adding_google_surfaces_leaves_ai_citability_and_the_score_unchanged():
+    from app.services.scoring_service import (
+        compute_ai_citability, compute_geo_score, compute_platform_breakdown,
+    )
+
+    client = MagicMock(technical_foundations_verified=True, structured_data_verified=False,
+                       brand_authority_score=60, content_quality_score=40)
+    llm_only = _llm_rows()
+    with_google = llm_only + [
+        _row("google_aio", True, True), _row("google_aio", False, False),
+        _row("google_ai_mode", True, True), _row("google_ai_mode", True, True),
+    ]
+    before_bd = compute_platform_breakdown(llm_only)
+    after_bd = compute_platform_breakdown(with_google, failed_platforms=[])
+
+    before = compute_ai_citability(llm_only, before_bd)
+    after = compute_ai_citability(with_google, after_bd)
+    assert after == before == 50.0
+    assert compute_geo_score(client, after) == compute_geo_score(client, before)
+    # flat-ratio fallback ignores them too
+    assert compute_ai_citability(with_google) == compute_ai_citability(llm_only)
+
+
+def test_breakdown_reports_google_with_its_overview_appearance_rate():
+    from app.services.scoring_service import compute_platform_breakdown
+
+    bd = compute_platform_breakdown(_llm_rows() + [
+        _row("google_aio", True, True), _row("google_aio", False, False),
+        _row("google_aio", False, False), _row("google_ai_mode", False, True),
+    ], failed_platforms=[])
+
+    assert bd["google_aio"] == {"visibility": 33.33, "queries": 3, "detected": 1,
+                                "status": "ok", "scored": False, "answers_shown": 1}
+    assert bd["google_ai_mode"]["scored"] is False
+    assert bd["chatgpt"]["scored"] is True and "answers_shown" not in bd["chatgpt"]
+
+
+def test_breakdowns_written_before_the_scored_flag_still_score():
+    from app.services.scoring_service import compute_ai_citability
+
+    legacy = {"chatgpt": {"visibility": 40.0, "queries": 5, "detected": 2, "status": "ok"},
+              "gemini": {"visibility": 60.0, "queries": 5, "detected": 3, "status": "ok"}}
+    assert compute_ai_citability([], legacy) == 50.0
+
+
+def test_a_client_needs_at_least_one_scored_platform():
+    from pydantic import ValidationError
+
+    from app.schemas.client import ClientUpdate
+
+    with pytest.raises(ValidationError, match="at least one of ChatGPT"):
+        ClientUpdate(enabled_platforms=["google_aio", "google_ai_mode"])
+    ok = ClientUpdate(enabled_platforms=["google_ai_mode", "claude"])
+    assert ok.enabled_platforms == ["claude", "google_ai_mode"]

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import (
     SCAN_PLATFORMS,
+    SCORED_PLATFORMS,
     DEFAULT_SCAN_CADENCE_DAYS,
     INDUSTRY_PACK_KEYS,
     SHARE_LINK_EXPIRY_DAYS_OPTIONS,
@@ -100,8 +101,12 @@ class ClientUpdate(BaseModel):
             raise ValueError(f"Unknown platforms: {', '.join(unknown)}")
         # canonical order, de-duplicated
         ordered = [p for p in SCAN_PLATFORMS if p in value]
-        if not ordered:
-            raise ValueError("At least one platform must be enabled")
+        if not any(p in SCORED_PLATFORMS for p in ordered):
+            # The Google surfaces are reported, not scored: with only them on,
+            # AI Citability would have nothing to measure.
+            raise ValueError(
+                "Enable at least one of ChatGPT, Perplexity, Gemini or Claude"
+            )
         return ordered
 
 
