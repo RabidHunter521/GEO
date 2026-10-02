@@ -151,18 +151,25 @@ export default async function ViewOverviewPage({
   const scoreColor = score ? getScoreColor(score.overall_score) : null
   // Name the platforms actually queried for this client rather than hardcoding
   // all four — a prospect may only run on a couple.
-  const platformNames = joinWithAnd(overview.platforms.map((p) => p.platform_label))
+  // The score sentence names only the platforms the score counts.
+  const platformNames = joinWithAnd(
+    overview.platforms.filter((p) => p.in_score !== false).map((p) => p.platform_label),
+  )
 
   // Plain-English headline derived from existing data.
-  const seenCount = scan ? scan.results.filter((r) => r.seen_by_ai).length : 0
-  const totalCount = scan ? scan.results.length : 0
-  const seenPlatforms = overview.platforms.filter((p) => p.seen_by_ai).length
+  // Headlines count what the score counts: Google surfaces are shown for
+  // reference but are not yet part of the score.
+  const scoredResults = scan ? scan.results.filter((r) => r.in_score !== false) : []
+  const seenCount = scoredResults.filter((r) => r.seen_by_ai).length
+  const totalCount = scoredResults.length
+  const scoredPlatforms = overview.platforms.filter((p) => p.in_score !== false)
+  const seenPlatforms = scoredPlatforms.filter((p) => p.seen_by_ai).length
   let headline = ""
   if (score) {
     if (totalCount > 0) {
       headline = `You're seen by AI in ${seenCount} of ${totalCount} buyer questions`
-    } else if (overview.platforms.length > 0) {
-      headline = `You're seen by AI on ${seenPlatforms} of ${overview.platforms.length} AI platforms`
+    } else if (scoredPlatforms.length > 0) {
+      headline = `You're seen by AI on ${seenPlatforms} of ${scoredPlatforms.length} AI platforms`
     } else {
       headline = band ? BAND_LABEL[band.name] : ""
     }
@@ -459,6 +466,17 @@ export default async function ViewOverviewPage({
                       ? "This platform will be checked on the next scan"
                       : "visibility frequency"}
                   </p>
+                  {!unavailable && p.ai_overviews_shown != null && p.questions_checked != null && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Google showed an AI Overview for {p.ai_overviews_shown} of{" "}
+                      {p.questions_checked} questions
+                    </p>
+                  )}
+                  {p.in_score === false && (
+                    <p className="mt-2 text-xs font-medium text-muted-foreground">
+                      Shown for reference · not yet part of your score
+                    </p>
+                  )}
                 </div>
               )
             })}

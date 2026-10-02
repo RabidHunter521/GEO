@@ -19,6 +19,7 @@ from app.core.constants import (
     PLATFORM_LABELS,
     CLIENT_VIEW_STALE_AFTER_DAYS,
     REMEDIATION_STATUS_LABELS,
+    SCORED_PLATFORMS,
 )
 from app.core.database import get_db
 from app.core.rate_limit import rate_limit
@@ -122,10 +123,14 @@ def _view_platforms(platform_breakdown: dict | None) -> list[ClientViewPlatform]
     platforms = []
     for platform, entry in platform_breakdown.items():
         unavailable = entry.get("status") != "ok"
+        shown = entry.get("answers_shown")
         platforms.append(ClientViewPlatform(
             platform_label=_platform_label(platform),
             seen_by_ai=entry.get("detected", 0) > 0,
             visibility_frequency=None if unavailable else entry.get("visibility", 0.0),
+            in_score=entry.get("scored", True),
+            ai_overviews_shown=None if unavailable else shown,
+            questions_checked=None if unavailable or shown is None else entry.get("queries"),
         ))
     return platforms
 
@@ -920,6 +925,7 @@ def get_scan(
                 excerpt=excerpt,
                 excerpt_kind=kind,
                 ai_answer_shown=has_answer(r),
+                in_score=r.platform in SCORED_PLATFORMS,
             )
         )
     return ClientViewScan(completed_at=latest_scan.completed_at, results=view_results)

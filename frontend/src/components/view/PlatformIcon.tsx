@@ -16,9 +16,12 @@ const PLATFORM_FILE: Record<string, string> = {
   claude:     "claude-color",
 }
 
-function slug(label: string): string {
+// Only platforms with a logo file get an <img>. A server-rendered image can
+// fail before hydration attaches onError, which leaves a visible broken-image
+// glyph, so platforms without a logo (Google AI surfaces) render text only.
+function logoFile(label: string): string | null {
   const key = label.toLowerCase().replace(/[^a-z0-9]/g, "")
-  return PLATFORM_FILE[key] ?? key
+  return PLATFORM_FILE[key] ?? null
 }
 
 export function PlatformIcon({
@@ -29,11 +32,12 @@ export function PlatformIcon({
   className?: string
 }) {
   const [failed, setFailed] = useState(false)
-  if (failed) return null
+  const file = logoFile(label)
+  if (failed || !file) return null
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`/platforms/${slug(label)}.png`}
+      src={`/platforms/${file}.png`}
       alt=""
       aria-hidden
       className={cn("h-5 w-5 shrink-0 object-contain", className)}

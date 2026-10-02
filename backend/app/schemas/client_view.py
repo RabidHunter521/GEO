@@ -67,6 +67,13 @@ class ClientViewPlatform(BaseModel):
     platform_label: str
     seen_by_ai: bool
     visibility_frequency: float | None
+    # False for surfaces shown for reference but not yet part of the score
+    # (Google AI Overviews / AI Mode).
+    in_score: bool = True
+    # Google AI Overviews only: how many of the questions checked showed an
+    # AI Overview at all. None for surfaces that always answer.
+    ai_overviews_shown: int | None = None
+    questions_checked: int | None = None
 
 
 class ClientViewBenchmark(BaseModel):
@@ -248,6 +255,9 @@ class ClientViewScanResult(BaseModel):
     # False only when Google showed no AI Overview for this search: the row
     # still reads Not seen by AI, but the page says why instead of quoting.
     ai_answer_shown: bool = True
+    # False for surfaces not yet part of the score, so "seen in X of Y"
+    # headlines count the same questions the score does.
+    in_score: bool = True
 
 
 class ClientViewScan(BaseModel):
@@ -447,5 +457,8 @@ class ClientViewMethodology(BaseModel):
     measured_weight_percent: int
     reviewed_weight_percent: int
     platforms: list[str]
+    # Surfaces checked and shown for reference, not yet part of the score.
+    reported_platforms: list[str] = []
+    reported_platforms_note: str | None = None
     limitations: list[str]
     version_policy: str

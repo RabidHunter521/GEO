@@ -187,6 +187,8 @@ SCORED_PLATFORMS: Final = ("chatgpt", "perplexity", "gemini", "claude")
 GOOGLE_SERP_LOCATION_CODE: Final = 2458
 GOOGLE_SERP_LANGUAGE_CODE: Final = "en"
 GOOGLE_SERP_DEVICE: Final = "mobile"
+# Who those settings describe, in plain words for the published methodology.
+GOOGLE_SERP_AUDIENCE: Final = "a buyer in Malaysia searching in English on a phone"
 
 # AI crawlers checked by the competitor AI-readiness feature. Matches the bot
 # list toolkit_service.generate_robots_txt() already allow-lists for clients.

@@ -557,6 +557,11 @@ export interface ClientViewPlatform {
   platform_label: string
   seen_by_ai: boolean
   visibility_frequency: number | null // null = platform unavailable during latest scan
+  // false = shown for reference, not yet part of the score (Google surfaces)
+  in_score?: boolean
+  // Google AI Overviews only: questions that showed an AI Overview at all
+  ai_overviews_shown?: number | null
+  questions_checked?: number | null
 }
 
 export interface ClientViewBenchmark {
@@ -693,6 +698,8 @@ export interface ClientViewScanResult {
   excerpt_kind?: "win" | "loss" | null
   // false only when Google showed no AI Overview for this search.
   ai_answer_shown?: boolean
+  // false = from a surface not yet part of the score
+  in_score?: boolean
 }
 
 export interface ClientViewScan {
@@ -1571,6 +1578,9 @@ export interface ClientViewMethodology {
   measured_weight_percent: number
   reviewed_weight_percent: number
   platforms: string[]
+  // Surfaces checked and shown for reference, not yet part of the score
+  reported_platforms?: string[]
+  reported_platforms_note?: string | null
   limitations: string[]
   version_policy: string
 }

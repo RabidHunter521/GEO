@@ -13,7 +13,9 @@ Language follows CLAUDE.md section 2: "Seen by AI", never "cited"/"mentioned".
 """
 from app.core.constants import (
     DIMENSION_EVIDENCE_LABEL,
+    GOOGLE_SERP_AUDIENCE,
     SCAN_PLATFORMS,
+    SCORED_PLATFORMS,
     SCORE_DISPLAY_LABEL,
     SCORE_VERSION,
     SCORE_WEIGHTS,
@@ -94,9 +96,24 @@ def _dimension_rows() -> list[dict]:
     return rows
 
 
+def _reported_note(labels: list[str]) -> str:
+    names = " and ".join(labels) if len(labels) <= 2 else ", ".join(labels[:-1]) + f" and {labels[-1]}"
+    return (
+        f"We also check {names}: the AI answers Google shows above its search "
+        f"results and in its AI Mode tab. Google offers no direct access to these, "
+        f"so we collect them through an independent search-data provider, as "
+        f"{GOOGLE_SERP_AUDIENCE} would see them. Not every Google search shows an "
+        f"AI Overview; when none appears, that question counts as not seen by AI. "
+        f"These Google results are shown for reference and are not yet part of "
+        f"your score. If we add them, the method version changes and we will say so."
+    )
+
+
 def build_methodology(enabled_platforms: list[str] | None = None) -> dict:
     """Payload for the client-facing methodology page and the PDF section."""
-    platforms = [p for p in (enabled_platforms or []) if p in SCAN_PLATFORMS]
+    enabled = [p for p in (enabled_platforms or []) if p in SCAN_PLATFORMS]
+    platforms = [p for p in enabled if p in SCORED_PLATFORMS]
+    reported = [PLATFORM_LABELS.get(p, p.title()) for p in enabled if p not in SCORED_PLATFORMS]
     rows = _dimension_rows()
     measured_weight = sum(r["weight_percent"] for r in rows if r["basis"] == "measured")
     reviewed_weight = sum(r["weight_percent"] for r in rows if r["basis"] == "reviewed")
@@ -107,6 +124,8 @@ def build_methodology(enabled_platforms: list[str] | None = None) -> dict:
         "measured_weight_percent": measured_weight,
         "reviewed_weight_percent": reviewed_weight,
         "platforms": [PLATFORM_LABELS.get(p, p.title()) for p in platforms],
+        "reported_platforms": reported,
+        "reported_platforms_note": _reported_note(reported) if reported else None,
         "limitations": list(_LIMITS),
         # Stated plainly because it is the honest answer to "why did my score
         # move?" and because a client who finds it out later stops trusting the

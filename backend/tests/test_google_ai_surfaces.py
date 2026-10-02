@@ -326,3 +326,65 @@ def test_competitor_page_overall_matches_the_score_but_lists_google_per_platform
     [comp] = intel.competitors
     assert comp.ai_citability == 100.0
     assert comp.platform_visibility["google_aio"] == 100.0
+
+
+# ── Task 7: client-facing surfaces ──────────────────────────────────────────
+
+_BANNED = ("cited", "uncited", "mentioned", "citation rate", "ranking position",
+           "visibility gap", "confidence score", "token count", "dataforseo")
+
+_BD = {
+    "chatgpt": {"visibility": 50.0, "queries": 4, "detected": 2, "status": "ok", "scored": True},
+    "google_aio": {"visibility": 25.0, "queries": 4, "detected": 1, "status": "ok",
+                   "scored": False, "answers_shown": 2},
+    "google_ai_mode": {"visibility": 100.0, "queries": 4, "detected": 4, "status": "ok",
+                       "scored": False},
+}
+
+
+def test_share_view_platforms_mark_google_as_reference_with_overview_rate():
+    from app.api.v1.client_view import _view_platforms
+
+    chatgpt, aio, mode = _view_platforms(_BD)
+    assert (chatgpt.in_score, chatgpt.ai_overviews_shown, chatgpt.questions_checked) == (True, None, None)
+    assert (aio.platform_label, aio.in_score) == ("Google AI Overviews", False)
+    assert (aio.ai_overviews_shown, aio.questions_checked) == (2, 4)
+    assert (mode.in_score, mode.ai_overviews_shown) == (False, None)
+    # breakdowns written before the flag are all scored
+    [legacy] = _view_platforms({"gemini": {"visibility": 10.0, "queries": 2, "detected": 1, "status": "ok"}})
+    assert legacy.in_score is True
+
+
+def test_methodology_lists_google_separately_with_a_plain_note():
+    from app.services.methodology_service import build_methodology
+
+    m = build_methodology(["chatgpt", "claude", "google_aio", "google_ai_mode"])
+    assert m["platforms"] == ["ChatGPT", "Claude"]
+    assert m["reported_platforms"] == ["Google AI Overviews", "Google AI Mode"]
+    note = m["reported_platforms_note"]
+    assert "not yet part of your score" in note
+    assert "Not every Google search shows an AI Overview" in note
+    assert "Malaysia" in note
+    assert not any(term in note.lower() for term in _BANNED)
+
+    plain = build_methodology(["chatgpt"])
+    assert plain["reported_platforms"] == [] and plain["reported_platforms_note"] is None
+
+
+def test_pdf_platform_table_marks_google_as_reference_and_scorecard_leaves_it_out():
+    from app.services import report_service as rs
+    from tests.test_report_v2 import _minimal_data
+
+    stub = type("C", (), {"name": "Acme", "website": "https://acme.com", "industry": "Dental"})()
+    data = _minimal_data(platform_breakdown=_BD)
+    html = rs._build_report_html(stub, data)
+    section = html[html.index("Platform Breakdown"):].split("<h2>", 1)[0]
+    assert "Google AI Overviews" in section and "Google AI Mode" in section
+    assert "Google showed an AI Overview for 2 of 4 questions" in section
+    assert section.count("not yet part of your score") >= 2
+    assert not any(term in section.lower() for term in _BANNED)
+
+    assert "Platform Breakdown" not in rs._build_report_html(stub, _minimal_data())
+
+    scorecard = rs._build_scorecard_html(stub, data, None)
+    assert "ChatGPT" in scorecard and "Google AI" not in scorecard
