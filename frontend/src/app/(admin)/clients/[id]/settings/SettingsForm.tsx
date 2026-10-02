@@ -39,7 +39,7 @@ import {
   toggleControlQueryAction,
 } from "@/app/(admin)/clients/actions"
 import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
-import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
+import { PLATFORM_LABELS, SCAN_PLATFORMS, SCORED_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
 import { IndustryPackCard } from "./IndustryPackCard"
 import { BenchmarkOptOutCard } from "./BenchmarkOptOutCard"
@@ -176,7 +176,10 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
   function togglePlatform(platform: Platform) {
     setEnabledPlatforms((prev) => {
       if (prev.includes(platform)) {
-        if (prev.length === 1) {
+        const remaining = prev.filter((p) => p !== platform)
+        // The Google surfaces are reported, not scored: at least one scored
+        // platform must stay on or the score has nothing to measure.
+        if (!remaining.some((p) => SCORED_PLATFORMS.includes(p))) {
           setPlatformWarning(true)
           return prev
         }
@@ -756,16 +759,18 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
         <div>
           <h2 className="font-display text-lg font-semibold tracking-tight">Scan Platforms</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            AI platforms queried on every scan. At least one must stay enabled — fewer platforms
-            means lower scan cost but a narrower visibility picture.
+            AI platforms queried on every scan — fewer platforms means lower scan cost but a
+            narrower visibility picture. Google AI Overviews and AI Mode are reported but not yet
+            part of the score, so at least one of the other four must stay enabled.
           </p>
           {platformWarning && (
             <p className="text-xs text-destructive mt-1">
-              At least one platform must stay enabled.
+              Keep at least one of ChatGPT, Perplexity, Gemini or Claude on: the
+              Google surfaces are reported but not part of the score yet.
             </p>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {SCAN_PLATFORMS.map((p) => {
             const checked = enabledPlatforms.includes(p)
             return (
@@ -781,7 +786,12 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                   onChange={() => togglePlatform(p)}
                   className="h-4 w-4 accent-primary"
                 />
-                <span className="font-medium">{PLATFORM_LABELS[p]}</span>
+                <span className="flex flex-col">
+                  <span className="font-medium">{PLATFORM_LABELS[p]}</span>
+                  {!SCORED_PLATFORMS.includes(p) && (
+                    <span className="text-[11px] text-muted-foreground">Reported only</span>
+                  )}
+                </span>
               </label>
             )
           })}

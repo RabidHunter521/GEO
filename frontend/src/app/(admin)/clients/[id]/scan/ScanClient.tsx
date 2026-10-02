@@ -62,7 +62,7 @@ function QueryPreviewRow({ result }: { result: ScanQueryResult }) {
       ) : (
         <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
           <XCircle className="h-3 w-3" />
-          Not seen
+          {result.answer_shown === false ? "No AI Overview" : "Not seen"}
         </span>
       )}
     </div>
@@ -540,6 +540,11 @@ function ResultsTable({
                       Not seen by AI
                     </span>
                   )}
+                  {r.answer_shown === false && (
+                    <Badge variant="outline" className="w-fit text-xs font-normal text-muted-foreground">
+                      No AI Overview shown
+                    </Badge>
+                  )}
                   {r.recommendation_position != null && (
                     <Badge
                       variant="outline"
@@ -569,7 +574,7 @@ function ResultsTable({
                       </a>
                     </Button>
                   )}
-                  {flaggedIds.has(r.id) ? (
+                  {r.answer_shown === false ? null : flaggedIds.has(r.id) ? (
                     <span className="text-xs text-muted-foreground">Flagged</span>
                   ) : (
                     <Button

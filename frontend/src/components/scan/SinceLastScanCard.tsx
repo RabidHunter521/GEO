@@ -10,6 +10,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   perplexity: "Perplexity",
   gemini: "Gemini",
   claude: "Claude",
+  google_aio: "Google AI Overviews",
+  google_ai_mode: "Google AI Mode",
 }
 
 const CATEGORY_LABELS: Record<string, string> = {

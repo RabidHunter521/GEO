@@ -85,7 +85,7 @@ def test_ai_mode_answer_parses():
 
     assert post.call_args.args[0].endswith("/serp/google/ai_mode/live/advanced")
     assert "load_async_ai_overview" not in post.call_args.kwargs["json"][0]
-    assert result.answer_shown is True
+    assert result.answer_shown is None  # always answers, like an LLM platform
     assert result.text.startswith("For dental care in KL, **Bright Smile**")
     assert [c.url for c in result.citations] == ["https://brightsmile.my/"]
     assert result.model == "dataforseo-google-ai-mode"
@@ -246,12 +246,13 @@ def test_breakdown_reports_google_with_its_overview_appearance_rate():
 
     bd = compute_platform_breakdown(_llm_rows() + [
         _row("google_aio", True, True), _row("google_aio", False, False),
-        _row("google_aio", False, False), _row("google_ai_mode", False, True),
+        _row("google_aio", False, False), _row("google_ai_mode", False),
     ], failed_platforms=[])
 
     assert bd["google_aio"] == {"visibility": 33.33, "queries": 3, "detected": 1,
                                 "status": "ok", "scored": False, "answers_shown": 1}
     assert bd["google_ai_mode"]["scored"] is False
+    assert "answers_shown" not in bd["google_ai_mode"]
     assert bd["chatgpt"]["scored"] is True and "answers_shown" not in bd["chatgpt"]
 
 

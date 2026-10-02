@@ -54,6 +54,8 @@ const PLATFORM_ACCENT: Record<Platform, string> = {
   perplexity: "border-l-[3px] border-l-violet-400/70",
   gemini:     "border-l-[3px] border-l-blue-400/70",
   claude:     "border-l-[3px] border-l-orange-400/70",
+  google_aio:     "border-l-[3px] border-l-sky-400/70",
+  google_ai_mode: "border-l-[3px] border-l-sky-400/70",
 }
 
 export default async function ClientOverviewPage({
@@ -211,6 +213,16 @@ export default async function ClientOverviewPage({
                       ? "Platform did not respond"
                       : `visibility frequency · ${entry.detected}/${entry.queries} queries`}
                   </p>
+                  {!unavailable && entry.answers_shown !== undefined && (
+                    <p className="mt-0.5 text-xs text-muted-foreground/80">
+                      AI Overview shown for {entry.answers_shown} of {entry.queries} searches
+                    </p>
+                  )}
+                  {entry.scored === false && (
+                    <p className="mt-2 text-[11px] font-medium text-muted-foreground">
+                      Reported only · not in the score yet
+                    </p>
+                  )}
                 </div>
               )
             })}

@@ -67,7 +67,7 @@ recorded JSON fixtures.
 - AI Overview: organic live advanced, `load_async_ai_overview=true`; find the
   `ai_overview` item; markdown → text (images stripped); `references` →
   `collect_citations`. No item → `PlatformResult(text="", answer_shown=False)`.
-- AI Mode: ai_mode live advanced; same mapping; always `answer_shown=True`
+- AI Mode: ai_mode live advanced; same mapping; `answer_shown` left None (it always answers, like an LLM platform)
   (an empty AI Mode answer is an error, retried).
 - Cost: `model` ids `dataforseo-google-aio` / `dataforseo-google-ai-mode`,
   zero tokens, `search_requests=1`, per-request price in `_SEARCH_COST`.

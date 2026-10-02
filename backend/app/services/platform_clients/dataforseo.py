@@ -113,7 +113,9 @@ def to_result(item: dict | None, model: str, *, answer_always_shown: bool) -> Pl
     """Map an answer item onto the scan engine's PlatformResult.
 
     Every call is billed per request whatever it returns, so search_requests
-    is 1 even when Google showed no answer.
+    is 1 even when Google showed no answer. A surface that always answers
+    (AI Mode) leaves answer_shown None, like every LLM platform; only a
+    surface that may show nothing (AI Overviews) records True / False.
     """
     if item is None:
         if answer_always_shown:
@@ -133,5 +135,6 @@ def to_result(item: dict | None, model: str, *, answer_always_shown: bool) -> Pl
         )
     return PlatformResult(
         text=text, model=model, input_tokens=0, output_tokens=0,
-        citations=answer_citations(item), search_requests=1, answer_shown=True,
+        citations=answer_citations(item), search_requests=1,
+        answer_shown=None if answer_always_shown else True,
     )

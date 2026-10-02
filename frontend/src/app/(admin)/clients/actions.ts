@@ -17,6 +17,7 @@ import {
   triggerScan as apiTriggerScan,
   generateShareToken as apiGenerateShareToken,
 } from "@/lib/api"
+import { SCAN_PLATFORMS } from "@/types"
 
 export async function createClientAction(data: {
   name: string
@@ -63,7 +64,7 @@ export async function triggerScanAction(id: string) {
 export async function convertProspectToClientAction(id: string) {
   await apiUpdateClient(id, {
     is_prospect: false,
-    enabled_platforms: ["chatgpt", "perplexity", "gemini", "claude"],
+    enabled_platforms: [...SCAN_PLATFORMS],
   })
   revalidatePath("/clients")
 }

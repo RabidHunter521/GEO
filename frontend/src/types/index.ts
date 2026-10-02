@@ -1,14 +1,33 @@
 // frontend/src/types/index.ts
 
-export type Platform = "chatgpt" | "perplexity" | "gemini" | "claude"
+export type Platform =
+  | "chatgpt"
+  | "perplexity"
+  | "gemini"
+  | "claude"
+  | "google_aio"
+  | "google_ai_mode"
 
-export const SCAN_PLATFORMS: Platform[] = ["chatgpt", "perplexity", "gemini", "claude"]
+export const SCAN_PLATFORMS: Platform[] = [
+  "chatgpt",
+  "perplexity",
+  "gemini",
+  "claude",
+  "google_aio",
+  "google_ai_mode",
+]
+
+// Platforms that feed AI Citability. Mirrors SCORED_PLATFORMS in
+// backend/app/core/constants.py: the Google surfaces are reported, not scored.
+export const SCORED_PLATFORMS: Platform[] = ["chatgpt", "perplexity", "gemini", "claude"]
 
 export const PLATFORM_LABELS: Record<Platform, string> = {
   chatgpt: "ChatGPT",
   perplexity: "Perplexity",
   gemini: "Gemini",
   claude: "Claude",
+  google_aio: "Google AI Overviews",
+  google_ai_mode: "Google AI Mode",
 }
 
 export interface PlatformBreakdownEntry {
@@ -16,6 +35,12 @@ export interface PlatformBreakdownEntry {
   queries: number
   detected: number
   status: "ok" | "unavailable"
+  // false = reported but not part of AI Citability (Google surfaces).
+  // Absent on breakdowns written before the flag: those were all scored.
+  scored?: boolean
+  // Surfaces that don't always answer (Google AI Overviews): how many of
+  // `queries` showed an AI answer at all.
+  answers_shown?: number
 }
 
 export type PlatformBreakdown = Partial<Record<Platform, PlatformBreakdownEntry>>
@@ -330,6 +355,9 @@ export interface ScanQueryResult {
   brand_detected: boolean
   hallucination_flagged: boolean
   recommendation_position: number | null
+  // false = Google showed no AI Overview for this search (Not seen by AI,
+  // nothing to quote). null/true = an answer was shown.
+  answer_shown?: boolean | null
   // Benchmark row deliberately left unoptimized — labeled, never aggregated.
   is_control: boolean
   created_at: string
@@ -663,6 +691,8 @@ export interface ClientViewScanResult {
   ai_search_ranking: number | null
   excerpt?: string | null
   excerpt_kind?: "win" | "loss" | null
+  // false only when Google showed no AI Overview for this search.
+  ai_answer_shown?: boolean
 }
 
 export interface ClientViewScan {
@@ -734,7 +764,7 @@ export interface ClientViewCompetitorTrends {
 // Mirrors backend/app/schemas/ai_mirror.py. The client-view shapes carry
 // verbatim excerpts and counts only; the admin shapes add the full stored
 // answer and the inaccuracy flag.
-export type MirrorSideStatus = "seen" | "not_seen" | "no_answer"
+export type MirrorSideStatus = "seen" | "not_seen" | "no_answer" | "no_overview"
 
 export interface ClientViewMirrorSide {
   name: string

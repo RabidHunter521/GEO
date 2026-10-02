@@ -1,6 +1,7 @@
 # backend/app/services/platform_clients/google_ai_mode.py
 """Google AI Mode: Google's conversational AI search tab. It always answers,
-so a missing answer is an error (retried), unlike AI Overviews."""
+so a missing answer is an error (retried), unlike AI Overviews, and its rows
+leave answer_shown unset like every LLM platform."""
 from app.services.platform_clients import dataforseo
 from app.services.platform_clients.base import (
     PlatformNotConfiguredError,
