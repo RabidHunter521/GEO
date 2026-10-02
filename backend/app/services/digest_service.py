@@ -29,6 +29,7 @@ from app.services.digest_tip_service import select_digest_tip
 from app.services.scoring_service import scores_comparable
 from app.services.ga4_traffic_service import format_breakdown
 from app.core.time import utcnow
+from app.services.scoring_service import scored_results
 
 logger = structlog.get_logger()
 
@@ -176,8 +177,9 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         )
         .all()
     )
-    seen_count = sum(1 for r in client_results if r.brand_detected)
-    total_count = len(client_results)
+    scored = scored_results(client_results)
+    seen_count = sum(1 for r in scored if r.brand_detected)
+    total_count = len(scored)
 
     current_citability = current_gs.ai_citability
     prev_citability = prev_gs.ai_citability if prev_gs else None

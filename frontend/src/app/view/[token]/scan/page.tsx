@@ -115,7 +115,11 @@ export default async function ViewScanPage({
     {},
   )
 
-  const seenCount = scan.results.filter((r) => r.seen_by_ai).length
+  // The headline counts the questions the score counts; Google surfaces are
+  // listed below for reference but not yet part of the score.
+  const scoredResults = scan.results.filter((r) => r.in_score !== false)
+  const seenCount = scoredResults.filter((r) => r.seen_by_ai).length
+  const hasReferenceOnly = scoredResults.length < scan.results.length
   const segments = segmentQueries(scan.results, (r) => ({ seen: r.seen_by_ai }))
 
   return (
@@ -133,7 +137,7 @@ export default async function ViewScanPage({
             Latest Scan
           </p>
           <p className="mt-1.5 font-display text-2xl font-semibold">
-            Seen by AI in {seenCount} of {scan.results.length} questions
+            Seen by AI in {seenCount} of {scoredResults.length} questions
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             We asked AI platforms the questions your customers ask
@@ -150,6 +154,12 @@ export default async function ViewScanPage({
             )}
             .
           </p>
+          {hasReferenceOnly && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Google AI Overviews and AI Mode results are listed below for reference. They are not
+              yet part of your score.
+            </p>
+          )}
           {!isProspect && (
             <Link
               href={`/view/${token}/competitors`}
@@ -220,6 +230,11 @@ export default async function ViewScanPage({
                     <VisibilityBadge seen={r.seen_by_ai} />
                   </div>
                 </div>
+                {r.ai_answer_shown === false && (
+                  <p className="text-xs text-muted-foreground">
+                    Google showed no AI Overview for this search, so no AI answer named you here.
+                  </p>
+                )}
                 {r.excerpt && (
                   <details className="mt-1 w-full" aria-label="AI answer excerpt">
                     <summary className="list-none marker:hidden cursor-pointer text-xs font-medium text-primary hover:underline">

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.services.scoring_service import scored_results
 
 
 @dataclass
@@ -27,6 +28,7 @@ class CausalTrend:
 
 
 def _freq(rows) -> float | None:
+    rows = scored_results(rows)
     if not rows:
         return None
     return round(sum(1 for r in rows if r.brand_detected) / len(rows) * 100, 2)

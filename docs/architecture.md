@@ -27,7 +27,7 @@ POST via api/v1/scans.py
   → scan_service.run_scan
       query_builder            # builds up to 20 queries/platform (4 categories) + competitor tracking queries
       ThreadPoolExecutor       # one future per platform; per-future try/except — one platform failing never sinks the scan
-      platform_clients/        # chatgpt, perplexity, gemini, claude API callers (circuit_breaker, budget_service, cost_tracker wrap calls)
+      platform_clients/        # chatgpt, perplexity, gemini, claude API callers + google_aio / google_ai_mode via one DataForSEO adapter (dataforseo.py); circuit_breaker, budget_service, cost_tracker wrap calls. Google surfaces are reported, not scored (SCORED_PLATFORMS); a search with no AI Overview stores answer_shown=False
       brand_detection          # deterministic regex "Seen by AI" — the core metric
       position_extraction      # Claude extracts list rank (additive, never replaces seen/not-seen)
       provenance capture       # sources from every platform (incl. tracked samples) → scan_query_source rows

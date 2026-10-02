@@ -10,7 +10,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 MirrorStatus = Literal["ready", "no_scan", "no_competitors"]
-SideStatus = Literal["seen", "not_seen", "no_answer"]
+# no_overview: Google showed no AI Overview for this search (Not seen by AI).
+SideStatus = Literal["seen", "not_seen", "no_answer", "no_overview"]
 CompetitorBasis = Literal["buyer_answers", "visibility"]
 
 

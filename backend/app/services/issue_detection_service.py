@@ -25,6 +25,7 @@ from app.models.dimension_assessment import DimensionAssessment
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.services.scoring_service import scored_results
 
 _GOOD = SCORE_BANDS["good"][0]        # 65
 _FAIR = SCORE_BANDS["fair"][0]        # 50
@@ -156,7 +157,7 @@ def detect_client_issues(client: Client, db: Session) -> list[dict]:
             )
             .all()
         )
-        client_results = [r for r in results if r.competitor_id is None]
+        client_results = scored_results([r for r in results if r.competitor_id is None])
 
         seen_count = sum(1 for r in client_results if r.brand_detected)
         if client_results:

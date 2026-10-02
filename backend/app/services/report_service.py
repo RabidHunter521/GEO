@@ -63,6 +63,7 @@ from app.core.constants import (
 from app.prompts.report import build_change_narrative
 from app.services.language_sanitizer import sanitize_text as _sanitize_text
 from app.services.methodology_service import build_methodology
+from app.services.scoring_service import scored_results
 
 # Max competitor-won topics surfaced in the Content Gaps section.
 _CONTENT_GAP_LIMIT = 3
@@ -1359,8 +1360,10 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         )
         .all()
     )
-    seen_count = sum(1 for r in client_results if r.brand_detected)
-    total_count = len(client_results)
+    # "Seen by AI in X of Y" sits beside the score: scored platforms only.
+    scored_client_results = scored_results(client_results)
+    seen_count = sum(1 for r in scored_client_results if r.brand_detected)
+    total_count = len(scored_client_results)
 
     # Identify which specific queries changed detection status vs the previous scan.
     # Only consider queries that ran in both scans to avoid new/removed query noise.
@@ -1401,6 +1404,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
             )
             .all()
         )
+        comp_results = scored_results(comp_results)
         if comp_results:
             detected = sum(1 for r in comp_results if r.brand_detected)
             citability = round((detected / len(comp_results)) * 100, 2)
@@ -1616,6 +1620,56 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
     data.proof_cards = proof_cards
     data.change_narrative = _generate_change_narrative(data, client_id=client.id, db=db)
     return data
+
+
+def _platform_status_cell(entry: dict) -> str:
+    status = "Seen by AI" if entry.get("detected", 0) > 0 else "Not seen by AI"
+    shown = entry.get("answers_shown")
+    if shown is not None:
+        status += (
+            f'<div class="stat-sub">Google showed an AI Overview for {shown} of '
+            f'{entry.get("queries", 0)} questions</div>'
+        )
+    if entry.get("scored", True) is False:
+        status += '<div class="stat-sub">For reference &middot; not yet part of your score</div>'
+    return status
+
+
+def _build_platform_section_html(data: ReportData) -> str:
+    """Per-platform table. Google surfaces appear with their own visibility
+    frequency, marked as reference-only until they join the score."""
+    if not data.platform_breakdown:
+        return ""
+    rows = []
+    reference_only = False
+    for platform, entry in data.platform_breakdown.items():
+        name = html.escape(PLATFORM_LABELS.get(platform, platform.title()))
+        reference_only = reference_only or entry.get("scored", True) is False
+        if entry.get("status") == "ok":
+            rows.append(
+                f'<tr><td>{name}</td>'
+                f'<td class="{_score_css(get_score_band(entry.get("visibility", 0.0))[1])}">'
+                f'{entry.get("visibility", 0.0):.0f}%</td>'
+                f'<td>{_platform_status_cell(entry)}</td></tr>'
+            )
+        else:
+            rows.append(
+                f'<tr><td>{name}</td>'
+                f'<td style="color:#9ca3af;">&mdash;</td>'
+                f'<td style="color:#9ca3af;">Platform unavailable this scan</td></tr>'
+            )
+    note = (
+        '<p class="stat-sub">Google AI Overviews and AI Mode are the AI answers Google '
+        'shows with its search results. They are shown for reference and are not yet '
+        'part of your score. Not every Google search shows an AI Overview; when none '
+        'appears, that question counts as not seen by AI.</p>'
+        if reference_only else ""
+    )
+    return (
+        '<h2>Seen by AI &mdash; Platform Breakdown</h2>'
+        '<table><thead><tr><th>Platform</th><th>Visibility Frequency</th><th>Status</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>{note}'
+    )
 
 
 def _build_proof_html(data: ReportData) -> str:
@@ -2035,29 +2089,7 @@ def _build_report_html(client: Client, data: ReportData) -> str:
     dim_bars = _build_dim_bars_html(data)
 
     # ── Section 4b: Platform breakdown ────────────────────────────────────
-    if data.platform_breakdown:
-        platform_rows = "".join(
-            (
-                f'<tr><td>{PLATFORM_LABELS.get(platform, platform.title())}</td>'
-                f'<td class="{_score_css(get_score_band(entry.get("visibility", 0.0))[1])}">'
-                f'{entry.get("visibility", 0.0):.0f}%</td>'
-                f'<td>{"Seen by AI" if entry.get("detected", 0) > 0 else "Not seen by AI"}</td></tr>'
-            )
-            if entry.get("status") == "ok"
-            else (
-                f'<tr><td>{PLATFORM_LABELS.get(platform, platform.title())}</td>'
-                f'<td style="color:#9ca3af;">&mdash;</td>'
-                f'<td style="color:#9ca3af;">Platform unavailable this scan</td></tr>'
-            )
-            for platform, entry in data.platform_breakdown.items()
-        )
-        platform_section = (
-            f'<h2>Seen by AI &mdash; Platform Breakdown</h2>'
-            f'<table><thead><tr><th>Platform</th><th>Visibility Frequency</th><th>Status</th></tr></thead>'
-            f'<tbody>{platform_rows}</tbody></table>'
-        )
-    else:
-        platform_section = ""
+    platform_section = _build_platform_section_html(data)
 
     # ── Section 5: AI Referral Traffic ────────────────────────────────────
     if data.ai_visitors_current is not None:
@@ -2438,6 +2470,10 @@ def _build_scorecard_html(
     if data.platform_breakdown:
         cells = []
         for platform, entry in data.platform_breakdown.items():
+            # The one-page scorecard summarises the score: reference-only
+            # surfaces (Google) live in the full monthly report.
+            if entry.get("scored", True) is False:
+                continue
             name = PLATFORM_LABELS.get(platform, platform.title())
             if entry.get("status") == "ok":
                 value = f"{entry.get('visibility', 0.0):.0f}%"

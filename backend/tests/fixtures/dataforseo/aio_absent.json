@@ -1,0 +1,17 @@
+{
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "tasks": [{
+    "status_code": 20000,
+    "status_message": "Ok.",
+    "result": [{
+      "keyword": "acme dental bangsar opening hours",
+      "type": "organic",
+      "item_types": ["local_pack", "organic"],
+      "items": [
+        {"type": "local_pack", "rank_group": 1, "rank_absolute": 1, "title": "Acme Dental"},
+        {"type": "organic", "rank_group": 1, "rank_absolute": 2, "url": "https://acme.com/", "title": "Acme Dental"}
+      ]
+    }]
+  }]
+}

@@ -102,6 +102,9 @@ export default async function ViewMethodologyPage({
           <p className="text-sm text-muted-foreground">
             We ask your tracked buyer questions on {m.platforms.join(", ")}.
           </p>
+          {m.reported_platforms_note && (
+            <p className="max-w-2xl text-sm text-muted-foreground">{m.reported_platforms_note}</p>
+          )}
         </section>
       )}
 

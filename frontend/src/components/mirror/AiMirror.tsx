@@ -37,6 +37,13 @@ function SideStatus({ side }: { side: ClientViewMirrorSide }) {
       </Badge>
     )
   }
+  if (side.status === "no_overview") {
+    return (
+      <Badge variant="outline" className="whitespace-nowrap bg-muted font-medium text-muted-foreground">
+        No AI Overview
+      </Badge>
+    )
+  }
   return <VisibilityBadge seen={side.status === "seen"} />
 }
 
@@ -67,7 +74,8 @@ function SideCard({
       </div>
       {side.question && (
         <p className="mt-2 text-xs text-muted-foreground">
-          We asked {platformLabel}: &ldquo;{side.question}&rdquo;
+          {platformLabel.startsWith("Google") ? "We searched Google" : `We asked ${platformLabel}`}
+          : &ldquo;{side.question}&rdquo;
         </p>
       )}
       {side.excerpts.length > 0 ? (
@@ -85,7 +93,9 @@ function SideCard({
         <p className="mt-3 text-sm text-muted-foreground">
           {side.status === "no_answer"
             ? `${platformLabel} gave no answer we can show from this check.`
-            : "No quotable sentence in this answer."}
+            : side.status === "no_overview"
+              ? "Google showed no AI Overview for this search, so no AI answer named anyone."
+              : "No quotable sentence in this answer."}
         </p>
       )}
       {hasFullAnswer(side) && (

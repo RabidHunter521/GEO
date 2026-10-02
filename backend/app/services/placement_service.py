@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.core.constants import (
+    PLACEMENT_BREADTH_SATURATION,
     PLACEMENT_CATEGORY_WEIGHTS,
     PLACEMENT_REACH_SATURATION,
     PLACEMENT_STALE_AFTER_SCANS,
@@ -119,9 +120,11 @@ def score_target(target: PlacementTarget) -> tuple[int, list[str]]:
     reach = min(1.0, math.log2(1 + answers) / math.log2(1 + PLACEMENT_REACH_SATURATION))
     reasons.append(f"{_plural(answers, 'answer')} drew on this page in the latest scan")
 
-    breadth = len(platforms) / len(PLATFORM_LABELS)
+    # A fixed saturation, not len(PLATFORM_LABELS): adding a scan platform
+    # must not silently weaken every existing breadth score.
+    breadth = min(1.0, len(platforms) / PLACEMENT_BREADTH_SATURATION)
     names = ", ".join(PLATFORM_LABELS.get(p, p) for p in platforms)
-    reasons.append(f"Used by {len(platforms)} of {len(PLATFORM_LABELS)} AI platforms ({names})")
+    reasons.append(f"Used by {_plural(len(platforms), 'AI platform')} ({names})")
 
     buyer = sorted(categories & _BUYER_CATEGORIES)
     if buyer:

@@ -125,7 +125,17 @@ number; weights unchanged.)
   in the same 4 categories. A pack template may be scoped to specific
   subcategories; scoped questions outrank generic ones of equal commercial
   intent and buyer stage, so specialisation survives the cap.
-- 4 platforms: chatgpt, perplexity, gemini, claude (per-client toggle in settings, ≥1 required)
+- 6 platforms, per-client toggle in settings: chatgpt, perplexity, gemini,
+  claude (scored) + google_aio, google_ai_mode (Google AI Overviews / AI Mode,
+  via DataForSEO, Malaysia/English/mobile — reported, NOT scored). At least one
+  scored platform must stay on. `SCORED_PLATFORMS` in constants.py is the only
+  switch: AI Citability averages scored platforms only, and headline numbers
+  beside the score ("seen X of Y", overall visibility frequency, overtake
+  alerts, trends) use `scoring_service.scored_results`. Adding Google to the
+  score is a §4 change: SCORE_VERSION bump + Faris's sign-off.
+- A Google search with no AI Overview is stored with `answer_shown=False`: it
+  counts as Not seen by AI, but nothing may quote, fact-check or extract from
+  it (`scan_query_result.has_answer`).
 - Retry once on API failure, flag if fails again
 - If one platform fails entirely, the scan still completes: score uses the
   remaining platforms, the platform is marked unavailable, activity is logged

@@ -4,7 +4,7 @@ from sqlalchemy import String, Boolean, ForeignKey, Integer, Text, JSON, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
-from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS, DEFAULT_WORKSPACE_ID
+from app.core.constants import DEFAULT_SCAN_CADENCE_DAYS, DEFAULT_WORKSPACE_ID, SCAN_PLATFORMS
 from app.core.time import utcnow
 
 
@@ -53,8 +53,11 @@ class Client(Base):
     enabled_platforms: Mapped[list] = mapped_column(
         JSON,
         nullable=False,
-        default=lambda: ["chatgpt", "perplexity", "gemini", "claude"],
-        server_default=text("'[\"chatgpt\", \"perplexity\", \"gemini\", \"claude\"]'"),
+        default=lambda: list(SCAN_PLATFORMS),
+        server_default=text(
+            "'[\"chatgpt\", \"perplexity\", \"gemini\", \"claude\", "
+            "\"google_aio\", \"google_ai_mode\"]'"
+        ),
     )
     # Read-only client view link. Plaintext by design: the admin must be able
     # to re-copy the link from settings at any time. NULL = no active link.

@@ -100,8 +100,8 @@ def test_run_scan_creates_geo_score_with_platform_breakdown():
     geo_scores = [o for o in added_objects if isinstance(o, GeoScore)]
     assert len(geo_scores) == 1
     breakdown = geo_scores[0].platform_breakdown
-    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok"}
-    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok"}
+    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok", "scored": True}
+    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok", "scored": True}
     # citability = equal-weighted mean of per-platform visibility
     assert geo_scores[0].ai_citability == 75.0
 

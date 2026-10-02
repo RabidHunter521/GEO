@@ -1,4 +1,18 @@
-from app.core.constants import SCORE_BANDS, SCORE_WEIGHTS
+from app.core.constants import SCAN_PLATFORMS, SCORE_BANDS, SCORE_WEIGHTS, SCORED_PLATFORMS
+
+# Scanned and reported, but not part of AI Citability (see SCORED_PLATFORMS).
+_REPORTED_ONLY = frozenset(SCAN_PLATFORMS) - frozenset(SCORED_PLATFORMS)
+
+
+def scored_results(results) -> list:
+    """Rows from scored platforms only.
+
+    Headline visibility numbers that sit beside the score or are compared over
+    time (seen X of Y, overall visibility frequency, competitor overtake,
+    benchmark trends) use these, so a reported-only surface (Google AI
+    Overviews / AI Mode) never shifts them. Per-platform views keep every row.
+    """
+    return [r for r in results if getattr(r, "platform", None) not in _REPORTED_ONLY]
 
 
 def compute_platform_breakdown(
@@ -6,7 +20,12 @@ def compute_platform_breakdown(
 ) -> dict:
     """Per-platform visibility from client query results only (competitor_id is None).
 
-    Returns {platform: {"visibility": float, "queries": int, "detected": int, "status": "ok"|"unavailable"}}.
+    Returns {platform: {"visibility": float, "queries": int, "detected": int,
+    "status": "ok"|"unavailable", "scored": bool}}. `scored` is False for
+    platforms reported but not in AI Citability (SCORED_PLATFORMS). Surfaces
+    that do not always answer (Google AI Overviews) also carry
+    `answers_shown`: how many of `queries` showed an AI answer at all. A
+    question with no answer counts in `queries` as Not seen by AI.
     """
     breakdown: dict = {}
     client_results = [
@@ -14,16 +33,23 @@ def compute_platform_breakdown(
         if r.competitor_id is None and not getattr(r, "is_control", False)
     ]
     for result in client_results:
-        entry = breakdown.setdefault(
-            result.platform, {"visibility": 0.0, "queries": 0, "detected": 0, "status": "ok"}
-        )
+        entry = breakdown.setdefault(result.platform, {
+            "visibility": 0.0, "queries": 0, "detected": 0, "status": "ok",
+            "scored": result.platform in SCORED_PLATFORMS,
+        })
         entry["queries"] += 1
         if result.brand_detected:
             entry["detected"] += 1
+        shown = getattr(result, "answer_shown", None)
+        if shown is True or shown is False:
+            entry["answers_shown"] = entry.get("answers_shown", 0) + (1 if shown else 0)
     for entry in breakdown.values():
         entry["visibility"] = round((entry["detected"] / entry["queries"]) * 100, 2)
     for platform in failed_platforms or []:
-        breakdown[platform] = {"visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable"}
+        breakdown[platform] = {
+            "visibility": 0.0, "queries": 0, "detected": 0, "status": "unavailable",
+            "scored": platform in SCORED_PLATFORMS,
+        }
     return breakdown
 
 
@@ -31,10 +57,16 @@ def compute_ai_citability(query_results: list, platform_breakdown: dict | None =
     """AI Citability score: equal-weighted mean of per-platform visibility.
 
     Unavailable platforms are excluded so a provider outage never zeroes the score.
+    Reported-only platforms (not in SCORED_PLATFORMS) are excluded so adding a
+    surface never moves the score without a SCORE_VERSION bump. Breakdowns
+    written before the `scored` flag hold only scored platforms.
     Falls back to a flat detection ratio when no breakdown is supplied (legacy single-platform data).
     """
     if platform_breakdown:
-        ok_platforms = [e for e in platform_breakdown.values() if e["status"] == "ok"]
+        ok_platforms = [
+            e for e in platform_breakdown.values()
+            if e["status"] == "ok" and e.get("scored", True)
+        ]
         if not ok_platforms:
             return 0.0
         return round(sum(e["visibility"] for e in ok_platforms) / len(ok_platforms), 2)
@@ -42,6 +74,7 @@ def compute_ai_citability(query_results: list, platform_breakdown: dict | None =
     client_results = [
         r for r in query_results
         if r.competitor_id is None and not getattr(r, "is_control", False)
+        and getattr(r, "platform", None) not in _REPORTED_ONLY
     ]
     if not client_results:
         return 0.0

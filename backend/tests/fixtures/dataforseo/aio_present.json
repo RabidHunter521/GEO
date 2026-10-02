@@ -1,0 +1,44 @@
+{
+  "version": "0.1.20260901",
+  "status_code": 20000,
+  "status_message": "Ok.",
+  "time": "6.1 sec.",
+  "cost": 0.0026,
+  "tasks_count": 1,
+  "tasks_error": 0,
+  "tasks": [{
+    "id": "10021903-1535-0066-0000-1a2b3c4d5e6f",
+    "status_code": 20000,
+    "status_message": "Ok.",
+    "cost": 0.0026,
+    "result_count": 1,
+    "path": ["v3", "serp", "google", "organic", "live", "advanced"],
+    "data": {"keyword": "best dental clinic in KL", "location_code": 2458, "language_code": "en", "device": "mobile"},
+    "result": [{
+      "keyword": "best dental clinic in KL",
+      "type": "organic",
+      "se_domain": "google.com.my",
+      "location_code": 2458,
+      "language_code": "en",
+      "item_types": ["ai_overview", "local_pack", "organic"],
+      "items_count": 3,
+      "items": [
+        {
+          "type": "ai_overview",
+          "rank_group": 1,
+          "rank_absolute": 1,
+          "asynchronous_ai_overview": true,
+          "markdown": "Top-rated dental clinics in Kuala Lumpur include **Acme Dental** in Bangsar, known for implants, and [Bright Smile](https://brightsmile.my/) in Mont Kiara.\n\n![clinic](https://encrypted-tbn0.gstatic.com/x.jpg)\n\n\n\n- Acme Dental: open Sundays\n- Bright Smile: family dentistry",
+          "items": [{"type": "ai_overview_element", "title": null, "text": "Top-rated dental clinics ..."}],
+          "references": [
+            {"type": "ai_overview_reference", "source": "KL Guide", "domain": "klguide.example", "url": "https://klguide.example/best-dentists?utm_source=google", "title": "10 Best Dentists in KL", "text": "Acme Dental ..."},
+            {"type": "ai_overview_reference", "source": "Bright Smile", "domain": "brightsmile.my", "url": "https://brightsmile.my/", "title": "Bright Smile Dental", "text": "Family dentistry ..."},
+            {"type": "ai_overview_reference", "source": "KL Guide", "domain": "klguide.example", "url": "https://klguide.example/best-dentists#top", "title": "10 Best Dentists in KL", "text": "duplicate"}
+          ]
+        },
+        {"type": "local_pack", "rank_group": 1, "rank_absolute": 2, "title": "Acme Dental"},
+        {"type": "organic", "rank_group": 1, "rank_absolute": 3, "url": "https://klguide.example/best-dentists", "title": "10 Best Dentists in KL"}
+      ]
+    }]
+  }]
+}
