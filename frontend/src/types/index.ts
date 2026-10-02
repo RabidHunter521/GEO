@@ -1623,3 +1623,77 @@ export interface WebhookSecretIssued {
   webhook_secret: string
   webhook_secret_created_at: string
 }
+
+
+// ── Placement engine (admin-only) ────────────────────────────────────────────
+
+export type PlacementStatus = "open" | "pursuing" | "placed" | "verified" | "stale" | "dismissed"
+export type PlacementCategory =
+  | "listicle" | "directory" | "news" | "review" | "social" | "marketplace" | "reference" | "other"
+
+export interface PlacementTarget {
+  id: string
+  url: string
+  domain: string
+  title: string | null
+  category: PlacementCategory
+  status: PlacementStatus
+  answers_count: number
+  platforms: Platform[]
+  query_categories: string[]
+  competitors: string[]
+  other_businesses_listed: number | null
+  client_present: boolean
+  priority_score: number
+  priority_reasons: string[]
+  authority_asset_id: string | null
+  outcome_action_id: string | null
+  last_seen_at: string | null
+  analyzed_at: string | null
+}
+
+export interface PlacementPageAnalysis {
+  fetch_status: "ok" | "blocked" | "error"
+  title?: string | null
+  is_listicle?: boolean
+  entries_count?: number
+  entries?: string[]
+  competitors_listed?: { competitor_id: string; name: string; position: number | null }[]
+  other_businesses_listed?: number | null
+  author?: string | null
+  site_name?: string | null
+  published?: string | null
+  modified?: string | null
+  contact?: { emails: string[]; contact_pages: string[]; submission_links: string[] }
+}
+
+export interface PlacementEmailDraft {
+  id: string
+  kind: "email"
+  created_at: string
+  ask: "add_to_list" | "story_pitch" | "inclusion"
+  to: string[]
+  subject: string
+  body: string
+  grounding_issues: string[]
+  needs_edit: boolean
+  edited: boolean
+}
+
+export interface PlacementChecklistDraft {
+  id: string
+  kind: "checklist"
+  created_at: string
+  fields: { label: string; value: string }[]
+  gaps: string[]
+  submit_at: string[]
+  edited: boolean
+}
+
+export type PlacementDraft = PlacementEmailDraft | PlacementChecklistDraft
+
+export interface PlacementTargetDetail extends PlacementTarget {
+  page_analysis: PlacementPageAnalysis | null
+  outreach_drafts: PlacementDraft[]
+  proof_question: { query_text: string; platform: Platform } | null
+}
