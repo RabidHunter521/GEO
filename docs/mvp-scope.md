@@ -1,6 +1,11 @@
 # SeenBy MVP — Design Spec
 *2026-05-28*
 
+> **Historical.** This is the original MVP spec, locked before build. SeenBy is
+> now past MVP; the live scope boundary is CLAUDE.md §11. Of the "Explicitly
+> Deferred" items below, multi-locale prompts, scheduled scans and webhook
+> integrations were lifted on 2026-10-02.
+
 ## Context
 
 SeenBy is an agency-model AI visibility tracking platform. Faris (sole admin) manages all clients, triggers scans manually, and sends reports. Clients have no login — they receive reports via email only. This spec covers the full MVP, agreed and locked before build begins.

@@ -58,7 +58,7 @@ cd backend && poetry run alembic heads
 - [ ] `/view/[token]` responses still whitelist-only — no new internal fields (confidence, offsets, raw responses) exposed.
 - [ ] No fetch calls in components — everything through `src/lib/api.ts`.
 - [ ] Business logic in `app/services/`, not in routes or Celery tasks.
-- [ ] Nothing from CLAUDE.md §11 (MVP exclusions) was built without explicit confirmation from Faris.
+- [ ] Nothing from CLAUDE.md §11 "Still requires Faris's sign-off" was built without explicit confirmation from Faris, and anything from the §11 "Lifted" list follows its guardrails.
 
 ## 6. Report
 
