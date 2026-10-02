@@ -307,3 +307,94 @@ def test_chatgpt_malformed_response_yields_no_citations_without_raising():
     result = _chatgpt_query(MagicMock(output_text="x", usage=MagicMock(input_tokens=1, output_tokens=1)))
     assert result.citations == ()
     assert result.text == "x"
+
+
+# ── Source capture: Claude web_search_result_location citations (Task 3) ─────
+# anthropic 0.50 has no typed model for web-search citations; it materialises
+# them loosely (type/url/title kept as attributes). Building through the SDK's
+# own construct_type exercises exactly that path.
+
+def _anthropic_message(content):
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    return construct_type(type_=Message, value={
+        "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-haiku-4-5",
+        "stop_reason": "end_turn", "stop_sequence": None,
+        "usage": {"input_tokens": 3, "output_tokens": 4,
+                  "server_tool_use": {"web_search_requests": 1}},
+        "content": content,
+    })
+
+
+def _search_blocks(*urls):
+    return [
+        {"type": "server_tool_use", "id": "srv_1", "name": "web_search", "input": {"query": "q"}},
+        {"type": "web_search_tool_result", "tool_use_id": "srv_1", "content": [
+            {"type": "web_search_result", "url": u, "title": u, "encrypted_content": "e",
+             "page_age": None} for u in urls
+        ]},
+    ]
+
+
+def _text(text, *cites):
+    return {"type": "text", "text": text, "citations": [
+        {"type": "web_search_result_location", "url": url, "title": title,
+         "cited_text": "...", "encrypted_index": "i"} for url, title in cites
+    ] or None}
+
+
+def _claude_query(response):
+    with patch("app.services.platform_clients.claude.anthropic") as mock_anthropic:
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = response
+        mock_anthropic.Anthropic.return_value = mock_client
+        return ClaudeClient(api_key="fake-key").query("best dentist in KL")
+
+
+def test_claude_captures_inline_citations_across_text_blocks_in_order():
+    result = _claude_query(_anthropic_message([
+        *_search_blocks("https://yelp.com/acme", "https://g2.com/acme", "https://unused.com"),
+        _text("Acme Dental ", ("https://yelp.com/acme", "Acme on Yelp")),
+        _text("is well rated.", ("https://g2.com/acme", "G2")),
+    ]))
+
+    assert [(c.url, c.title, c.rank) for c in result.citations] == [
+        ("https://yelp.com/acme", "Acme on Yelp", 1),
+        ("https://g2.com/acme", "G2", 2),
+    ]
+    assert result.text == "Acme Dental \nis well rated."
+
+
+def test_claude_searched_but_uncited_pages_are_not_sources():
+    result = _claude_query(_anthropic_message([
+        *_search_blocks("https://yelp.com/acme"),
+        _text("I could not find a clear answer."),
+    ]))
+    assert result.citations == ()
+
+
+def test_claude_citations_collapse_duplicates_and_strip_fragments():
+    result = _claude_query(_anthropic_message([
+        _text("A", ("https://g2.com/acme#reviews", "G2"), ("https://g2.com/acme", "G2")),
+        _text("B", ("https://g2.com/acme", "G2")),
+    ]))
+    assert [(c.url, c.rank) for c in result.citations] == [("https://g2.com/acme", 1)]
+
+
+def test_claude_ignores_document_citations():
+    doc_cite = {"type": "text", "text": "x", "citations": [
+        {"type": "char_location", "cited_text": "x", "document_index": 0,
+         "document_title": None, "start_char_index": 0, "end_char_index": 1},
+    ]}
+    assert _claude_query(_anthropic_message([doc_cite])).citations == ()
+
+
+def test_claude_malformed_citations_yield_none_without_raising():
+    text_block = MagicMock(type="text", text="ACME via Claude.", citations=42)
+    mock_response = MagicMock(content=[text_block])
+    mock_response.usage.input_tokens = 3
+    mock_response.usage.output_tokens = 4
+    result = _claude_query(mock_response)
+    assert result.citations == ()
+    assert result.text == "ACME via Claude."
