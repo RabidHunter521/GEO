@@ -224,3 +224,86 @@ def test_query_with_retry_ignores_non_rate_errors_for_breaker():
 def test_get_platform_client_rejects_unknown_platform():
     with pytest.raises(ValueError, match="Unknown scan platform"):
         get_platform_client("bing")
+
+
+# ── Source capture: ChatGPT url_citation annotations (all-platform Task 2) ───
+# Built with the real SDK constructor (not MagicMock) so a response-shape
+# change in the openai package fails here instead of silently capturing nothing.
+
+def _openai_response(annotations, *, extra_output=()):
+    from openai._models import construct_type
+    from openai.types.responses import Response
+
+    return construct_type(type_=Response, value={
+        "id": "resp_1", "object": "response", "created_at": 0, "model": "gpt-5-mini",
+        "status": "completed", "parallel_tool_calls": True, "tool_choice": "auto",
+        "tools": [],
+        "output": [
+            {"type": "web_search_call", "id": "ws_1", "status": "completed"},
+            *extra_output,
+            {
+                "type": "message", "id": "msg_1", "role": "assistant", "status": "completed",
+                "content": [{"type": "output_text", "text": "Acme Dental is well rated.",
+                             "annotations": annotations}],
+            },
+        ],
+        "usage": {"input_tokens": 5, "output_tokens": 8, "total_tokens": 13,
+                  "input_tokens_details": {"cached_tokens": 0},
+                  "output_tokens_details": {"reasoning_tokens": 0}},
+    })
+
+
+def _url_citation(url, title="T", start=0, end=4):
+    return {"type": "url_citation", "url": url, "title": title,
+            "start_index": start, "end_index": end}
+
+
+def _chatgpt_query(response):
+    with patch("app.services.platform_clients.chatgpt.OpenAI") as mock_openai:
+        mock_client = MagicMock()
+        mock_client.responses.create.return_value = response
+        mock_openai.return_value = mock_client
+        return ChatGPTClient(api_key="fake-key").query("best dentist in KL")
+
+
+def test_chatgpt_captures_url_citations_in_answer_order():
+    result = _chatgpt_query(_openai_response([
+        _url_citation("https://www.yelp.com/biz/acme", "Acme on Yelp"),
+        _url_citation("https://g2.com/acme", "G2"),
+    ]))
+
+    assert [(c.url, c.title, c.rank) for c in result.citations] == [
+        ("https://www.yelp.com/biz/acme", "Acme on Yelp", 1),
+        ("https://g2.com/acme", "G2", 2),
+    ]
+    assert all(c.domain_hint is None for c in result.citations)
+
+
+def test_chatgpt_citations_strip_utm_and_collapse_duplicates():
+    result = _chatgpt_query(_openai_response([
+        _url_citation("https://g2.com/acme?utm_source=openai", "G2"),
+        _url_citation("https://yelp.com/acme?utm_source=openai", "Yelp"),
+        _url_citation("https://g2.com/acme", "G2 again"),
+    ]))
+
+    assert [(c.url, c.rank) for c in result.citations] == [
+        ("https://g2.com/acme", 1),
+        ("https://yelp.com/acme", 2),
+    ]
+
+
+def test_chatgpt_no_annotations_yields_no_citations():
+    assert _chatgpt_query(_openai_response([])).citations == ()
+
+
+def test_chatgpt_ignores_non_url_annotations():
+    file_cite = {"type": "file_citation", "file_id": "f1", "filename": "x.pdf", "index": 0}
+    result = _chatgpt_query(_openai_response([file_cite, _url_citation("https://g2.com/a")]))
+    assert [c.url for c in result.citations] == ["https://g2.com/a"]
+
+
+def test_chatgpt_malformed_response_yields_no_citations_without_raising():
+    # MagicMock .output is not iterable — the parser must swallow that.
+    result = _chatgpt_query(MagicMock(output_text="x", usage=MagicMock(input_tokens=1, output_tokens=1)))
+    assert result.citations == ()
+    assert result.text == "x"
