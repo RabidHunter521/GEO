@@ -116,3 +116,9 @@ class Client(Base):
     benchmark_opt_out: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Client win notifications ("ChatGPT now recommends you for ..."). Off by
+    # default: the client only hears about wins once an admin switches this on,
+    # and wins confirmed while it is off are recorded but never sent later.
+    win_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )

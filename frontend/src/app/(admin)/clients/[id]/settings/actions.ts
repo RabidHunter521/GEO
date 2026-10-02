@@ -38,6 +38,7 @@ export async function updateClientAction(
     // preview when an already-chosen pack is switched without it.
     confirm_pack_change?: boolean
     benchmark_opt_out?: boolean
+    win_notifications_enabled?: boolean
   },
 ) {
   const client = await updateClient(id, data)

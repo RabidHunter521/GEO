@@ -128,6 +128,7 @@ export function updateClient(
       | "registration_number"
       | "ga4_property_id"
       | "benchmark_opt_out"
+      | "win_notifications_enabled"
     >
   >,
 ): Promise<Client> {

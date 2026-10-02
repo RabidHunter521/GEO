@@ -32,6 +32,9 @@ const ACTIVITY_PRESENTATION: Record<string, ActivityPresentation> = {
   page_audit_run: { label: "Page citability checked", tone: "information" },
   site_audit_run: { label: "Website readiness checked", tone: "information" },
   citation_flip: { label: "Share-of-source change", tone: "information" },
+  client_win_detected: { label: "Client win confirmed", tone: "success" },
+  win_notification_sent: { label: "Win notification sent", tone: "success" },
+  win_notification_failed: { label: "Win notification failed", tone: "danger" },
 }
 
 const ACTIVITY_NOTE_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [

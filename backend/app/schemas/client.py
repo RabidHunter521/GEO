@@ -69,6 +69,8 @@ class ClientUpdate(BaseModel):
     # they stop contributing to peer numbers and stop receiving a comparison.
     # Forward-looking only — see app/services/benchmark_publication_service.py.
     benchmark_opt_out: bool | None = None
+    # Email the client when a win is confirmed (win_notification_service).
+    win_notifications_enabled: bool | None = None
     # Control field, NOT a column. Switching an already-chosen pack changes which
     # queries a client is scanned on and resets benchmark comparability, so the
     # route refuses an unconfirmed switch. The route must pop this before its
@@ -144,6 +146,7 @@ class ClientResponse(BaseModel):
     industry_subcategory: str | None = None
     industry_pack_version: str | None = None
     benchmark_opt_out: bool = False
+    win_notifications_enabled: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -152,6 +155,11 @@ class ClientResponse(BaseModel):
     def _unflushed_count_is_zero(cls, v):
         # A just-created, not-yet-flushed Client has no column default applied.
         return 0 if v is None else v
+
+    @field_validator("win_notifications_enabled", mode="before")
+    @classmethod
+    def _unflushed_flag_is_false(cls, v):
+        return False if v is None else v
 
 
 class ShareTokenRequest(BaseModel):
