@@ -611,3 +611,102 @@ def test_calculate_portfolio_stability_empty_portfolio_returns_empty_list(db):
     results = stability.calculate_portfolio_stability(client.id, db)
 
     assert results == []
+
+
+# ── Task 9 (all-platform sources): never score sources that weren't recorded ──
+# Before all-platform capture, tracked samples never recorded sources, so the
+# source dimension compared empty sets (always "agreeing"). Once capture is
+# on, old and new samples would disagree for no real reason. A sample whose
+# sources were never recorded carries source_domains=None and the dimension
+# is left out of any comparison that includes it.
+
+
+def _uncaptured(**kwargs) -> QuerySample:
+    s = _sample(**kwargs)
+    return QuerySample(**{**s.__dict__, "source_domains": None})
+
+
+def test_source_dimension_omitted_when_no_sample_recorded_sources():
+    scan_id = uuid.uuid4()
+    samples = [_uncaptured(scan_id=scan_id, sample_index=i) for i in range(1, 4)]
+
+    result = stability.calculate_stability(samples)
+
+    assert "source_domain_set" not in result.agreement
+    assert set(result.agreement) == {"brand_presence", "recommendation_status", "position_band"}
+    assert result.state == "repeated"
+
+
+def test_source_dimension_omitted_when_recorded_and_unrecorded_samples_mix():
+    scan_id = uuid.uuid4()
+    samples = [
+        _uncaptured(scan_id=scan_id, sample_index=1),
+        _sample(scan_id=scan_id, sample_index=2, source_domains=["g2.com"]),
+        _sample(scan_id=scan_id, sample_index=3, source_domains=["yelp.com"]),
+    ]
+
+    result = stability.calculate_stability(samples)
+
+    assert "source_domain_set" not in result.agreement
+    assert result.state == "repeated"  # not "volatile" from a capture artefact
+
+
+def test_source_dimension_omitted_across_periods_when_an_old_period_was_unrecorded():
+    old, new = uuid.uuid4(), uuid.uuid4()
+    samples = [
+        *[_uncaptured(scan_id=old, sample_index=i) for i in range(1, 3)],
+        *[_sample(scan_id=new, sample_index=i, source_domains=["g2.com"]) for i in range(1, 3)],
+    ]
+
+    result = stability.calculate_stability(samples)
+
+    assert "source_domain_set" not in result.agreement
+    assert result.state == "stable"
+
+
+def test_unobserved_samples_do_not_count_as_unrecorded():
+    scan_id = uuid.uuid4()
+    samples = [
+        _sample(scan_id=scan_id, sample_index=1, source_domains=["g2.com"]),
+        _sample(scan_id=scan_id, sample_index=2, source_domains=["g2.com"]),
+        _uncaptured(scan_id=scan_id, sample_index=3, observed=False),
+    ]
+
+    result = stability.calculate_stability(samples)
+
+    assert result.agreement["source_domain_set"] == 1.0
+
+
+def _tracked_row(scan, tq, i, *, captured=None):
+    return ScanQueryResult(
+        scan_id=scan.id, platform="chatgpt", category="recommendation",
+        query_text=tq.text, response_text="Yes.", brand_detected=True,
+        tracked_query_id=tq.id, sample_index=i, sources_captured=captured,
+    )
+
+
+def test_legacy_samples_without_recorded_sources_skip_the_dimension(db):
+    client = _make_client(db)
+    scan = _make_scan(db, client)
+    tq = _make_tracked_query(db, client)
+    for i in range(1, 4):
+        db.add(_tracked_row(scan, tq, i, captured=None))
+    db.commit()
+
+    result = stability.calculate_query_stability(tq.id, db)
+
+    assert "source_domain_set" not in result.agreement
+    assert result.state == "repeated"
+
+
+def test_captured_samples_with_no_sources_compare_as_empty_sets(db):
+    client = _make_client(db)
+    scan = _make_scan(db, client)
+    tq = _make_tracked_query(db, client)
+    for i in range(1, 4):
+        db.add(_tracked_row(scan, tq, i, captured=True))
+    db.commit()
+
+    result = stability.calculate_query_stability(tq.id, db)
+
+    assert result.agreement["source_domain_set"] == 1.0

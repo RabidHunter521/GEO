@@ -19,7 +19,9 @@ Design (see docs referenced in the Phase 5 plan):
       "cited"/"mentioned")
     - recommendation_status: was the brand recommended (i.e. ranked) in the
       answer
-    - source_domain_set: which source domains were cited
+    - source_domain_set: which source domains the answer drew on -- only
+      compared when every observed sample recorded its sources (samples
+      taken before all-platform capture did not; see _dimensions_for)
     - position_band: coarse recommendation-position bucket (1-3, 4-6, 7+,
       not_found)
 
@@ -43,7 +45,7 @@ State machine (`QueryStability.state`):
                 STABILITY_THRESHOLD — a material disagreement, not just a
                 thin sample
 
-`score` is the minimum agreement ratio across the four dimensions (the most
+`score` is the minimum agreement ratio across the compared dimensions (the most
 conservative reading — one badly-disagreeing dimension is enough to flag the
 query), and is only None for the `insufficient` state; every other state has
 at least one observed sample to compute a (possibly trivial, 1.0) ratio from.
@@ -114,7 +116,10 @@ class QuerySample:
     observed: bool  # False when the provider returned no response_text at all
     brand_detected: bool
     recommendation_position: int | None
-    source_domains: frozenset[str]
+    # None = this sample's sources were never recorded (tracked samples taken
+    # before all-platform capture). Distinct from frozenset(): "recorded, and
+    # the answer drew on no sources".
+    source_domains: frozenset[str] | None
 
 
 # ── pure dimension value extractors ──────────────────────────────────────
@@ -154,6 +159,22 @@ _DIMENSIONS: dict[str, Callable[[QuerySample], object]] = {
 }
 
 
+_SOURCE_DIMENSION = "source_domain_set"
+
+
+def _dimensions_for(samples: list[QuerySample]) -> dict[str, Callable[[QuerySample], object]]:
+    """The dimensions that can be honestly compared across `samples`.
+
+    The source dimension needs every observed sample to have recorded its
+    sources; comparing a never-recorded sample (None) against a recorded one
+    would report a disagreement that is only a capture artefact, and
+    comparing never-recorded samples with each other would report agreement
+    about nothing. Either way it is left out, not scored."""
+    if any(s.observed and s.source_domains is None for s in samples):
+        return {name: fn for name, fn in _DIMENSIONS.items() if name != _SOURCE_DIMENSION}
+    return _DIMENSIONS
+
+
 def _agreement_ratio(values: list) -> float:
     """Fraction of `values` matching the modal (most common) value. Callers
     only ever pass a non-empty list of already-observed values, so this
@@ -171,7 +192,10 @@ def _classify_single_period(samples: list[QuerySample]) -> tuple[str, float, dic
     all-unobserved case as `insufficient`).
     """
     observed = [s for s in samples if s.observed]
-    agreement = {name: _agreement_ratio([fn(s) for s in observed]) for name, fn in _DIMENSIONS.items()}
+    agreement = {
+        name: _agreement_ratio([fn(s) for s in observed])
+        for name, fn in _dimensions_for(observed).items()
+    }
     score = min(agreement.values())
 
     if len(observed) < MIN_OBSERVED_FOR_REPEATED:
@@ -231,7 +255,8 @@ def calculate_stability(samples: list[QuerySample]) -> QueryStability:
     # sample together — a period with 3 samples should not out-vote another
     # period that only got 1 (design decision #3: period-level consensus).
     agreement: dict[str, float] = {}
-    for name, fn in _DIMENSIONS.items():
+    compared = [s for period_samples in effective_periods.values() for s in period_samples]
+    for name, fn in _dimensions_for(compared).items():
         period_consensus = []
         for period_samples in effective_periods.values():
             observed_values = [fn(s) for s in period_samples if s.observed]
@@ -252,6 +277,19 @@ def calculate_stability(samples: list[QuerySample]) -> QueryStability:
 # ── DB-backed wrappers ───────────────────────────────────────────────────
 
 
+def _recorded_domains(
+    row: ScanQueryResult, domains_by_result: dict[uuid.UUID, frozenset[str]]
+) -> frozenset[str] | None:
+    """A row's source domains, or None when they were never recorded.
+
+    Having source rows proves capture (older Perplexity rows predate the
+    sources_captured flag); otherwise only an explicit sources_captured=True
+    turns "no rows" into a real "no sources"."""
+    if row.id in domains_by_result:
+        return domains_by_result[row.id]
+    return frozenset() if row.sources_captured else None
+
+
 def _rows_to_samples(
     rows: list[ScanQueryResult], domains_by_result: dict[uuid.UUID, frozenset[str]]
 ) -> list[QuerySample]:
@@ -263,7 +301,7 @@ def _rows_to_samples(
             observed=row.response_text is not None,
             brand_detected=bool(row.brand_detected),
             recommendation_position=row.recommendation_position,
-            source_domains=domains_by_result.get(row.id, frozenset()),
+            source_domains=_recorded_domains(row, domains_by_result),
         )
         for row in rows
     ]
