@@ -1,7 +1,7 @@
 """Admin-only placement engine schemas. Never used on the client view: they
 carry outreach contacts, competitor positions and in-flight work."""
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -48,3 +48,7 @@ class PatchPlacementRequest(BaseModel):
 class PatchDraftRequest(BaseModel):
     subject: str | None = None
     body: str | None = None
+
+
+class PursuePlacementRequest(BaseModel):
+    due_date: date | None = None

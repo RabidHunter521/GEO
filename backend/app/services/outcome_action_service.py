@@ -324,7 +324,24 @@ def source_query_result_for_action(action: OutcomeAction, db: Session) -> ScanQu
         return _source_from_deliverable(action, raw_id, db)
     if prefix == "recommendation":
         return _source_from_recommendation(action, raw_id, db)
+    if prefix == "placement":
+        return _source_from_placement(action, raw_id, db)
     return None
+
+
+def _source_from_placement(action: OutcomeAction, raw_id: str, db: Session) -> ScanQueryResult | None:
+    """A placement's proof question: the answer that drew on the page while the
+    client was not Seen by AI (frozen when the placement was pursued)."""
+    from app.models.placement_target import PlacementTarget
+
+    try:
+        target_id = uuid.UUID(raw_id)
+    except ValueError:
+        return None
+    target = db.get(PlacementTarget, target_id)
+    if target is None or target.client_id != action.client_id or target.representative_result_id is None:
+        return None
+    return _eligible_source_result(action, db.get(ScanQueryResult, target.representative_result_id), db)
 
 
 def _scan_query_result_by_ref(prefix: str, raw_id: str, db: Session) -> ScanQueryResult | None:

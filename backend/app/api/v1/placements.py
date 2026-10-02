@@ -10,6 +10,7 @@ from app.models.placement_target import PlacementTarget
 from app.schemas.placement import (
     PatchDraftRequest,
     PatchPlacementRequest,
+    PursuePlacementRequest,
     PlacementTargetDetail,
     PlacementTargetOut,
 )
@@ -92,4 +93,18 @@ def edit_draft(
     target = _get_target_or_404(client_id, target_id, db)
     if placement_service.update_draft(target, draft_id, body.subject, body.body, db) is None:
         raise HTTPException(status_code=404, detail="Draft not found")
+    return placement_service.target_detail(target, db)
+
+
+@router.post(
+    "/{target_id}/pursue", response_model=PlacementTargetDetail, dependencies=[Depends(require_api_key)]
+)
+def pursue_target(
+    client_id: uuid.UUID, target_id: uuid.UUID, body: PursuePlacementRequest, db: Session = Depends(get_db)
+):
+    target = _get_target_or_404(client_id, target_id, db)
+    try:
+        placement_service.pursue(target, db, due_date=body.due_date)
+    except placement_service.PlacementTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return placement_service.target_detail(target, db)

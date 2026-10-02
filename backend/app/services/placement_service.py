@@ -26,7 +26,10 @@ from app.core.constants import (
 from app.core.time import utcnow
 from app.models.authority_asset import AuthorityAsset
 from app.models.client import Client
+from app.models.activity_log import ActivityLog
 from app.models.competitor import Competitor
+from app.models.outcome_action import OutcomeAction
+from app.models.scan import Scan
 from app.models.placement_target import PlacementTarget
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
@@ -161,6 +164,35 @@ def _matching_asset(domain: str, assets: list[AuthorityAsset]) -> AuthorityAsset
     return None
 
 
+# Statuses in which the target is being worked through an Outcome Action.
+_IN_DELIVERY = {"pursuing", "placed", "verified"}
+
+
+def _linked_action(target: PlacementTarget, db: Session) -> OutcomeAction | None:
+    return db.get(OutcomeAction, target.outcome_action_id) if target.outcome_action_id else None
+
+
+def _placed_by_this_scan(target: PlacementTarget, scan: Scan | None, db: Session) -> bool:
+    """A pursued page that names the client in a scan completed after the
+    placement work was published. Earlier scans, or unpublished work, prove
+    nothing about the outreach."""
+    if target.status != "pursuing" or scan is None or scan.completed_at is None:
+        return False
+    action = _linked_action(target, db)
+    return bool(action and action.published_at and scan.completed_at > action.published_at)
+
+
+def _sync_from_action(target: PlacementTarget, db: Session) -> None:
+    """Mirror scan-backed verification of the linked Outcome Action: verified
+    means the proof question now sees the client."""
+    if target.status not in {"pursuing", "placed"}:
+        return
+    action = _linked_action(target, db)
+    if action is not None and action.status == "verified":
+        target.status = "verified"
+        target.placed_at = target.placed_at or action.verified_at or utcnow()
+
+
 def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> None:
     """Upsert placement targets from one completed scan's checked sources.
 
@@ -201,7 +233,9 @@ def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> No
         .all()
     )
     now = utcnow()
+    scan = db.get(Scan, scan_id)
     seen_urls: set[str] = set()
+    newly_placed: list[PlacementTarget] = []
 
     for url, pairs in by_url.items():
         client_on_page = any((s.present_brands or {}).get("client") for s, _ in pairs)
@@ -213,6 +247,10 @@ def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> No
                 target.last_seen_at = now
                 target.scans_missing = 0
                 seen_urls.add(url)
+                if _placed_by_this_scan(target, scan, db):
+                    target.status = "placed"
+                    target.placed_at = now
+                    newly_placed.append(target)
             continue
 
         source0 = pairs[0][0]
@@ -241,7 +279,9 @@ def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> No
             cid for s, _ in pairs for cid in (s.present_brands or {}).get("competitors", [])
         })
         unseen = [r for r in results if not r.brand_detected]
-        if unseen:
+        # Once a placement is being worked, its proof question is frozen: the
+        # verification compares that exact question before and after.
+        if unseen and target.status not in _IN_DELIVERY:
             best = min(
                 unseen,
                 key=lambda r: (_PROOF_PREFERENCE.get(r.category, 9), -(r.created_at.timestamp() if r.created_at else 0)),
@@ -264,9 +304,29 @@ def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> No
             target.status = "stale"
 
     for target in existing.values():
+        _sync_from_action(target, db)
         target.priority_score, target.priority_reasons = score_target(target)
 
+    for target in newly_placed:
+        db.add(ActivityLog(
+            client_id=client_id,
+            event_type="placement_placed",
+            note=f"Placement secured: {target.domain} now names the client ({target.url})",
+        ))
+
     db.commit()
+
+    # Client-safe proof, suggested for admin review (never auto-published).
+    # Best-effort and post-commit: work_log_service.suggest owns its commit.
+    from app.services import work_log_service
+    for target in newly_placed:
+        work_log_service.suggest(
+            client_id,
+            "authority",
+            f"Now listed on {target.domain}, a page AI answers draw on for your buyer questions",
+            f"placement:{target.id}:placed",
+            db,
+        )
     logger.info(
         "placement_targets_refreshed",
         scan_id=str(scan_id),
@@ -430,6 +490,48 @@ def analyze_target(target: PlacementTarget, db: Session) -> PlacementTarget:
     db.commit()
     logger.info("placement_page_analyzed", target_id=str(target.id), listicle=analysis["is_listicle"])
     return target
+
+
+# ── pursue: hand the placement to the delivery workflow ─────────────────────
+
+_PURSUABLE = {"open", "stale"}
+
+
+def _priority_band(score: int) -> str:
+    return "high" if score >= 60 else "medium" if score >= 30 else "low"
+
+
+def pursue(target: PlacementTarget, db: Session, due_date=None) -> OutcomeAction:
+    """Create (once) the Outcome Action that carries this placement through
+    approval, publication and scan-backed verification. It then shows in the
+    delivery workspace, the home inbox and the review queue."""
+    from app.services.outcome_action_adapter_service import suggest_once
+
+    existing = _linked_action(target, db)
+    if existing is not None:
+        return existing
+    if target.status not in _PURSUABLE:
+        raise PlacementTransitionError(f"A {target.status} placement cannot be pursued")
+
+    action = suggest_once(
+        client_id=target.client_id,
+        source_kind="placement",
+        source_ref=f"placement:{target.id}",
+        action_type="authority",
+        title=f"Get listed on {target.domain}",
+        rationale="; ".join((target.priority_reasons or [])[:3]) or "Placement opportunity",
+        priority=_priority_band(target.priority_score),
+        db=db,
+    )
+    action.destination_url = target.url
+    action.due_date = due_date
+    action.client_safe_summary = (
+        f"Listed on {target.domain}, a page AI answers draw on for your buyer questions"
+    )
+    target.outcome_action_id = action.id
+    target.status = "pursuing"
+    db.commit()
+    return action
 
 
 # ── admin read model + manual status ────────────────────────────────────────

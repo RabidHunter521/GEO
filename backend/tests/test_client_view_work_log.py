@@ -252,3 +252,30 @@ def test_completed_work_exposes_verification_claim_without_raw_evidence(client, 
     assert "priority" not in dumped
     assert body[0]["status_label"] == "Verified"
     assert body[0]["verification_claim"] == "Observed after publication; causality not established"
+
+
+def test_in_flight_placements_stay_off_the_client_action_plan(client, db):
+    """Placement engine decision 3: clients see won placements only. A pursued
+    placement (outreach in flight) never appears on the action plan or counts
+    toward showing it; a verified one appears under completed work."""
+    from app.core.time import utcnow
+    from app.models.outcome_action import OutcomeAction
+
+    c = _client_with_token(db)
+    common = dict(client_id=c.id, source_kind="placement", action_type="authority",
+                  priority="medium", confidence="source_record",
+                  rationale="2 tracked competitors listed here, not you",
+                  client_safe_summary="Listed on klguide.example, a page AI answers draw on")
+    db.add(OutcomeAction(**common, source_ref="placement:a", title="Get listed on klguide.example",
+                         status="in_progress"))
+    db.add(OutcomeAction(**common, source_ref="placement:b", title="Get listed on other.example",
+                         status="verified", verified_at=utcnow()))
+    db.commit()
+
+    plan = client.get(f"/api/v1/view/{c.share_token}/action-plan").json()
+    assert plan == []
+    overview = client.get(f"/api/v1/view/{c.share_token}/overview").json()
+    assert overview.get("has_action_plan") in (False, None)
+    done = client.get(f"/api/v1/view/{c.share_token}/completed-work").json()
+    assert [d["title"] for d in done] == ["Get listed on other.example"]
+    assert "competitors" not in str(done)

@@ -158,6 +158,10 @@ _ACTION_STATUS_LABELS: dict[str, str] = {
     "no_change": "No verified change",
 }
 
+# Delivery items clients only see once won (verified): placement outreach is
+# in-flight work with third parties (placement engine, decision 3).
+_HIDDEN_UNTIL_VERIFIED_KINDS = ("placement",)
+
 _PUBLIC_ACTION_PLAN_STATUSES = {
     "approved_internal",
     "in_progress",
@@ -442,6 +446,7 @@ def get_overview(
         .filter(
             OutcomeAction.client_id == client.id,
             OutcomeAction.status.in_(_PUBLIC_ACTION_PLAN_STATUSES),
+            OutcomeAction.source_kind.notin_(_HIDDEN_UNTIL_VERIFIED_KINDS),
         )
         .first()
         is not None
@@ -821,6 +826,7 @@ def get_action_plan(
         .filter(
             OutcomeAction.client_id == client.id,
             OutcomeAction.status.in_(_PUBLIC_ACTION_PLAN_STATUSES),
+            OutcomeAction.source_kind.notin_(_HIDDEN_UNTIL_VERIFIED_KINDS),
         )
         .order_by(OutcomeAction.due_date.is_(None), OutcomeAction.due_date, desc(OutcomeAction.created_at))
         .all()

@@ -577,16 +577,6 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                 "share_of_source_snapshot_failed", scan_id=str(scan_id), error=str(exc)
             )
 
-        # Placement targets — third-party pages answers drew on that don't
-        # name the client (placement engine). Reads what enrichment recorded;
-        # best-effort like every post-commit step (CLAUDE.md §10).
-        try:
-            from app.services.placement_service import refresh_targets
-            refresh_targets(scan.id, client.id, db)
-        except Exception as exc:
-            db.rollback()
-            logger.error("placement_refresh_failed", scan_id=str(scan_id), error=str(exc))
-
         # Work-log flip suggestions — one `visibility` suggestion per query that
         # newly flipped to Seen by AI this scan. Best-effort, matching every
         # other post-commit step in this function (CLAUDE.md §10).
@@ -603,6 +593,17 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         except Exception as exc:
             db.rollback()
             logger.error("outcome_action_verification_failed", scan_id=str(scan_id), error=str(exc))
+
+        # Placement targets — third-party pages answers drew on that don't
+        # name the client (placement engine). Reads what enrichment recorded;
+        # best-effort like every post-commit step (CLAUDE.md §10). Runs after
+        # verification so a verified placement action is mirrored in the same scan.
+        try:
+            from app.services.placement_service import refresh_targets
+            refresh_targets(scan.id, client.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("placement_refresh_failed", scan_id=str(scan_id), error=str(exc))
 
         # Client win notifications — records wins this scan confirmed and, when
         # the client has them switched on, tells the client. Best-effort like
