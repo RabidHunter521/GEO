@@ -4,6 +4,17 @@ from app.core.constants import SCAN_PLATFORMS, SCORE_BANDS, SCORE_WEIGHTS, SCORE
 _REPORTED_ONLY = frozenset(SCAN_PLATFORMS) - frozenset(SCORED_PLATFORMS)
 
 
+def scored_results(results) -> list:
+    """Rows from scored platforms only.
+
+    Headline visibility numbers that sit beside the score or are compared over
+    time (seen X of Y, overall visibility frequency, competitor overtake,
+    benchmark trends) use these, so a reported-only surface (Google AI
+    Overviews / AI Mode) never shifts them. Per-platform views keep every row.
+    """
+    return [r for r in results if getattr(r, "platform", None) not in _REPORTED_ONLY]
+
+
 def compute_platform_breakdown(
     query_results: list, failed_platforms: list[str] | None = None
 ) -> dict:

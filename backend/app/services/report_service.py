@@ -63,6 +63,7 @@ from app.core.constants import (
 from app.prompts.report import build_change_narrative
 from app.services.language_sanitizer import sanitize_text as _sanitize_text
 from app.services.methodology_service import build_methodology
+from app.services.scoring_service import scored_results
 
 # Max competitor-won topics surfaced in the Content Gaps section.
 _CONTENT_GAP_LIMIT = 3
@@ -1359,8 +1360,10 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         )
         .all()
     )
-    seen_count = sum(1 for r in client_results if r.brand_detected)
-    total_count = len(client_results)
+    # "Seen by AI in X of Y" sits beside the score: scored platforms only.
+    scored_client_results = scored_results(client_results)
+    seen_count = sum(1 for r in scored_client_results if r.brand_detected)
+    total_count = len(scored_client_results)
 
     # Identify which specific queries changed detection status vs the previous scan.
     # Only consider queries that ran in both scans to avoid new/removed query noise.
@@ -1401,6 +1404,7 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
             )
             .all()
         )
+        comp_results = scored_results(comp_results)
         if comp_results:
             detected = sum(1 for r in comp_results if r.brand_detected)
             citability = round((detected / len(comp_results)) * 100, 2)

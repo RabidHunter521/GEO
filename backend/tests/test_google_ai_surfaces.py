@@ -272,3 +272,56 @@ def test_a_client_needs_at_least_one_scored_platform():
         ClientUpdate(enabled_platforms=["google_aio", "google_ai_mode"])
     ok = ClientUpdate(enabled_platforms=["google_ai_mode", "claude"])
     assert ok.enabled_platforms == ["claude", "google_ai_mode"]
+
+
+# ── Task 5: headline numbers stay on the scored platforms ──────────────────
+
+def _ns(platform, seen):
+    from types import SimpleNamespace
+    return SimpleNamespace(platform=platform, brand_detected=seen, competitor_id=None,
+                           is_control=False, hallucination_flagged=False)
+
+
+def test_headline_visibility_helpers_ignore_reported_only_platforms():
+    from app.services import alert_service, causality_service, gap_matrix_service, scan_diff_service
+    from app.services.scoring_service import scored_results
+
+    llm = [_ns("chatgpt", True), _ns("claude", False)]
+    google = [_ns("google_aio", False), _ns("google_aio", False), _ns("google_ai_mode", False)]
+    mixed = llm + google
+
+    assert scored_results(mixed) == llm
+    assert alert_service._compute_citability(mixed) == alert_service._compute_citability(llm) == 50.0
+    assert causality_service._freq(mixed) == causality_service._freq(llm)
+    assert gap_matrix_service._visibility(mixed) == gap_matrix_service._visibility(llm)
+    assert scan_diff_service._visibility(mixed) == scan_diff_service._visibility(llm)
+    # nothing scored at all reads as "no data", not 0%
+    assert gap_matrix_service._visibility(google) is None
+
+
+def test_competitor_page_overall_matches_the_score_but_lists_google_per_platform(db):
+    from app.models.scan_query_result import ScanQueryResult
+    from app.services.competitor_intelligence_service import compute_competitor_intelligence
+    from tests.test_ai_mirror import _client, _competitor, _scan
+
+    client = _client(db)
+    rival = _competitor(db, client, "Smile Studio")
+    scan = _scan(db, client)
+    for platform, seen, comp, shown in [
+        ("chatgpt", True, None, None), ("chatgpt", False, None, None),
+        ("chatgpt", True, rival, None),
+        ("google_aio", False, None, False), ("google_aio", False, None, False),
+        ("google_aio", True, rival, True),
+    ]:
+        db.add(ScanQueryResult(scan_id=scan.id, platform=platform, category="recommendation",
+                               query_text="q", response_text="" if shown is False else "a",
+                               brand_detected=seen, competitor_id=comp.id if comp else None,
+                               answer_shown=shown))
+    db.commit()
+
+    intel = compute_competitor_intelligence(client.id, db)
+    assert intel.client_ai_citability == 50.0  # chatgpt only
+    assert intel.client_platform_visibility == {"chatgpt": 50.0, "google_aio": 0.0}
+    [comp] = intel.competitors
+    assert comp.ai_citability == 100.0
+    assert comp.platform_visibility["google_aio"] == 100.0

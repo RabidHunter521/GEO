@@ -13,6 +13,7 @@ from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.services.email_service import send_email
 from app.services.telegram_service import send_telegram
+from app.services.scoring_service import scored_results
 
 logger = structlog.get_logger()
 
@@ -205,6 +206,8 @@ def notify_budget_exceeded(client: Client, status, db: Session) -> None:
 
 
 def _compute_citability(results: list[ScanQueryResult]) -> float:
+    # Overall figure, compared like the score: scored platforms only.
+    results = scored_results(results)
     if not results:
         return 0.0
     return round(sum(1 for r in results if r.brand_detected) / len(results) * 100, 1)

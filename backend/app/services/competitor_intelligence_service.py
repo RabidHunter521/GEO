@@ -15,6 +15,7 @@ from app.schemas.competitor import (
     TrendScanPoint,
     TrendSeries,
 )
+from app.services.scoring_service import scored_results
 
 TREND_SCAN_LIMIT = 12
 
@@ -122,9 +123,11 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
     all_results = [r for r in all_results if not r.hallucination_flagged]
 
     client_results = [r for r in all_results if r.competitor_id is None]
+    # Overall figures match the score's platforms; per-platform figures show all.
+    client_scored = scored_results(client_results)
     client_citability = (
-        round(sum(1 for r in client_results if r.brand_detected) / len(client_results) * 100, 1)
-        if client_results
+        round(sum(1 for r in client_scored if r.brand_detected) / len(client_scored) * 100, 1)
+        if client_scored
         else 0.0
     )
     client_platform_visibility = visibility_by_platform(client_results)
@@ -132,9 +135,10 @@ def compute_competitor_intelligence(client_id: uuid.UUID, db: Session) -> Compet
     competitor_scores = []
     for comp in competitors:
         comp_results = [r for r in all_results if r.competitor_id == comp.id]
+        comp_scored = scored_results(comp_results)
         comp_citability = (
-            round(sum(1 for r in comp_results if r.brand_detected) / len(comp_results) * 100, 1)
-            if comp_results
+            round(sum(1 for r in comp_scored if r.brand_detected) / len(comp_scored) * 100, 1)
+            if comp_scored
             else 0.0
         )
         comp_platform_visibility = visibility_by_platform(comp_results)

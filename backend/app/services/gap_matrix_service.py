@@ -7,9 +7,11 @@ from app.models.competitor import Competitor
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.schemas.gap_matrix import GapCell, GapMatrixResponse, GapMatrixRow
+from app.services.scoring_service import scored_results
 
 
 def _visibility(results) -> float | None:
+    results = scored_results(results)
     if not results:
         return None
     return round(sum(1 for r in results if r.brand_detected) / len(results) * 100, 1)

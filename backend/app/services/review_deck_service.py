@@ -54,6 +54,7 @@ from app.models.scan_query_result import ScanQueryResult
 from app.services import business_impact_service, proof_card_service, work_log_service
 from app.services.language_sanitizer import sanitize_text
 from app.services.scoring_service import get_score_band, scores_comparable
+from app.services.scoring_service import scored_results
 
 try:
     import weasyprint  # noqa: F401 — used when generating PDF bytes
@@ -280,10 +281,12 @@ def gather_review_deck_data(client: Client, db: Session, mode: str = "client") -
         presence_now=current.ai_citability,
         presence_then=baseline.ai_citability if baseline else None,
         comparable=comparable,
-        seen_now=sum(1 for r in latest_results if r.brand_detected),
-        total_now=len(latest_results),
-        seen_then=sum(1 for r in base_results if r.brand_detected) if baseline else None,
-        total_then=len(base_results) if baseline else None,
+        seen_now=sum(1 for r in scored_results(latest_results) if r.brand_detected),
+        total_now=len(scored_results(latest_results)),
+        seen_then=(
+            sum(1 for r in scored_results(base_results) if r.brand_detected) if baseline else None
+        ),
+        total_then=len(scored_results(base_results)) if baseline else None,
     )
 
     # Per platform, then vs now. A platform unavailable on either scan shows a
