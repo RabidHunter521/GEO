@@ -38,6 +38,8 @@ class SafeResponse:
     status_code: int
     text: str = ""
     headers: dict = field(default_factory=dict)
+    # Final URL after redirects ("" when constructed by hand, e.g. in tests).
+    url: str = ""
 
     def json(self):
         return json.loads(self.text)
@@ -122,5 +124,6 @@ def safe_get(
                     status_code=resp.status_code,
                     text=text,
                     headers=dict(resp.headers),
+                    url=str(resp.url),
                 )
     raise UnsafeUrlError(f"too many redirects: {url}")

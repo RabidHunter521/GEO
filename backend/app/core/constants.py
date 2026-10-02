@@ -114,6 +114,10 @@ GROUNDING_REDIRECT_HOSTS: Final = ("vertexaisearch.cloud.google.com",)
 # 2026-10-02); v2 = every enabled platform. Share-of-Source snapshots record it
 # so a coverage change is never read as a change in the client's standing.
 SOURCE_CAPTURE_VERSION: Final = "v2"
+# Hard cap on third-party source pages fetched (for brand matching) per scan.
+# Raised from 60 when capture widened to all platforms; the most-cited pages
+# are fetched first and the rest are marked "skipped".
+MAX_SOURCE_FETCHES_PER_SCAN: Final = 150
 
 # Referrer domains classified as AI-sourced traffic (GA4 sync). Keys are
 # matched against sessionSource/pageReferrer hosts (subdomain-tolerant).

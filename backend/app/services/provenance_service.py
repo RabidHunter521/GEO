@@ -14,6 +14,7 @@ import structlog
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
+from app.core.constants import GROUNDING_REDIRECT_HOSTS, MAX_SOURCE_FETCHES_PER_SCAN
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
@@ -81,7 +82,6 @@ def classify_source_type(
 
 
 _FETCH_TIMEOUT = 10.0
-_MAX_THIRD_PARTY_FETCHES = 60  # hard cap on outbound fetches per scan
 _FETCH_WORKERS = 8
 
 
@@ -92,30 +92,47 @@ def _extract_text(html: str) -> str:
     return soup.get_text(separator=" ", strip=True)
 
 
-def _fetch_page_text(url: str) -> tuple[str, str | None]:
-    """Return (fetch_status, text). status is ok/blocked/error; text None unless ok."""
+def _fetch_page_text(url: str) -> tuple[str, str | None, str | None]:
+    """Return (fetch_status, text, final_url). status is ok/blocked/error;
+    text and final_url are None unless ok. final_url is where redirects
+    landed, which is how grounding-redirect sources learn their real page."""
     try:
         resp = safe_get(url, timeout=_FETCH_TIMEOUT)
     except UnsafeUrlError:
-        return "blocked", None
+        return "blocked", None, None
     except Exception:
-        return "error", None
+        return "error", None, None
     ctype = resp.headers.get("content-type", "").lower()
     if resp.status_code != 200 or "html" not in ctype:
-        return "error", None
-    return "ok", _extract_text(resp.text)
+        return "error", None, None
+    return "ok", _extract_text(resp.text), resp.url or None
+
+
+def _is_grounding_redirect(url: str) -> bool:
+    try:
+        return urlparse(url).hostname in GROUNDING_REDIRECT_HOSTS
+    except ValueError:
+        return False
 
 
 def enrich_scan_sources(scan_id: uuid.UUID, db: Session) -> None:
     """Classify + brand-match every captured source for a scan's client queries.
 
     Best-effort and idempotent-ish: only rows still 'pending' are processed.
-    Owned domains are classified without a fetch; third-party pages are fetched
-    once each (deduped by URL) through the SSRF-guarded crawler and matched with
-    detect_brand_mention. Blocked/errored fetches fail open (present_brands None).
+    Owned domains are classified without a fetch (by the row's stored domain,
+    which for a grounding redirect is the adapter's hint); third-party pages
+    are fetched once each (deduped by URL) through the SSRF-guarded crawler and
+    matched with detect_brand_mention. Blocked/errored fetches fail open
+    (present_brands None).
+
+    Fetches are capped at MAX_SOURCE_FETCHES_PER_SCAN, most-cited URLs first
+    (ties: drawn on by more platforms), so the cap trims the long tail rather
+    than whichever platform's sources happened to be read first. Rows past
+    the cap are marked 'skipped', never left 'pending'. A grounding redirect
+    that resolves is rewritten to its final (canonical) URL and domain.
     """
-    rows = (
-        db.query(ScanQuerySource)
+    pairs = (
+        db.query(ScanQuerySource, ScanQueryResult.platform)
         .join(ScanQueryResult, ScanQueryResult.id == ScanQuerySource.scan_query_result_id)
         .filter(
             ScanQueryResult.scan_id == scan_id,
@@ -124,8 +141,9 @@ def enrich_scan_sources(scan_id: uuid.UUID, db: Session) -> None:
         )
         .all()
     )
-    if not rows:
+    if not pairs:
         return
+    rows = [row for row, _ in pairs]
 
     scan = db.get(Scan, scan_id)
     client = db.get(Client, scan.client_id) if scan else None
@@ -140,40 +158,68 @@ def enrich_scan_sources(scan_id: uuid.UUID, db: Session) -> None:
     comp_by_id = {str(c.id): c for c in competitors}
 
     by_url: dict[str, list[ScanQuerySource]] = defaultdict(list)
-    for row in rows:
+    platforms_by_url: dict[str, set[str]] = defaultdict(set)
+    for row, platform in pairs:
         by_url[row.url].append(row)
+        platforms_by_url[row.url].add(platform)
+
+    def _mark_owned(occurrences: list[ScanQuerySource], stype: str, domain: str) -> None:
+        for row in occurrences:
+            row.source_type = stype
+            row.fetch_status = "ok"
+            row.present_brands = (
+                {"client": True, "competitors": []}
+                if stype == "client_owned"
+                else {"client": False, "competitors": [competitor_domains[domain]]}
+            )
 
     third_party_urls: list[str] = []
     for url, occurrences in by_url.items():
-        domain = normalize_domain(url)
+        domain = occurrences[0].domain or normalize_domain(url)
         stype = classify_source_type(domain, client_domain, competitor_domains)
-        for row in occurrences:
-            row.source_type = stype
-        if stype == "client_owned":
+        if stype == "third_party":
             for row in occurrences:
-                row.fetch_status = "ok"
-                row.present_brands = {"client": True, "competitors": []}
-        elif stype == "competitor_owned":
-            comp_id = competitor_domains[domain]
-            for row in occurrences:
-                row.fetch_status = "ok"
-                row.present_brands = {"client": False, "competitors": [comp_id]}
-        else:
+                row.source_type = stype
             third_party_urls.append(url)
+        else:
+            _mark_owned(occurrences, stype, domain)
 
-    third_party_urls = third_party_urls[:_MAX_THIRD_PARTY_FETCHES]
-    fetched: dict[str, tuple[str, str | None]] = {}
+    # Stable sort: equal-weight URLs keep their first-seen order.
+    third_party_urls.sort(key=lambda u: (-len(by_url[u]), -len(platforms_by_url[u])))
+    overflow = third_party_urls[MAX_SOURCE_FETCHES_PER_SCAN:]
+    third_party_urls = third_party_urls[:MAX_SOURCE_FETCHES_PER_SCAN]
+    for url in overflow:
+        for row in by_url[url]:
+            row.fetch_status = "skipped"
+
+    fetched: dict[str, tuple[str, str | None, str | None]] = {}
     if third_party_urls:
         with ThreadPoolExecutor(max_workers=_FETCH_WORKERS) as pool:
             fetched = dict(zip(third_party_urls, pool.map(_fetch_page_text, third_party_urls)))
 
     for url in third_party_urls:
-        status, text = fetched.get(url, ("error", None))
+        status, text, final_url = fetched.get(url, ("error", None, None))
         occurrences = by_url[url]
         if status != "ok" or text is None:
             for row in occurrences:
                 row.fetch_status = status
             continue
+        if final_url and _is_grounding_redirect(url):
+            resolved_url = canonical_source_url(final_url)
+            resolved_domain = normalize_domain(resolved_url)
+            if resolved_domain:
+                if resolved_domain != occurrences[0].domain:
+                    logger.info(
+                        "grounding_redirect_domain_differs",
+                        hinted=occurrences[0].domain, resolved=resolved_domain,
+                    )
+                for row in occurrences:
+                    row.url = resolved_url
+                    row.domain = resolved_domain
+                stype = classify_source_type(resolved_domain, client_domain, competitor_domains)
+                if stype != "third_party":
+                    _mark_owned(occurrences, stype, resolved_domain)
+                    continue
         present = {
             "client": detect_brand_mention(text, client.name),
             "competitors": [
@@ -190,6 +236,7 @@ def enrich_scan_sources(scan_id: uuid.UUID, db: Session) -> None:
         scan_id=str(scan_id),
         total=len(rows),
         third_party_fetched=len(third_party_urls),
+        third_party_skipped=len(overflow),
     )
 
 
