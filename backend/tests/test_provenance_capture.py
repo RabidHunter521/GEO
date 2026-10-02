@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from app.models.scan import Scan
 from app.models.client import Client
+from app.models.competitor import Competitor
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
 from app.services import scan_service
@@ -125,3 +126,95 @@ def test_canonical_source_url_keeps_encoding_of_untouched_params():
         canonical_source_url("https://x.com/s?q=acme%20dental&utm_source=openai")
         == "https://x.com/s?q=acme%20dental"
     )
+
+
+# ── Task 6 (all-platform sources): capture on every platform ────────────────
+
+
+_GEMINI_REDIRECT = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AB"
+
+
+class _FakePlatform:
+    def __init__(self, platform, citations):
+        self.platform = platform
+        self._citations = citations
+
+    def query(self, prompt):
+        # Never names the brand, so position extraction (a Claude call) never runs.
+        return PlatformResult(
+            text="Several clinics are popular.", model="m", input_tokens=1,
+            output_tokens=1, citations=self._citations,
+        )
+
+
+def _run(platform, citations, *, tracked=(), competitors=()):
+    client = Client(id=uuid.uuid4(), name="Acme", website="https://acme.com", industry="dentist")
+    scan = Scan(id=uuid.uuid4(), client_id=client.id, status="running")
+    client_queries = [{"category": "recommendation", "query_text": "best dentist in KL"}]
+    with patch.object(scan_service, "_INTER_QUERY_DELAY_SECONDS", 0):
+        results, _ = scan_service._run_platform_queries(
+            platform, _FakePlatform(platform, citations), scan, client,
+            list(competitors), [], client_queries, list(tracked),
+        )
+    return results
+
+
+def _cite(url, rank=1, title="T", hint=None):
+    return SourceCitation(url=url, title=title, rank=rank, domain_hint=hint)
+
+
+def test_sources_captured_on_every_platform():
+    for platform in ("chatgpt", "perplexity", "gemini", "claude"):
+        (row,) = _run(platform, (_cite("https://www.g2.com/acme"),))
+        assert row.sources_captured is True, platform
+        assert [(s.url, s.domain, s.rank) for s in row.sources] == [
+            ("https://www.g2.com/acme", "g2.com", 1)
+        ], platform
+
+
+def test_platform_with_no_sources_is_still_marked_captured():
+    (row,) = _run("claude", ())
+    assert row.sources_captured is True
+    assert row.sources == []
+
+
+def test_gemini_redirect_source_is_filed_under_its_hinted_domain():
+    (row,) = _run("gemini", (_cite(_GEMINI_REDIRECT, title=None, hint="yelp.com"),))
+    assert [(s.url, s.domain) for s in row.sources] == [(_GEMINI_REDIRECT, "yelp.com")]
+
+
+def test_redirect_source_without_a_domain_is_skipped_not_misfiled():
+    (row,) = _run("gemini", (_cite(_GEMINI_REDIRECT, title=None, hint=None),))
+    assert row.sources == []
+    assert row.sources_captured is True
+
+
+def test_overlong_source_title_is_truncated_to_the_column():
+    (row,) = _run("chatgpt", (_cite("https://g2.com/a", title="x" * 900),))
+    assert len(row.sources[0].title) == 500
+
+
+def test_tracked_query_samples_capture_sources():
+    sample = {
+        "query_text": "best dentist in KL", "category": "recommendation",
+        "tracked_query_id": uuid.uuid4(), "sample_index": 1, "prompt_version": "v1",
+    }
+    rows = _run("chatgpt", (_cite("https://g2.com/acme"),), tracked=[sample])
+    tracked_rows = [r for r in rows if r.tracked_query_id is not None]
+    assert len(tracked_rows) == 1
+    assert tracked_rows[0].sources_captured is True
+    assert [s.domain for s in tracked_rows[0].sources] == ["g2.com"]
+
+
+def test_competitor_rows_are_not_captured():
+    comp = Competitor(id=uuid.uuid4(), name="Rival", website="https://rival.com")
+    rows = _run("chatgpt", (_cite("https://g2.com/acme"),), competitors=[comp])
+    comp_rows = [r for r in rows if r.competitor_id is not None]
+    assert comp_rows
+    assert all(r.sources == [] and r.sources_captured is None for r in comp_rows)
+
+
+def test_malformed_source_url_costs_one_source_not_the_platform():
+    # "http://[::1" raises ValueError in urlparse(...).hostname.
+    (row,) = _run("chatgpt", (_cite("http://[::1", rank=1), _cite("https://g2.com/a", rank=2)))
+    assert [s.domain for s in row.sources] == ["g2.com"]
