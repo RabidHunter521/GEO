@@ -727,6 +727,48 @@ export interface ClientViewCompetitorTrends {
   series: ClientViewTrendSeries[]
 }
 
+// ── AI Mirror (day-one) ──────────────────────────────────────────────────────
+// Mirrors backend/app/schemas/ai_mirror.py. The client-view shapes carry
+// verbatim excerpts and counts only; the admin shapes add the full stored
+// answer and the inaccuracy flag.
+export type MirrorSideStatus = "seen" | "not_seen" | "no_answer"
+
+export interface ClientViewMirrorSide {
+  name: string
+  question: string | null
+  status: MirrorSideStatus
+  excerpts: string[]
+}
+
+export interface ClientViewMirrorPlatform<S extends ClientViewMirrorSide = ClientViewMirrorSide> {
+  platform_label: string
+  same_question: boolean
+  you: S
+  competitor: S
+  buyer_answers_total: number
+  buyer_answers_you: number
+  buyer_answers_competitor: number
+}
+
+export interface ClientViewMirror<P extends ClientViewMirrorPlatform = ClientViewMirrorPlatform> {
+  status: "ready" | "no_scan" | "no_competitors"
+  checked_at: string | null
+  competitor_name: string | null
+  competitor_basis: "buyer_answers" | "visibility" | null
+  platforms: P[]
+}
+
+export interface AiMirrorSide extends ClientViewMirrorSide {
+  response_text: string | null
+  flagged_inaccurate: boolean
+}
+
+export interface AiMirrorPlatform extends ClientViewMirrorPlatform<AiMirrorSide> {
+  platform: string
+}
+
+export type AiMirrorResponse = ClientViewMirror<AiMirrorPlatform>
+
 export interface ClientViewReport {
   id: string
   period_start: string

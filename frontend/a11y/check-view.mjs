@@ -31,6 +31,7 @@ export const VIEW_PAGES = [
   "/reports",
   "/competitors",
   "/methodology",
+  "/mirror",
 ]
 const WIDTHS = [
   { name: "desktop", width: 1280, height: 900 },

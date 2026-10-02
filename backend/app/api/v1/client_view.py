@@ -86,6 +86,8 @@ from app.schemas.client_view import (
     ClientViewCompletedWorkItem,
 )
 from app.schemas.query_stability import QueryStabilityResponse
+from app.schemas.ai_mirror import ClientViewMirror
+from app.services import ai_mirror_service
 from app.services import business_impact_service
 from app.services import query_stability_service
 from app.services.assessment_service import latest_assessment
@@ -981,6 +983,19 @@ def get_competitor_trends(
                 for c in trends.competitors
             ],
         ],
+    )
+
+
+@router.get("/mirror", response_model=ClientViewMirror)
+def get_ai_mirror(
+    client: Client = Depends(require_non_prospect_share_client),
+    db: Session = Depends(get_db),
+):
+    """Day-one AI Mirror: verbatim excerpts of what each AI said about the
+    client and their top competitor, plus same-denominator buyer-question
+    counts. Never the raw answer; flagged answers are left out."""
+    return ai_mirror_service.to_client_view(
+        ai_mirror_service.build_ai_mirror(client, db)
     )
 
 

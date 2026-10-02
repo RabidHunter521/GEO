@@ -287,6 +287,11 @@ raw AI responses or internal fields):
 /view/[token]/competitors → competitor comparison (linked from Overview and
                             Visibility, not a primary tab — route stays live
                             for existing links)
+/view/[token]/mirror      → day-one AI Mirror: verbatim excerpts of what each
+                            AI said about the client next to their top
+                            competitor (same scan, same platform), plus
+                            same-denominator buyer-question counts. Linked
+                            from Overview, not a tab. Clients only.
 /view/[token]/reports     → delivered PDF reports
 /view/[token]/progress    → delivery timeline (published work log only)
 /view/[token]/methodology → how the score is measured (weights, what is
