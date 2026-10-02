@@ -30,7 +30,7 @@ POST via api/v1/scans.py
       platform_clients/        # chatgpt, perplexity, gemini, claude API callers (circuit_breaker, budget_service, cost_tracker wrap calls)
       brand_detection          # deterministic regex "Seen by AI" — the core metric
       position_extraction      # Claude extracts list rank (additive, never replaces seen/not-seen)
-      provenance capture       # Perplexity source provenance → scan_query_source rows
+      provenance capture       # sources from every platform (incl. tracked samples) → scan_query_source rows
       scoring_service          # 5-dimension Growth Readiness (`overall_score`; weights in core/constants.py; SCORE_VERSION)
   → commit
   → post-commit, best-effort (catch + rollback + swallow, never undo the scan):

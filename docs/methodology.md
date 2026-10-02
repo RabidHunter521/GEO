@@ -26,6 +26,14 @@ SeenBy monitors the enabled client platforms: ChatGPT, Perplexity, Gemini, and C
 
 The configured query universe is a monitored sample, not every real question a buyer might ask. It is selected to make repeatable comparison possible and must be interpreted together with its enabled platforms, locations, and query configuration.
 
+### Sources AI answers draw from
+
+Every enabled platform answers with web search or grounding, and SeenBy records the sources each answer drew from: for ChatGPT and Claude, the pages the answer links inline; for Gemini, the pages it grounded the answer in; for Perplexity, its listed search results. Pages a platform searched but did not use in the answer are not counted. Links are normalised (tracking parameters and page anchors removed) so one page counts once, and Gemini's redirect links are resolved to the real page.
+
+Third-party pages are then fetched and checked for which brands they name. To bound cost, at most 150 distinct pages are checked per scan, most-used first; the rest are recorded as not checked and excluded from the share. Share-of-Source is the client's share of the checked third-party pages.
+
+Before 2 October 2026 only Perplexity's sources were recorded. Each Share-of-Source reading records which capture method and which platforms produced it, and two readings are compared only when both match. Across a change (the move to all platforms, or a platform being enabled or disabled), the newer reading starts a new baseline and no change in standing is reported. Benchmarks use only readings from the current method.
+
 ## Sampling and variability
 
 Generated answers can vary between runs, platforms, model versions, locations, and sessions. A single observed change is evidence, not proof of a durable market shift. A scan reports what appeared in its configured sample at that time; it cannot reproduce an individual consumer's exact experience or establish that one change caused another without supporting comparison evidence.

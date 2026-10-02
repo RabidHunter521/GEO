@@ -1,6 +1,7 @@
-"""Citation provenance + Share-of-Source (Perplexity-only, v1).
+"""Citation provenance + Share-of-Source (all platforms, capture v2).
 
-Sources are captured inline during a scan (scan_service). This module owns:
+Sources are captured inline during a scan (scan_service) from every platform
+adapter; before 2026-10-02 only Perplexity's were (capture v1). This module owns:
 - domain normalization + classification helpers,
 - enrich_scan_sources: best-effort post-commit fetch + deterministic brand match,
 - compute_share_of_source: the admin read model.
