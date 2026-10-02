@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Float, Integer, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Float, Integer, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,3 +37,12 @@ class ShareOfSourceSnapshot(Base):
     client_share_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     competitor_shares: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     acquisition_list: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Which capture method and which platforms produced this snapshot. Two
+    # snapshots are only comparable when both match (see
+    # provenance_service.sources_comparable): moving from Perplexity-only
+    # capture ("v1") to all platforms ("v2"), or a client toggling a platform,
+    # changes the source pool, not the client's standing. Pre-v2 rows are
+    # backfilled to "v1" / ["perplexity"] -- deterministic, since only
+    # Perplexity was ever captured before.
+    source_capture_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    source_platforms: Mapped[list | None] = mapped_column(JSONB, nullable=True)

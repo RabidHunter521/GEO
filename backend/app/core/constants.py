@@ -110,6 +110,10 @@ MAX_CONTROL_QUERIES: Final = 5
 # separately (SourceCitation.domain_hint) and the redirect is resolved during
 # provenance enrichment.
 GROUNDING_REDIRECT_HOSTS: Final = ("vertexaisearch.cloud.google.com",)
+# Version of how scan sources are captured. v1 = Perplexity only (before
+# 2026-10-02); v2 = every enabled platform. Share-of-Source snapshots record it
+# so a coverage change is never read as a change in the client's standing.
+SOURCE_CAPTURE_VERSION: Final = "v2"
 
 # Referrer domains classified as AI-sourced traffic (GA4 sync). Keys are
 # matched against sessionSource/pageReferrer hosts (subdomain-tolerant).
