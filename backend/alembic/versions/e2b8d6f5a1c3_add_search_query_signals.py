@@ -76,7 +76,10 @@ def upgrade() -> None:
     )
 
     op.execute("ALTER TABLE search_query_signals ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE search_query_signals FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE search_query_signals FROM anon'; END IF; END $$;"
+    )
 
 
 def downgrade() -> None:

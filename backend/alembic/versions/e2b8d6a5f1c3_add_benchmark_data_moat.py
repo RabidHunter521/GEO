@@ -287,16 +287,28 @@ def upgrade() -> None:
     # Written out rather than looped: this is the security control CI checks
     # (`relrowsecurity` on every table), and it should stay greppable.
     op.execute("ALTER TABLE benchmark_cohorts ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE benchmark_cohorts FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE benchmark_cohorts FROM anon'; END IF; END $$;"
+    )
     op.execute("ALTER TABLE benchmark_cohort_memberships ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE benchmark_cohort_memberships FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE benchmark_cohort_memberships FROM anon'; END IF; END $$;"
+    )
     op.execute("ALTER TABLE benchmark_snapshots ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE benchmark_snapshots FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE benchmark_snapshots FROM anon'; END IF; END $$;"
+    )
     # Anonymous readers never touch this table directly. A published edition is
     # served only through the rate-limited FastAPI endpoint, which returns the
     # reviewed payload and nothing else.
     op.execute("ALTER TABLE benchmark_publications ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE benchmark_publications FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE benchmark_publications FROM anon'; END IF; END $$;"
+    )
 
 
 def downgrade() -> None:

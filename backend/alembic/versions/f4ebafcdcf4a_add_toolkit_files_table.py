@@ -1,7 +1,7 @@
 """add toolkit_files table
 
 Revision ID: f4ebafcdcf4a
-Revises: 
+Revises: 6b34b9ba937f
 Create Date: 2026-05-29 11:37:03.132733
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f4ebafcdcf4a'
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = '6b34b9ba937f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

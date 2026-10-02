@@ -96,7 +96,10 @@ def upgrade() -> None:
     )
 
     op.execute("ALTER TABLE conversion_events ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE conversion_events FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE conversion_events FROM anon'; END IF; END $$;"
+    )
 
 
 def downgrade() -> None:
