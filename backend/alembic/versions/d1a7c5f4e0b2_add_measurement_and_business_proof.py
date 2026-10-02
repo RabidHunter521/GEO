@@ -99,7 +99,10 @@ def upgrade() -> None:
     )
 
     op.execute("ALTER TABLE tracked_queries ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE tracked_queries FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE tracked_queries FROM anon'; END IF; END $$;"
+    )
 
     # --- scan_query_results: repeated-sample metadata ---------------------
     op.add_column(

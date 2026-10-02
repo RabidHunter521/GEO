@@ -10,6 +10,7 @@ The companion check (actually running `alembic upgrade head` against a real
 Postgres) lives in .github/workflows/ci.yml, because the migrations use JSONB,
 partial indexes and ROW LEVEL SECURITY and cannot run on SQLite.
 """
+import re
 import subprocess
 from pathlib import Path
 
@@ -104,3 +105,31 @@ def test_outcome_action_evidence_migration_follows_initial_table_revision():
     revision = script.get_revision(OUTCOME_ACTION_EVIDENCE_REVISION)
     assert revision is not None
     assert revision.down_revision == "a8d4f2c1b7e9"
+
+
+def _is_unguarded_anon_revoke(line: str) -> bool:
+    return (
+        re.search(r"REVOKE\b.*\bFROM anon\b", line) is not None
+        and "EXECUTE" not in line  # inside a DO $$ ... IF EXISTS guard
+        and "{role}" not in line  # d3f7a1c58e02's per-existing-role loop
+    )
+
+
+def test_unguarded_anon_revoke_detector():
+    assert _is_unguarded_anon_revoke('    op.execute("REVOKE ALL ON TABLE x FROM anon;")')
+    assert not _is_unguarded_anon_revoke(
+        "    \"THEN EXECUTE 'REVOKE ALL ON TABLE x FROM anon'; END IF; END $$;\""
+    )
+
+
+def test_no_migration_revokes_from_anon_without_a_guard():
+    """CLAUDE.md §8: the Railway database has no `anon` role, so a bare
+    `REVOKE ... FROM anon` fails the upgrade and the api will not start.
+    Every revoke must sit inside an `IF EXISTS (... rolname = 'anon')` guard."""
+    offenders = [
+        f"{path.name}: {line.strip()}"
+        for path in sorted(VERSIONS.glob("*.py"))
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if _is_unguarded_anon_revoke(line)
+    ]
+    assert offenders == []

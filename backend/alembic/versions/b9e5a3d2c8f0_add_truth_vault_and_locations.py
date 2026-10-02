@@ -310,7 +310,10 @@ def upgrade() -> None:
 
     for table_name in ("business_locations", "truth_facts", "truth_fact_versions"):
         op.execute(f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY;")
-        op.execute(f"REVOKE ALL ON TABLE {table_name} FROM anon;")
+        op.execute(
+            f"DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+            f"THEN EXECUTE 'REVOKE ALL ON TABLE {table_name} FROM anon'; END IF; END $$;"
+        )
     op.execute(
         """
         CREATE FUNCTION prevent_truth_fact_version_mutation()

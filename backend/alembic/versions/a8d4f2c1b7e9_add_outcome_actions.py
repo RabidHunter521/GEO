@@ -70,7 +70,10 @@ def upgrade() -> None:
     op.create_index("ix_outcome_actions_client_status", "outcome_actions", ["client_id", "status"])
     op.create_index("ix_outcome_actions_due_date", "outcome_actions", ["due_date"])
     op.execute("ALTER TABLE outcome_actions ENABLE ROW LEVEL SECURITY;")
-    op.execute("REVOKE ALL ON TABLE outcome_actions FROM anon;")
+    op.execute(
+        "DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') "
+        "THEN EXECUTE 'REVOKE ALL ON TABLE outcome_actions FROM anon'; END IF; END $$;"
+    )
 
 
 def downgrade() -> None:

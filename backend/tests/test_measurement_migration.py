@@ -116,7 +116,9 @@ def test_migration_declares_documented_indexes():
 def test_migration_enables_rls_and_revokes_anon_on_tracked_queries():
     source = MIGRATION_PATH.read_text(encoding="utf-8")
     assert "ALTER TABLE tracked_queries ENABLE ROW LEVEL SECURITY;" in source
-    assert "REVOKE ALL ON TABLE tracked_queries FROM anon;" in source
+    # Guarded (CLAUDE.md §8): the Railway database has no anon role.
+    assert "REVOKE ALL ON TABLE tracked_queries FROM anon'" in source
+    assert "rolname = 'anon'" in source
 
 
 def test_migration_grants_no_new_role_access():

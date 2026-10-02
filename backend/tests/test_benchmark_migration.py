@@ -143,7 +143,9 @@ def test_migration_enables_rls_and_revokes_anon_on_every_new_table():
     source = _source()
     for table in TABLES:
         assert f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;" in source
-        assert f"REVOKE ALL ON TABLE {table} FROM anon;" in source
+        # Guarded (CLAUDE.md §8): the Railway database has no anon role.
+        assert f"REVOKE ALL ON TABLE {table} FROM anon'" in source
+    assert "rolname = 'anon'" in source
 
 
 def test_migration_grants_no_new_role_access():
