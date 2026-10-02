@@ -216,6 +216,8 @@ and frontend.
 | `OPENAI_API_KEY` | | OpenAI (1.4) |
 | `GEMINI_API_KEY` | | Google (1.4) |
 | `PERPLEXITY_API_KEY` | | Perplexity (1.4) |
+| `DATAFORSEO_LOGIN` | | DataForSEO API login — Google AI Overviews / AI Mode (blank = both Google platforms unavailable, scans continue) |
+| `DATAFORSEO_PASSWORD` | | DataForSEO API password |
 | `RESEND_API_KEY` | | Resend (1.3) |
 | `ADMIN_API_KEY` | | generated (1.5) — shared |
 | `ALLOWED_ORIGINS` | `https://app.seenby.my` | Phase 2 |
