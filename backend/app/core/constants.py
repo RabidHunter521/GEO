@@ -343,6 +343,27 @@ AUTHORITY_ASSET_CATALOG: Final = [
 # --- Retainer packaging: client work log (Phase 5) --------------------------
 # Manual-first delivery timeline. Auto-triggers write "suggested" rows only;
 # nothing is client-visible until the admin explicitly publishes it.
+# --- Placement engine (docs/superpowers/plans/2026-10-02-placement-engine.md) ---
+# open: found, not worked | pursuing: an Outcome Action exists | placed: the
+# page now names the client | verified: the action's question now sees the
+# client | stale: absent from recent scans | dismissed: admin ruled it out.
+PLACEMENT_STATUSES: Final = ("open", "pursuing", "placed", "verified", "stale", "dismissed")
+PLACEMENT_CATEGORIES: Final = (
+    "listicle", "directory", "news", "review", "social", "marketplace", "reference", "other",
+)
+# A target absent from this many consecutive scans becomes stale (kept, and
+# reopened if it reappears).
+PLACEMENT_STALE_AFTER_SCANS: Final = 3
+# How reachable each kind of page is for an agency (multiplies the score):
+# a directory is usually a form; a review site is worked via the review
+# programme; a reference page is hard to influence.
+PLACEMENT_CATEGORY_WEIGHTS: Final = {
+    "directory": 1.0, "listicle": 0.9, "news": 0.8, "other": 0.7,
+    "marketplace": 0.5, "review": 0.4, "social": 0.4, "reference": 0.3,
+}
+# Answers in the latest scan at which the reach factor saturates.
+PLACEMENT_REACH_SATURATION: Final = 8
+
 WORK_LOG_CATEGORIES: Final = ("technical", "content", "authority", "visibility", "correction")
 WORK_LOG_STATUSES: Final = ("suggested", "published", "dismissed")
 WORK_LOG_CATEGORY_LABELS: Final = {
@@ -528,6 +549,7 @@ DEFAULT_EVENT_TIER: Final = EVENT_TIER_NOTABLE
 KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "alert_sent", "assessment_accepted", "assessment_generated",
     "authority_asset_verified", "authority_assets_added", "authority_status_changed",
+    "placement_placed",
     "brief_generated", "citation_flip", "client_created",
     "content_analyzed", "deliverable_generated", "deliverable_reviewed",
     "digest_sent", "guarantee_met", "guarantee_opened",
@@ -564,6 +586,7 @@ EVENT_TIERS: Final = {
     "authority_assets_added": EVENT_TIER_NOTABLE,
     "authority_status_changed": EVENT_TIER_NOTABLE,
     "authority_asset_verified": EVENT_TIER_NOTABLE,
+    "placement_placed": EVENT_TIER_NOTABLE,
     "review_snapshot_added": EVENT_TIER_NOTABLE,
     "misinformation_flagged": EVENT_TIER_NOTABLE,
     "misinformation_resolved": EVENT_TIER_NOTABLE,
@@ -628,6 +651,7 @@ EVENT_CATEGORIES: Final = {
     "authority_assets_added": "content_work",
     "authority_status_changed": "content_work",
     "authority_asset_verified": "content_work",
+    "placement_placed": "content_work",
     "review_snapshot_added": "content_work",
     "work_log_published": "content_work",
     "client_created": "admin",
@@ -682,6 +706,7 @@ EVENT_LINK_ROUTES: Final = {
     "authority_assets_added": "/authority",
     "authority_status_changed": "/authority",
     "authority_asset_verified": "/authority",
+    "placement_placed": "/authority",
     "review_snapshot_added": "/authority",
     "truth_vault_seeded": "/reputation/truth",
     "share_link_generated": "/settings",

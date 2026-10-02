@@ -36,6 +36,8 @@ POST via api/v1/scans.py
   → post-commit, best-effort (catch + rollback + swallow, never undo the scan):
       alert_service            # score drop / overtake / hallucination → email + Telegram (SYNCHRONOUS — there is no alert_tasks)
       provenance_service.enrich_scan_sources   # SSRF-guarded fetch (url_safety) + brand matching on third-party sources
+      outcome_verification_service.verify_waiting_actions   # scan-backed proof for published delivery items
+      placement_service.refresh_targets        # placement targets from enriched sources (runs AFTER verification)
       action_center_service    # Claude drafts ≤5 actions; impact computed server-side, never by Claude
 ```
 
@@ -63,6 +65,16 @@ POST via api/v1/scans.py
 - `provenance_service` / `causality_service` / `ga4_traffic_service` —
   source provenance enrichment, optimised-versus-control query comparisons,
   and recognised AI-referral traffic synchronisation from configured GA4.
+- `placement_service` — the placement engine (Authority page): third-party
+  pages AI answers draw on that don't name the client, ranked by a
+  deterministic score with reasons, analysed on demand (max 2 SSRF-safe
+  fetches), outreach drafted from approved Truth Vault facts only (never sent
+  by SeenBy). Pursue creates an Outcome Action (`source_kind="placement"`).
+  Proof is two-step: `placed` (the page names the client in a scan after the
+  action was published) then `verified` (that action's proof question flips,
+  via the normal query_presence verification). Clients see won placements
+  only — via the published work log and the PDF "Placements Secured" section;
+  in-flight placement actions are hidden from the share-view Action Plan.
 - `misinformation_service` / `authority_service` / `citability_service` /
   `work_log_service` — administrator-reviewed factual-risk workflow,
   authority asset tracking, page citability audits, and the cross-client

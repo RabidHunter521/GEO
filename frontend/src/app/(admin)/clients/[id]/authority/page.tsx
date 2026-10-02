@@ -1,4 +1,5 @@
-import { getAuthorityView, getAuthorityCatalog } from "@/lib/api"
+import { getAuthorityView, getAuthorityCatalog, getPlacements } from "@/lib/api"
+import { PlacementSection } from "@/components/placements/PlacementSection"
 import { AuthorityClient } from "./AuthorityClient"
 
 interface Props {
@@ -7,12 +8,13 @@ interface Props {
 
 export default async function AuthorityPage({ params }: Props) {
   const { id } = await params
-  const [view, catalog] = await Promise.all([
+  const [view, catalog, placements] = await Promise.all([
     getAuthorityView(id).catch(() => ({
       assets: [], suggested_next: [],
       summary: { total: 0, live: 0, verified: 0, covered_top_domains: 0, total_top_domains: 0 },
     })),
     getAuthorityCatalog(id).catch(() => []),
+    getPlacements(id).catch(() => []),
   ])
   return (
     <div className="space-y-6">
@@ -23,6 +25,7 @@ export default async function AuthorityPage({ params }: Props) {
           by the sources AI answers actually drew from.
         </p>
       </div>
+      <PlacementSection clientId={id} initialTargets={placements} />
       <AuthorityClient clientId={id} initialView={view} catalog={catalog} />
     </div>
   )

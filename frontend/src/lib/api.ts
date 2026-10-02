@@ -9,7 +9,7 @@ import "server-only"
 import type { AiMirrorResponse } from "@/types"
 import { redirect } from "next/navigation"
 import { adminAuthHeader } from "@/lib/api-token"
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued, PlacementTarget, PlacementTargetDetail } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -974,4 +974,46 @@ export function setTeamMemberRole(id: string, role: TeamRole): Promise<TeamMembe
 
 export function deleteTeamMember(id: string): Promise<void> {
   return apiFetch<void>(`/api/v1/users/${id}`, { method: "DELETE" })
+}
+
+
+// ── Placement engine (admin-only) ────────────────────────────────────────────
+
+export function getPlacements(clientId: string): Promise<PlacementTarget[]> {
+  return apiFetch<PlacementTarget[]>(`/api/v1/clients/${clientId}/placements`)
+}
+export function getPlacement(clientId: string, targetId: string): Promise<PlacementTargetDetail> {
+  return apiFetch<PlacementTargetDetail>(`/api/v1/clients/${clientId}/placements/${targetId}`)
+}
+export function analyzePlacement(clientId: string, targetId: string): Promise<PlacementTargetDetail> {
+  return apiFetch<PlacementTargetDetail>(
+    `/api/v1/clients/${clientId}/placements/${targetId}/analyze`, { method: "POST" },
+  )
+}
+export function setPlacementStatus(
+  clientId: string, targetId: string, status: "open" | "dismissed",
+): Promise<PlacementTargetDetail> {
+  return apiFetch<PlacementTargetDetail>(`/api/v1/clients/${clientId}/placements/${targetId}`, {
+    method: "PATCH", body: JSON.stringify({ status }),
+  })
+}
+export function pursuePlacement(
+  clientId: string, targetId: string, dueDate: string | null,
+): Promise<PlacementTargetDetail> {
+  return apiFetch<PlacementTargetDetail>(`/api/v1/clients/${clientId}/placements/${targetId}/pursue`, {
+    method: "POST", body: JSON.stringify({ due_date: dueDate }),
+  })
+}
+export function createPlacementDraft(clientId: string, targetId: string): Promise<PlacementTargetDetail> {
+  return apiFetch<PlacementTargetDetail>(
+    `/api/v1/clients/${clientId}/placements/${targetId}/drafts`, { method: "POST" },
+  )
+}
+export function editPlacementDraft(
+  clientId: string, targetId: string, draftId: string, subject: string, body: string,
+): Promise<PlacementTargetDetail> {
+  return apiFetch<PlacementTargetDetail>(
+    `/api/v1/clients/${clientId}/placements/${targetId}/drafts/${draftId}`,
+    { method: "PATCH", body: JSON.stringify({ subject, body }) },
+  )
 }
