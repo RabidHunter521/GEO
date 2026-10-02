@@ -1,4 +1,13 @@
 import { ExternalLink } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { PLATFORM_LABELS } from "@/types"
 import type { ShareOfSource, ShareOfSourceHistoryPoint } from "@/types"
 import { ShareOfSourceSparkline } from "./ShareOfSourceSparkline"
 
@@ -59,6 +68,44 @@ export function ShareOfSourceSection({
           ))}
         </div>
       </div>
+
+      {data.by_platform.length > 1 && (
+        <div className="rounded-lg border bg-card p-5">
+          <h3 className="font-display text-lg font-semibold">Sources by AI platform</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Each AI platform leans on different kinds of sites. Chase placements on the
+            sites the platforms your buyers use rely on most.
+          </p>
+          <Table className="mt-3">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Platform</TableHead>
+                <TableHead className="text-right">Sources</TableHead>
+                <TableHead className="text-right">You&apos;re on</TableHead>
+                <TableHead>Sites it relies on most</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.by_platform.map((p) => (
+                <TableRow key={p.platform}>
+                  <TableCell className="font-medium">
+                    {PLATFORM_LABELS[p.platform] ?? p.platform}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.total_third_party_sources}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.client_share_pct.toFixed(0)}%
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {p.top_domains.map((d) => `${d.domain} (${d.answers})`).join(" · ")}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {data.acquisition_list.length > 0 && (
         <div className="rounded-lg border bg-card p-5">

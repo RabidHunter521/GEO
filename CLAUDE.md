@@ -1,24 +1,28 @@
-# CLAUDE.md — SeenBy MVP
+# CLAUDE.md — SeenBy
 
 Behavioral guidelines for this project. Built on top of the base CLAUDE.md principles.
 
 ## 1. Project Context
 
-SeenBy is an agency-model AI visibility tracking platform.
+SeenBy is an agency-model AI visibility (GEO/AEO) platform. It is past MVP:
+a mature production app with paying clients. Build for retention and scale,
+not for a demo.
 - Stack: Next.js 15 + FastAPI + PostgreSQL + Celery + Redis
 - Faris is the owner. Staff admins sign in with their own accounts (invited
   from `/team`, email + password + mandatory authenticator app). Roles:
   owner (everything) and staff (everything except managing the team,
   archiving paying clients and benchmark publishing). There is still no
-  client-facing login in MVP.
+  client-facing login (§11).
 - One workspace ("SeenBy") today; `workspaces` / `workspace_id` exist so
   independent agencies can get their own later. That agency phase (scoping
   every route and global page by workspace) is reseller work — confirm with
   Faris first (§11). Plan: `docs/superpowers/plans/2026-09-30-team-accounts.md`.
-- All scans are on-demand, manually triggered by you.
+- Scans run on demand today. Scheduled scans are allowed (§11, lifted
+  2026-10-02) within the guardrails in §5.
 - Clients receive reports via email only — no dashboard access.
 
-When in doubt about scope, refer to the MVP scope in `/docs/mvp-scope.md`.
+`/docs/mvp-scope.md` is the original locked MVP spec — history, not the
+current scope boundary. The current boundary is §11.
 For a one-page code map (flows, layers, where to start for common changes), read `/docs/architecture.md` before exploring.
 
 Project skills (in `.claude/skills/`): `seenby-workflow` (start of any coding task),
@@ -127,7 +131,11 @@ number; weights unchanged.)
   remaining platforms, the platform is marked unavailable, activity is logged
 - Store raw responses for 90 days
 - Max 5 competitors per client
-- Scans are ON-DEMAND only — no scheduled scans in MVP
+- Scheduled scans (allowed since 2026-10-02) must: run per client on that
+  client's `scan_cadence_days`, go through the same `scan_service.run_scan`
+  path as a manual scan (thin Celery beat task, no second scan engine),
+  respect `budget_service` + circuit breakers, stagger clients rather than
+  firing all at once, and be switchable off per client. No sub-daily cadence.
 
 Query categories:
 1. brand (direct brand name queries)
@@ -335,17 +343,32 @@ existing links never break.
 - Best-effort post-commit steps (alerts, action-center refresh) must catch,
   `db.rollback()`, and swallow — a failed notification never undoes a good scan.
 
-## 11. What NOT to build in MVP
+## 11. Scope Boundary
+
+### Still requires Faris's sign-off first
 
 If asked to implement any of the following, stop and confirm with Faris first:
 
-- Client dashboard login
-- Self-serve signup or billing (Stripe)
-- White-label / reseller features
-- Multi-locale prompts
-- Scheduled / automated scans
-- Webhook integrations
-- Twice-daily scan frequency
+- Client dashboard login (accounts/passwords for clients). Token-gated
+  actions on the existing share view are not a login and are allowed.
+- Self-serve signup or billing (Stripe). A public, rate-limited, budget-capped
+  free audit teaser for lead generation is not self-serve signup and is allowed.
+- White-label / reseller features (including the per-workspace agency phase, §1)
+- Sub-daily scan frequency (e.g. twice-daily)
+
+### Lifted 2026-10-02 (Faris) — build freely, within these guardrails
+
+- **Multi-locale prompts / scans** (e.g. BM, Chinese). Any locale query set
+  that feeds Growth Readiness requires a SCORE_VERSION bump and a §4 update;
+  until then, non-English results are reporting-only and the English score
+  stays bit-identical. §2 language rules apply in every locale.
+- **Scheduled / automated scans** — see the guardrails in §5.
+- **Webhook and publishing integrations** (inbound CRM/form/call-tracking
+  webhooks, outbound CMS publishing such as WordPress). Inbound webhooks must
+  verify a signature or per-client secret and be idempotent. Outbound
+  publishing creates DRAFTS only — a human publishes; nothing reaches a
+  client's live site automatically. Credentials are per client, encrypted, and
+  never surface on a client-facing view.
 
 Note: Brand Authority / Content Quality shipped as assisted, human-reviewed scoring (admin gates every number) — fully automated scoring is still out of scope.
 

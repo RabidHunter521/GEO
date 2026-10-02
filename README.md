@@ -18,8 +18,9 @@ build.
 - **Production hosting** — Railway (API, worker, beat, frontend) — see
   [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 
-This is an MVP with a single admin (no client-facing login). Clients receive
-results via email and a read-only, share-token-gated view — never a login.
+SeenBy is a production agency platform: owner + staff admin accounts, no
+client-facing login. Clients receive results via email and a read-only,
+share-token-gated view — never a login.
 
 ## Repository layout
 
@@ -39,7 +40,7 @@ docs/        All project documentation (see below)
 |---|---|
 | `docs/DEPLOYMENT.md` | Production deploy runbook (Railway) |
 | `docs/architecture.md` | One-page code map — flows, layers, where to start |
-| `docs/mvp-scope.md` | What's in / out of scope for the MVP |
+| `docs/mvp-scope.md` | The original locked MVP spec (history — current scope is CLAUDE.md §11) |
 | `docs/FEATURES.md` | Full feature overview |
 | `docs/methodology.md` | How the Growth Readiness score is calculated |
 | `docs/business/` | Investor/stakeholder-facing overview, positioning |

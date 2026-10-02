@@ -878,6 +878,18 @@ export interface BrandShare {
   share_pct: number
 }
 
+export interface DomainAnswers {
+  domain: string
+  answers: number
+}
+
+export interface PlatformSourceBreakdown {
+  platform: Platform
+  total_third_party_sources: number
+  client_share_pct: number
+  top_domains: DomainAnswers[]
+}
+
 export interface ShareOfSource {
   last_scan_at: string | null
   total_third_party_sources: number
@@ -885,12 +897,16 @@ export interface ShareOfSource {
   competitor_shares: BrandShare[]
   acquisition_list: AcquisitionSource[]
   flip_targets: AcquisitionSource[]
+  by_platform: PlatformSourceBreakdown[]
 }
 
 export interface ShareOfSourceHistoryPoint {
   computed_at: string
   client_share_pct: number
   total_third_party_sources: number
+  // True when this point measured a different source pool from the previous
+  // one (more platforms tracked, or a changed method): a new baseline.
+  coverage_changed: boolean
 }
 
 export interface SiteAIReadiness {

@@ -9,8 +9,8 @@ Follow this sequence for every change. It exists because skipping steps is how d
 
 ## 0. Orient (2 minutes, no code)
 
-1. Re-read CLAUDE.md §2 (language rules), §4 (score dimensions), §11 (MVP exclusions).
-2. If the request touches anything in §11 (client login, billing, scheduled scans, webhooks…): **stop and confirm with Faris first.**
+1. Re-read CLAUDE.md §2 (language rules), §4 (score dimensions), §11 (scope boundary).
+2. If the request touches anything in §11 "Still requires Faris's sign-off" (client login, billing, white-label, sub-daily scans): **stop and confirm with Faris first.** Items in §11 "Lifted" (multi-locale, scheduled scans, webhooks/publishing) are allowed — follow their guardrails.
 3. State your plan in 2–4 sentences before editing: what files, what test proves it works, what could break.
 
 ## 1. Branch

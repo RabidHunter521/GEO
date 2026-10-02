@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 from app.core.constants import (
     MIN_COHORT_MEMBER_FLOOR,
     MIN_METRIC_CONTRIBUTORS,
+    SOURCE_CAPTURE_VERSION,
 )
 from app.core.time import utcnow
 from app.models.benchmark_cohort import BenchmarkCohort, BenchmarkCohortMembership
@@ -116,12 +117,18 @@ def _accuracy_rate(db: Session, client_id: uuid.UUID, start: date, end: date) ->
 
 
 def _share_of_source(db: Session, client_id: uuid.UUID, start: date, end: date) -> float | None:
-    """The client's own share of the sources AI answers drew on."""
+    """The client's own share of the sources AI answers drew on.
+
+    Only snapshots from the current capture method count: a Perplexity-only
+    (v1) share measured a different source pool from an all-platform (v2) one,
+    so pooling them in one cohort would compare unlike things. A client with
+    only older snapshots in the window has no reading (None, never 0)."""
     lo, hi = _window(start, end)
     row = (
         db.query(ShareOfSourceSnapshot.client_share_pct)
         .filter(
             ShareOfSourceSnapshot.client_id == client_id,
+            ShareOfSourceSnapshot.source_capture_version == SOURCE_CAPTURE_VERSION,
             ShareOfSourceSnapshot.computed_at >= lo,
             ShareOfSourceSnapshot.computed_at <= hi,
         )

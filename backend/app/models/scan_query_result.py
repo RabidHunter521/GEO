@@ -74,6 +74,12 @@ class ScanQueryResult(Base):
         DateTime, nullable=False, default=utcnow, server_default=text("now()")
     )
 
+    # Whether the platform adapter parsed this answer's sources. True = parsed
+    # (possibly zero sources); NULL = written before all-platform capture
+    # (2026-10-02), capture state unknown. Lets query stability tell "no
+    # sources" apart from "sources never recorded".
+    sources_captured: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     tracked_query: Mapped["TrackedQuery | None"] = relationship(  # noqa: F821 — ruff false-positive on SQLAlchemy string forward-ref
         "TrackedQuery",
         back_populates="scan_query_results",

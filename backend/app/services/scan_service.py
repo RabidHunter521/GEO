@@ -3,11 +3,13 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 import structlog
 
 from app.core.constants import (
     ACTIVE_SCAN_STALE_MINUTES,
+    GROUNDING_REDIRECT_HOSTS,
     PLATFORM_LABELS,
     SCAN_PLATFORMS,
     SCORE_VERSION,
@@ -121,6 +123,40 @@ def _log_platform_unavailable(
     logger.error("scan_platform_failed", scan_id=str(scan_id), platform=platform, error=str(exc))
 
 
+_SOURCE_TITLE_MAX = 500  # ScanQuerySource.title is String(500)
+
+
+def _attach_sources(sqr: ScanQueryResult, result: PlatformResult) -> None:
+    """Attach the sources the platform reported for this answer and mark the
+    row as captured (even with zero sources — "none" is a real observation).
+
+    Every platform adapter parses sources now (Perplexity, ChatGPT, Claude,
+    Gemini). A grounding-redirect URL (Gemini) says nothing about the real
+    site, so its domain comes from the adapter's hint; without one the source
+    is skipped rather than filed under the redirector. Enrichment later
+    resolves redirects to the final URL.
+    """
+    for c in result.citations:
+        # This runs inside the platform worker: a malformed URL must cost one
+        # source, never the platform's whole result set.
+        try:
+            host = urlparse(c.url).hostname
+            domain = (c.domain_hint or "") if host in GROUNDING_REDIRECT_HOSTS else normalize_domain(c.url)
+        except ValueError:
+            continue
+        if not domain:
+            continue
+        sqr.sources.append(
+            ScanQuerySource(
+                url=c.url,
+                domain=domain,
+                title=c.title[:_SOURCE_TITLE_MAX] if c.title else None,
+                rank=c.rank,
+            )
+        )
+    sqr.sources_captured = True
+
+
 def _run_platform_queries(
     platform: str,
     platform_client,
@@ -172,16 +208,7 @@ def _run_platform_queries(
             brand_detected=detected,
             recommendation_position=position,
         )
-        if platform == "perplexity":
-            for c in result.citations:
-                sqr.sources.append(
-                    ScanQuerySource(
-                        url=c.url,
-                        domain=normalize_domain(c.url),
-                        title=c.title,
-                        rank=c.rank,
-                    )
-                )
+        _attach_sources(sqr, result)
         results.append(sqr)
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
@@ -224,7 +251,7 @@ def _run_platform_queries(
                     error=str(exc),
                 )
 
-        results.append(ScanQueryResult(
+        sample = ScanQueryResult(
             scan_id=scan.id,
             platform=platform,
             competitor_id=None,
@@ -240,7 +267,11 @@ def _run_platform_queries(
             prompt_version=q["prompt_version"],
             model_name=result.model,
             observed_at=utcnow(),
-        ))
+        )
+        # Sources feed query stability's source-agreement dimension, which
+        # until now always compared empty sets for these samples.
+        _attach_sources(sample, result)
+        results.append(sample)
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
 
     # Benchmark rows: measurement only — no position extraction, no provenance

@@ -105,6 +105,20 @@ MAX_COMPETITORS: Final = 5
 # Benchmark queries deliberately left unoptimized (causal proof) — per client.
 MAX_CONTROL_QUERIES: Final = 5
 
+# Hosts whose URLs are opaque redirects to the real source page. Gemini's
+# grounding chunks link through vertexaisearch; the real domain arrives
+# separately (SourceCitation.domain_hint) and the redirect is resolved during
+# provenance enrichment.
+GROUNDING_REDIRECT_HOSTS: Final = ("vertexaisearch.cloud.google.com",)
+# Version of how scan sources are captured. v1 = Perplexity only (before
+# 2026-10-02); v2 = every enabled platform. Share-of-Source snapshots record it
+# so a coverage change is never read as a change in the client's standing.
+SOURCE_CAPTURE_VERSION: Final = "v2"
+# Hard cap on third-party source pages fetched (for brand matching) per scan.
+# Raised from 60 when capture widened to all platforms; the most-cited pages
+# are fetched first and the rest are marked "skipped".
+MAX_SOURCE_FETCHES_PER_SCAN: Final = 150
+
 # Referrer domains classified as AI-sourced traffic (GA4 sync). Keys are
 # matched against sessionSource/pageReferrer hosts (subdomain-tolerant).
 # Extending this dict is the only change needed to track a new AI referrer.

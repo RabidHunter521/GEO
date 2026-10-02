@@ -559,3 +559,72 @@ def test_change_narrative_prompt_survives_a_missing_name():
     from app.prompts.report import build_change_narrative
     prompt = build_change_narrative(_minimal_data())
     assert "Business:" in prompt
+
+
+# ── All-platform sources (Task 8): a coverage change is a new baseline ───────
+
+def _sources_snaps(db, then_cov, now_cov, then_list=None, now_list=None):
+    from datetime import datetime
+    from app.models.scan import Scan
+    from app.models.share_of_source_snapshot import ShareOfSourceSnapshot
+    client = _make_client(db)
+    for i, ((version, platforms), share, acq) in enumerate(
+        [(then_cov, 31.0, then_list or []), (now_cov, 42.0, now_list or [])]
+    ):
+        scan = Scan(client_id=client.id, status="completed", completed_at=datetime(2026, 9, 1 + i))
+        db.add(scan)
+        db.flush()
+        db.add(ShareOfSourceSnapshot(
+            client_id=client.id, scan_id=scan.id, computed_at=datetime(2026, 9, 1 + i),
+            total_third_party_sources=10, client_share_pct=share, acquisition_list=acq,
+            source_capture_version=version, source_platforms=platforms,
+        ))
+    db.commit()
+    return client
+
+
+def test_sources_trend_never_compares_across_a_coverage_change(db):
+    from app.services import report_service as rs
+    client = _sources_snaps(
+        db, ("v1", ["perplexity"]), ("v2", ["chatgpt", "claude", "gemini", "perplexity"]),
+        then_list=[{"domain": "g2.com"}],
+    )
+
+    trend = rs._gather_sources_trend(client, db, None)
+
+    assert trend.share_now == 42.0
+    assert trend.share_then is None
+    assert trend.flips == []
+    assert trend.coverage_note == (
+        "We now also track the sources ChatGPT, Claude and Gemini draw from, "
+        "so this figure starts a new baseline."
+    )
+    html = rs._build_sources_trend_html(_minimal_data(sources_trend=trend))
+    assert "previously" not in html
+    assert "new baseline" in html
+    assert not any(term in html.lower() for term in BANNED_TERMS)
+
+
+def test_sources_trend_method_change_without_new_platforms_still_rebaselines(db):
+    from app.services import report_service as rs
+    client = _sources_snaps(db, ("v1", ["perplexity"]), ("v2", ["perplexity"]))
+
+    trend = rs._gather_sources_trend(client, db, None)
+
+    assert trend.share_then is None
+    assert trend.coverage_note == (
+        "How we track the sources AI answers draw from changed since the last "
+        "report, so this figure starts a new baseline."
+    )
+
+
+def test_sources_trend_compares_like_for_like(db):
+    from app.services import report_service as rs
+    cov = ("v2", ["chatgpt", "perplexity"])
+    client = _sources_snaps(db, cov, cov, then_list=[{"domain": "g2.com"}])
+
+    trend = rs._gather_sources_trend(client, db, None)
+
+    assert trend.share_then == 31.0
+    assert trend.flips == ["g2.com"]
+    assert trend.coverage_note is None
