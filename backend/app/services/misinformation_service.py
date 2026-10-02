@@ -29,7 +29,7 @@ from app.core.time import utcnow
 from app.models.client import Client
 from app.models.misinformation_finding import MisinformationFinding
 from app.models.scan import Scan
-from app.models.scan_query_result import ScanQueryResult
+from app.models.scan_query_result import ScanQueryResult, has_answer
 from app.prompts.misinformation import build_detection
 from app.services.claude_client import MODEL, anthropic_client, strip_code_fences
 from app.services.cost_tracker import record_llm_call
@@ -507,6 +507,9 @@ def check_candidate_fixed(scan_id: uuid.UUID, db: Session) -> int:
         ScanQueryResult.is_control.is_(False),
         ScanQueryResult.response_text.isnot(None),
     ).all():
+        if not has_answer(r):
+            # No AI Overview this time is not the statement going away.
+            continue
         responses_by_platform.setdefault(r.platform, []).append(normalize_ws(r.response_text))
     if not responses_by_platform:
         return 0

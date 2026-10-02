@@ -245,6 +245,9 @@ class ClientViewScanResult(BaseModel):
     ai_search_ranking: int | None
     excerpt: str | None = None
     excerpt_kind: str | None = None  # "win" | "loss" | None
+    # False only when Google showed no AI Overview for this search: the row
+    # still reads Not seen by AI, but the page says why instead of quoting.
+    ai_answer_shown: bool = True
 
 
 class ClientViewScan(BaseModel):

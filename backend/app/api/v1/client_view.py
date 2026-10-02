@@ -25,7 +25,7 @@ from app.core.rate_limit import rate_limit
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.scan import Scan
-from app.models.scan_query_result import ScanQueryResult
+from app.models.scan_query_result import ScanQueryResult, has_answer
 from app.models.geo_score import GeoScore
 from app.models.report import Report
 from app.models.action_recommendation import ActionRecommendation
@@ -919,6 +919,7 @@ def get_scan(
                 ai_search_ranking=r.recommendation_position,
                 excerpt=excerpt,
                 excerpt_kind=kind,
+                ai_answer_shown=has_answer(r),
             )
         )
     return ClientViewScan(completed_at=latest_scan.completed_at, results=view_results)

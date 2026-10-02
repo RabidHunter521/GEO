@@ -30,6 +30,9 @@ class ScanQueryResultResponse(BaseModel):
     brand_detected: bool
     hallucination_flagged: bool = False
     recommendation_position: int | None = None
+    # False = Google showed no AI Overview for this search (counted as Not
+    # seen by AI, nothing to quote). True/None = an answer was shown.
+    answer_shown: bool | None = None
     # Benchmark row (admin UI labels it "benchmark — left alone").
     is_control: bool = False
     created_at: datetime

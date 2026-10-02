@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.constants import COMPETITOR_QUERY_TEMPLATES, PLATFORM_LABELS
 from app.models.competitor import Competitor
 from app.models.scan import Scan
-from app.models.scan_query_result import ScanQueryResult
+from app.models.scan_query_result import ScanQueryResult, has_answer
 from app.schemas.ai_mirror import (
     AiMirrorPlatform,
     AiMirrorResponse,
@@ -117,6 +117,10 @@ def mirror_excerpts(response_text: str | None, subject: str) -> list[str]:
 def _side(row: ScanQueryResult | None, name: str, fallback_question: str | None) -> MirrorSide:
     if row is None:
         return MirrorSide(name=name, question=fallback_question, status="no_answer")
+    if not has_answer(row):
+        # Google showed no AI Overview for this search: a real observation,
+        # shown as such, never as an empty quote.
+        return MirrorSide(name=name, question=row.query_text, status="no_overview")
     if row.brand_detected:
         status = "seen"
     elif row.response_text:

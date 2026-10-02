@@ -7,6 +7,7 @@ finished, redacted excerpt — so this can feed the public client view directly.
 """
 from dataclasses import dataclass
 
+from app.models.scan_query_result import has_answer
 from app.services import snippet_service
 
 # Lower rank = surfaced first. Recommendation/local are the answers that read as
@@ -39,6 +40,8 @@ def result_excerpt(
     redact controls only the loss path: True (default) hides the rival, False
     names it for private owner comms.
     """
+    if not has_answer(result):
+        return (None, None)  # no AI Overview shown: nothing to quote
     if result.brand_detected:
         ex = snippet_service.build_excerpt(result.response_text or "", brand, competitors)
         return ("win", ex) if ex else (None, None)
