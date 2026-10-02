@@ -74,6 +74,9 @@ _LIMITS: tuple[str, ...] = (
     "confirmed traffic, leads, or revenue.",
     "Coverage is limited to the AI platforms enabled for you and what their "
     "APIs return, which can differ from what you see in a consumer app.",
+    "Getting listed on a third-party page that AI answers draw on is reported "
+    "as a placement. It counts as AI visibility only when a later scan shows "
+    "the AI answer to the question that page was chosen for now sees you.",
 )
 
 
