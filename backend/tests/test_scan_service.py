@@ -297,7 +297,8 @@ def test_run_scan_rolls_back_when_post_commit_snapshot_raises():
     and the scan itself still completes.
 
     The other post-commit collaborators (score-drop alert, competitor-overtake
-    alert, Action Center refresh, remediation sync, source enrichment) are
+    alert, Action Center refresh, remediation sync, source enrichment, placement
+    refresh) are
     neutralized here because, against these mocks, several of them already
     fail and call db.rollback() on their own for mock-fidelity reasons
     unrelated to this test. Without neutralizing them, `rollback.called`
@@ -329,6 +330,8 @@ def test_run_scan_rolls_back_when_post_commit_snapshot_raises():
         side_effect=Exception("snapshot boom"),
     ), patch(
         "app.services.outcome_verification_service.verify_waiting_actions",
+    ), patch(
+        "app.services.placement_service.refresh_targets",
     ):
         run_scan(scan.id, mock_db)
 
