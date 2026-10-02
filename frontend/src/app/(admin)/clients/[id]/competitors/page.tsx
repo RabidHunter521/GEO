@@ -6,6 +6,7 @@ import { VisibilityTrendChart } from "@/components/competitors/VisibilityTrendCh
 import { WinLossSection } from "@/components/competitors/WinLossSection"
 import { ShareOfSourceSection } from "@/components/competitors/ShareOfSourceSection"
 import { AIReadinessSection } from "@/components/competitors/AIReadinessSection"
+import { AiMirrorSection } from "@/components/mirror/AiMirrorSection"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 
 interface Props {
@@ -156,6 +157,9 @@ export default async function CompetitorsPage({ params }: Props) {
           </div>
         )}
       </div>
+
+      {/* Day-one AI Mirror — client vs top competitor, verbatim */}
+      <AiMirrorSection clientId={id} />
 
       {/* Visibility trends */}
       {trends && trends.scans.length >= 2 && (
