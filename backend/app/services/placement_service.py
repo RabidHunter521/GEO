@@ -10,8 +10,10 @@ import math
 import re
 import uuid
 from collections import defaultdict
+from urllib.parse import urljoin
 
 import structlog
+from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
 
 from app.core.constants import (
@@ -22,9 +24,13 @@ from app.core.constants import (
 )
 from app.core.time import utcnow
 from app.models.authority_asset import AuthorityAsset
+from app.models.competitor import Competitor
 from app.models.placement_target import PlacementTarget
 from app.models.scan_query_result import ScanQueryResult
 from app.models.scan_query_source import ScanQuerySource
+from app.services.brand_detection import detect_brand_mention
+from app.services.provenance_service import normalize_domain
+from app.services.url_safety import UnsafeUrlError, safe_get
 
 logger = structlog.get_logger()
 
@@ -260,3 +266,237 @@ def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> No
         pages=len(by_url),
     )
 
+
+
+# ── page analysis (on demand) ───────────────────────────────────────────────
+
+_NUMBERED_ENTRY = re.compile(r"^\s*#?\s*(\d{1,3})\s*[.):\-–]\s*(.+)$")
+_CONTACT = re.compile(r"contact|get[- ]in[- ]touch|write[- ]for[- ]us|advertis", re.IGNORECASE)
+_SUBMISSION = re.compile(
+    r"suggest[- ]?a[- ]?business|add[- ]?your[- ]?business|list[- ]?your[- ]?business"
+    r"|add[- ]?(a[- ]?)?listing|claim[- ]?(a[- ]?)?listing|get[- ]?listed|submit",
+    re.IGNORECASE,
+)
+_MIN_LIST_ENTRIES = 3
+_MAX_ENTRIES_KEPT = 20
+_ANALYSIS_TIMEOUT = 10.0
+
+
+def _meta(soup: BeautifulSoup, *, name: str | None = None, prop: str | None = None) -> str | None:
+    tag = soup.find("meta", attrs={"name": name} if name else {"property": prop})
+    content = tag.get("content") if tag else None
+    return content.strip() if isinstance(content, str) and content.strip() else None
+
+
+def _date(value: str | None) -> str | None:
+    return value[:10] if value and re.match(r"\d{4}-\d{2}-\d{2}", value) else None
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    return list(dict.fromkeys(items))
+
+
+def _entries(soup: BeautifulSoup) -> list[str]:
+    """Ranked entries: numbered h2/h3 headings, else items of an ordered list."""
+    numbered = []
+    for heading in soup.find_all(["h2", "h3"]):
+        match = _NUMBERED_ENTRY.match(heading.get_text(" ", strip=True))
+        if match:
+            numbered.append(match.group(2).strip())
+    if len(numbered) >= _MIN_LIST_ENTRIES:
+        return numbered
+    for ol in soup.find_all("ol"):
+        items = [li.get_text(" ", strip=True)[:120] for li in ol.find_all("li", recursive=False)]
+        if len(items) >= _MIN_LIST_ENTRIES:
+            return items
+    return []
+
+
+def analyze_page(html: str, base_url: str, competitors: list[tuple[str, str]]) -> dict:
+    """Deterministic read of a page: is it a ranked list, who is on it, how to
+    reach the people who maintain it. `competitors` is [(id, name)].
+
+    Contact details are only what the page itself publishes, and are for the
+    admin's outreach -- never shown on a client surface."""
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    text = soup.get_text(" ", strip=True)
+
+    entries = _entries(soup)
+    is_listicle = bool(entries)
+    listed = []
+    for comp_id, name in competitors:
+        if not detect_brand_mention(text, name):
+            continue
+        position = next(
+            (i for i, entry in enumerate(entries, start=1) if detect_brand_mention(entry, name)),
+            None,
+        )
+        listed.append({"competitor_id": comp_id, "name": name, "position": position})
+    in_list = sum(1 for c in listed if c["position"] is not None)
+
+    emails, contact_pages, submissions = [], [], []
+    for a in soup.find_all("a", href=True):
+        href = a["href"].strip()
+        label = f"{a.get_text(' ', strip=True)} {href}"
+        if href.lower().startswith("mailto:"):
+            address = href[7:].split("?")[0].strip().lower()
+            if "@" in address:
+                emails.append(address)
+            continue
+        absolute = urljoin(base_url, href)
+        if not absolute.startswith(("http://", "https://")):
+            continue
+        if _SUBMISSION.search(label):
+            submissions.append(absolute)
+        elif _CONTACT.search(label):
+            contact_pages.append(absolute)
+
+    time_tag = soup.find("time", attrs={"datetime": True})
+    return {
+        "title": soup.title.get_text(strip=True)[:300] if soup.title else None,
+        "is_listicle": is_listicle,
+        "entries_count": len(entries),
+        "entries": entries[:_MAX_ENTRIES_KEPT],
+        "competitors_listed": listed,
+        "other_businesses_listed": max(0, len(entries) - in_list) if is_listicle else None,
+        "author": _meta(soup, name="author"),
+        "site_name": _meta(soup, prop="og:site_name"),
+        "published": _date(_meta(soup, prop="article:published_time"))
+        or _date(time_tag.get("datetime") if time_tag else None),
+        "modified": _date(_meta(soup, prop="article:modified_time")),
+        "contact": {
+            "emails": _dedupe(emails),
+            "contact_pages": _dedupe(contact_pages),
+            "submission_links": _dedupe(submissions),
+        },
+    }
+
+
+def _fetch_html(url: str):
+    """(status, response) where status is ok | blocked | error."""
+    try:
+        resp = safe_get(url, timeout=_ANALYSIS_TIMEOUT)
+    except UnsafeUrlError:
+        return "blocked", None
+    except Exception:
+        return "error", None
+    if resp.status_code != 200 or "html" not in resp.headers.get("content-type", "").lower():
+        return "error", None
+    return "ok", resp
+
+
+def analyze_target(target: PlacementTarget, db: Session) -> PlacementTarget:
+    """Fetch and analyse a target's page (at most 2 fetches: the page, then
+    one same-site contact page only if the page itself shows no email).
+    Fails open: an unreachable page records its fetch status and nothing else."""
+    status, resp = _fetch_html(target.url)
+    target.analyzed_at = utcnow()
+    if status != "ok":
+        target.page_analysis = {"fetch_status": status}
+        db.commit()
+        return target
+
+    competitors = [
+        (str(c.id), c.name)
+        for c in db.query(Competitor).filter(Competitor.client_id == target.client_id).all()
+    ]
+    final_url = resp.url or target.url
+    analysis = analyze_page(resp.text, final_url, competitors)
+    analysis["fetch_status"] = "ok"
+
+    contact = analysis["contact"]
+    if not contact["emails"]:
+        site = normalize_domain(final_url)
+        page = next((p for p in contact["contact_pages"] if normalize_domain(p) == site), None)
+        if page:
+            c_status, c_resp = _fetch_html(page)
+            if c_status == "ok":
+                contact["emails"] = analyze_page(c_resp.text, page, [])["contact"]["emails"]
+
+    target.page_analysis = analysis
+    if analysis["other_businesses_listed"] is not None:
+        target.other_businesses_listed = analysis["other_businesses_listed"]
+    target.priority_score, target.priority_reasons = score_target(target)
+    db.commit()
+    logger.info("placement_page_analyzed", target_id=str(target.id), listicle=analysis["is_listicle"])
+    return target
+
+
+# ── admin read model + manual status ────────────────────────────────────────
+
+class PlacementTransitionError(ValueError):
+    """A manual status change that would skip delivery or proof."""
+
+
+# Only these can be changed by hand; pursuing/placed/verified come from
+# delivery (Outcome Actions) and proof.
+_MANUAL_FROM = {"open", "stale", "dismissed"}
+
+
+def set_status(target: PlacementTarget, status: str, db: Session) -> PlacementTarget:
+    if target.status not in _MANUAL_FROM:
+        raise PlacementTransitionError(
+            f"A {target.status} placement is managed through its delivery item"
+        )
+    target.status = status
+    db.commit()
+    return target
+
+
+def _competitor_names(client_id: uuid.UUID, db: Session) -> dict[str, str]:
+    return {
+        str(c.id): c.name
+        for c in db.query(Competitor).filter(Competitor.client_id == client_id).all()
+    }
+
+
+def _summary(target: PlacementTarget, names: dict[str, str]) -> dict:
+    return {
+        "id": target.id,
+        "url": target.url,
+        "domain": target.domain,
+        "title": target.title,
+        "category": target.category,
+        "status": target.status,
+        "answers_count": target.answers_count,
+        "platforms": target.platforms or [],
+        "query_categories": target.query_categories or [],
+        "competitors": [names[c] for c in (target.competitors_present or []) if c in names],
+        "other_businesses_listed": target.other_businesses_listed,
+        "client_present": target.client_present,
+        "priority_score": target.priority_score,
+        "priority_reasons": target.priority_reasons or [],
+        "authority_asset_id": target.authority_asset_id,
+        "outcome_action_id": target.outcome_action_id,
+        "last_seen_at": target.last_seen_at,
+        "analyzed_at": target.analyzed_at,
+    }
+
+
+def list_targets(client_id: uuid.UUID, db: Session) -> list[dict]:
+    """Every target for the client, highest priority first (the UI filters by
+    status). Light rows: analysis, drafts and the proof question are on the
+    detail read."""
+    names = _competitor_names(client_id, db)
+    targets = (
+        db.query(PlacementTarget)
+        .filter(PlacementTarget.client_id == client_id)
+        .order_by(PlacementTarget.priority_score.desc(), PlacementTarget.created_at.asc())
+        .all()
+    )
+    return [_summary(t, names) for t in targets]
+
+
+def target_detail(target: PlacementTarget, db: Session) -> dict:
+    data = _summary(target, _competitor_names(target.client_id, db))
+    proof = db.get(ScanQueryResult, target.representative_result_id) if target.representative_result_id else None
+    data.update(
+        page_analysis=target.page_analysis,
+        outreach_drafts=target.outreach_drafts or [],
+        proof_question=(
+            {"query_text": proof.query_text, "platform": proof.platform} if proof else None
+        ),
+    )
+    return data
