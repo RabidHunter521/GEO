@@ -1,5 +1,6 @@
 import re
 import uuid
+from typing import Literal
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -40,6 +41,40 @@ def download_scorecard(client_id: uuid.UUID, db: Session = Depends(get_db)):
         )
     slug = re.sub(r"[^A-Za-z0-9]+", "-", c.name).strip("-") or "client"
     filename = f"SeenBy-Scorecard-{slug}-{utcnow():%Y%m%d}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get(
+    "/review-deck",
+    dependencies=[Depends(require_api_key)],
+)
+def download_review_deck(
+    client_id: uuid.UUID,
+    mode: Literal["client", "case_study"] = "client",
+    db: Session = Depends(get_db),
+):
+    """On-demand 90-day review deck PDF (landscape slides). mode=case_study
+    withholds the client's identity so the deck can double as a sales case
+    study. Generated fresh from stored data; never persisted."""
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    from app.services.review_deck_service import generate_review_deck_pdf
+    pdf_bytes = generate_review_deck_pdf(client_id, db, mode)
+    if pdf_bytes is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No scan data available to build a review deck for this client.",
+        )
+    if mode == "case_study":
+        filename = f"SeenBy-Case-Study-{utcnow():%Y%m%d}.pdf"
+    else:
+        slug = re.sub(r"[^A-Za-z0-9]+", "-", c.name).strip("-") or "client"
+        filename = f"SeenBy-90-Day-Review-{slug}-{utcnow():%Y%m%d}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
