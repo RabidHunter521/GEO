@@ -283,3 +283,84 @@ def test_scan_refreshes_placement_targets(db):
 def test_placement_refresh_failure_leaves_the_scan_completed(db):
     scan, _, _ = _run_scan(db, side_effect=RuntimeError("boom"))
     assert scan.status == "completed"
+
+
+# ── Task 3: deterministic priority score with reasons ───────────────────────
+
+def _target(**kw):
+    base = dict(client_id=uuid.uuid4(), url="https://x.example/a", domain="x.example",
+                category="other", answers_count=1, platforms=["chatgpt"],
+                query_categories=["recommendation"], competitors_present=[],
+                other_businesses_listed=None, scans_missing=0)
+    base.update(kw)
+    return PlacementTarget(**base)
+
+
+def test_cross_platform_listicle_with_competitors_outranks_a_lone_social_page():
+    strong = _target(category="listicle", answers_count=6,
+                     platforms=["chatgpt", "claude", "gemini"],
+                     query_categories=["local", "recommendation"],
+                     competitors_present=["c1", "c2"])
+    weak = _target(category="social", answers_count=1, platforms=["perplexity"],
+                   query_categories=["brand"])
+    s_strong, _ = ps.score_target(strong)
+    s_weak, _ = ps.score_target(weak)
+    assert 0 <= s_weak < s_strong <= 100
+
+
+def test_score_is_bounded_and_full_evidence_reaches_the_category_ceiling():
+    full = _target(category="directory", answers_count=20,
+                   platforms=["chatgpt", "claude", "gemini", "perplexity"],
+                   query_categories=["recommendation"], competitors_present=["c1"])
+    score, _ = ps.score_target(full)
+    assert score == 100
+
+
+def test_each_factor_moves_the_score():
+    base = _target()
+    s0, _ = ps.score_target(base)
+    for change in (
+        {"answers_count": 5},
+        {"platforms": ["chatgpt", "gemini"]},
+        {"competitors_present": ["c1"]},
+        {"category": "directory"},
+    ):
+        s, _ = ps.score_target(_target(**change))
+        assert s > s0, change
+    s_brand, _ = ps.score_target(_target(query_categories=["brand"]))
+    s_missing, _ = ps.score_target(_target(scans_missing=2))
+    assert s_brand < s0 and s_missing < s0
+
+
+def test_reasons_explain_the_score_in_plain_language():
+    _, reasons = ps.score_target(_target(
+        category="listicle", answers_count=3, platforms=["chatgpt", "gemini"],
+        query_categories=["local", "recommendation"], competitors_present=["c1"],
+    ))
+    text = " | ".join(reasons)
+    assert "3 answers drew on this page in the latest scan" in text
+    assert "2 of 4 AI platforms (ChatGPT, Gemini)" in text
+    assert "buyer questions" in text
+    assert "1 tracked competitor listed" in text
+    assert "listicle" in text
+    for banned in ("cited", "mentioned", "citation"):
+        assert banned not in text.lower()
+
+
+def test_untracked_businesses_listed_counts_as_competition():
+    s_none, _ = ps.score_target(_target())
+    s_others, reasons = ps.score_target(_target(other_businesses_listed=8))
+    assert s_others > s_none
+    assert any("8 other businesses" in r for r in reasons)
+
+
+def test_refresh_stores_score_and_reasons(db):
+    client, rival = _client(db)
+    scan = _scan(db, client)
+    _answer(db, scan, sources=[(*_LIST, False, [str(rival.id)])])
+
+    ps.refresh_targets(scan.id, client.id, db)
+
+    t = db.query(PlacementTarget).one()
+    assert t.priority_score == ps.score_target(t)[0] > 0
+    assert t.priority_reasons == ps.score_target(t)[1]

@@ -354,6 +354,15 @@ PLACEMENT_CATEGORIES: Final = (
 # A target absent from this many consecutive scans becomes stale (kept, and
 # reopened if it reappears).
 PLACEMENT_STALE_AFTER_SCANS: Final = 3
+# How reachable each kind of page is for an agency (multiplies the score):
+# a directory is usually a form; a review site is worked via the review
+# programme; a reference page is hard to influence.
+PLACEMENT_CATEGORY_WEIGHTS: Final = {
+    "directory": 1.0, "listicle": 0.9, "news": 0.8, "other": 0.7,
+    "marketplace": 0.5, "review": 0.4, "social": 0.4, "reference": 0.3,
+}
+# Answers in the latest scan at which the reach factor saturates.
+PLACEMENT_REACH_SATURATION: Final = 8
 
 WORK_LOG_CATEGORIES: Final = ("technical", "content", "authority", "visibility", "correction")
 WORK_LOG_STATUSES: Final = ("suggested", "published", "dismissed")

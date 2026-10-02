@@ -6,6 +6,7 @@ This module owns discovery (refresh_targets, run after every scan), the
 deterministic priority score, and the target lifecycle. It reads only what
 provenance enrichment already recorded -- no fetches happen here.
 """
+import math
 import re
 import uuid
 from collections import defaultdict
@@ -13,7 +14,12 @@ from collections import defaultdict
 import structlog
 from sqlalchemy.orm import Session
 
-from app.core.constants import PLACEMENT_STALE_AFTER_SCANS
+from app.core.constants import (
+    PLACEMENT_CATEGORY_WEIGHTS,
+    PLACEMENT_REACH_SATURATION,
+    PLACEMENT_STALE_AFTER_SCANS,
+    PLATFORM_LABELS,
+)
 from app.core.time import utcnow
 from app.models.authority_asset import AuthorityAsset
 from app.models.placement_target import PlacementTarget
@@ -60,6 +66,75 @@ def categorize(domain: str, title: str | None) -> str:
     ):
         return "listicle"
     return category
+
+
+_BUYER_CATEGORIES = {"recommendation", "local", "comparison"}
+_CATEGORY_NOTES = {
+    "directory": "directory (usually a simple submission)",
+    "listicle": "listicle (editors update round-ups)",
+    "news": "news (needs a story angle)",
+    "other": "other page",
+    "marketplace": "marketplace (needs a seller listing)",
+    "review": "review site (worked through reviews, not outreach)",
+    "social": "social (needs an active profile)",
+    "reference": "reference (hard to influence)",
+}
+# Factor weights; they sum to 1 before the category multiplier.
+_W_REACH, _W_BREADTH, _W_INTENT, _W_COMPETITION, _W_RECENCY = 0.35, 0.20, 0.15, 0.15, 0.15
+
+
+def _plural(n: int, word: str) -> str:
+    return f"{n} {word}" + ("" if n == 1 else "s")
+
+
+def score_target(target: PlacementTarget) -> tuple[int, list[str]]:
+    """Deterministic 0-100 priority from stored evidence, with the reasons
+    that produced it. No model call: the ranking must be explainable and
+    reproducible from the row alone."""
+    answers = target.answers_count or 0
+    platforms = list(target.platforms or [])
+    categories = set(target.query_categories or [])
+    competitors = len(target.competitors_present or [])
+    others = target.other_businesses_listed or 0
+    missing = target.scans_missing or 0
+    reasons: list[str] = []
+
+    reach = min(1.0, math.log2(1 + answers) / math.log2(1 + PLACEMENT_REACH_SATURATION))
+    reasons.append(f"{_plural(answers, 'answer')} drew on this page in the latest scan")
+
+    breadth = len(platforms) / len(PLATFORM_LABELS)
+    names = ", ".join(PLATFORM_LABELS.get(p, p) for p in platforms)
+    reasons.append(f"Used by {len(platforms)} of {len(PLATFORM_LABELS)} AI platforms ({names})")
+
+    buyer = sorted(categories & _BUYER_CATEGORIES)
+    if buyer:
+        intent = 1.0
+        reasons.append(f"Answers buyer questions ({', '.join(buyer)})")
+    else:
+        intent = 0.4
+        reasons.append("Only answers brand questions")
+
+    if competitors:
+        competition = 1.0
+        reasons.append(f"{_plural(competitors, 'tracked competitor')} listed here, not you")
+    elif others:
+        competition = 0.6
+        reasons.append(f"Lists {others} other businesses, not you")
+    else:
+        competition = 0.3
+
+    recency = max(0.0, 1 - missing / PLACEMENT_STALE_AFTER_SCANS)
+    if missing:
+        reasons.append(f"Not seen in the last {_plural(missing, 'scan')}")
+
+    weight = PLACEMENT_CATEGORY_WEIGHTS.get(target.category, PLACEMENT_CATEGORY_WEIGHTS["other"])
+    reasons.append(f"Category: {_CATEGORY_NOTES.get(target.category, target.category)}")
+
+    raw = (
+        _W_REACH * reach + _W_BREADTH * breadth + _W_INTENT * intent
+        + _W_COMPETITION * competition + _W_RECENCY * recency
+    )
+    return round(100 * weight * raw), reasons
 
 
 def _matching_asset(domain: str, assets: list[AuthorityAsset]) -> AuthorityAsset | None:
@@ -173,6 +248,9 @@ def refresh_targets(scan_id: uuid.UUID, client_id: uuid.UUID, db: Session) -> No
         target.scans_missing += 1
         if target.status == "open" and target.scans_missing >= PLACEMENT_STALE_AFTER_SCANS:
             target.status = "stale"
+
+    for target in existing.values():
+        target.priority_score, target.priority_reasons = score_target(target)
 
     db.commit()
     logger.info(
