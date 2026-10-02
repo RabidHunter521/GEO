@@ -43,6 +43,7 @@ import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
 import { IndustryPackCard } from "./IndustryPackCard"
 import { BenchmarkOptOutCard } from "./BenchmarkOptOutCard"
+import { WinNotificationsCard } from "./WinNotificationsCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { isValidWebsite } from "@/lib/utils"
 import { generateAssessmentAction, acceptAssessmentAction } from "./actions"
@@ -455,6 +456,12 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       {/* Benchmark opt-out — saves on its own, like the industry pack card,
           because this is a privacy control rather than an ordinary field. */}
       <BenchmarkOptOutCard client={client} />
+
+      <Separator />
+
+      {/* Win notifications — saves on its own: it decides whether the client
+          is emailed, so the admin should see it commit immediately. */}
+      <WinNotificationsCard client={client} />
 
       <Separator />
 

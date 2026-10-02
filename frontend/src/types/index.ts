@@ -69,6 +69,9 @@ export interface Client {
   // they stop contributing to peer numbers and stop receiving a comparison.
   // Forward-looking only — does not rewrite an already-approved snapshot.
   benchmark_opt_out: boolean
+  // Email the client when a win is confirmed ("ChatGPT now recommends you
+  // for ..."). Off by default; wins are recorded either way.
+  win_notifications_enabled: boolean
 }
 
 export interface ShareTokenResponse {

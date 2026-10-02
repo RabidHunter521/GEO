@@ -509,6 +509,7 @@ KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "share_link_opened", "share_link_revoked", "site_audit_run", "toolkit_generated",
     "toolkit_verified", "traffic_updated", "truth_vault_seeded",
     "work_log_published",
+    "client_win_detected", "win_notification_sent", "win_notification_failed",
 })
 
 EVENT_TIERS: Final = {
@@ -545,6 +546,11 @@ EVENT_TIERS: Final = {
     "share_link_regenerated": EVENT_TIER_NOTABLE,
     "share_link_revoked": EVENT_TIER_NOTABLE,
     "share_link_opened": EVENT_TIER_NOTABLE,
+    "client_win_detected": EVENT_TIER_NOTABLE,
+    "win_notification_sent": EVENT_TIER_NOTABLE,
+    # Not attention-tier (that set is spec-locked): a failed send already
+    # emails ALERTS_EMAIL directly.
+    "win_notification_failed": EVENT_TIER_NOTABLE,
     # routine — the expected heartbeat
     "scan_completed": EVENT_TIER_ROUTINE,
     "digest_sent": EVENT_TIER_ROUTINE,
@@ -572,6 +578,9 @@ EVENT_CATEGORIES: Final = {
     "report_generated": "reports_emails",
     "report_sent": "reports_emails",
     "digest_sent": "reports_emails",
+    "win_notification_sent": "reports_emails",
+    "win_notification_failed": "reports_emails",
+    "client_win_detected": "scans",
     "alert_sent": "alerts_issues",
     "hallucination_flagged": "alerts_issues",
     "citation_flip": "alerts_issues",
@@ -627,6 +636,9 @@ EVENT_LINK_ROUTES: Final = {
     "report_generated": "/reports",
     "report_sent": "/reports",
     "digest_sent": "/activity",
+    "client_win_detected": "/scan",
+    "win_notification_sent": "/activity",
+    "win_notification_failed": "/settings",
     "work_log_published": "/activity",
     "toolkit_generated": "/toolkit",
     "toolkit_verified": "/toolkit",
@@ -691,3 +703,21 @@ USER_LOCKOUT_MINUTES: Final = 15
 TOTP_STEP_SECONDS: Final = 30
 TOTP_DRIFT_STEPS: Final = 1
 TOTP_ISSUER: Final = "SeenBy"
+
+
+# ── Client win notifications ─────────────────────────────────────────────────
+# A "win" is a buyer question where the client newly became recommended (or
+# Seen by AI) on a platform. Only neutral categories count: brand questions
+# contain the client's name and comparison questions name a competitor, so
+# being seen there says little about what a buyer would actually be told.
+WIN_CATEGORIES: Final = ("recommendation", "local")
+# A single observed change is evidence, not proof (docs/methodology.md). A win
+# fires only after the new answer repeats in this many consecutive completed
+# scans, each preceded by a scan where it was absent.
+WIN_CONFIRMING_SCANS: Final = 2
+# The same platform + question + kind never notifies twice inside this window,
+# so an answer that flaps in and out cannot spam the client.
+WIN_RENOTIFY_DAYS: Final = 90
+# Wins listed in one message; the rest are summarised as "and N more".
+WIN_MESSAGE_MAX_LISTED: Final = 5
+WIN_KINDS: Final = ("recommended", "seen")

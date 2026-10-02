@@ -25,6 +25,7 @@ from app.models.misinformation_finding import MisinformationFinding
 
 from app.models.workspace import Workspace
 from app.models.user import User, USER_ROLES
+from app.models.client_win import ClientWin
 
 __all__ = [
     "OUTCOME_ACTION_STATUSES",
@@ -48,4 +49,5 @@ __all__ = [
     "Workspace",
     "User",
     "USER_ROLES",
+    "ClientWin",
 ]

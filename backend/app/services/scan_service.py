@@ -594,6 +594,16 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
             db.rollback()
             logger.error("outcome_action_verification_failed", scan_id=str(scan_id), error=str(exc))
 
+        # Client win notifications — records wins this scan confirmed and, when
+        # the client has them switched on, tells the client. Best-effort like
+        # every other post-commit step (CLAUDE.md §10).
+        try:
+            from app.services.win_notification_service import process_client_wins
+            process_client_wins(client.id, scan.id, db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("client_win_notifications_failed", scan_id=str(scan_id), error=str(exc))
+
         # Misinformation compliance pass — stores admin-review candidates whose
         # quotes are verbatim in this scan's responses. Best-effort like every
         # other post-commit step; the service also swallows its own errors.
