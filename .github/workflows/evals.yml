@@ -1,0 +1,50 @@
+name: Live evals
+
+# Manual only. Runs the Claude-backed eval suites (backend/evals) against the
+# committed baseline. Needs a repository secret named ANTHROPIC_API_KEY; one
+# run is roughly 30 small Haiku calls (a few US cents). The offline suite
+# already runs on every push inside the CI test job.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Suite to run (blank = all)"
+        required: false
+        default: ""
+
+jobs:
+  live-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Install dependencies
+        working-directory: backend
+        run: poetry install --no-interaction
+      - name: Run evals
+        working-directory: backend
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Settings validation only; evals never connect to a database.
+          DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/unused
+          ADMIN_API_KEY: ci-test-key
+          RESEND_API_KEY: re_ci_not_a_real_key
+          SUITE: ${{ inputs.suite }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::add an ANTHROPIC_API_KEY repository secret to run live evals"
+            exit 1
+          fi
+          args="--live --json eval-results.json"
+          if [ -n "$SUITE" ]; then args="$args --suite $SUITE"; fi
+          poetry run python -m evals.run $args
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: backend/eval-results.json
+          if-no-files-found: ignore

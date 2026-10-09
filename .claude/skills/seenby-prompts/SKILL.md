@@ -39,5 +39,6 @@ Every LLM call in this codebase follows the same contract. A prompt change that 
 - [ ] Language rules in prompt + sanitizer on output (if client-facing)
 - [ ] temperature/max_tokens deliberate, stop_reason guarded for JSON
 - [ ] A test exercises the parse path with a realistic mocked response (see `backend/tests/` for mocking patterns — never live API calls in tests)
+- [ ] If the prompt or model behind a scored judgement changed (`position_extraction`, `misinformation_detection`), ran `poetry run python -m evals.run --live --suite <name>` before and after, and no gated metric regressed (see `backend/evals/README.md`). A brand-detection rule change runs the offline suite in CI automatically.
 - [ ] Ran `seenby-verify` (banned-language scan covers `backend/app/prompts`)
 - [ ] `docs/prompt-audit-2026-07.md` updated if the change resolves one of its findings
