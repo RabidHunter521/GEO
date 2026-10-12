@@ -14,7 +14,7 @@ Accuracy and Reputation records potential conflicts between observed model answe
 
 ### Growth Readiness
 
-Growth Readiness is the current composite leading indicator. In version v1.4.0, it combines AI citability (40%), brand authority (20%), content quality (20%), verified robots.txt AI-crawler access (10%), and verified structured data (10%). Brand Authority and Content Quality always use the label “Based on public evidence · Reviewed by SeenBy”. Growth Readiness is returned as `overall_score` in the current API; it is not a measure of confirmed traffic, leads, or revenue.
+Growth Readiness is the current composite leading indicator. In version v1.5.0, it combines AI citability (40%), brand authority (20%), content quality (20%), verified robots.txt AI-crawler access (10%), and verified structured data (10%). Brand Authority and Content Quality always use the label “Based on public evidence · Reviewed by SeenBy”. Growth Readiness is returned as `overall_score` in the current API; it is not a measure of confirmed traffic, leads, or revenue.
 
 ### Business Impact
 
@@ -23,6 +23,10 @@ Business Impact keeps observed traffic and intent events separate from attribute
 ## Query coverage
 
 SeenBy monitors the enabled client platforms: ChatGPT, Perplexity, Gemini, and Claude. Each client has a configured set of brand, comparison, recommendation, and local query templates. The scan engine can run up to 20 queries per enabled platform: up to five in each category, with comparison queries capped by the number of configured competitors. It can also track competitor queries and up to five control queries that are deliberately left unchanged for comparison. Client industry, brand, competitor, location, and city values fill the applicable templates.
+
+AI citability counts discovery questions only: the recommendation and local questions, where the buyer asks for options without naming the brand. Brand and comparison questions name the brand in the question itself, so they are still asked and reported, but they do not raise AI citability. When a client has no discovery questions (for example, no location on file), every question counts instead. A known brand's AI citability therefore fell when v1.5.0 was introduced; that change is to the method, not to its standing.
+
+Answers that use one of a client's or competitor's recorded alternative names count as that brand. Clients in the B2B and Online Services pack are asked country-level questions (for example, "Best payment gateway for small businesses in Malaysia") instead of local ones.
 
 The configured query universe is a monitored sample, not every real question a buyer might ask. It is selected to make repeatable comparison possible and must be interpreted together with its enabled platforms, locations, and query configuration.
 
@@ -50,7 +54,7 @@ Where a client has an average deal value, SeenBy estimates pipeline from AI-refe
 
 ## Versioning
 
-v1.4.0 labels newly computed Growth Readiness. Every score row now carries the version of the method that produced it. Rows written before that record was introduced carry no version; their exact method cannot be established, so they are treated as not comparable to a current score rather than assumed to share its method.
+v1.5.0 labels newly computed Growth Readiness. Every score row now carries the version of the method that produced it. Rows written before that record was introduced carry no version; their exact method cannot be established, so they are treated as not comparable to a current score rather than assumed to share its method.
 
 Historical rows retain their originally computed values; they are not recomputed when the method changes. Where a score and the one before it came from different versions, SeenBy states this in the weekly update and the monthly report, and does not present the difference as a change in the client's standing.
 

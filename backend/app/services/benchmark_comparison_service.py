@@ -44,6 +44,7 @@ PACK_LABELS = {
     "healthcare": "healthcare businesses",
     "fnb": "food and beverage businesses",
     "local_services": "local service businesses",
+    "b2b_services": "B2B and online service businesses",
 }
 SCALE_LABELS = {
     "single_location": "single-location",

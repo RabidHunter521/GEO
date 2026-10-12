@@ -15,6 +15,7 @@ from app.schemas.ai_readiness import CompetitorAIReadinessResponse
 from app.schemas.competitor import (
     CompetitorCreate,
     CompetitorResponse,
+    CompetitorUpdate,
     CompetitorIntelligenceResponse,
     CompetitorTrendsResponse,
     ContentBriefResponse,
@@ -23,7 +24,7 @@ from app.schemas.competitor import (
 from app.schemas.provenance import ShareOfSourceHistoryPoint, ShareOfSourceResponse
 from app.services import ai_mirror_service
 from app.services.ai_readiness_service import compute_competitor_ai_readiness
-from app.services.brand_detection import detect_brand_in_answer
+from app.services.brand_detection import brand_names, detect_brand_in_answer
 from app.services.competitor_intelligence_service import (
     compute_competitor_intelligence,
     compute_competitor_trends,
@@ -149,7 +150,8 @@ def generate_brief(
     # competitors_seen recomputed server-side — request body is never trusted
     competitors = db.query(Competitor).filter(Competitor.client_id == client_id).all()
     competitors_seen = [
-        c.name for c in competitors if detect_brand_in_answer(result.response_text, c.name)
+        c.name for c in competitors
+        if detect_brand_in_answer(result.response_text, c.name, brand_names(c))
     ]
 
     brief = generate_brief_for_result(client, result, competitors_seen, db)
@@ -199,6 +201,33 @@ def add_competitor(
         )
     comp = Competitor(client_id=client_id, **body.model_dump())
     db.add(comp)
+    db.commit()
+    db.refresh(comp)
+    return comp
+
+
+@router.patch(
+    "/{competitor_id}",
+    response_model=CompetitorResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def update_competitor(
+    client_id: uuid.UUID,
+    competitor_id: uuid.UUID,
+    body: CompetitorUpdate,
+    db: Session = Depends(get_db),
+):
+    """Edit a competitor's aliases. Takes effect from the next scan; stored
+    results are not re-scored."""
+    _get_client_or_404(client_id, db)
+    comp = (
+        db.query(Competitor)
+        .filter(Competitor.id == competitor_id, Competitor.client_id == client_id)
+        .first()
+    )
+    if comp is None:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    comp.brand_aliases = body.brand_aliases
     db.commit()
     db.refresh(comp)
     return comp

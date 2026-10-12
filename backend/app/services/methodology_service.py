@@ -30,8 +30,10 @@ _DIMENSIONS: tuple[tuple[str, str, str, str], ...] = (
         "ai_citability",
         "AI Citability",
         "measured",
-        "How often your brand is Seen by AI across the buyer questions we track, "
-        "averaged evenly across the AI platforms you have switched on.",
+        "How often your brand is Seen by AI when buyers ask for recommendations "
+        "without naming you, averaged evenly across the AI platforms you have "
+        "switched on. Questions that already name your brand are tracked but do "
+        "not raise this number.",
     ),
     (
         "brand_authority",

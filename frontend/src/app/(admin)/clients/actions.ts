@@ -9,6 +9,7 @@ import {
   deleteClient as apiDeleteClient,
   addCompetitor as apiAddCompetitor,
   deleteCompetitor as apiDeleteCompetitor,
+  updateCompetitorAliases as apiUpdateCompetitorAliases,
   createControlQuery as apiCreateControlQuery,
   updateControlQuery as apiUpdateControlQuery,
   createGuarantee as apiCreateGuarantee,
@@ -116,6 +117,16 @@ export async function toggleControlQueryAction(
   const cq = await apiUpdateControlQuery(clientId, controlQueryId, { active })
   revalidatePath(`/clients/${clientId}/settings`)
   return cq
+}
+
+export async function updateCompetitorAliasesAction(
+  clientId: string,
+  competitorId: string,
+  brandAliases: string[],
+) {
+  const comp = await apiUpdateCompetitorAliases(clientId, competitorId, brandAliases)
+  revalidatePath(`/clients/${clientId}`)
+  return comp
 }
 
 export async function deleteCompetitorAction(

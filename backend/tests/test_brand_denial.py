@@ -4,6 +4,8 @@ Every fixture marked REAL is verbatim from scan 5433e572 (throwaway client
 cb4708a5, Gemini, 2026-07-28), which scored AI Citability 100.0 because a
 plain regex match counted five denials as visibility.
 """
+import pytest
+
 from app.services.brand_detection import detect_brand_in_answer, detect_brand_mention
 
 BRAND = "ZZ Test Prospect TWO DELETE"
@@ -154,3 +156,67 @@ def test_empty_and_blank_inputs():
     assert detect_brand_in_answer("", "Acme Dental") is False
     assert detect_brand_in_answer("Some text.", "  ") is False
     assert detect_brand_in_answer(None, "Acme Dental") is False
+
+
+# --- Hedging about a KNOWN brand is not a denial ------------------------------
+# Comparison and shortlist answers about well-known brands hedge constantly.
+# The identity-uncertainty patterns used to fire on that hedging and zero real
+# mentions; they are now pinned to what the name IS.
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Choose Curlec or Billplz depending on what payment methods you need.",
+        "It is difficult to say whether Curlec or iPay88 is better overall.",
+        "**Curlec** - best for recurring billing. Unclear whether Curlec supports BNPL.",
+        "Curlec may refer to the Malaysian payment gateway acquired by Razorpay.",
+        "Without more context, Curlec and Stripe are both good choices.",
+        "Curlec is not widely recognised outside Malaysia, but SMEs rate it highly.",
+    ],
+)
+def test_hedging_about_a_known_brand_still_counts(text):
+    assert detect_brand_in_answer(text, "Curlec") is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "It is unclear what Curlec is.",
+        "Curlec could refer to several different things.",
+        "Without more context, I cannot tell what Curlec refers to.",
+        "I am not sure whether Curlec is a real company.",
+        "It is difficult to determine what Curlec refers to.",
+        "Curlec is not widely recognised.",
+    ],
+)
+def test_identity_uncertainty_is_still_a_denial(text):
+    assert detect_brand_in_answer(text, "Curlec") is False
+
+
+# --- Aliases ------------------------------------------------------------------
+
+def test_alias_counts_as_the_brand():
+    text = "Razorpay is a popular choice for FPX payments in Malaysia."
+    assert detect_brand_in_answer(text, "Curlec") is False
+    assert detect_brand_in_answer(text, "Curlec", ["Razorpay"]) is True
+
+
+def test_denial_naming_an_alias_disqualifies_the_answer():
+    text = "Razorpay does not appear to be a recognised company in Malaysia."
+    assert detect_brand_in_answer(text, "Curlec", ["Razorpay"]) is False
+
+
+def test_brand_names_includes_aliases_and_drops_blanks():
+    from types import SimpleNamespace
+    from app.services.brand_detection import brand_names
+
+    entity = SimpleNamespace(name="Curlec", brand_aliases=["Razorpay Curlec", " ", "Curlec"])
+    assert brand_names(entity) == ("Curlec", "Razorpay Curlec")
+    assert brand_names(SimpleNamespace(name="Curlec", brand_aliases=None)) == ("Curlec",)
+
+
+def test_name_in_text_returns_the_name_the_answer_used():
+    from app.services.brand_detection import name_in_text
+
+    assert name_in_text("Try Razorpay Curlec.", ["Curlec Pay", "Razorpay Curlec"]) == "Razorpay Curlec"
+    assert name_in_text("Try Stripe.", ["Curlec"]) is None

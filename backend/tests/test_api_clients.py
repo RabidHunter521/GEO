@@ -794,3 +794,44 @@ def test_get_command_center_404_for_archived_client():
     response = client.get(f"/api/v1/clients/{archived.id}/command-center")
     app.dependency_overrides.clear()
     assert response.status_code == 404
+
+
+def test_update_client_persists_brand_aliases_cleaned():
+    """Aliases are trimmed and de-duplicated case-insensitively on the way in,
+    applied to the row, and returned on read."""
+    app, get_db = _make_app()
+    existing = _fake_client("Curlec")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"brand_aliases": ["  Razorpay   Curlec ", "razorpay curlec", ""]},
+    )
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["brand_aliases"] == ["Razorpay Curlec"]
+    assert existing.brand_aliases == ["Razorpay Curlec"]
+
+
+@pytest.mark.parametrize(
+    "aliases",
+    [["X"], ["a" * 101], [f"Alias {i}" for i in range(6)]],
+)
+def test_update_client_rejects_unsafe_brand_aliases(aliases):
+    """One-letter aliases would match almost any answer; more than five widens
+    what counts as Seen by AI beyond what an admin can sanity-check."""
+    app, get_db = _make_app()
+    existing = _fake_client("Curlec")
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.patch(f"/api/v1/clients/{existing.id}", json={"brand_aliases": aliases})
+    app.dependency_overrides.clear()
+    assert response.status_code == 422

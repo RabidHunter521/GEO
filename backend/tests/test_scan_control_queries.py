@@ -53,3 +53,31 @@ def test_platform_run_marks_control_rows(db):
     assert len(control_rows) == 1
     assert control_rows[0].query_text == "Best physio in Penang"
     assert all(not r.is_control for r in results if r.query_text != "Best physio in Penang")
+
+
+def test_platform_run_counts_client_and_competitor_aliases(db):
+    """An answer that uses only an alias is Seen by AI, for the client and for
+    a competitor alike."""
+    from app.models.competitor import Competitor
+
+    client = Client(name="Curlec", website="https://curlec.com", industry="payment gateway",
+                    city="Kuala Lumpur", brand_aliases=["Razorpay Curlec"])
+    db.add(client)
+    db.commit()
+    rival = Competitor(client_id=client.id, name="Fiuu", brand_aliases=["Razer Merchant Services"])
+    db.add(rival)
+    db.commit()
+    scan = Scan(client_id=client.id)
+    db.add(scan)
+    db.commit()
+    pc = MagicMock()
+    pc.query.return_value = MagicMock(
+        text="Razorpay Curlec and Razer Merchant Services are both popular choices.",
+        citations=[], model="m", input_tokens=1, output_tokens=1, answer_shown=None,
+    )
+    client_queries = build_client_queries(client, [rival])
+    with patch.object(scan_service, "_INTER_QUERY_DELAY_SECONDS", 0), \
+            patch.object(scan_service, "extract_position", return_value=None):
+        results, _ = _run_platform_queries("chatgpt", pc, scan, client, [rival], [], client_queries)
+    assert results
+    assert all(r.brand_detected for r in results)

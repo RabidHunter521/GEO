@@ -207,6 +207,17 @@ export function addCompetitor(
   })
 }
 
+export function updateCompetitorAliases(
+  clientId: string,
+  competitorId: string,
+  brandAliases: string[],
+): Promise<Competitor> {
+  return apiFetch<Competitor>(`/api/v1/clients/${clientId}/competitors/${competitorId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ brand_aliases: brandAliases }),
+  })
+}
+
 export function deleteCompetitor(
   clientId: string,
   competitorId: string,

@@ -13,6 +13,12 @@ class Client(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Other names AI answers use for this brand ("Razorpay Curlec" for
+    # "Curlec"). Any of them counts as Seen by AI (brand_detection.brand_names);
+    # scan questions still use `name` only.
+    brand_aliases: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
     website: Mapped[str] = mapped_column(String(255), nullable=False)
     industry: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

@@ -1,7 +1,7 @@
 # backend/app/core/constants.py
 from typing import Final
 
-SCORE_VERSION: Final = "v1.4.0"
+SCORE_VERSION: Final = "v1.5.0"
 SCORE_DISPLAY_LABEL: Final = "Growth Readiness"
 
 # Shown wherever a score delta spans a formula change (see
@@ -102,6 +102,11 @@ RAW_RESPONSE_RETENTION_DAYS: Final = 90
 # CLAUDE.md §8: "Client data archived 6 months after churn, then auto-deleted."
 CHURN_DELETE_DAYS: Final = 180
 MAX_COMPETITORS: Final = 5
+# Other names a client or competitor may appear under in AI answers
+# (brand_aliases). Small on purpose: every alias widens what counts as Seen.
+MAX_BRAND_ALIASES: Final = 5
+BRAND_ALIAS_MIN_LENGTH: Final = 2
+BRAND_ALIAS_MAX_LENGTH: Final = 100
 # Benchmark queries deliberately left unoptimized (causal proof) — per client.
 MAX_CONTROL_QUERIES: Final = 5
 
@@ -182,6 +187,12 @@ PLATFORM_LABELS: Final = {
 # surfaces are reported everywhere but not yet scored: adding them here changes
 # the formula, so it needs a SCORE_VERSION bump and a §4 update.
 SCORED_PLATFORMS: Final = ("chatgpt", "perplexity", "gemini", "claude")
+# Question categories that measure DISCOVERY: the buyer asks for options and
+# never names the brand, so being Seen there is earned. Brand and comparison
+# questions put the brand name in the question and models echo it back, so a
+# known brand is "seen" on nearly all of them whatever its real standing. Since
+# v1.5.0, AI Citability and the overtake alert are computed on these only.
+DISCOVERY_CATEGORIES: Final = ("recommendation", "local")
 # Where and how the Google AI surfaces are observed (DataForSEO). Malaysia is
 # location code 2458; English; mobile, which is how most Malaysians search.
 GOOGLE_SERP_LOCATION_CODE: Final = 2458
@@ -431,7 +442,9 @@ MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
 # the registry asserts its own keys against this tuple, so a pack added in code
 # without updating this list fails a test instead of becoming unselectable.
 # No PostgreSQL enum by design — adding a pack must not require a migration.
-INDUSTRY_PACK_KEYS: Final = ("healthcare", "fnb", "local_services", "education")
+INDUSTRY_PACK_KEYS: Final = (
+    "healthcare", "fnb", "local_services", "education", "b2b_services",
+)
 
 # Cost envelope for pack-generated client queries. Raised 20 -> 28 once packs
 # carried subcategory-scoped questions: at 20 a specialised client spent its

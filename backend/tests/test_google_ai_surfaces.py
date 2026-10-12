@@ -250,7 +250,8 @@ def test_breakdown_reports_google_with_its_overview_appearance_rate():
     ], failed_platforms=[])
 
     assert bd["google_aio"] == {"visibility": 33.33, "queries": 3, "detected": 1,
-                                "status": "ok", "scored": False, "answers_shown": 1}
+                                "status": "ok", "scored": False, "answers_shown": 1,
+                                "basis": "discovery"}
     assert bd["google_ai_mode"]["scored"] is False
     assert "answers_shown" not in bd["google_ai_mode"]
     assert bd["chatgpt"]["scored"] is True and "answers_shown" not in bd["chatgpt"]
@@ -284,7 +285,7 @@ def _ns(platform, seen):
 
 
 def test_headline_visibility_helpers_ignore_reported_only_platforms():
-    from app.services import alert_service, causality_service, gap_matrix_service, scan_diff_service
+    from app.services import causality_service, gap_matrix_service, scan_diff_service
     from app.services.scoring_service import scored_results
 
     llm = [_ns("chatgpt", True), _ns("claude", False)]
@@ -292,7 +293,6 @@ def test_headline_visibility_helpers_ignore_reported_only_platforms():
     mixed = llm + google
 
     assert scored_results(mixed) == llm
-    assert alert_service._compute_citability(mixed) == alert_service._compute_citability(llm) == 50.0
     assert causality_service._freq(mixed) == causality_service._freq(llm)
     assert gap_matrix_service._visibility(mixed) == gap_matrix_service._visibility(llm)
     assert scan_diff_service._visibility(mixed) == scan_diff_service._visibility(llm)

@@ -4,13 +4,19 @@ from sqlalchemy.orm import Session
 import structlog
 
 from app.core.config import settings
-from app.core.constants import ALERTS_EMAIL, PLATFORM_LABELS, SCORE_DISPLAY_LABEL
+from app.core.constants import (
+    ALERTS_EMAIL,
+    DISCOVERY_CATEGORIES,
+    PLATFORM_LABELS,
+    SCORE_DISPLAY_LABEL,
+)
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
+from app.services.brand_detection import brand_names, detect_brand_in_answer
 from app.services.email_service import send_email
 from app.services.telegram_service import send_telegram
 from app.services.scoring_service import scored_results
@@ -75,72 +81,146 @@ def check_score_drop_alert(
 
 
 def check_competitor_overtake_alert(client: Client, scan_id: uuid.UUID, db: Session) -> None:
-    """Fires for each competitor whose AI Citability now exceeds the client's."""
+    """Fires for each competitor that NEWLY shows up in more of the client's
+    discovery answers than the client does.
+
+    Head-to-head on the same answers: the client's own discovery questions
+    (recommendation + local, scored platforms) from this scan. Client
+    visibility is the share of those answers that show the client; a
+    competitor's is the share of the SAME answers that show the competitor
+    (name or alias). The old check compared the client's visibility across all
+    its questions (about half naming the client) with the competitor's across
+    four questions of its own (two naming the competitor), so a competitor
+    "overtook" by construction whenever neither appeared on neutral questions.
+
+    Fires only on the transition: a competitor already ahead on the previous
+    completed scan is not re-announced. When the previous answers can't be
+    read (none, or raw text purged), it fires, as before.
+    """
     competitors = db.query(Competitor).filter(Competitor.client_id == client.id).all()
     if not competitors:
         return
 
-    all_results = (
-        db.query(ScanQueryResult)
-        .filter(
-            ScanQueryResult.scan_id == scan_id,
-            ScanQueryResult.is_control.is_(False),
-        )
-        .all()
-    )
+    rows = _discovery_answers(scan_id, db)
+    if not rows:
+        return
+    previous_rows = _discovery_answers(_previous_scan_id(client.id, scan_id, db), db)
 
-    from app.services.competitor_intelligence_service import visibility_by_platform
-
-    client_results = [r for r in all_results if r.competitor_id is None]
-    client_citability = _compute_citability(client_results)
-    client_platform = visibility_by_platform(client_results)
+    client_citability, client_platform = _head_to_head(rows, lambda r: bool(r.brand_detected))
 
     sent = False
     for competitor in competitors:
-        comp_results = [r for r in all_results if r.competitor_id == competitor.id]
-        comp_citability = _compute_citability(comp_results)
+        shows_competitor = _shows(competitor)
+        comp_citability, comp_platform = _head_to_head(rows, shows_competitor)
         # Trigger stays overall-only: a competitor ahead on individual platforms
-        # but behind overall does not fire — same email volume as before.
-        if comp_citability > client_citability:
-            comp_platform = visibility_by_platform(comp_results)
-            winning_platforms = [
-                (p, comp_platform[p], client_platform.get(p, 0.0))
-                for p in comp_platform
-                if comp_platform[p] > client_platform.get(p, 0.0)
-            ]
-            delta = round(comp_citability - client_citability, 1)
-            platform_note = (
-                " Ahead on: "
-                + ", ".join(PLATFORM_LABELS.get(p, p) for p, _, _ in winning_platforms)
-                + "."
-                if winning_platforms else ""
-            )
-            _dispatch_admin_alert(
-                subject=f"Competitor overtake: {competitor.name} is ahead of {client.name}",
-                html_body=_build_overtake_email(
-                    client, competitor.name, comp_citability, client_citability, delta,
-                    winning_platforms,
-                ),
-                telegram_text=(
-                    f"📉 <b>{html.escape(client.name)}</b>: {html.escape(competitor.name)} now ahead "
-                    f"in AI visibility ({comp_citability:.0f}% vs {client_citability:.0f}%, +{delta:.0f}%)."
-                    f"{html.escape(platform_note)}"
-                ),
-            )
-            db.add(ActivityLog(
-                client_id=client.id,
-                event_type="alert_sent",
-                note=(
-                    f"Competitor overtake alert: {competitor.name} AI visibility "
-                    f"({comp_citability:.0f}%) now exceeds {client.name} ({client_citability:.0f}%). "
-                    f"Delta: +{delta:.0f}%.{platform_note}"
-                ),
-            ))
-            sent = True
+        # but behind overall does not fire.
+        if comp_citability <= client_citability:
+            continue
+        if _was_ahead(previous_rows, shows_competitor):
+            continue
+        winning_platforms = [
+            (p, comp_platform[p], client_platform.get(p, 0.0))
+            for p in comp_platform
+            if comp_platform[p] > client_platform.get(p, 0.0)
+        ]
+        delta = round(comp_citability - client_citability, 1)
+        platform_note = (
+            " Ahead on: "
+            + ", ".join(PLATFORM_LABELS.get(p, p) for p, _, _ in winning_platforms)
+            + "."
+            if winning_platforms else ""
+        )
+        _dispatch_admin_alert(
+            subject=f"Competitor overtake: {competitor.name} is ahead of {client.name}",
+            html_body=_build_overtake_email(
+                client, competitor.name, comp_citability, client_citability, delta,
+                winning_platforms,
+            ),
+            telegram_text=(
+                f"📉 <b>{html.escape(client.name)}</b>: {html.escape(competitor.name)} now ahead "
+                f"in AI visibility ({comp_citability:.0f}% vs {client_citability:.0f}%, +{delta:.0f}%)."
+                f"{html.escape(platform_note)}"
+            ),
+        )
+        db.add(ActivityLog(
+            client_id=client.id,
+            event_type="alert_sent",
+            note=(
+                f"Competitor overtake alert: {competitor.name} AI visibility "
+                f"({comp_citability:.0f}%) now exceeds {client.name} ({client_citability:.0f}%) "
+                f"on the same {len(rows)} discovery answers. "
+                f"Delta: +{delta:.0f}%.{platform_note}"
+            ),
+        ))
+        sent = True
 
     if sent:
         db.commit()
         logger.info("competitor_overtake_alert_sent", client_id=str(client.id))
+
+
+def _discovery_answers(scan_id: uuid.UUID | None, db: Session) -> list[ScanQueryResult]:
+    """The client's own discovery answers for a scan, on scored platforms."""
+    if scan_id is None:
+        return []
+    rows = (
+        db.query(ScanQueryResult)
+        .filter(
+            ScanQueryResult.scan_id == scan_id,
+            ScanQueryResult.competitor_id.is_(None),
+            ScanQueryResult.is_control.is_(False),
+            ScanQueryResult.category.in_(DISCOVERY_CATEGORIES),
+        )
+        .all()
+    )
+    return scored_results(rows)
+
+
+def _previous_scan_id(client_id: uuid.UUID, scan_id: uuid.UUID, db: Session) -> uuid.UUID | None:
+    row = (
+        db.query(Scan.id)
+        .filter(
+            Scan.client_id == client_id,
+            Scan.id != scan_id,
+            Scan.status == "completed",
+        )
+        .order_by(Scan.completed_at.desc())
+        .first()
+    )
+    return row[0] if row else None
+
+
+def _shows(competitor: Competitor):
+    names = brand_names(competitor)
+
+    def shows(row: ScanQueryResult) -> bool:
+        return detect_brand_in_answer(row.response_text, competitor.name, names)
+
+    return shows
+
+
+def _head_to_head(rows: list[ScanQueryResult], seen) -> tuple[float, dict[str, float]]:
+    """(overall %, {platform: %}) of `rows` for which `seen(row)` holds."""
+    if not rows:
+        return 0.0, {}
+    by_platform: dict[str, list[bool]] = {}
+    for row in rows:
+        by_platform.setdefault(row.platform, []).append(seen(row))
+    overall = round(sum(sum(v) for v in by_platform.values()) / len(rows) * 100, 1)
+    return overall, {
+        p: round(sum(v) / len(v) * 100, 1) for p, v in by_platform.items()
+    }
+
+
+def _was_ahead(previous_rows: list[ScanQueryResult], shows_competitor) -> bool:
+    """Whether the competitor already led on the previous scan's answers.
+    False when those answers can't be read (purged raw text, no prior scan)."""
+    readable = [r for r in previous_rows if r.response_text]
+    if not readable:
+        return False
+    client_then, _ = _head_to_head(readable, lambda r: bool(r.brand_detected))
+    comp_then, _ = _head_to_head(readable, shows_competitor)
+    return comp_then > client_then
 
 
 def flag_hallucination(result_id: uuid.UUID, db: Session, expected_scan_id: uuid.UUID | None = None) -> None:
@@ -203,14 +283,6 @@ def notify_budget_exceeded(client: Client, status, db: Session) -> None:
     except Exception:
         db.rollback()
         logger.warning("budget_block_alert_failed", client_id=str(client.id))
-
-
-def _compute_citability(results: list[ScanQueryResult]) -> float:
-    # Overall figure, compared like the score: scored platforms only.
-    results = scored_results(results)
-    if not results:
-        return 0.0
-    return round(sum(1 for r in results if r.brand_detected) / len(results) * 100, 1)
 
 
 def _build_score_drop_email(client: Client, current: float, prev: float) -> str:

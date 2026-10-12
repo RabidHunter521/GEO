@@ -3,6 +3,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import (
+    BRAND_ALIAS_MAX_LENGTH,
+    BRAND_ALIAS_MIN_LENGTH,
+    MAX_BRAND_ALIASES,
     SCAN_PLATFORMS,
     SCORED_PLATFORMS,
     DEFAULT_SCAN_CADENCE_DAYS,
@@ -13,6 +16,31 @@ from app.core.constants import (
 # Lightweight email check — full RFC validation needs the email-validator
 # package, which we deliberately avoid adding for an admin-entered field.
 _EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+def clean_brand_aliases(value: list[str] | None) -> list[str] | None:
+    """Trim, collapse whitespace and de-duplicate (case-insensitively) a list of
+    brand aliases, rejecting ones too short to match safely. Shared by the
+    client and competitor schemas."""
+    if value is None:
+        return None
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in value:
+        alias = " ".join(str(raw).split())
+        if not alias:
+            continue
+        if len(alias) < BRAND_ALIAS_MIN_LENGTH or len(alias) > BRAND_ALIAS_MAX_LENGTH:
+            raise ValueError(
+                f"Each alias must be {BRAND_ALIAS_MIN_LENGTH}-{BRAND_ALIAS_MAX_LENGTH} characters"
+            )
+        if alias.lower() in seen:
+            continue
+        seen.add(alias.lower())
+        cleaned.append(alias)
+    if len(cleaned) > MAX_BRAND_ALIASES:
+        raise ValueError(f"At most {MAX_BRAND_ALIASES} aliases")
+    return cleaned
 
 
 class ClientCreate(BaseModel):
@@ -26,6 +54,8 @@ class ClientCreate(BaseModel):
 
 class ClientUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    # Other names AI answers use for this brand; any of them counts as Seen by AI.
+    brand_aliases: list[str] | None = None
     website: str | None = Field(default=None, min_length=4, max_length=255)
     industry: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
@@ -78,6 +108,12 @@ class ClientUpdate(BaseModel):
     # setattr loop (clients.py writes every parsed field to the row).
     confirm_pack_change: bool = False
 
+    @field_validator("brand_aliases")
+    @classmethod
+    def validate_brand_aliases(cls, value: list[str] | None) -> list[str] | None:
+        # None means "not sent"; the route skips it. An empty list clears them.
+        return clean_brand_aliases(value)
+
     @field_validator("industry_pack")
     @classmethod
     def validate_industry_pack(cls, value: str | None) -> str | None:
@@ -113,6 +149,7 @@ class ClientUpdate(BaseModel):
 class ClientResponse(BaseModel):
     id: uuid.UUID
     name: str
+    brand_aliases: list[str] = []
     website: str
     industry: str
     description: str | None = None
@@ -165,6 +202,12 @@ class ClientResponse(BaseModel):
     @classmethod
     def _unflushed_flag_is_false(cls, v):
         return False if v is None else v
+
+    @field_validator("brand_aliases", mode="before")
+    @classmethod
+    def _unflushed_aliases_are_empty(cls, v):
+        # A stub or not-yet-flushed row has no list here yet.
+        return v if isinstance(v, list) else []
 
 
 class ShareTokenRequest(BaseModel):

@@ -40,6 +40,7 @@ _FACT_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
     "dietary":   (("dietary", "options"),),
     "subject":   (("programme", "offered"),),
     "level":     (("programme", "levels"),),
+    "integration": (("integration", "platforms"),),
 }
 
 # Ordering used when the cap bites: keep what a buyer is closest to acting on.
@@ -252,6 +253,10 @@ def _values_for(
         return [scope.city] if scope.city else []
     if name == "location":
         return [scope.region] if scope.region else []
+    if name == "country":
+        # Client-level, never guessed: a client with no country is simply not
+        # asked the country-pinned questions.
+        return [v for v in [_clean(getattr(client, "country", None))] if v]
     return _fact_values(name, scope, facts)
 
 

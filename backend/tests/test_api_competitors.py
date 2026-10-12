@@ -184,3 +184,46 @@ def test_competitor_endpoints_require_auth(method, path_suffix):
     http = TestClient(app)
     resp = http.request(method, f"/api/v1/clients/{client_id}{path_suffix}", json={})
     assert resp.status_code == 401
+
+
+def test_update_competitor_aliases():
+    app, get_db = _make_app()
+    client_id = uuid.uuid4()
+    fake_c = _fake_client()
+    fake_c.id = client_id
+    comp = _fake_competitor(client_id)
+    comp.brand_aliases = []
+
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_c
+    mock_db.query.return_value.filter.return_value.first.return_value = comp
+    app.dependency_overrides[get_db] = lambda: mock_db
+    http = TestClient(app)
+    resp = http.patch(
+        f"/api/v1/clients/{client_id}/competitors/{comp.id}",
+        json={"brand_aliases": ["Razer Merchant Services", " MOLPay "]},
+    )
+    app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["brand_aliases"] == ["Razer Merchant Services", "MOLPay"]
+    assert comp.brand_aliases == ["Razer Merchant Services", "MOLPay"]
+    mock_db.commit.assert_called_once()
+
+
+def test_update_competitor_404_for_another_clients_competitor():
+    app, get_db = _make_app()
+    client_id = uuid.uuid4()
+    fake_c = _fake_client()
+    fake_c.id = client_id
+    mock_db = MagicMock()
+    mock_db.get.return_value = fake_c
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    app.dependency_overrides[get_db] = lambda: mock_db
+    http = TestClient(app)
+    resp = http.patch(
+        f"/api/v1/clients/{client_id}/competitors/{uuid.uuid4()}",
+        json={"brand_aliases": ["Other"]},
+    )
+    app.dependency_overrides.clear()
+    assert resp.status_code == 404
+    mock_db.commit.assert_not_called()

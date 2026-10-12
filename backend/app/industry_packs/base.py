@@ -62,11 +62,15 @@ ALLOWED_PLACEHOLDERS = frozenset({
     # {specialty}: the templates then read correctly, and an existing pack has
     # no programme.* facts so nothing about it changes.
     "subject", "level",
+    # B2B and online services: buyers shop nationally, so discovery questions
+    # are pinned to the client's country rather than a city; {integration} is
+    # filled from approved integration facts ("Best payment gateway for Shopify").
+    "country", "integration",
 })
 # Placeholders that need a real location to expand. A template using one must
 # declare location_required, so a client with no location is skipped instead of
 # being scanned on "best clinic in {city}".
-LOCATION_PLACEHOLDERS = frozenset({"city", "location", "area"})
+LOCATION_PLACEHOLDERS = frozenset({"city", "location", "area", "country"})
 
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
