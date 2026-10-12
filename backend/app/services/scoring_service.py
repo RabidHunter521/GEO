@@ -1,4 +1,10 @@
-from app.core.constants import SCAN_PLATFORMS, SCORE_BANDS, SCORE_WEIGHTS, SCORED_PLATFORMS
+from app.core.constants import (
+    DISCOVERY_CATEGORIES,
+    SCAN_PLATFORMS,
+    SCORE_BANDS,
+    SCORE_WEIGHTS,
+    SCORED_PLATFORMS,
+)
 
 # Scanned and reported, but not part of AI Citability (see SCORED_PLATFORMS).
 _REPORTED_ONLY = frozenset(SCAN_PLATFORMS) - frozenset(SCORED_PLATFORMS)
@@ -15,34 +21,52 @@ def scored_results(results) -> list:
     return [r for r in results if getattr(r, "platform", None) not in _REPORTED_ONLY]
 
 
+def discovery_results(results) -> list:
+    """Rows from discovery questions only: the buyer did not name the brand
+    (DISCOVERY_CATEGORIES). Order is preserved."""
+    return [r for r in results if getattr(r, "category", None) in DISCOVERY_CATEGORIES]
+
+
 def compute_platform_breakdown(
     query_results: list, failed_platforms: list[str] | None = None
 ) -> dict:
     """Per-platform visibility from client query results only (competitor_id is None).
 
     Returns {platform: {"visibility": float, "queries": int, "detected": int,
-    "status": "ok"|"unavailable", "scored": bool}}. `scored` is False for
-    platforms reported but not in AI Citability (SCORED_PLATFORMS). Surfaces
-    that do not always answer (Google AI Overviews) also carry
+    "status": "ok"|"unavailable", "scored": bool, "basis": str}}. `scored` is
+    False for platforms reported but not in AI Citability (SCORED_PLATFORMS).
+    Surfaces that do not always answer (Google AI Overviews) also carry
     `answers_shown`: how many of `queries` showed an AI answer at all. A
     question with no answer counts in `queries` as Not seen by AI.
+
+    v1.5.0: counted on discovery questions only (DISCOVERY_CATEGORIES), so
+    `queries`/`detected` are the recommendation and local questions and
+    `basis` is "discovery". A platform with no discovery question at all (a
+    client with no location on the legacy templates) falls back to every
+    client question, with `basis` "all_questions", rather than scoring zero.
     """
     breakdown: dict = {}
     client_results = [
         r for r in query_results
         if r.competitor_id is None and not getattr(r, "is_control", False)
     ]
+    by_platform: dict[str, list] = {}
     for result in client_results:
-        entry = breakdown.setdefault(result.platform, {
+        by_platform.setdefault(result.platform, []).append(result)
+    for platform, rows in by_platform.items():
+        discovery = discovery_results(rows)
+        entry = breakdown[platform] = {
             "visibility": 0.0, "queries": 0, "detected": 0, "status": "ok",
-            "scored": result.platform in SCORED_PLATFORMS,
-        })
-        entry["queries"] += 1
-        if result.brand_detected:
-            entry["detected"] += 1
-        shown = getattr(result, "answer_shown", None)
-        if shown is True or shown is False:
-            entry["answers_shown"] = entry.get("answers_shown", 0) + (1 if shown else 0)
+            "scored": platform in SCORED_PLATFORMS,
+            "basis": "discovery" if discovery else "all_questions",
+        }
+        for result in discovery or rows:
+            entry["queries"] += 1
+            if result.brand_detected:
+                entry["detected"] += 1
+            shown = getattr(result, "answer_shown", None)
+            if shown is True or shown is False:
+                entry["answers_shown"] = entry.get("answers_shown", 0) + (1 if shown else 0)
     for entry in breakdown.values():
         entry["visibility"] = round((entry["detected"] / entry["queries"]) * 100, 2)
     for platform in failed_platforms or []:
@@ -61,6 +85,8 @@ def compute_ai_citability(query_results: list, platform_breakdown: dict | None =
     surface never moves the score without a SCORE_VERSION bump. Breakdowns
     written before the `scored` flag hold only scored platforms.
     Falls back to a flat detection ratio when no breakdown is supplied (legacy single-platform data).
+    Since v1.5.0 both paths count discovery questions only (see
+    compute_platform_breakdown), falling back to every question when there are none.
     """
     if platform_breakdown:
         ok_platforms = [
@@ -76,6 +102,7 @@ def compute_ai_citability(query_results: list, platform_breakdown: dict | None =
         if r.competitor_id is None and not getattr(r, "is_control", False)
         and getattr(r, "platform", None) not in _REPORTED_ONLY
     ]
+    client_results = discovery_results(client_results) or client_results
     if not client_results:
         return 0.0
     detected = sum(1 for r in client_results if r.brand_detected)

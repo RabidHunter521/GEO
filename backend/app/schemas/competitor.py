@@ -1,12 +1,32 @@
 import uuid
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.client import clean_brand_aliases
 
 
 class CompetitorCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     website: str | None = Field(default=None, max_length=500)
+    # Other names for the competitor (e.g. a former name after a rebrand).
+    brand_aliases: list[str] = []
+
+    @field_validator("brand_aliases")
+    @classmethod
+    def validate_brand_aliases(cls, value: list[str]) -> list[str]:
+        return clean_brand_aliases(value) or []
+
+
+class CompetitorUpdate(BaseModel):
+    """Aliases only: renaming a competitor would silently re-label its history."""
+
+    brand_aliases: list[str]
+
+    @field_validator("brand_aliases")
+    @classmethod
+    def validate_brand_aliases(cls, value: list[str]) -> list[str]:
+        return clean_brand_aliases(value) or []
 
 
 class CompetitorResponse(BaseModel):
@@ -14,8 +34,15 @@ class CompetitorResponse(BaseModel):
     client_id: uuid.UUID
     name: str
     website: str | None = None
+    brand_aliases: list[str] = []
 
     model_config = {"from_attributes": True}
+
+    @field_validator("brand_aliases", mode="before")
+    @classmethod
+    def _unflushed_aliases_are_empty(cls, v):
+        # A stub or not-yet-flushed row has no list here yet.
+        return v if isinstance(v, list) else []
 
 
 class CompetitorQueryBreakdown(BaseModel):

@@ -48,7 +48,7 @@ def test_methodology_discloses_optional_files_and_uncertainty():
 def test_methodology_documents_manual_review_and_truthful_versioning_limits():
     text = METHODOLOGY.read_text(encoding="utf-8")
     assert DIMENSION_EVIDENCE_LABEL in text
-    assert "v1.4.0 labels newly computed Growth Readiness" in text
+    assert "v1.5.0 labels newly computed Growth Readiness" in text
     # New rows carry their version (migration 1a3fd284901c)...
     assert "carries the version of the method that produced it" in text
     # ...and the doc must stay honest that legacy rows do NOT, rather than

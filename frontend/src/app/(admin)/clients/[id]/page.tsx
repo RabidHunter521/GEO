@@ -211,7 +211,9 @@ export default async function ClientOverviewPage({
                   <p className="mt-0.5 text-xs text-muted-foreground/80">
                     {unavailable
                       ? "Platform did not respond"
-                      : `visibility frequency · ${entry.detected}/${entry.queries} queries`}
+                      : `visibility frequency · ${entry.detected}/${entry.queries} ${
+                          entry.basis === "discovery" ? "discovery queries" : "queries"
+                        }`}
                   </p>
                   {!unavailable && entry.answers_shown !== undefined && (
                     <p className="mt-0.5 text-xs text-muted-foreground/80">

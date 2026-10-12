@@ -1,13 +1,13 @@
 {
   "brand_detection": {
-    "dataset_hash": "3b79c309bb34",
+    "dataset_hash": "a3027c832cb4",
     "metrics": {
-      "accuracy": 0.8421,
-      "false_seen_rate": 0.2,
-      "missed_seen_rate": 0.1111,
+      "accuracy": 1.0,
+      "false_seen_rate": 0.0,
+      "missed_seen_rate": 0.0,
       "regression_failures": 0
     },
     "model": "rules",
-    "prompt_version": "v1.4.0"
+    "prompt_version": "v1.5.0"
   }
 }

@@ -38,9 +38,8 @@ def test_dimension_assessment_row_roundtrips(db):
 
 def test_assessment_constants_present():
     # Version lock — edited by hand only when the score formula genuinely
-    # changes. v1.4.0: verified robots.txt access drives Technical
-    # Foundations, while llms publishing files remain informational.
-    assert constants.SCORE_VERSION == "v1.4.0"
+    # changes. v1.5.0: AI Citability counts discovery questions only.
+    assert constants.SCORE_VERSION == "v1.5.0"
     assert constants.SCORE_DISPLAY_LABEL == "Growth Readiness"
     assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
     assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")

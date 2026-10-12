@@ -82,16 +82,29 @@ and bumping SCORE_VERSION.
 
 | Dimension | Weight | Source |
 |---|---|---|
-| AI Citability | 40% | Automatic — scan engine |
+| AI Citability | 40% | Automatic — scan engine, discovery questions only |
 | Brand Authority | 20% | Assisted — Claude-suggested, admin-reviewed |
 | Content Quality | 20% | Assisted — Claude-suggested, admin-reviewed |
 | Technical Foundations | 10% | Auto — AI Readiness Toolkit verified |
 | Structured Data | 10% | Auto — AI Readiness Toolkit verified |
 
 Manual dimensions must always show label: "Based on public evidence · Reviewed by SeenBy"
-SCORE_VERSION = "v1.4.0" — Technical Foundations is driven by verified
-robots.txt AI-crawler access; llms.txt and llms-full.txt are informational
-publishing assets and do not drive the score.
+SCORE_VERSION = "v1.5.0" — AI Citability counts DISCOVERY questions only
+(`DISCOVERY_CATEGORIES`: recommendation + local), where the buyer asks for
+options without naming the brand. Brand and comparison questions put the name
+in the question, so a known brand was "seen" on nearly all of them whatever its
+real standing (about 8 of 18 legacy questions for a client with 3 competitors);
+they are still scanned and reported, but no longer lift the score. A platform
+with no discovery question at all falls back to every question
+(`platform_breakdown[...]["basis"] == "all_questions"`). Same release: the
+answer stance check stopped treating ordinary comparison hedging ("depending on
+what you need", "difficult to say whether X or Y is better") as a denial, and
+`brand_aliases` on clients and competitors count as the brand. Weights
+unchanged. Expect known brands' AI Citability to FALL on their next scan;
+history is not recomputed and `scores_comparable` marks the boundary.
+(v1.4.0: Technical Foundations is driven by verified robots.txt AI-crawler
+access; llms.txt and llms-full.txt are informational publishing assets and do
+not drive the score.)
 (v1.3.0: AI Citability counts a brand as seen only when an answer mentions it
 for a reason OTHER than denying knowledge of it. Brand-category queries contain
 the brand name, so models echo it back while saying "X does not appear to be a

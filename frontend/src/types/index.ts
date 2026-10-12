@@ -41,6 +41,10 @@ export interface PlatformBreakdownEntry {
   // Surfaces that don't always answer (Google AI Overviews): how many of
   // `queries` showed an AI answer at all.
   answers_shown?: number
+  // v1.5.0+: "discovery" = queries/detected count recommendation + local
+  // questions only; "all_questions" = the client had none, so every question
+  // counted. Absent on older breakdowns (every question counted).
+  basis?: "discovery" | "all_questions"
 }
 
 export type PlatformBreakdown = Partial<Record<Platform, PlatformBreakdownEntry>>
@@ -48,6 +52,8 @@ export type PlatformBreakdown = Partial<Record<Platform, PlatformBreakdownEntry>
 export interface Client {
   id: string
   name: string
+  /** Other names AI answers may use for the brand; any counts as Seen by AI. */
+  brand_aliases: string[]
   website: string
   industry: string
   description: string | null
@@ -120,6 +126,8 @@ export interface Competitor {
   client_id: string
   name: string
   website: string | null
+  /** Other names for the competitor, e.g. a former name after a rebrand. */
+  brand_aliases: string[]
 }
 
 // Guarantee engine — a written commitment: baseline → target by deadline.

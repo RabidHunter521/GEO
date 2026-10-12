@@ -12,7 +12,7 @@
  * never render, and copying them would double the drift surface for nothing.
  */
 
-export type PackKey = "healthcare" | "fnb" | "local_services" | "education"
+export type PackKey = "healthcare" | "fnb" | "local_services" | "education" | "b2b_services"
 
 /** Mirrors TruthFieldDefinition.value_type in app/industry_packs/base.py. */
 export type FactValueType = "text" | "boolean" | "number" | "url" | "list" | "hours"
@@ -166,7 +166,39 @@ const EDUCATION: PackDefinition = {
   ],
 }
 
-export const INDUSTRY_PACKS: readonly PackDefinition[] = [HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION]
+const B2B_SERVICES: PackDefinition = {
+  key: "b2b_services",
+  label: "B2B & Online Services",
+  subcategories: [
+    "payment_gateway", "business_software", "sme_financing", "professional_services", "logistics", "other_b2b",
+  ],
+  fields: [
+    { factType: "service", key: "catalog", label: "Products or services offered", valueType: "list", scope: "brand", required: true },
+    { factType: "service", key: "specialisations", label: "Specialisations", valueType: "list", scope: "brand" },
+    { factType: "service", key: "exclusions", label: "Products or services explicitly not offered", valueType: "list", scope: "brand" },
+    { factType: "market", key: "countries", label: "Countries served", valueType: "list", scope: "brand", required: true },
+    { factType: "market", key: "customer_segments", label: "Customer segments served", valueType: "list", scope: "brand" },
+    { factType: "pricing", key: "model", label: "Pricing model", valueType: "text", scope: "brand", required: true },
+    { factType: "pricing", key: "published_rates", label: "Published fees or rates", valueType: "text", scope: "brand" },
+    { factType: "pricing", key: "setup_fee", label: "Setup fee", valueType: "text", scope: "brand" },
+    { factType: "integration", key: "platforms", label: "Platforms it integrates with", valueType: "list", scope: "brand" },
+    { factType: "integration", key: "api_available", label: "Public API available", valueType: "boolean", scope: "brand" },
+    { factType: "payment", key: "methods_supported", label: "Payment methods supported", valueType: "list", scope: "brand", riskSensitive: true },
+    { factType: "payment", key: "settlement_time", label: "Typical settlement time", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "regulatory", key: "licences", label: "Licences and regulatory approvals held", valueType: "list", scope: "brand", riskSensitive: true },
+    { factType: "regulatory", key: "regulator", label: "Regulator", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "security", key: "certifications", label: "Security certifications (e.g. PCI DSS)", valueType: "list", scope: "brand", riskSensitive: true },
+    { factType: "support", key: "channels", label: "Support channels", valueType: "list", scope: "brand" },
+    { factType: "support", key: "hours", label: "Support hours", valueType: "text", scope: "brand" },
+    { factType: "onboarding", key: "time", label: "Typical onboarding time", valueType: "text", scope: "brand" },
+    { factType: "company", key: "parent", label: "Parent company", valueType: "text", scope: "brand" },
+    { factType: "company", key: "founded", label: "Year founded", valueType: "text", scope: "brand" },
+  ],
+}
+
+export const INDUSTRY_PACKS: readonly PackDefinition[] = [
+  HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION, B2B_SERVICES,
+]
 
 export const PACK_KEYS: readonly PackKey[] = INDUSTRY_PACKS.map((pack) => pack.key)
 

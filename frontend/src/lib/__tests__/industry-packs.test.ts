@@ -18,7 +18,7 @@ const SCOPES = ["brand", "location", "either"]
 
 describe("catalog shape", () => {
   it("has exactly the four supported packs", () => {
-    expect(PACK_KEYS).toEqual(["healthcare", "fnb", "local_services", "education"])
+    expect(PACK_KEYS).toEqual(["healthcare", "fnb", "local_services", "education", "b2b_services"])
   })
 
   it("gives every pack a non-empty, unique set of subcategories", () => {

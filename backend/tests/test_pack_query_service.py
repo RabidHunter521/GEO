@@ -536,7 +536,7 @@ def test_every_fact_backed_placeholder_has_a_source_mapping():
     from app.industry_packs.base import placeholders_in
     from app.services.pack_query_service import _FACT_SOURCES
 
-    from_client = {"brand", "competitor", "industry", "city", "location", "area"}
+    from_client = {"brand", "competitor", "industry", "city", "location", "area", "country"}
     missing = [
         (pack.key, template.id, placeholder)
         for pack in registry.all_packs()

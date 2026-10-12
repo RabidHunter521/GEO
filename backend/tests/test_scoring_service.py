@@ -32,8 +32,9 @@ def test_citability_ignores_competitor_queries():
     assert compute_ai_citability(client_results + competitor_results) == 100.0
 
 
-def _result(platform, detected, competitor_id=None):
-    return MagicMock(platform=platform, brand_detected=detected, competitor_id=competitor_id, is_control=False)
+def _result(platform, detected, competitor_id=None, category="recommendation"):
+    return MagicMock(platform=platform, brand_detected=detected, competitor_id=competitor_id,
+                     is_control=False, category=category)
 
 
 def test_platform_breakdown_per_platform_visibility():
@@ -42,8 +43,43 @@ def test_platform_breakdown_per_platform_visibility():
         _result("claude", True), _result("claude", True),
     ]
     breakdown = compute_platform_breakdown(results)
-    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok", "scored": True}
-    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok", "scored": True}
+    assert breakdown["gemini"] == {"visibility": 50.0, "queries": 2, "detected": 1, "status": "ok",
+                                   "scored": True, "basis": "discovery"}
+    assert breakdown["claude"] == {"visibility": 100.0, "queries": 2, "detected": 2, "status": "ok",
+                                   "scored": True, "basis": "discovery"}
+
+
+def test_platform_breakdown_counts_discovery_questions_only():
+    """v1.5.0: brand and comparison questions name the brand, so a known brand
+    is "seen" there almost by default. They must not lift visibility."""
+    results = [
+        _result("chatgpt", True, category="brand"),
+        _result("chatgpt", True, category="brand"),
+        _result("chatgpt", True, category="comparison"),
+        _result("chatgpt", False, category="recommendation"),
+        _result("chatgpt", True, category="local"),
+        _result("chatgpt", False, category="local"),
+    ]
+    entry = compute_platform_breakdown(results)["chatgpt"]
+    assert entry["queries"] == 3
+    assert entry["detected"] == 1
+    assert entry["visibility"] == 33.33
+    assert entry["basis"] == "discovery"
+    assert compute_ai_citability(results) == 33.33
+
+
+def test_platform_breakdown_falls_back_when_there_is_no_discovery_question():
+    """A legacy client with no location has no recommendation/local questions;
+    scoring zero would misstate them, so every question counts instead."""
+    results = [
+        _result("chatgpt", True, category="brand"),
+        _result("chatgpt", False, category="comparison"),
+    ]
+    entry = compute_platform_breakdown(results)["chatgpt"]
+    assert entry["queries"] == 2
+    assert entry["visibility"] == 50.0
+    assert entry["basis"] == "all_questions"
+    assert compute_ai_citability(results) == 50.0
 
 
 def test_platform_breakdown_ignores_competitor_results():

@@ -8,7 +8,7 @@ Lookups that the request path depends on — version stamping and subcategory
 validation — DEGRADE for an unregistered key rather than raising, so the admin
 API cannot 500 on a pack whose module has not landed yet.
 `test_every_supported_pack_key_is_actually_registered` in
-test_local_services_pack.py asserts that all four supported keys really are
+test_local_services_pack.py asserts that every supported key really is
 registered, which is what turns that graceful degradation back into a hard
 guarantee.
 """

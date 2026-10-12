@@ -27,7 +27,7 @@ from app.models.tracked_query import TrackedQuery
 from app.services.platform_clients import get_platform_client
 from app.services.platform_clients.base import PlatformResult
 from app.services.cost_tracker import record_llm_usage
-from app.services.brand_detection import detect_brand_in_answer
+from app.services.brand_detection import brand_names, detect_brand_in_answer, name_in_text
 from app.services.position_extraction import extract_position
 from app.services.provenance_service import normalize_domain
 from app.services.query_builder import build_client_queries, build_competitor_queries, build_control_queries
@@ -181,14 +181,18 @@ def _run_platform_queries(
         result = platform_client.query(q["query_text"])
         usages.append(result)
         response_text = result.text
-        detected = detect_brand_in_answer(response_text, client.name)
+        detected = detect_brand_in_answer(response_text, client.name, brand_names(client))
 
         # Recommendation Position — only for ranked-list categories where the brand appears.
         # Isolated so an extraction failure leaves position None and never fails the scan.
         position = None
         if detected and q["category"] in _RANKED_CATEGORIES:
             try:
-                position = extract_position(response_text, client.name, client_id=client.id)
+                position = extract_position(
+                    response_text,
+                    name_in_text(response_text, brand_names(client)) or client.name,
+                    client_id=client.id,
+                )
             except Exception as exc:
                 logger.error(
                     "position_extraction_failed",
@@ -241,12 +245,16 @@ def _run_platform_queries(
             continue
         usages.append(result)
         response_text = result.text
-        detected = detect_brand_in_answer(response_text, client.name)
+        detected = detect_brand_in_answer(response_text, client.name, brand_names(client))
 
         position = None
         if detected and q["category"] in _RANKED_CATEGORIES:
             try:
-                position = extract_position(response_text, client.name, client_id=client.id)
+                position = extract_position(
+                    response_text,
+                    name_in_text(response_text, brand_names(client)) or client.name,
+                    client_id=client.id,
+                )
             except Exception as exc:
                 logger.error(
                     "position_extraction_failed",
@@ -292,7 +300,7 @@ def _run_platform_queries(
             category=q["category"],
             query_text=q["query_text"],
             response_text=result.text,
-            brand_detected=detect_brand_in_answer(result.text, client.name),
+            brand_detected=detect_brand_in_answer(result.text, client.name, brand_names(client)),
             is_control=True,
             answer_shown=result.answer_shown,
         ))
@@ -303,7 +311,7 @@ def _run_platform_queries(
             result = platform_client.query(q["query_text"])
             usages.append(result)
             response_text = result.text
-            detected = detect_brand_in_answer(response_text, competitor.name)
+            detected = detect_brand_in_answer(response_text, competitor.name, brand_names(competitor))
             results.append(ScanQueryResult(
                 scan_id=scan.id,
                 platform=platform,

@@ -36,6 +36,7 @@ import {
   addCompetitorAction,
   addControlQueryAction,
   deleteCompetitorAction,
+  updateCompetitorAliasesAction,
   toggleControlQueryAction,
 } from "@/app/(admin)/clients/actions"
 import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
@@ -54,6 +55,77 @@ interface Props {
   contentRecommendation?: string | null
   trafficHistory: AiTrafficSnapshot[]
   controlQueries: ControlQuery[]
+}
+
+/** "A, B ,, C" -> ["A", "B", "C"]. The API trims, de-duplicates and validates. */
+export function parseAliases(raw: FormDataEntryValue | null): string[] {
+  return String(raw ?? "")
+    .split(",")
+    .map((alias) => alias.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Other names for one competitor. Saves on its own like the rest of the
+ * competitor list, so the input has no `name` and never dirties the main form.
+ */
+function CompetitorAliases({
+  clientId,
+  competitor,
+  onSaved,
+  onError,
+}: {
+  clientId: string
+  competitor: Competitor
+  onSaved: (updated: Competitor) => void
+  onError: (message: string | null) => void
+}) {
+  const initial = (competitor.brand_aliases ?? []).join(", ")
+  const [value, setValue] = useState(initial)
+  const [saving, setSaving] = useState(false)
+  const inputId = `comp-aliases-${competitor.id}`
+
+  async function save() {
+    onError(null)
+    setSaving(true)
+    try {
+      const updated = await updateCompetitorAliasesAction(clientId, competitor.id, parseAliases(value))
+      onSaved(updated)
+      setValue((updated.brand_aliases ?? []).join(", "))
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to save competitor aliases.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <span className="flex items-center gap-2">
+      <Label htmlFor={inputId} className="sr-only">
+        Other names for {competitor.name}
+      </Label>
+      <Input
+        id={inputId}
+        value={value}
+        onChange={(e) => {
+          e.stopPropagation()
+          setValue(e.target.value)
+        }}
+        placeholder="Other names, comma-separated (e.g. a former name)"
+        className="h-7 text-xs"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-7"
+        onClick={save}
+        disabled={saving || value === initial}
+      >
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+      </Button>
+    </span>
+  )
 }
 
 function currentMonthPeriod(): string {
@@ -271,6 +343,7 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       try {
         await updateClientAction(client.id, {
           name: fd.get("name") as string,
+          brand_aliases: parseAliases(fd.get("brand_aliases")),
           website: fd.get("website") as string,
           industry: fd.get("industry") as string,
           description: (fd.get("description") as string) || undefined,
@@ -427,6 +500,21 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           <div className="col-span-2 space-y-1">
             <Label htmlFor="s-name">Brand name</Label>
             <Input id="s-name" name="name" defaultValue={client.name} required />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="s-aliases">Other names AI may use</Label>
+            <Input
+              id="s-aliases"
+              name="brand_aliases"
+              defaultValue={(client.brand_aliases ?? []).join(", ")}
+              placeholder="e.g. Razorpay Curlec, Curlec by Razorpay"
+              aria-describedby="s-aliases-help"
+            />
+            <p id="s-aliases-help" className="text-xs text-muted-foreground">
+              Comma-separated, up to 5. An answer using any of these names counts as
+              Seen by AI. Scan questions still use the brand name. Applies from the
+              next scan.
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="s-website">Website</Label>
@@ -817,11 +905,21 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                 key={c.id}
                 className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
               >
-                <span>
-                  <span className="font-medium">{c.name ?? "Unnamed competitor"}</span>
-                  {c.website && (
-                    <span className="text-muted-foreground ml-2">{c.website}</span>
-                  )}
+                <span className="min-w-0 flex-1 space-y-1">
+                  <span className="block">
+                    <span className="font-medium">{c.name ?? "Unnamed competitor"}</span>
+                    {c.website && (
+                      <span className="text-muted-foreground ml-2">{c.website}</span>
+                    )}
+                  </span>
+                  <CompetitorAliases
+                    clientId={client.id}
+                    competitor={c}
+                    onSaved={(updated) =>
+                      setCompetitors((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))
+                    }
+                    onError={setError}
+                  />
                 </span>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
