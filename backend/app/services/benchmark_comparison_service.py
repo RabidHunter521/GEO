@@ -47,6 +47,8 @@ PACK_LABELS = {
     "b2b_services": "B2B and online service businesses",
     "property": "property and real estate businesses",
     "ecommerce": "retail and e-commerce businesses",
+    "hospitality": "hospitality and travel businesses",
+    "automotive": "automotive businesses",
 }
 SCALE_LABELS = {
     "single_location": "single-location",

@@ -11,6 +11,8 @@ export const INDUSTRIES = [
   "Real Estate",
   "Food & Beverage",
   "Retail",
+  "Hospitality",
+  "Automotive",
   "Other",
 ] as const
 
