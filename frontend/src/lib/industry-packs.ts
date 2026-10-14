@@ -14,7 +14,7 @@
 
 export type PackKey =
   | "healthcare" | "fnb" | "local_services" | "education" | "b2b_services"
-  | "property" | "ecommerce" | "hospitality" | "automotive"
+  | "property" | "ecommerce" | "hospitality" | "automotive" | "financial_services"
 
 /** Mirrors TruthFieldDefinition.value_type in app/industry_packs/base.py. */
 export type FactValueType = "text" | "boolean" | "number" | "url" | "list" | "hours"
@@ -290,9 +290,32 @@ const AUTOMOTIVE: PackDefinition = {
   ],
 }
 
+const FINANCIAL_SERVICES: PackDefinition = {
+  key: "financial_services",
+  label: "Insurance & Consumer Finance",
+  subcategories: [
+    "insurer", "takaful_operator", "insurance_agency", "financial_adviser", "consumer_lender", "other_finance",
+  ],
+  fields: [
+    { factType: "product", key: "categories", label: "Products offered (e.g. medical card, car insurance, personal loan)", valueType: "list", scope: "brand", required: true },
+    { factType: "product", key: "coverage", label: "Key coverage or product terms", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "product", key: "eligibility", label: "Eligibility (e.g. age, minimum income)", valueType: "text", scope: "brand" },
+    { factType: "product", key: "panel_hospitals", label: "Panel hospitals or partner network", valueType: "list", scope: "brand" },
+    { factType: "pricing", key: "price_range", label: "Premium or fee range", valueType: "text", scope: "brand" },
+    { factType: "pricing", key: "interest_rate", label: "Interest or profit rate", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "claims", key: "process", label: "How to make a claim", valueType: "text", scope: "brand" },
+    { factType: "claims", key: "turnaround", label: "Typical claim turnaround", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "regulatory", key: "licences", label: "Licences and regulatory approvals held", valueType: "list", scope: "brand", riskSensitive: true },
+    { factType: "regulatory", key: "regulator", label: "Regulator", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "registration", key: "representative_licence", label: "Agent or representative registration number", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "shariah", key: "status", label: "Shariah status (e.g. takaful, Islamic financing)", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "company", key: "parent", label: "Parent company or underwriter", valueType: "text", scope: "brand" },
+  ],
+}
+
 export const INDUSTRY_PACKS: readonly PackDefinition[] = [
   HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION, B2B_SERVICES, PROPERTY, ECOMMERCE,
-  HOSPITALITY, AUTOMOTIVE,
+  HOSPITALITY, AUTOMOTIVE, FINANCIAL_SERVICES,
 ]
 
 export const PACK_KEYS: readonly PackKey[] = INDUSTRY_PACKS.map((pack) => pack.key)
@@ -314,9 +337,10 @@ export const SUGGESTED_PACK_BY_INDUSTRY: Record<string, PackKey | null> = {
   Education: "education",
   Technology: "b2b_services",
   SaaS: "b2b_services",
-  // Consumer finance (insurers, advisers) is not what the B2B pack asks about;
-  // only SME-facing finance is, so this is left for the admin to decide.
-  Finance: null,
+  // Most "Finance" clients sell to consumers (insurers, advisers, lenders).
+  // SME-facing finance (payment gateways, business loans) is B2B instead.
+  Finance: "financial_services",
+  Insurance: "financial_services",
   "E-commerce": "ecommerce",
   "Real Estate": "property",
   Retail: "ecommerce",

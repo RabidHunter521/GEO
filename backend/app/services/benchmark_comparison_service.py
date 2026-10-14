@@ -49,6 +49,7 @@ PACK_LABELS = {
     "ecommerce": "retail and e-commerce businesses",
     "hospitality": "hospitality and travel businesses",
     "automotive": "automotive businesses",
+    "financial_services": "insurance and consumer finance businesses",
 }
 SCALE_LABELS = {
     "single_location": "single-location",
