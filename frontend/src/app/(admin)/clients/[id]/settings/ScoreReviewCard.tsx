@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
-import type { AssessmentDimension, DimensionAssessment, DimensionReviewStatus } from "@/types"
+import type {
+  AssessmentCriterion, AssessmentDimension, DimensionAssessment, DimensionReviewStatus,
+} from "@/types"
 import { acceptAssessmentAction, assessmentStatusAction, generateAssessmentAction } from "./actions"
 
 // Mirror ASSESSMENT_MIN_REASON_CHARS / ASSESSMENT_MAX_BULLETS / ASSESSMENT_REVIEW_DAYS
@@ -23,6 +25,12 @@ const LABELS: Record<AssessmentDimension, string> = {
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })
+}
+
+const BASIS_LABELS: Record<string, string> = {
+  measured: "Measured",
+  recorded: "Recorded",
+  judged: "Researched",
 }
 
 function bulletsFrom(text: string): string[] {
@@ -68,6 +76,7 @@ function DimensionReview({
 }: { clientId: string; item: DimensionReviewStatus; onSaved: () => Promise<void> }) {
   const [draft, setDraft] = useState<DimensionAssessment | null>(null)
   const [score, setScore] = useState("")
+  const [points, setPoints] = useState<Record<string, string>>({})
   const [evidence, setEvidence] = useState("")
   const [reason, setReason] = useState("")
   const [busy, setBusy] = useState(false)
@@ -81,6 +90,7 @@ function DimensionReview({
       const suggestion = await generateAssessmentAction(clientId, item.dimension)
       setDraft(suggestion)
       setScore(String(suggestion.suggested_score))
+      setPoints(Object.fromEntries((suggestion.criteria ?? []).map((c) => [c.key, String(c.points)])))
       setEvidence(suggestion.evidence_bullets.join("\n"))
       setReason("")
     } catch {
@@ -90,10 +100,25 @@ function DimensionReview({
     }
   }
 
+  const checklist: AssessmentCriterion[] = draft?.criteria ?? []
+  const pointValue = (c: AssessmentCriterion) => Number(points[c.key] ?? c.points)
+  const checklistTotal = checklist.reduce((sum, c) => sum + (Number.isFinite(pointValue(c)) ? pointValue(c) : 0), 0)
+
   async function save() {
     if (!draft) return
-    const n = Number(score)
-    if (score.trim() === "" || !Number.isInteger(n) || n < 0 || n > 100) {
+    let n = Number(score)
+    let pointsChanged = false
+    if (checklist.length > 0) {
+      for (const c of checklist) {
+        const p = pointValue(c)
+        if (!Number.isInteger(p) || p < 0 || p > c.max) {
+          setError(`${c.label}: enter a whole number from 0 to ${c.max}.`)
+          return
+        }
+        if (p !== c.points) pointsChanged = true
+      }
+      n = checklistTotal
+    } else if (score.trim() === "" || !Number.isInteger(n) || n < 0 || n > 100) {
       setError("Enter a whole number from 0 to 100.")
       return
     }
@@ -107,7 +132,8 @@ function DimensionReview({
       return
     }
     const changed =
-      n !== draft.suggested_score || bullets.join("\n") !== draft.evidence_bullets.join("\n")
+      pointsChanged || n !== draft.suggested_score
+      || bullets.join("\n") !== draft.evidence_bullets.join("\n")
     if (changed && reason.trim().length < MIN_REASON_CHARS) {
       setError(`You changed the suggestion. Say why (at least ${MIN_REASON_CHARS} characters).`)
       return
@@ -116,7 +142,10 @@ function DimensionReview({
     setError(null)
     try {
       await acceptAssessmentAction(clientId, item.dimension, {
-        finalScore: n,
+        finalScore: checklist.length > 0 ? null : n,
+        points: checklist.length > 0
+          ? Object.fromEntries(checklist.map((c) => [c.key, pointValue(c)]))
+          : null,
         bullets,
         reason: changed ? reason.trim() : null,
       })
@@ -138,7 +167,9 @@ function DimensionReview({
         </div>
         {item.review_due && (
           <Badge variant="outline" className="border-amber-500/50 text-amber-600">
-            {item.due_reason === "stale" ? "Review due" : "Not yet reviewed"}
+            {item.due_reason === "stale"
+              ? "Review due"
+              : item.due_reason === "method_changed" ? "Re-review: new checklist" : "Not yet reviewed"}
           </Badge>
         )}
       </div>
@@ -152,6 +183,16 @@ function DimensionReview({
           {item.evidence.map((line) => <li key={line}>{line}</li>)}
         </ul>
       )}
+      {item.criteria && item.criteria.length > 0 && (
+        <ul className="space-y-0.5 text-xs">
+          {item.criteria.map((c) => (
+            <li key={c.key} className="flex justify-between gap-2">
+              <span className="text-muted-foreground">{c.label}</span>
+              <span className="tabular-nums">{c.final_points ?? c.points}/{c.max}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {item.adjustment_reason && (
         <p className="text-xs text-muted-foreground">Changed from the suggestion: {item.adjustment_reason}</p>
       )}
@@ -162,14 +203,42 @@ function DimensionReview({
         </Button>
       ) : (
         <div className="space-y-2 rounded-md border bg-muted/20 p-3 text-sm">
-          <p className="font-medium">Suggested: {draft.suggested_score}</p>
-          <div className="space-y-1">
-            <Label htmlFor={`${anchor}-score`}>Score (0–100)</Label>
-            <Input
-              id={`${anchor}-score`} className="w-24" inputMode="numeric"
-              value={score} onChange={(e) => setScore(e.target.value)}
-            />
-          </div>
+          <p className="font-medium">
+            Suggested: {draft.suggested_score}
+            {checklist.length > 0 && checklistTotal !== draft.suggested_score && (
+              <span className="font-normal text-muted-foreground"> · your total: {checklistTotal}</span>
+            )}
+          </p>
+          {checklist.length > 0 ? (
+            <ul className="divide-y rounded-md border bg-background">
+              {checklist.map((c) => (
+                <li key={c.key} className="space-y-1 px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium">{c.label}</span>
+                    <span className="flex items-center gap-1.5">
+                      <Badge variant="outline">{BASIS_LABELS[c.basis] ?? c.basis}</Badge>
+                      <Input
+                        aria-label={`${c.label} points`} className="h-8 w-16" inputMode="numeric"
+                        value={points[c.key] ?? String(c.points)}
+                        onChange={(e) => setPoints((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                      />
+                      <span className="text-xs text-muted-foreground">/ {c.max}</span>
+                    </span>
+                  </div>
+                  {c.evidence && <p className="text-xs text-muted-foreground">{c.evidence}</p>}
+                  {c.admin_hint && <p className="text-xs text-amber-700 dark:text-amber-400">{c.admin_hint}</p>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="space-y-1">
+              <Label htmlFor={`${anchor}-score`}>Score (0–100)</Label>
+              <Input
+                id={`${anchor}-score`} className="w-24" inputMode="numeric"
+                value={score} onChange={(e) => setScore(e.target.value)}
+              />
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor={`${anchor}-evidence`}>Evidence shown to the client (one point per line)</Label>
             <Textarea

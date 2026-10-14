@@ -34,6 +34,10 @@ def _suggest(db, c, dimension="brand_authority", score=58):
     db.add(DimensionAssessment(
         client_id=c.id, dimension=dimension, suggested_score=score,
         evidence_bullets=["Listed on Google with 40 reviews"], status="suggested",
+        criteria=[{
+            "key": "third_party_coverage", "label": "Coverage", "max": 100, "basis": "judged",
+            "points": score, "final_points": None, "evidence": None, "admin_hint": None,
+        }],
     ))
     db.commit()
 
@@ -64,15 +68,17 @@ def test_accept_without_reason_for_a_change_is_422(api, db):
     c = _client(db)
     _suggest(db, c)
     url = f"/api/v1/clients/{c.id}/assessments/brand_authority/accept"
-    r = api.post(url, headers=owner_headers(), json={"final_score": 70})
+    r = api.post(url, headers=owner_headers(), json={"points": {"third_party_coverage": 70}})
     assert r.status_code == 422
     r = api.post(
         url, headers=owner_headers(),
-        json={"final_score": 70, "reason": "Two national press features found"},
+        json={"points": {"third_party_coverage": 70}, "reason": "Two national press features found"},
     )
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["status"] == "adjusted"
+    assert body["final_score"] == 70
+    assert body["criteria"][0]["final_points"] == 70
     assert body["adjustment_reason"] == "Two national press features found"
     assert body["reviewed_by"]
 

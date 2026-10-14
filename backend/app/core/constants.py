@@ -1,7 +1,11 @@
 # backend/app/core/constants.py
 from typing import Final
 
-SCORE_VERSION: Final = "v1.5.0"
+# v1.6.0: Brand Authority and Content Quality are scored on a fixed points
+# checklist (ASSESSMENT_RUBRICS) instead of one free number. Measured criteria
+# come from data SeenBy holds; one judged criterion per dimension comes from a
+# web-search review. An admin still accepts every score. Weights unchanged.
+SCORE_VERSION: Final = "v1.6.0"
 SCORE_DISPLAY_LABEL: Final = "Growth Readiness"
 
 # Shown wherever a score delta spans a formula change (see
@@ -46,6 +50,41 @@ ASSESSMENT_REVIEW_DAYS: Final = 90
 ASSESSMENT_MIN_REASON_CHARS: Final = 10
 # Evidence an admin may publish for one dimension.
 ASSESSMENT_MAX_BULLETS: Final = 6
+
+# The points checklist behind Brand Authority and Content Quality (v1.6.0).
+# Each dimension's criteria sum to 100. basis: "measured" = computed from data
+# SeenBy collects (scans, audits, crawls, verified listings); "recorded" = a
+# figure staff entered from a public source (review counts); "judged" = a
+# web-search review against fixed bands. The admin accepts every total, and any
+# change to a criterion's points needs a reason. Read by assessment_rubric
+# (scoring) and methodology_service (what clients are told), never retyped.
+ASSESSMENT_RUBRICS: Final = {
+    "brand_authority": (
+        {"key": "directory_presence", "max": 25, "basis": "measured",
+         "label": "Key directory and social listings live and verified"},
+        {"key": "ai_source_presence", "max": 25, "basis": "measured",
+         "label": "Sites AI answers draw on that name the business"},
+        {"key": "brand_recognition", "max": 15, "basis": "measured",
+         "label": "AI recognises the business when asked about it by name"},
+        {"key": "reviews", "max": 15, "basis": "recorded",
+         "label": "Review volume and rating"},
+        {"key": "third_party_coverage", "max": 20, "basis": "judged",
+         "label": "Press, industry and independent coverage"},
+    ),
+    "content_quality": (
+        {"key": "page_readability", "max": 40, "basis": "measured",
+         "label": "Key pages are easy for AI to read and reuse"},
+        {"key": "topic_coverage", "max": 20, "basis": "measured",
+         "label": "Covers the topics buyers ask about"},
+        {"key": "content_depth", "max": 20, "basis": "measured",
+         "label": "FAQs, articles and depth of content"},
+        {"key": "expertise", "max": 20, "basis": "judged",
+         "label": "Expertise and trust signals (named experts, credentials, original information)"},
+    ),
+}
+# Listings scored by directory_presence for a client with no industry pack
+# (a packed client uses its pack's priority_asset_keys).
+DEFAULT_CORE_AUTHORITY_ASSETS: Final = ("gbp", "facebook", "linkedin", "instagram")
 
 SCORE_BANDS: Final = {
     "excellent":  (80, 100),

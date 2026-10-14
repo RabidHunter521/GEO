@@ -104,7 +104,12 @@ export async function generateAssessmentAction(
 export async function acceptAssessmentAction(
   clientId: string,
   dimension: AssessmentDimension,
-  review: { finalScore: number | null; bullets?: string[] | null; reason?: string | null },
+  review: {
+    finalScore: number | null
+    bullets?: string[] | null
+    reason?: string | null
+    points?: Record<string, number> | null
+  },
 ) {
   const saved = await acceptAssessment(clientId, dimension, review)
   revalidatePath(`/clients/${clientId}`)

@@ -37,6 +37,12 @@ class DimensionAssessment(Base):
     reviewed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     adjustment_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     final_bullets: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # The points checklist behind the score (SCORE_VERSION v1.6.0+): one entry
+    # per ASSESSMENT_RUBRICS criterion with key, label, max, basis, points
+    # (suggested), final_points (None until reviewed, or the admin's override),
+    # evidence (client-safe) and admin_hint (admin-only). None on rows written
+    # before the checklist; those are flagged for re-review.
+    criteria: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     @property
     def shown_bullets(self) -> list:

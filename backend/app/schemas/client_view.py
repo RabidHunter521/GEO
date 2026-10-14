@@ -438,6 +438,13 @@ class ClientViewActivity(BaseModel):
     created_at: datetime
 
 
+class ClientViewMethodologyCriterion(BaseModel):
+    """One item of a reviewed dimension's points checklist."""
+    label: str
+    max_points: int
+    basis: str
+
+
 class ClientViewMethodologyDimension(BaseModel):
     """One scored dimension, with how it is produced stated plainly."""
     key: str
@@ -446,6 +453,7 @@ class ClientViewMethodologyDimension(BaseModel):
     basis: str  # "measured" | "reviewed"
     description: str
     evidence_label: str | None = None
+    criteria: list[ClientViewMethodologyCriterion] = []
 
 
 class ClientViewMethodology(BaseModel):

@@ -14,7 +14,9 @@ Accuracy and Reputation records potential conflicts between observed model answe
 
 ### Growth Readiness
 
-Growth Readiness is the current composite leading indicator. In version v1.5.0, it combines AI citability (40%), brand authority (20%), content quality (20%), verified robots.txt AI-crawler access (10%), and verified structured data (10%). Brand Authority and Content Quality always use the label “Based on public evidence · Reviewed by SeenBy”. Growth Readiness is returned as `overall_score` in the current API; it is not a measure of confirmed traffic, leads, or revenue.
+Growth Readiness is the current composite leading indicator. In version v1.6.0, it combines AI citability (40%), brand authority (20%), content quality (20%), verified robots.txt AI-crawler access (10%), and verified structured data (10%). Brand Authority and Content Quality always use the label “Based on public evidence · Reviewed by SeenBy”, and only once a person has reviewed the score; until then they read “Not yet reviewed”.
+
+Since v1.6.0, Brand Authority and Content Quality are each scored on a fixed 100-point checklist (`ASSESSMENT_RUBRICS`). Brand Authority: key directory and social listings live and verified (25), sites AI answers draw on that name the business (25), AI recognising the business when asked about it by name (15), review volume and rating from public review sites (15), and press, industry and independent coverage (20). Content Quality: how easily key pages can be read and reused by AI, from page audits (40), coverage of the topics buyers ask about (20), FAQs, articles and depth of content from a read of the site (20), and expertise and trust signals (20). The coverage and expertise items are researched with web search against fixed point bands; every other item is computed from data SeenBy holds, and an item with no data yet scores zero rather than being estimated. A person accepts every total, and any change to an item's points or to the published evidence requires a written reason. Reviews older than 90 days are flagged for renewal. Growth Readiness is returned as `overall_score` in the current API; it is not a measure of confirmed traffic, leads, or revenue.
 
 ### Business Impact
 
@@ -58,7 +60,7 @@ Where a client has an average deal value, SeenBy estimates pipeline from AI-refe
 
 ## Versioning
 
-v1.5.0 labels newly computed Growth Readiness. Every score row now carries the version of the method that produced it. Rows written before that record was introduced carry no version; their exact method cannot be established, so they are treated as not comparable to a current score rather than assumed to share its method.
+v1.6.0 labels newly computed Growth Readiness. Brand Authority and Content Quality only take checklist values once a person re-reviews them, so for a short period after v1.6.0 a client's score can still carry a pre-checklist review; those dimensions are flagged for re-review. Every score row now carries the version of the method that produced it. Rows written before that record was introduced carry no version; their exact method cannot be established, so they are treated as not comparable to a current score rather than assumed to share its method.
 
 Historical rows retain their originally computed values; they are not recomputed when the method changes. Where a score and the one before it came from different versions, SeenBy states this in the weekly update and the monthly report, and does not present the difference as a change in the client's standing. The same applies when the set of scored platforms that answered differs between the two scans (one unavailable, or switched on or off), because AI Citability averages the platforms that answered.
 

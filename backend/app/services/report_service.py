@@ -802,7 +802,7 @@ def _methodology_appendix_html() -> str:
         f"<tr><td>{html.escape(d['label'])}</td>"
         f"<td class=\"num\">{d['weight_percent']}%</td>"
         f"<td>{'Checked automatically' if d['basis'] == 'measured' else 'Reviewed by a person'}</td>"
-        f"<td>{html.escape(d['description'])}</td></tr>"
+        f"<td>{html.escape(d['description'])}{_criteria_list_html(d['criteria'])}</td></tr>"
         for d in m["dimensions"]
     )
     limits = "".join(f"<li>{html.escape(line)}</li>" for line in m["limitations"])
@@ -820,6 +820,17 @@ evidence and signed off by a person before it counts.</p>
 <ul>{limits}</ul>
 <p style="font-size:9px;color:#6b7280;">Method version {html.escape(m['score_version'])}</p>
 """
+
+
+def _criteria_list_html(criteria: list[dict]) -> str:
+    """The points checklist of a reviewed dimension, for the PDF appendix."""
+    if not criteria:
+        return ""
+    items = "".join(
+        f"<li>{html.escape(c['label'])} ({html.escape(c['basis'])}, up to {c['max_points']} points)</li>"
+        for c in criteria
+    )
+    return f"<ul style=\"margin:4px 0 0 14px;padding:0;\">{items}</ul>"
 
 
 def _score_css(color: str) -> str:

@@ -39,7 +39,7 @@ def test_prompt_omits_block_when_no_authority():
 # rows the registry ties to it. v4 = shared LANGUAGE_RULES.
 def test_brand_authority_version_is_locked():
     from app.prompts.assessment import BRAND_AUTHORITY_VERSION
-    assert BRAND_AUTHORITY_VERSION == "v4"
+    assert BRAND_AUTHORITY_VERSION == "v5"
 
 
 def test_generate_assessment_passes_authority(db):
@@ -58,7 +58,7 @@ def test_generate_assessment_passes_authority(db):
 
     resp = MagicMock()
     resp.stop_reason = "end_turn"
-    resp.content = [MagicMock(text='{"score": 60, "bullets": ["ok"], "narrative": "n"}')]
+    resp.content = [MagicMock(text='{"points": 10, "bullets": ["ok"], "narrative": "n"}')]
     ac = MagicMock()
     ac.messages.create.return_value = resp
     with patch.object(assessment_service, "build_assessment_prompt", side_effect=fake_build), \

@@ -64,10 +64,15 @@ const reviewStatus: DimensionReviewStatus[] = [
     dimension: "brand_authority", score: 62, reviewed_at: "2026-08-01T00:00:00Z",
     reviewed_by: "Siti", adjustment_reason: null, evidence: ["Listed on Google with 40 reviews"],
     review_due: false, due_reason: null,
+    criteria: [{
+      key: "directory_presence", label: "Key directory and social listings live and verified",
+      max: 25, basis: "measured", points: 12, final_points: 12, evidence: null, admin_hint: null,
+    }],
   },
   {
     dimension: "content_quality", score: 0, reviewed_at: null, reviewed_by: null,
     adjustment_reason: null, evidence: [], review_due: true, due_reason: "never_reviewed",
+    criteria: null,
   },
 ]
 
@@ -98,6 +103,9 @@ describe("SettingsForm terminology", () => {
     expect(markup).toContain("Not yet reviewed")
     expect(markup).toContain('id="brand-authority"')
     expect(markup).toContain('id="content-quality"')
+    // The reviewed checklist is shown item by item.
+    expect(markup).toContain("Key directory and social listings live and verified")
+    expect(markup).toContain("12/25")
   })
 })
 

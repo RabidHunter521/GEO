@@ -63,7 +63,9 @@ export default async function HomePage() {
                   </p>
                 </div>
                 <Badge variant="outline">
-                  {item.due_reason === "never_reviewed" ? "Not yet reviewed" : "Review due"}
+                  {item.due_reason === "never_reviewed"
+                    ? "Not yet reviewed"
+                    : item.due_reason === "method_changed" ? "Re-review: new checklist" : "Review due"}
                 </Badge>
               </Link>
             ))}

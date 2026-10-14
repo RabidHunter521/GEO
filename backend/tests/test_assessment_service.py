@@ -38,8 +38,8 @@ def test_dimension_assessment_row_roundtrips(db):
 
 def test_assessment_constants_present():
     # Version lock — edited by hand only when the score formula genuinely
-    # changes. v1.5.0: AI Citability counts discovery questions only.
-    assert constants.SCORE_VERSION == "v1.5.0"
+    # changes. v1.6.0: Brand Authority / Content Quality on a points checklist.
+    assert constants.SCORE_VERSION == "v1.6.0"
     assert constants.SCORE_DISPLAY_LABEL == "Growth Readiness"
     assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
     assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")
@@ -50,7 +50,7 @@ def test_prompt_includes_business_and_json_contract(db):
     c = _client(db)
     p = assessment_prompts.build_assessment_prompt(c, "brand_authority")
     assert "Acme" in p and "dentist" in p
-    assert '"score"' in p and '"bullets"' in p and '"narrative"' in p
+    assert '"points"' in p and '"bullets"' in p and '"narrative"' in p
     # language rules surfaced to the model
     assert "seen by ai" in p.lower()
 
@@ -84,13 +84,14 @@ def _fake_response(text):
 
 def test_generate_assessment_persists_suggested_row(db):
     c = _client(db)
-    payload = '{"score": 58, "bullets": ["Listed on Google with 40 reviews"], "narrative": "ok"}'
+    payload = '{"points": 15, "bullets": ["Listed on Google with 40 reviews"], "narrative": "ok"}'
     with patch.object(assessment_service, "anthropic_client") as mk:
         mk.return_value.messages.create.return_value = _fake_response(payload)
         row = assessment_service.generate_assessment(c, "brand_authority", db)
     assert row is not None
     assert row.status == "suggested"
-    assert row.suggested_score == 58
+    # A bare client has no measured data, so only the judged criterion scores.
+    assert row.suggested_score == 15
     assert row.final_score is None
     assert row.evidence_bullets == ["Listed on Google with 40 reviews"]
     assert row.raw_narrative == "ok"
@@ -128,7 +129,7 @@ def test_prompts_demand_verified_or_to_verify_bullets(db):
 
 def test_generate_assessment_sends_web_search_tool_and_temperature_zero(db):
     c = _client(db)
-    payload = '{"score": 58, "bullets": ["Listed on Google with 40 reviews"], "narrative": "ok"}'
+    payload = '{"points": 15, "bullets": ["Listed on Google with 40 reviews"], "narrative": "ok"}'
     with patch.object(assessment_service, "anthropic_client") as mk:
         mk.return_value.messages.create.return_value = _fake_response(payload)
         assessment_service.generate_assessment(c, "brand_authority", db)
@@ -143,7 +144,7 @@ def test_generate_assessment_parses_multiblock_web_search_response(db):
     """A web-search turn returns server_tool_use / result blocks before the final
     text block — the parser must read the LAST text block, not content[0]."""
     c = _client(db)
-    payload = '{"score": 40, "bullets": ["Seen by AI on 2 platforms"], "narrative": "ok"}'
+    payload = '{"points": 10, "bullets": ["Seen by AI on 2 platforms"], "narrative": "ok"}'
     tool_block = MagicMock(spec=["type", "input"])   # no .text at all
     interim = MagicMock(text="Searching for Acme reviews…")
     final = MagicMock(text=payload)
@@ -155,14 +156,14 @@ def test_generate_assessment_parses_multiblock_web_search_response(db):
         mk.return_value.messages.create.return_value = resp
         row = assessment_service.generate_assessment(c, "brand_authority", db)
     assert row is not None
-    assert row.suggested_score == 40
+    assert row.suggested_score == 10
 
 
 def test_generate_assessment_returns_none_on_max_tokens_truncation(db):
     """stop_reason == max_tokens means the JSON is truncated, not malformed —
     must fail cleanly (None, nothing persisted), never parse a partial payload."""
     c = _client(db)
-    resp = _fake_response('{"score": 58, "bullets": ["Listed on Goo')
+    resp = _fake_response('{"points": 15, "bullets": ["Listed on Goo')
     resp.stop_reason = "max_tokens"
     with patch.object(assessment_service, "anthropic_client") as mk:
         mk.return_value.messages.create.return_value = resp
@@ -181,7 +182,7 @@ def test_content_quality_prompt_receives_latest_crawl_metrics(db):
         entity_coverage_score=61.5,
     ))
     db.commit()
-    payload = '{"score": 55, "bullets": ["FAQ sections on 3 pages"], "narrative": "ok"}'
+    payload = '{"points": 12, "bullets": ["FAQ sections on 3 pages"], "narrative": "ok"}'
     with patch.object(assessment_service, "anthropic_client") as mk:
         mk.return_value.messages.create.return_value = _fake_response(payload)
         assessment_service.generate_assessment(c, "content_quality", db)
@@ -200,11 +201,18 @@ def test_content_quality_prompt_without_crawl_demands_to_verify(db):
     assert "To verify:" in p
 
 
-def _suggested_row(db, client, dimension="brand_authority", score=58):
+def _criterion(key, max_points, points, basis="judged"):
+    return {
+        "key": key, "label": key.replace("_", " "), "max": max_points, "basis": basis,
+        "points": points, "final_points": None, "evidence": None, "admin_hint": None,
+    }
+
+
+def _suggested_row(db, client, dimension="brand_authority", score=58, criteria=None):
     row = DimensionAssessment(
         client_id=client.id, dimension=dimension, suggested_score=score,
         evidence_bullets=["Listed on Google with 40 reviews", "Active subreddit presence"],
-        raw_narrative="n", status="suggested",
+        raw_narrative="n", status="suggested", criteria=criteria,
     )
     db.add(row); db.commit(); db.refresh(row)
     return row
@@ -290,7 +298,7 @@ def test_reviewer_is_recorded(db):
 def test_review_due_when_never_reviewed_or_older_than_90_days(db):
     from datetime import timedelta
     c = _client(db)
-    _suggested_row(db, c, score=58)
+    _suggested_row(db, c, score=20, criteria=[_criterion("third_party_coverage", 20, 20)])
     due = {d["dimension"]: d["reason"] for d in assessment_service.review_due(c, db)}
     assert due == {"brand_authority": "never_reviewed", "content_quality": "never_reviewed"}
 
@@ -306,3 +314,83 @@ def test_review_due_when_never_reviewed_or_older_than_90_days(db):
 def test_accept_without_suggestion_returns_none(db):
     c = _client(db)
     assert assessment_service.accept_assessment(c, "content_quality", None, db) is None
+
+
+
+# ── points checklist (SCORE_VERSION v1.6.0) ──────────────────────────────────
+
+def test_rubrics_sum_to_100_and_have_one_judged_criterion():
+    for dimension, items in constants.ASSESSMENT_RUBRICS.items():
+        assert sum(c["max"] for c in items) == 100, dimension
+        judged = [c for c in items if c["basis"] == "judged"]
+        # The prompt's point bands are written for a 20-point judged criterion.
+        assert [c["max"] for c in judged] == [20], dimension
+
+
+def test_generated_assessment_stores_the_checklist(db):
+    c = _client(db)
+    payload = '{"points": 15, "bullets": ["Featured in The Star"], "narrative": "ok"}'
+    with patch.object(assessment_service, "anthropic_client") as mk:
+        mk.return_value.messages.create.return_value = _fake_response(payload)
+        row = assessment_service.generate_assessment(c, "brand_authority", db)
+    keys = [cr["key"] for cr in row.criteria]
+    assert keys == [cr["key"] for cr in constants.ASSESSMENT_RUBRICS["brand_authority"]]
+    assert row.suggested_score == sum(cr["points"] for cr in row.criteria)
+    judged = next(cr for cr in row.criteria if cr["basis"] == "judged")
+    assert judged["points"] == 15
+    # No data yet: measured items score 0 and tell staff what to run.
+    measured = [cr for cr in row.criteria if cr["basis"] != "judged"]
+    assert all(cr["points"] == 0 and cr["admin_hint"] for cr in measured)
+
+
+def test_judged_points_are_clamped_to_the_criterion_max(db):
+    c = _client(db)
+    payload = '{"points": 95, "bullets": ["Featured in The Star"], "narrative": "ok"}'
+    with patch.object(assessment_service, "anthropic_client") as mk:
+        mk.return_value.messages.create.return_value = _fake_response(payload)
+        row = assessment_service.generate_assessment(c, "content_quality", db)
+    assert next(cr for cr in row.criteria if cr["basis"] == "judged")["points"] == 20
+
+
+def test_checklist_accept_sums_per_item_points_and_needs_a_reason_to_change(db):
+    import pytest
+    c = _client(db)
+    criteria = [
+        _criterion("directory_presence", 25, 10, "measured"),
+        _criterion("third_party_coverage", 20, 5),
+    ]
+    _suggested_row(db, c, score=15, criteria=criteria)
+    with pytest.raises(assessment_service.ReviewError):
+        assessment_service.accept_assessment(c, "brand_authority", None, db,
+                                             points={"third_party_coverage": 15})
+    with pytest.raises(assessment_service.ReviewError):
+        assessment_service.accept_assessment(c, "brand_authority", None, db,
+                                             points={"made_up": 3}, reason="A long enough reason")
+    row = assessment_service.accept_assessment(
+        c, "brand_authority", 99, db,  # final_score is ignored for checklist rows
+        points={"third_party_coverage": 15, "directory_presence": 99},
+        reason="Two national features the search missed",
+    )
+    finals = {cr["key"]: cr["final_points"] for cr in row.criteria}
+    assert finals == {"directory_presence": 25, "third_party_coverage": 15}  # clamped to max
+    assert row.final_score == 40 and row.status == "adjusted"
+    db.refresh(c)
+    assert c.brand_authority_score == 40
+
+
+def test_checklist_accept_as_suggested(db):
+    c = _client(db)
+    _suggested_row(db, c, score=15, criteria=[
+        _criterion("directory_presence", 25, 10, "measured"), _criterion("third_party_coverage", 20, 5),
+    ])
+    row = assessment_service.accept_assessment(c, "brand_authority", None, db)
+    assert row.status == "accepted" and row.final_score == 15
+    assert [cr["final_points"] for cr in row.criteria] == [10, 5]
+
+
+def test_scores_reviewed_before_the_checklist_are_due_for_re_review(db):
+    c = _client(db)
+    _suggested_row(db, c, score=58)  # no criteria: a pre-v1.6.0 review
+    assessment_service.accept_assessment(c, "brand_authority", None, db)
+    due = {d["dimension"]: d["reason"] for d in assessment_service.review_due(c, db)}
+    assert due["brand_authority"] == "method_changed"

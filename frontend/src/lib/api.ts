@@ -799,7 +799,12 @@ export function generateAssessment(
 export function acceptAssessment(
   clientId: string,
   dimension: AssessmentDimension,
-  review: { finalScore: number | null; bullets?: string[] | null; reason?: string | null },
+  review: {
+    finalScore: number | null
+    bullets?: string[] | null
+    reason?: string | null
+    points?: Record<string, number> | null
+  },
 ): Promise<DimensionAssessment> {
   return apiFetch<DimensionAssessment>(
     `/api/v1/clients/${clientId}/assessments/${dimension}/accept`,
@@ -809,6 +814,7 @@ export function acceptAssessment(
         final_score: review.finalScore,
         bullets: review.bullets ?? null,
         reason: review.reason ?? null,
+        points: review.points ?? null,
       }),
     },
   )

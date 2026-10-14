@@ -401,6 +401,7 @@ def assessment_status(client_id: uuid.UUID, db: Session = Depends(get_db)):
             evidence=row.shown_bullets if row else [],
             review_due=dimension in due,
             due_reason=due.get(dimension),
+            criteria=row.criteria if row else None,
         ))
     return out
 
@@ -419,7 +420,8 @@ def accept_assessment(
         raise HTTPException(status_code=404, detail="Client not found")
     try:
         row = assessment_service.accept_assessment(
-            c, dimension, body.final_score, db, reason=body.reason, bullets=body.bullets,
+            c, dimension, body.final_score, db,
+            reason=body.reason, bullets=body.bullets, points=body.points,
         )
     except assessment_service.ReviewError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
