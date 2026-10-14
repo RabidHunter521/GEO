@@ -3,7 +3,7 @@
 
 import { revalidatePath } from "next/cache"
 import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo, syncGa4Traffic, generateAssessment, acceptAssessment } from "@/lib/api"
-import type { AssessmentDimension, Platform } from "@/types"
+import type { AssessmentDimension, CustomQuestion, Platform } from "@/types"
 
 export async function updateClientAction(
   id: string,
@@ -15,6 +15,7 @@ export async function updateClientAction(
     website?: string
     industry?: string
     buyer_term?: string | null
+    custom_questions?: CustomQuestion[]
     description?: string
     target_audience?: string
     city?: string

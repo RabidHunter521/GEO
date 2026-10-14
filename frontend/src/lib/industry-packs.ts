@@ -314,7 +314,9 @@ export const SUGGESTED_PACK_BY_INDUSTRY: Record<string, PackKey | null> = {
   Education: "education",
   Technology: "b2b_services",
   SaaS: "b2b_services",
-  Finance: "b2b_services",
+  // Consumer finance (insurers, advisers) is not what the B2B pack asks about;
+  // only SME-facing finance is, so this is left for the admin to decide.
+  Finance: null,
   "E-commerce": "ecommerce",
   "Real Estate": "property",
   Retail: "ecommerce",

@@ -27,6 +27,11 @@ class Client(Base):
     # it fills {industry} instead (query_builder.industry_term). NULL = fall
     # back to `industry`, which is how every client behaved before.
     buyer_term: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Admin-written scan questions, [{"text": ..., "category": ...}], asked on
+    # every scan after the generated ones (query_builder.build_client_queries).
+    custom_questions: Mapped[list] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'")
+    )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_audience: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)

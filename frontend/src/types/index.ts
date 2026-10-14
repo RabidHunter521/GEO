@@ -49,6 +49,13 @@ export interface PlatformBreakdownEntry {
 
 export type PlatformBreakdown = Partial<Record<Platform, PlatformBreakdownEntry>>
 
+export type CustomQuestionCategory = "recommendation" | "local" | "brand" | "comparison"
+
+export interface CustomQuestion {
+  text: string
+  category: CustomQuestionCategory
+}
+
 export interface Client {
   id: string
   name: string
@@ -56,6 +63,8 @@ export interface Client {
   brand_aliases: string[]
   /** What buyers call the business; fills {industry} in scan questions. */
   buyer_term: string | null
+  /** Admin-written questions asked on every scan after the generated ones. */
+  custom_questions: CustomQuestion[]
   website: string
   industry: string
   description: string | null

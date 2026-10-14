@@ -105,6 +105,12 @@ MAX_COMPETITORS: Final = 5
 # Other names a client or competitor may appear under in AI answers
 # (brand_aliases). Small on purpose: every alias widens what counts as Seen.
 MAX_BRAND_ALIASES: Final = 5
+# Admin-written questions asked on every scan alongside the generated ones
+# (clients.custom_questions), for businesses no pack fits well. Each one costs
+# a call per enabled platform per scan, hence the small cap.
+MAX_CUSTOM_QUESTIONS: Final = 10
+CUSTOM_QUESTION_MIN_LENGTH: Final = 8
+CUSTOM_QUESTION_MAX_LENGTH: Final = 300
 BRAND_ALIAS_MIN_LENGTH: Final = 2
 BRAND_ALIAS_MAX_LENGTH: Final = 100
 # Benchmark queries deliberately left unoptimized (causal proof) — per client.

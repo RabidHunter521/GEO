@@ -1,8 +1,13 @@
 import uuid
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from app.core.constants import (
+    CUSTOM_QUESTION_MAX_LENGTH,
+    CUSTOM_QUESTION_MIN_LENGTH,
+    MAX_CUSTOM_QUESTIONS,
     BRAND_ALIAS_MAX_LENGTH,
     BRAND_ALIAS_MIN_LENGTH,
     MAX_BRAND_ALIASES,
@@ -43,6 +48,40 @@ def clean_brand_aliases(value: list[str] | None) -> list[str] | None:
     return cleaned
 
 
+class CustomQuestion(BaseModel):
+    """One admin-written scan question. `category` decides how it counts:
+    recommendation and local are discovery questions (they count toward AI
+    Citability); brand and comparison are tracked but not scored."""
+
+    text: str = Field(min_length=CUSTOM_QUESTION_MIN_LENGTH, max_length=CUSTOM_QUESTION_MAX_LENGTH)
+    category: Literal["recommendation", "local", "brand", "comparison"] = "recommendation"
+
+    @field_validator("text", mode="before")
+    @classmethod
+    def _collapse_whitespace(cls, value):
+        return " ".join(str(value).split()) if value is not None else value
+
+
+def clean_custom_questions(value: list[CustomQuestion] | None) -> list[CustomQuestion] | None:
+    """De-duplicate (case-insensitively) and cap the list."""
+    if value is None:
+        return None
+    seen: set[str] = set()
+    cleaned: list[CustomQuestion] = []
+    for question in value:
+        key = question.text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        # Rebuilt so `category` counts as set even when it was defaulted: the
+        # update route dumps with exclude_unset, which would otherwise store
+        # the question without its category.
+        cleaned.append(CustomQuestion(text=question.text, category=question.category))
+    if len(cleaned) > MAX_CUSTOM_QUESTIONS:
+        raise ValueError(f"At most {MAX_CUSTOM_QUESTIONS} custom questions")
+    return cleaned
+
+
 class ClientCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     # max_length mirrors the DB columns (String(255)); a longer value would pass
@@ -61,6 +100,8 @@ class ClientUpdate(BaseModel):
     # What buyers call this business; fills {industry} in scan questions.
     # A blank string clears it (back to `industry`).
     buyer_term: str | None = Field(default=None, max_length=120)
+    # Admin-written scan questions; the whole list is replaced on save.
+    custom_questions: list[CustomQuestion] | None = None
     description: str | None = None
     target_audience: str | None = None
     city: str | None = Field(default=None, max_length=255)
@@ -110,6 +151,13 @@ class ClientUpdate(BaseModel):
     # route refuses an unconfirmed switch. The route must pop this before its
     # setattr loop (clients.py writes every parsed field to the row).
     confirm_pack_change: bool = False
+
+    @field_validator("custom_questions")
+    @classmethod
+    def validate_custom_questions(
+        cls, value: list[CustomQuestion] | None
+    ) -> list[CustomQuestion] | None:
+        return clean_custom_questions(value)
 
     @field_validator("buyer_term")
     @classmethod
@@ -165,6 +213,7 @@ class ClientResponse(BaseModel):
     website: str
     industry: str
     buyer_term: str | None = None
+    custom_questions: list[CustomQuestion] = []
     description: str | None = None
     target_audience: str | None = None
     city: str | None = None
@@ -215,6 +264,12 @@ class ClientResponse(BaseModel):
     @classmethod
     def _unflushed_flag_is_false(cls, v):
         return False if v is None else v
+
+    @field_validator("custom_questions", mode="before")
+    @classmethod
+    def _unflushed_questions_are_empty(cls, v):
+        # A stub or not-yet-flushed row has no list here yet.
+        return v if isinstance(v, list) else []
 
     @field_validator("brand_aliases", mode="before")
     @classmethod
