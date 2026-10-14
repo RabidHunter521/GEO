@@ -15,6 +15,15 @@ SCORE_VERSION_CHANGED_NOTE: Final = (
     "method, not to your standing with AI platforms."
 )
 
+# Same idea for a change in WHICH AI platforms were scored (one unavailable for a
+# scan, or switched on/off): AI Citability averages the platforms that answered,
+# so a different set moves the number without anything changing in the market.
+PLATFORM_MIX_CHANGED_NOTE: Final = (
+    "This period's {label} was measured on a different set of AI platforms than "
+    "the previous one, so the two are not directly comparable. The difference "
+    "comes from what was measured, not from a change in your standing."
+)
+
 SCORE_WEIGHTS: Final = {
     "ai_citability":         0.40,
     "brand_authority":       0.20,
@@ -596,7 +605,8 @@ KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "misinformation_resolved", "page_audit_run", "report_generated",
     "report_sent", "review_snapshot_added", "roadmap_generated",
     "scan_blocked_budget", "scan_completed", "scan_failed",
-    "scan_platform_unavailable", "share_link_generated", "share_link_regenerated",
+    "scan_platform_unavailable", "scan_questions_skipped",
+    "share_link_generated", "share_link_regenerated",
     "share_link_opened", "share_link_revoked", "site_audit_run", "toolkit_generated",
     "toolkit_verified", "traffic_updated", "truth_vault_seeded",
     "work_log_published",
@@ -613,6 +623,7 @@ EVENT_TIERS: Final = {
     "citation_flip": EVENT_TIER_ATTENTION,
     # notable — work delivered, or state that changes scores/access
     "client_created": EVENT_TIER_NOTABLE,
+    "scan_questions_skipped": EVENT_TIER_NOTABLE,
     "report_generated": EVENT_TIER_NOTABLE,
     "report_sent": EVENT_TIER_NOTABLE,
     "toolkit_verified": EVENT_TIER_NOTABLE,
@@ -666,6 +677,7 @@ EVENT_CATEGORIES: Final = {
     "scan_completed": "scans",
     "scan_failed": "scans",
     "scan_platform_unavailable": "scans",
+    "scan_questions_skipped": "scans",
     "scan_blocked_budget": "scans",
     "report_generated": "reports_emails",
     "report_sent": "reports_emails",
@@ -714,6 +726,7 @@ EVENT_LINK_ROUTES: Final = {
     "scan_completed": "/scan",
     "scan_failed": "/scan",
     "scan_platform_unavailable": "/scan",
+    "scan_questions_skipped": "/scan",
     "scan_blocked_budget": "/scan",
     "hallucination_flagged": "/scan",
     "citation_flip": "/scan",

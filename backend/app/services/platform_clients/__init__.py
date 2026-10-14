@@ -18,15 +18,21 @@ __all__ = [
 ]
 
 
-def get_platform_client(platform: str) -> PlatformClient:
+def get_platform_client(platform: str, country_code: str | None = None) -> PlatformClient:
+    """A query client for `platform`.
+
+    `country_code` (ISO alpha-2) is the searcher's country for web search.
+    ChatGPT, Claude and Perplexity take it; Gemini's Google Search grounding
+    has no location setting, and the Google surfaces are pinned to Malaysia.
+    """
     if platform == "gemini":
         return GeminiClient(api_key=settings.GEMINI_API_KEY)
     if platform == "chatgpt":
-        return ChatGPTClient(api_key=settings.OPENAI_API_KEY)
+        return ChatGPTClient(api_key=settings.OPENAI_API_KEY, country_code=country_code)
     if platform == "perplexity":
-        return PerplexityClient(api_key=settings.PERPLEXITY_API_KEY)
+        return PerplexityClient(api_key=settings.PERPLEXITY_API_KEY, country_code=country_code)
     if platform == "claude":
-        return ClaudeClient(api_key=settings.ANTHROPIC_API_KEY)
+        return ClaudeClient(api_key=settings.ANTHROPIC_API_KEY, country_code=country_code)
     if platform == "google_aio":
         return GoogleAIOverviewClient(settings.DATAFORSEO_LOGIN, settings.DATAFORSEO_PASSWORD)
     if platform == "google_ai_mode":

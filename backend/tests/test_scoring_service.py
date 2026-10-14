@@ -214,3 +214,44 @@ def test_scores_comparable_false_when_both_unknown():
     # v1.0.0 through v1.4.0.
     from app.services.scoring_service import scores_comparable
     assert scores_comparable(None, None) is False
+
+
+
+# --- scored platform basis (score comparability) ---------------------------------
+
+def _bd(**status):
+    return {
+        p: {"status": st, "scored": p not in ("google_aio", "google_ai_mode")}
+        for p, st in status.items()
+    }
+
+
+def test_scored_platform_set_counts_only_answered_scored_platforms():
+    from app.services.scoring_service import scored_platform_set
+
+    breakdown = _bd(chatgpt="ok", gemini="unavailable", google_aio="ok")
+    assert scored_platform_set(breakdown) == frozenset({"chatgpt"})
+    assert scored_platform_set(None) is None
+    assert scored_platform_set({}) is None
+
+
+def test_scored_platform_set_reads_rows_written_before_the_scored_flag():
+    from app.services.scoring_service import scored_platform_set
+
+    legacy = {"chatgpt": {"status": "ok"}, "google_aio": {"status": "ok"}}
+    assert scored_platform_set(legacy) == frozenset({"chatgpt"})
+
+
+def test_same_platform_basis():
+    from app.services.scoring_service import same_platform_basis
+
+    all_up = _bd(chatgpt="ok", gemini="ok")
+    gemini_down = _bd(chatgpt="ok", gemini="unavailable")
+    assert same_platform_basis(all_up, all_up)
+    assert not same_platform_basis(gemini_down, all_up)
+    # A reported-only Google surface failing does not change the score's basis.
+    assert same_platform_basis(
+        _bd(chatgpt="ok", google_aio="unavailable"), _bd(chatgpt="ok", google_aio="ok")
+    )
+    # Unknown breakdown never blocks; the formula check covers old rows.
+    assert same_platform_basis(None, all_up)

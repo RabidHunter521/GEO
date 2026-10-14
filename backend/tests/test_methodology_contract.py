@@ -98,3 +98,19 @@ def test_feature_documentation_matches_current_scan_coverage_and_contract():
     assert "Growth Readiness (`overall_score` in the current API)" in features
     assert "[measurement methodology](docs/methodology.md)" in features
     assert "[the methodology](methodology.md)" in architecture
+
+
+def test_published_methodology_names_the_answering_models():
+    """The engine uses smaller models than the consumer apps; the client-facing
+    methodology must say which, read from the adapters (never retyped)."""
+    from app.services.methodology_service import build_methodology
+    from app.services.platform_clients import chatgpt, claude, gemini, perplexity
+
+    line = build_methodology()["limitations"][-1]
+    for module in (chatgpt, claude, gemini, perplexity):
+        assert module.MODEL_DISPLAY_NAME in line
+    only_chatgpt = build_methodology(["chatgpt"])["limitations"][-1]
+    assert chatgpt.MODEL_DISPLAY_NAME in only_chatgpt
+    assert claude.MODEL_DISPLAY_NAME not in only_chatgpt
+    for banned in ("cited", "citation", "token", "confidence"):
+        assert banned not in line.lower()

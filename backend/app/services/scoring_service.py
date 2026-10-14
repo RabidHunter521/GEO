@@ -144,6 +144,37 @@ def get_score_band(score: float) -> tuple[str, str]:
     return "low", get_score_color(score)
 
 
+def scored_platform_set(breakdown: dict | None) -> frozenset[str] | None:
+    """Platforms that counted toward a score: answered (status ok) and scored.
+
+    None when the row has no usable breakdown, so the caller cannot tell which
+    platforms produced it. Rows written before `scored` existed count a platform
+    as scored when it is in SCORED_PLATFORMS.
+    """
+    if not isinstance(breakdown, dict) or not breakdown:
+        return None
+    return frozenset(
+        platform for platform, entry in breakdown.items()
+        if isinstance(entry, dict)
+        and entry.get("status", "ok") == "ok"
+        and entry.get("scored", platform in SCORED_PLATFORMS)
+    )
+
+
+def same_platform_basis(current: dict | None, previous: dict | None) -> bool:
+    """True unless both scores are known to come from different scored platforms.
+
+    AI Citability averages the platforms that answered, so a platform dropping
+    out (or being switched on) moves the score with no change in the market.
+    An unknown breakdown does not block the comparison; formula comparability
+    is `scores_comparable`'s job.
+    """
+    now, before = scored_platform_set(current), scored_platform_set(previous)
+    if now is None or before is None:
+        return True
+    return now == before
+
+
 def scores_comparable(current_version: str | None, prev_version: str | None) -> bool:
     """True only when two GeoScore rows came from the SAME known formula version.
 

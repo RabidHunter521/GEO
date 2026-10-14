@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core import request_identity
 from app.core.constants import (
     PLATFORM_LABELS,
+    PLATFORM_MIX_CHANGED_NOTE,
     SCORE_DISPLAY_LABEL,
     SCORE_VERSION_CHANGED_NOTE,
 )
@@ -41,7 +42,7 @@ from app.models.toolkit_files import ToolkitFiles
 from app.models.activity_log import ActivityLog
 from app.models.report import Report
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
-from app.services.scoring_service import get_score_band, scores_comparable
+from app.services.scoring_service import get_score_band, same_platform_basis, scores_comparable
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
 from app.services.claude_client import MODEL_NARRATIVE, anthropic_client
@@ -561,6 +562,9 @@ class ReportData:
     # narrated as a market movement.
     score_version: str | None = None
     prev_score_version: str | None = None
+    # Same formula, but a different set of scored AI platforms answered; the
+    # delta then reflects what was measured, not the market.
+    platforms_changed: bool = False
     score_history: list[TrendPoint] = field(default_factory=list)
     hallucinations: list[HallucinationLine] = field(default_factory=list)
     content_gaps: list[ContentGap] = field(default_factory=list)
@@ -711,6 +715,20 @@ def _method_change_narrative(data: "ReportData") -> str:
     )
 
 
+def _platform_mix_narrative(data: "ReportData") -> str:
+    """Narrative for a period scored on a different set of AI platforms.
+
+    Like a formula change, the delta cannot be split into real movement and the
+    effect of measuring different platforms, so no direction is claimed.
+    """
+    return (
+        PLATFORM_MIX_CHANGED_NOTE.format(label=SCORE_DISPLAY_LABEL)
+        + f" Your {SCORE_DISPLAY_LABEL} for {data.period_label} is "
+        f"{data.overall_score:.0f}, with your brand seen by AI in "
+        f"{data.seen_count} of {data.total_count} tracked questions."
+    )
+
+
 def _generate_change_narrative(
     data: "ReportData",
     client_id: uuid.UUID | None = None,
@@ -734,6 +752,10 @@ def _generate_change_narrative(
         # formula was the same, so Claude must not explain the delta - but we
         # cannot claim a change occurred either. State the arithmetic, nothing more.
         return _fallback_narrative(data)
+    if data.platforms_changed:
+        # Claude is not told which platforms produced each number, so it would
+        # explain a measurement difference as market movement.
+        return _platform_mix_narrative(data)
 
     try:
         response = anthropic_client().messages.create(
@@ -1567,6 +1589,9 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         prev_overall_score=prev_gs.overall_score if prev_gs else None,
         score_version=current_gs.score_version,
         prev_score_version=prev_gs.score_version if prev_gs else None,
+        platforms_changed=prev_gs is not None and not same_platform_basis(
+            current_gs.platform_breakdown, prev_gs.platform_breakdown
+        ),
         trend=trend,
         seen_count=seen_count,
         total_count=total_count,

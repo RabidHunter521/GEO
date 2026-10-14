@@ -9,6 +9,7 @@ import structlog
 from app.core.constants import COMPANY_IDENTITY_LINE
 from app.core.constants import (
     PLATFORM_LABELS,
+    PLATFORM_MIX_CHANGED_NOTE,
     SCORE_DISPLAY_LABEL,
     SCORE_VERSION_CHANGED_NOTE,
 )
@@ -26,7 +27,7 @@ from app.services.share_link_service import get_share_link_url
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
 from app.services.headline_battle_service import select_headline_battle
 from app.services.digest_tip_service import select_digest_tip
-from app.services.scoring_service import scores_comparable
+from app.services.scoring_service import same_platform_basis, scores_comparable
 from app.services.ga4_traffic_service import format_breakdown
 from app.core.time import utcnow
 from app.services.scoring_service import scored_results
@@ -61,6 +62,8 @@ class DigestData:
     # formula versions. The delta is then partly a measurement artifact, so the
     # trend claim is neutralised and the change is disclosed to the client.
     method_changed: bool = False
+    # Same formula, but a different set of scored AI platforms answered.
+    platforms_changed: bool = False
 
 
 
@@ -184,11 +187,17 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
     current_citability = current_gs.ai_citability
     prev_citability = prev_gs.ai_citability if prev_gs else None
 
-    # A delta only means something when both scores came from the same formula.
-    comparable = prev_gs is None or scores_comparable(
+    # A delta only means something when both scores came from the same formula
+    # AND the same scored platforms.
+    same_formula = prev_gs is None or scores_comparable(
         current_gs.score_version, prev_gs.score_version
     )
+    same_platforms = prev_gs is None or same_platform_basis(
+        current_gs.platform_breakdown, prev_gs.platform_breakdown
+    )
+    comparable = same_formula and same_platforms
     method_changed = prev_gs is not None and not comparable
+    platforms_changed = prev_gs is not None and same_formula and not same_platforms
 
     trend = _compute_trend(current_citability, prev_citability)
     is_first_seen = _detect_first_seen(seen_count, prev_scan, db)
@@ -256,6 +265,7 @@ def _compute_digest_data(client: Client, db: Session) -> DigestData | None:
         commitment_line=_commitment_line(client, db),
         protection_line=_protection_line(client, db),
         method_changed=method_changed,
+        platforms_changed=platforms_changed,
     )
 
 
@@ -372,7 +382,7 @@ def _build_email_html(client: Client, data: DigestData) -> str:
         trend_color = trend_colors["flat"]
     method_note_html = (
         f"""          <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">
-            {html.escape(SCORE_VERSION_CHANGED_NOTE.format(label=SCORE_DISPLAY_LABEL))}
+            {html.escape((PLATFORM_MIX_CHANGED_NOTE if data.platforms_changed else SCORE_VERSION_CHANGED_NOTE).format(label=SCORE_DISPLAY_LABEL))}
           </p>"""
         if data.method_changed else ""
     )

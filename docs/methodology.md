@@ -44,6 +44,8 @@ Before 2 October 2026 only Perplexity's sources were recorded. Each Share-of-Sou
 
 Generated answers can vary between runs, platforms, model versions, locations, and sessions. A single observed change is evidence, not proof of a durable market shift. A scan reports what appeared in its configured sample at that time; it cannot reproduce an individual consumer's exact experience or establish that one change caused another without supporting comparison evidence.
 
+Answers are collected through each provider's API with web search on, using smaller models than the consumer apps (GPT-5 mini, Sonar, Gemini 2.5 Flash-Lite, Claude Haiku 4.5); the published client methodology names them. Web searches run as a searcher in the client's country where the platform accepts a location (ChatGPT, Claude, Perplexity), defaulting to Malaysia; Gemini's search grounding has no location setting. A question that fails after one retry is left out of that scan and logged. A platform that answers fewer than half of the client's questions is reported unavailable for the scan rather than scored on a handful of answers.
+
 ## Technical and publisher files
 
 robots.txt controls crawler access, and SeenBy's Technical Foundations dimension currently reflects verified robots.txt AI-crawler access. Structured data describes page entities, and verified structured data drives the separate Structured Data dimension. llms.txt and llms-full.txt are optional publisher-supplied formats that SeenBy can generate and verify for publishing purposes. Their presence does not independently increase Growth Readiness and does not guarantee AI visibility.
@@ -58,7 +60,7 @@ Where a client has an average deal value, SeenBy estimates pipeline from AI-refe
 
 v1.5.0 labels newly computed Growth Readiness. Every score row now carries the version of the method that produced it. Rows written before that record was introduced carry no version; their exact method cannot be established, so they are treated as not comparable to a current score rather than assumed to share its method.
 
-Historical rows retain their originally computed values; they are not recomputed when the method changes. Where a score and the one before it came from different versions, SeenBy states this in the weekly update and the monthly report, and does not present the difference as a change in the client's standing.
+Historical rows retain their originally computed values; they are not recomputed when the method changes. Where a score and the one before it came from different versions, SeenBy states this in the weekly update and the monthly report, and does not present the difference as a change in the client's standing. The same applies when the set of scored platforms that answered differs between the two scans (one unavailable, or switched on or off), because AI Citability averages the platforms that answered.
 
 A client-facing summary of this methodology is published on the client view at /view/<token>/methodology and printed at the back of every PDF report. Its figures are derived from the same constants the score is computed from, so a weight change updates the published methodology in the same commit.
 

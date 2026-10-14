@@ -943,6 +943,21 @@ def test_method_change_narrative_uses_client_safe_language():
     assert "declin" not in lowered and "dropped" not in lowered
 
 
+def test_change_narrative_skips_claude_when_scored_platforms_changed():
+    # Same formula, but a platform dropped out: the delta reflects what was
+    # measured, so Claude must not narrate it and no direction is claimed.
+    from app.services.report_service import _generate_change_narrative
+    data = _make_report_data()
+    data.score_version = data.prev_score_version = "v1.5.0"
+    data.platforms_changed = True
+    with patch("app.services.report_service.anthropic_client") as mock_client:
+        text = _generate_change_narrative(data)
+    mock_client.assert_not_called()
+    assert "different set of AI platforms" in text
+    lowered = text.lower()
+    assert "declin" not in lowered and "dropped" not in lowered
+
+
 # --- methodology appendix -----------------------------------------------------
 # The PDF must not be the one client surface where the method is withheld.
 

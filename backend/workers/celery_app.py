@@ -1,6 +1,7 @@
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import settings
+import app.models  # noqa: F401  (registers every table before any task runs)
 
 celery_app = Celery(
     "seenby",
