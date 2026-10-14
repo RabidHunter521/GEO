@@ -38,7 +38,7 @@ def test_supported_pack_keys_are_exactly_the_shipped_packs():
     # silently becoming unselectable.
     assert INDUSTRY_PACK_KEYS == (
         "healthcare", "fnb", "local_services", "education", "b2b_services",
-        "property", "ecommerce",
+        "property", "ecommerce", "hospitality", "automotive",
     )
 
 

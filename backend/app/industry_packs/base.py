@@ -69,6 +69,9 @@ ALLOWED_PLACEHOLDERS = frozenset({
     # Property: the areas and property types a client actually sells, from
     # approved project facts. Retail: products and marketplaces it sells on.
     "district", "property_type", "product", "marketplace",
+    # Hospitality: nearby attractions and tour destinations. Automotive: the
+    # makes, models and vehicle types a dealer sells.
+    "attraction", "destination", "make", "model", "vehicle_type",
 })
 # Placeholders that need a real location to expand. A template using one must
 # declare location_required, so a client with no location is skipped instead of

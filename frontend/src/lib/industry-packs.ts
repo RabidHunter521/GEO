@@ -14,7 +14,7 @@
 
 export type PackKey =
   | "healthcare" | "fnb" | "local_services" | "education" | "b2b_services"
-  | "property" | "ecommerce"
+  | "property" | "ecommerce" | "hospitality" | "automotive"
 
 /** Mirrors TruthFieldDefinition.value_type in app/industry_packs/base.py. */
 export type FactValueType = "text" | "boolean" | "number" | "url" | "list" | "hours"
@@ -245,8 +245,54 @@ const ECOMMERCE: PackDefinition = {
   ],
 }
 
+const HOSPITALITY: PackDefinition = {
+  key: "hospitality",
+  label: "Hospitality & Travel",
+  subcategories: [
+    "hotel", "resort", "homestay", "tour_operator", "event_venue", "other_hospitality",
+  ],
+  fields: [
+    { factType: "stay", key: "room_types", label: "Room or unit types", valueType: "list", scope: "either" },
+    { factType: "stay", key: "facilities", label: "Facilities (e.g. pool, parking, kids' club)", valueType: "list", scope: "location" },
+    { factType: "stay", key: "breakfast_included", label: "Breakfast included", valueType: "boolean", scope: "either" },
+    { factType: "stay", key: "check_in_out", label: "Check-in and check-out times", valueType: "text", scope: "location" },
+    { factType: "occasion", key: "suitable_for", label: "Occasions catered for (e.g. family trips, weddings)", valueType: "list", scope: "either", required: true },
+    { factType: "nearby", key: "attractions", label: "Nearby attractions or landmarks", valueType: "list", scope: "location" },
+    { factType: "tour", key: "destinations", label: "Tour destinations", valueType: "list", scope: "brand" },
+    { factType: "tour", key: "itineraries", label: "Tour packages or itineraries", valueType: "list", scope: "brand" },
+    { factType: "venue", key: "capacity", label: "Event capacity (guests)", valueType: "number", scope: "location" },
+    { factType: "pricing", key: "price_range", label: "Price or rate range", valueType: "text", scope: "either", required: true },
+    { factType: "policy", key: "cancellation", label: "Cancellation policy", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "policy", key: "children", label: "Child and extra-bed policy", valueType: "text", scope: "either" },
+    { factType: "dietary", key: "halal_status", label: "Halal or Muslim-friendly status", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "registration", key: "tourism_licence", label: "Tourism licence number", valueType: "text", scope: "brand", riskSensitive: true },
+  ],
+}
+
+const AUTOMOTIVE: PackDefinition = {
+  key: "automotive",
+  label: "Automotive Sales",
+  subcategories: [
+    "new_car_dealer", "used_car_dealer", "ev_dealer", "motorcycle_dealer", "car_rental", "other_automotive",
+  ],
+  fields: [
+    { factType: "vehicle", key: "makes", label: "Makes sold (e.g. Honda, Proton, BYD)", valueType: "list", scope: "either", required: true },
+    { factType: "vehicle", key: "models", label: "Models sold", valueType: "list", scope: "either" },
+    { factType: "vehicle", key: "types", label: "Vehicle types (e.g. SUV, MPV, EV, motorcycle)", valueType: "list", scope: "either" },
+    { factType: "service", key: "catalog", label: "Services offered (e.g. servicing, insurance renewal)", valueType: "list", scope: "either" },
+    { factType: "pricing", key: "price_range", label: "Price range", valueType: "text", scope: "either", required: true },
+    { factType: "finance", key: "loan_partners", label: "Loan partner banks", valueType: "list", scope: "either" },
+    { factType: "finance", key: "trade_in", label: "Trade-in accepted", valueType: "boolean", scope: "either" },
+    { factType: "dealer", key: "authorised_for", label: "Makes it is an authorised dealer for", valueType: "list", scope: "either", riskSensitive: true },
+    { factType: "warranty", key: "terms", label: "Warranty terms", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "inspection", key: "programme", label: "Used-car inspection or certification programme", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "licensing", key: "held", label: "Licences held", valueType: "list", scope: "either", riskSensitive: true },
+  ],
+}
+
 export const INDUSTRY_PACKS: readonly PackDefinition[] = [
   HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION, B2B_SERVICES, PROPERTY, ECOMMERCE,
+  HOSPITALITY, AUTOMOTIVE,
 ]
 
 export const PACK_KEYS: readonly PackKey[] = INDUSTRY_PACKS.map((pack) => pack.key)
@@ -272,6 +318,8 @@ export const SUGGESTED_PACK_BY_INDUSTRY: Record<string, PackKey | null> = {
   "E-commerce": "ecommerce",
   "Real Estate": "property",
   Retail: "ecommerce",
+  Hospitality: "hospitality",
+  Automotive: "automotive",
   Other: null,
 }
 
