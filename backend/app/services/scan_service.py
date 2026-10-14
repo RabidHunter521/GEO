@@ -25,7 +25,8 @@ from app.models.geo_score import GeoScore
 from app.models.activity_log import ActivityLog
 from app.models.tracked_query import TrackedQuery
 from app.services.platform_clients import get_platform_client
-from app.services.platform_clients.base import PlatformResult
+from app.services.platform_clients.base import PlatformResult, country_code
+from app.services.circuit_breaker import CircuitOpenError
 from app.services.cost_tracker import record_llm_usage
 from app.services.brand_detection import brand_names, detect_brand_in_answer, name_in_text
 from app.services.position_extraction import extract_position
@@ -44,6 +45,24 @@ from app.core.time import utcnow
 logger = structlog.get_logger()
 
 _INTER_QUERY_DELAY_SECONDS = 0.5  # rate-limit buffer between platform calls
+# A platform counts toward the score only when at least this share of its client
+# questions got an answer. Below it the platform is reported unavailable: a
+# visibility figure built from a handful of answers would move the score on
+# noise. Above it, a failed question is left out rather than discarding every
+# good answer the platform gave (Gemini on Curlec lost 9 good answers to one 429).
+_MIN_ANSWERED_SHARE = 0.5
+
+
+class PlatformRunFailed(Exception):
+    """A platform could not answer enough questions to be scored this scan.
+
+    Carries the usage of the calls that DID succeed, so their spend is still
+    recorded and the budget guardrail does not undercount.
+    """
+
+    def __init__(self, message: str, usages: list[PlatformResult]):
+        super().__init__(message)
+        self.usages = usages
 _RANKED_CATEGORIES = ("recommendation", "local")
 
 
@@ -121,6 +140,24 @@ def _log_platform_unavailable(
     logger.error("scan_platform_failed", scan_id=str(scan_id), platform=platform, error=str(exc))
 
 
+def _log_questions_skipped(
+    db: Session, client: Client, platform: str, skipped: list[str]
+) -> None:
+    """A platform answered enough to be scored but left some questions out."""
+    label = PLATFORM_LABELS.get(platform, platform)
+    count = len(skipped)
+    db.add(ActivityLog(
+        client_id=client.id,
+        event_type="scan_questions_skipped",
+        note=(
+            f"{label} could not answer {count} question{'s' if count != 1 else ''} "
+            f"this scan, so {'they were' if count != 1 else 'it was'} left out: "
+            + "; ".join(skipped[:3]) + ("…" if count > 3 else "")
+        )[:500],
+    ))
+    logger.warning("scan_questions_skipped", client_id=str(client.id), platform=platform, count=count)
+
+
 _SOURCE_TITLE_MAX = 500  # ScanQuerySource.title is String(500)
 
 
@@ -164,6 +201,7 @@ def _run_platform_queries(
     control_queries: list[ControlQuery],
     client_queries: list[dict],
     tracked_query_samples: list[dict] = (),
+    skipped: list[str] | None = None,
 ) -> tuple[list[ScanQueryResult], list[PlatformResult]]:
     """Run all queries for one platform using a pre-built client. Raises on
     platform failure — results are returned (not persisted) so a failed platform
@@ -171,13 +209,38 @@ def _run_platform_queries(
     safe to run concurrently per platform.
 
     Returns the scan rows and the per-query token usage (recorded by run_scan on
-    the scan's own session in the main thread — sessions aren't thread-safe)."""
+    the scan's own session in the main thread — sessions aren't thread-safe).
+
+    Each question is isolated: one that fails after its retry is left out and
+    its text appended to `skipped`. The platform fails (PlatformRunFailed) only
+    when its circuit breaker opens or fewer than _MIN_ANSWERED_SHARE of the
+    client questions were answered."""
     results: list[ScanQueryResult] = []
     usages: list[PlatformResult] = []
+    skipped = skipped if skipped is not None else []
+    last_error: Exception | None = None
+
+    def _ask(text: str) -> PlatformResult | None:
+        nonlocal last_error
+        try:
+            result = platform_client.query(text)
+        except CircuitOpenError as exc:
+            raise PlatformRunFailed(str(exc), usages) from exc
+        except Exception as exc:
+            skipped.append(text)
+            logger.warning(
+                "scan_question_failed", scan_id=str(scan.id), platform=platform,
+                query=text, error=str(exc),
+            )
+            last_error = exc
+            return None
+        usages.append(result)
+        return result
 
     for q in client_queries:
-        result = platform_client.query(q["query_text"])
-        usages.append(result)
+        result = _ask(q["query_text"])
+        if result is None:
+            continue
         response_text = result.text
         detected = detect_brand_in_answer(response_text, client.name, brand_names(client))
 
@@ -214,6 +277,14 @@ def _run_platform_queries(
         _attach_sources(sqr, result)
         results.append(sqr)
         time.sleep(_INTER_QUERY_DELAY_SECONDS)
+
+    answered = len(client_queries) - len(skipped)
+    if client_queries and answered < len(client_queries) * _MIN_ANSWERED_SHARE:
+        raise PlatformRunFailed(
+            f"only {answered} of {len(client_queries)} questions answered "
+            f"(last error: {last_error})",
+            usages,
+        )
 
     # Repeated samples for the governed tracked-query portfolio (Phase 5 Task
     # 3, see query_sampling_service). Each sample is isolated in its own
@@ -289,8 +360,9 @@ def _run_platform_queries(
     # Benchmark rows: measurement only — no position extraction, no provenance
     # capture. They exist solely for the optimized-vs-untouched comparison.
     for q in build_control_queries(control_queries):
-        result = platform_client.query(q["query_text"])
-        usages.append(result)
+        result = _ask(q["query_text"])
+        if result is None:
+            continue
         results.append(ScanQueryResult(
             scan_id=scan.id,
             platform=platform,
@@ -306,8 +378,9 @@ def _run_platform_queries(
 
     for competitor in competitors:
         for q in build_competitor_queries(client, competitor):
-            result = platform_client.query(q["query_text"])
-            usages.append(result)
+            result = _ask(q["query_text"])
+            if result is None:
+                continue
             response_text = result.text
             detected = detect_brand_in_answer(response_text, competitor.name, brand_names(competitor))
             results.append(ScanQueryResult(
@@ -418,21 +491,26 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         # missing API key surfaces), then run the slow query work for all
         # platforms concurrently — wall time ≈ the slowest platform, not the sum.
         clients_by_platform: dict[str, object] = {}
+        searcher_country = country_code(getattr(client, "country", None))
         for platform in platforms:
             try:
-                clients_by_platform[platform] = get_platform_client(platform)
+                clients_by_platform[platform] = get_platform_client(
+                    platform, country_code=searcher_country
+                )
             except Exception as exc:
                 failed_platforms.append(platform)
                 _log_platform_unavailable(db, client, scan_id, platform, exc)
 
         results_by_platform: dict[str, list[ScanQueryResult]] = {}
         usages_by_platform: dict[str, list[PlatformResult]] = {}
+        skipped_by_platform: dict[str, list[str]] = {p: [] for p in clients_by_platform}
         if clients_by_platform:
             with ThreadPoolExecutor(max_workers=len(clients_by_platform)) as pool:
                 future_to_platform = {
                     pool.submit(
                         _run_platform_queries, platform, pc, scan, client, competitors,
                         control_queries, client_queries, tracked_query_samples,
+                        skipped_by_platform[platform],
                     ): platform
                     for platform, pc in clients_by_platform.items()
                 }
@@ -445,6 +523,13 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
                     except Exception as exc:
                         failed_platforms.append(platform)
                         _log_platform_unavailable(db, client, scan_id, platform, exc)
+                        # Calls that succeeded before the platform gave up were
+                        # still billed; record them so the budget stays honest.
+                        usages_by_platform[platform] = getattr(exc, "usages", [])
+
+        for platform, skipped in skipped_by_platform.items():
+            if skipped and platform in results_by_platform:
+                _log_questions_skipped(db, client, platform, skipped)
 
         # Persist in canonical order for deterministic row ordering. Cost-log each
         # query's token usage on this session so it commits atomically with the
@@ -452,7 +537,8 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         for platform in platforms:
             if platform in results_by_platform:
                 db.add_all(results_by_platform[platform])
-                for usage in usages_by_platform.get(platform, []):
+            if platform in usages_by_platform:
+                for usage in usages_by_platform[platform]:
                     record_llm_usage(
                         service=f"scan_{platform}",
                         model=usage.model,

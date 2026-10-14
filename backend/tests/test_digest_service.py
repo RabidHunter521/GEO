@@ -359,3 +359,25 @@ def test_digest_action_defaults_to_comparable_for_callers_without_versions():
     ) as gen:
         get_digest_action(client, 30.0, 55.0, fallback_tip="tip")
     gen.assert_called_once()
+
+
+# ── Scored-platform change (same formula, different platforms answered) ──────
+
+def test_digest_html_explains_a_platform_change_not_a_method_change():
+    from app.services.digest_service import _build_email_html
+
+    html = _build_email_html(
+        _digest_client(),
+        _digest_data(method_changed=True, platforms_changed=True),
+    )
+    assert "different set of AI platforms" in html
+    assert "improved how" not in html
+    assert "improved this week" not in html  # no direction claimed
+
+
+def test_digest_html_keeps_the_method_note_for_a_formula_change():
+    from app.services.digest_service import _build_email_html
+
+    html = _build_email_html(_digest_client(), _digest_data(method_changed=True))
+    assert "improved how" in html
+    assert "different set of AI platforms" not in html

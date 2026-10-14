@@ -148,6 +148,20 @@ def test_score_version_change_is_not_narrated_as_movement(db):
     assert "moved from" not in html and "rose from" not in html
 
 
+def test_scored_platform_change_is_not_narrated_as_movement(db):
+    client = _client(db)
+    both = {"chatgpt": {"status": "ok"}, "gemini": {"status": "ok"}}
+    gemini_down = {"chatgpt": {"status": "ok"}, "gemini": {"status": "unavailable"}}
+    _scan_with_score(db, client, 100, 70.0, 60.0, breakdown=both)
+    _scan_with_score(db, client, 1, 50.0, 30.0, breakdown=gemini_down)
+    data = gather_review_deck_data(client, db, "client")
+    assert data.comparable is False and data.platforms_changed is True
+    html = build_review_deck_html(data)
+    assert "AI platforms measured changed" in html
+    assert "scoring method" not in html.lower()
+    assert "moved from" not in html and "rose from" not in html
+
+
 def test_young_client_uses_since_onboarding(db):
     client = _client(db)
     client.created_at = NOW - timedelta(days=40)

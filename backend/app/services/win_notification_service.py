@@ -53,7 +53,7 @@ from app.models.geo_score import GeoScore
 from app.models.scan import Scan
 from app.models.scan_query_result import ScanQueryResult
 from app.services.notification_channels import CLIENT_CHANNELS, ClientMessage, NotificationChannel
-from app.services.scoring_service import scores_comparable
+from app.services.scoring_service import same_platform_basis, scores_comparable
 from app.services.share_link_service import get_share_link_url
 
 logger = structlog.get_logger()
@@ -125,11 +125,25 @@ def _recent_scans(client_id: uuid.UUID, db: Session) -> list[Scan]:
 
 
 def _same_formula(scans: list[Scan], db: Session) -> bool:
-    versions = []
+    """Same scoring formula AND same scored platforms across the scans.
+
+    A platform answering in one scan but not the next changes what "seen"
+    covers, so a flip across that boundary is not a confirmed win.
+    """
+    rows = []
     for s in scans:
-        row = db.query(GeoScore.score_version).filter(GeoScore.scan_id == s.id).first()
-        versions.append(row[0] if row else None)
-    return all(scores_comparable(versions[0], v) for v in versions[1:])
+        row = (
+            db.query(GeoScore.score_version, GeoScore.platform_breakdown)
+            .filter(GeoScore.scan_id == s.id)
+            .first()
+        )
+        rows.append(row if row else (None, None))
+    first_version, first_breakdown = rows[0]
+    return all(
+        scores_comparable(first_version, version)
+        and same_platform_basis(first_breakdown, breakdown)
+        for version, breakdown in rows[1:]
+    )
 
 
 def detect_wins(client_id: uuid.UUID, db: Session) -> tuple[list[WinCandidate], list[Scan]]:

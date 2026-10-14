@@ -11,6 +11,13 @@ from app.services.platform_clients.claude import ClaudeClient
 from app.services.platform_clients.perplexity import PerplexityClient
 
 
+@pytest.fixture(autouse=True)
+def _no_retry_wait():
+    """query_with_retry now waits before its retry; tests must not."""
+    with patch("app.services.platform_clients.base._sleep") as sleep:
+        yield sleep
+
+
 # ── Gemini (retry policy is shared by all adapters via query_with_retry) ──────
 
 def _gemini_response(text="ACME Corp is a leading consulting firm in KL.", prompt=10, candidates=20):
@@ -481,3 +488,164 @@ def test_claude_web_search_count_read_from_sdk_constructed_usage():
     assert isinstance(message.usage.server_tool_use, dict)
     assert web_search_requests(message) == 1
     assert _claude_query(message).search_requests == 1
+
+
+# ── Retry wait, searcher location, truncation (scan reliability) ─────────────
+
+def test_retry_waits_before_the_second_attempt(_no_retry_wait):
+    from app.services.platform_clients.base import query_with_retry, PlatformResult
+
+    res = PlatformResult(text="ok", model="m", input_tokens=1, output_tokens=1)
+    calls = iter([RuntimeError("boom"), res])
+
+    def call():
+        item = next(calls)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    with patch("app.services.platform_clients.base.circuit_breaker") as mcb:
+        mcb.is_open.return_value = False
+        mcb.is_rate_or_payment_error.return_value = False
+        assert query_with_retry("gemini", call) is res
+    _no_retry_wait.assert_called_once_with(2.0)
+
+
+def test_no_wait_after_the_final_attempt(_no_retry_wait):
+    from app.services.platform_clients.base import query_with_retry
+
+    def call():
+        raise RuntimeError("down")
+
+    with patch("app.services.platform_clients.base.circuit_breaker") as mcb:
+        mcb.is_open.return_value = False
+        mcb.is_rate_or_payment_error.return_value = False
+        with pytest.raises(RuntimeError):
+            query_with_retry("gemini", call)
+    assert _no_retry_wait.call_count == 1
+
+
+@pytest.mark.parametrize(
+    "exc,expected",
+    [
+        (RuntimeError("429 RESOURCE_EXHAUSTED. Please retry in 7.5s."), 7.5),
+        (RuntimeError("{'retryDelay': '12s'}"), 12.0),
+        (RuntimeError("Please retry in 300s"), 30.0),  # capped
+        (RuntimeError("something else"), 2.0),
+    ],
+)
+def test_retry_delay_reads_google_hints_and_caps_them(exc, expected):
+    from app.services.platform_clients.base import retry_delay
+
+    assert retry_delay(exc) == expected
+
+
+def test_retry_delay_honours_retry_after_header():
+    from app.services.platform_clients.base import retry_delay
+
+    exc = RuntimeError("rate limited")
+    exc.response = MagicMock(headers={"retry-after": "4"})
+    assert retry_delay(exc) == 4.0
+
+
+@pytest.mark.parametrize(
+    "country,code",
+    [
+        ("Malaysia", "MY"), (" singapore ", "SG"), ("MY", "MY"), ("sg", "SG"),
+        (None, "MY"), ("", "MY"), ("Atlantis", None),
+    ],
+)
+def test_country_code(country, code):
+    from app.services.platform_clients.base import country_code
+
+    assert country_code(country) == code
+
+
+def test_chatgpt_sends_the_searcher_country():
+    with patch("app.services.platform_clients.chatgpt.OpenAI") as mock_openai:
+        mock_openai.return_value.responses.create.return_value = MagicMock(
+            output_text="ok", usage=MagicMock(input_tokens=1, output_tokens=1), status="completed",
+        )
+        ChatGPTClient(api_key="k", country_code="MY").query("Is Curlec legit?")
+    tools = mock_openai.return_value.responses.create.call_args.kwargs["tools"]
+    assert tools == [
+        {"type": "web_search", "user_location": {"type": "approximate", "country": "MY"}}
+    ]
+
+
+def test_chatgpt_without_country_sends_plain_web_search():
+    with patch("app.services.platform_clients.chatgpt.OpenAI") as mock_openai:
+        mock_openai.return_value.responses.create.return_value = MagicMock(
+            output_text="ok", usage=MagicMock(input_tokens=1, output_tokens=1), status="completed",
+        )
+        ChatGPTClient(api_key="k").query("q")
+    assert mock_openai.return_value.responses.create.call_args.kwargs["tools"] == [
+        {"type": "web_search"}
+    ]
+
+
+def test_perplexity_sends_the_searcher_country():
+    response = MagicMock()
+    response.json.return_value = {
+        "choices": [{"message": {"content": "ok"}}], "usage": {},
+    }
+    with patch("app.services.platform_clients.perplexity.httpx.post", return_value=response) as post:
+        PerplexityClient(api_key="k", country_code="MY").query("q")
+    body = post.call_args.kwargs["json"]
+    assert body["web_search_options"] == {"user_location": {"country": "MY"}}
+
+
+def _claude_response(text, stop_reason="end_turn", inp=10, out=5):
+    block = MagicMock(type="text", text=text, citations=None)
+    return MagicMock(
+        content=[block], stop_reason=stop_reason,
+        usage=MagicMock(input_tokens=inp, output_tokens=out, server_tool_use=None),
+    )
+
+
+def test_claude_sends_the_searcher_country_and_a_larger_budget():
+    with patch("app.services.platform_clients.claude.anthropic") as mock_anthropic:
+        create = mock_anthropic.Anthropic.return_value.messages.create
+        create.return_value = _claude_response("ok")
+        ClaudeClient(api_key="k", country_code="MY").query("q")
+    kwargs = create.call_args.kwargs
+    assert kwargs["tools"][0]["user_location"] == {"type": "approximate", "country": "MY"}
+    assert kwargs["max_tokens"] == 2048
+
+
+def test_claude_resumes_a_paused_turn_and_joins_the_answer():
+    with patch("app.services.platform_clients.claude.anthropic") as mock_anthropic:
+        create = mock_anthropic.Anthropic.return_value.messages.create
+        create.side_effect = [
+            _claude_response("Top picks: 1. Rival", stop_reason="pause_turn"),
+            _claude_response("2. Acme Corp", inp=20, out=7),
+        ]
+        result = ClaudeClient(api_key="k").query("best gateway")
+    assert create.call_count == 2
+    resumed = create.call_args_list[1].kwargs["messages"]
+    assert [m["role"] for m in resumed] == ["user", "assistant"]
+    assert "Acme Corp" in result.text and "Rival" in result.text
+    assert (result.input_tokens, result.output_tokens) == (30, 12)
+
+
+def test_claude_logs_a_truncated_answer():
+    with patch("app.services.platform_clients.claude.anthropic") as mock_anthropic, \
+            patch("app.services.platform_clients.claude.logger") as log:
+        mock_anthropic.Anthropic.return_value.messages.create.return_value = (
+            _claude_response("1. A 2. B", stop_reason="max_tokens")
+        )
+        ClaudeClient(api_key="k").query("q")
+    assert log.warning.call_args.args[0] == "platform_answer_truncated"
+
+
+def test_factory_passes_country_only_to_platforms_that_take_it():
+    with patch("app.services.platform_clients.settings") as settings:
+        settings.OPENAI_API_KEY = settings.ANTHROPIC_API_KEY = "k"
+        settings.PERPLEXITY_API_KEY = settings.GEMINI_API_KEY = "k"
+        with patch("app.services.platform_clients.chatgpt.OpenAI"), \
+                patch("app.services.platform_clients.claude.anthropic"), \
+                patch("app.services.platform_clients.gemini.genai"):
+            assert get_platform_client("chatgpt", country_code="MY")._web_search["user_location"]
+            assert get_platform_client("claude", country_code="MY")._web_search["user_location"]
+            assert get_platform_client("perplexity", country_code="MY")._country_code == "MY"
+            get_platform_client("gemini", country_code="MY")  # accepted, unused

@@ -116,7 +116,7 @@ def test_run_scan_queries_every_enabled_platform():
 
     requested_platforms = []
 
-    def fake_get_client(platform):
+    def fake_get_client(platform, **_kwargs):
         requested_platforms.append(platform)
         mock_client = MagicMock()
         mock_client.query.return_value = _as_result("ACME Corp is great.")
@@ -188,7 +188,7 @@ def test_run_scan_single_platform_failure_does_not_fail_scan():
     added_objects = []
     mock_db.add.side_effect = lambda obj: added_objects.append(obj)
 
-    def fake_get_client(platform):
+    def fake_get_client(platform, **_kwargs):
         mock_client = MagicMock()
         if platform == "claude":
             mock_client.query.side_effect = Exception("Claude unavailable")
@@ -503,3 +503,116 @@ def test_run_scan_stamps_current_score_version():
     geo_scores = [o for o in added_objects if isinstance(o, GeoScore)]
     assert len(geo_scores) == 1
     assert geo_scores[0].score_version == SCORE_VERSION
+
+
+# ── Per-question isolation (scan reliability) ────────────────────────────────
+
+def _logs(added, event_type):
+    from app.models.activity_log import ActivityLog
+    return [o for o in added if isinstance(o, ActivityLog) and o.event_type == event_type]
+
+
+def test_one_failed_question_no_longer_discards_the_platform():
+    scan = make_scan()
+    client = make_client(enabled_platforms=["gemini"])
+    mock_db = setup_db(scan, client, [make_result("gemini", brand_detected=True)])
+    added = []
+    mock_db.add.side_effect = added.append
+    stored = []
+    mock_db.add_all.side_effect = stored.extend
+
+    calls = {"n": 0}
+
+    def flaky(q):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("429 quota")
+        return _as_result("ACME Corp is great.")
+
+    mock_client = MagicMock()
+    mock_client.query.side_effect = flaky
+    with patch("app.services.scan_service.get_platform_client", return_value=mock_client), \
+            patch("app.services.scan_service.time.sleep"), \
+            patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, mock_db)
+
+    assert scan.status == "completed"
+    assert len(stored) == 14  # 15 questions, one left out
+    assert not _logs(added, "scan_platform_unavailable")
+    skipped = _logs(added, "scan_questions_skipped")
+    assert len(skipped) == 1
+    assert "1 question" in skipped[0].note
+
+
+def test_platform_answering_under_half_is_unavailable_but_its_spend_is_recorded():
+    scan = make_scan()
+    client = make_client(enabled_platforms=["gemini", "claude"])
+    mock_db = setup_db(scan, client, [make_result("gemini", brand_detected=True)])
+    added = []
+    mock_db.add.side_effect = added.append
+
+    def fake_get_client(platform, **_kwargs):
+        mock_client = MagicMock()
+        if platform == "claude":
+            answers = iter(range(100))
+
+            def mostly_down(q):
+                if next(answers) < 5:
+                    return _as_result("ACME Corp")
+                raise RuntimeError("overloaded")
+            mock_client.query.side_effect = mostly_down
+        else:
+            mock_client.query.return_value = _as_result("ACME Corp is great.")
+        return mock_client
+
+    with patch("app.services.scan_service.get_platform_client", side_effect=fake_get_client), \
+            patch("app.services.scan_service.time.sleep"), \
+            patch("app.services.scan_service.extract_position", return_value=None), \
+            patch("app.services.scan_service.record_llm_usage") as record:
+        run_scan(scan.id, mock_db)
+
+    unavailable = _logs(added, "scan_platform_unavailable")
+    assert len(unavailable) == 1 and "Claude" in unavailable[0].note
+    assert "only 5 of 15" in unavailable[0].note
+    services = [c.kwargs["service"] for c in record.call_args_list]
+    assert services.count("scan_claude") == 5  # billed calls are not lost
+    assert services.count("scan_gemini") == 15
+
+
+def test_open_circuit_breaker_fails_the_platform_at_once():
+    from app.services.circuit_breaker import CircuitOpenError
+
+    scan = make_scan()
+    client = make_client(enabled_platforms=["gemini", "claude"])
+    mock_db = setup_db(scan, client, [make_result("gemini", brand_detected=True)])
+    added = []
+    mock_db.add.side_effect = added.append
+    claude = MagicMock()
+    claude.query.side_effect = CircuitOpenError("claude")
+
+    def fake_get_client(platform, **_kwargs):
+        if platform == "claude":
+            return claude
+        ok = MagicMock()
+        ok.query.return_value = _as_result("ACME Corp")
+        return ok
+
+    with patch("app.services.scan_service.get_platform_client", side_effect=fake_get_client), \
+            patch("app.services.scan_service.time.sleep"), \
+            patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, mock_db)
+
+    assert claude.query.call_count == 1
+    assert len(_logs(added, "scan_platform_unavailable")) == 1
+
+
+def test_scan_searches_from_the_clients_country():
+    scan = make_scan()
+    client = make_client(enabled_platforms=["gemini"])
+    client.country = "Singapore"
+    mock_db = setup_db(scan, client, [make_result()])
+    patcher, _ = patch_platform_client(lambda q: "ACME Corp")
+    with patcher as factory, patch("app.services.scan_service.time.sleep"), \
+            patch("app.services.scan_service.extract_position", return_value=None):
+        run_scan(scan.id, mock_db)
+    assert factory.call_args.kwargs["country_code"] == "SG"

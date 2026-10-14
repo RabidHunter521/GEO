@@ -18,7 +18,14 @@ logger = structlog.get_logger()
 # Same model family as the toolkit generators (see claude_client.py); web search
 # keeps answers close to what real Claude users see.
 MODEL_NAME = "claude-haiku-4-5-20251001"
-_MAX_TOKENS = 1024
+MODEL_DISPLAY_NAME = "Claude Haiku 4.5"  # named in the client-facing methodology
+# 1024 cut long ranked lists short, and a brand near the end of a cut list is
+# recorded as Not seen by AI.
+_MAX_TOKENS = 2048
+# A turn that runs long server-side web searches can come back with
+# stop_reason "pause_turn" and an unfinished answer; it is resumed by sending
+# the partial assistant content back. Bounded so one question stays cheap.
+_MAX_CONTINUATIONS = 2
 
 
 def _parse_citations(response) -> tuple[SourceCitation, ...]:
@@ -44,12 +51,24 @@ def _parse_citations(response) -> tuple[SourceCitation, ...]:
         return ()
 
 
+def _merge_citations(responses) -> tuple[SourceCitation, ...]:
+    """Inline citations across a paused-and-resumed answer, re-ranked as one."""
+    if len(responses) == 1:
+        return _parse_citations(responses[0])
+    return collect_citations(
+        (c.url, c.title, c.domain_hint) for r in responses for c in _parse_citations(r)
+    )
+
+
 class ClaudeClient:
     platform = "claude"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, country_code: str | None = None):
         if not api_key:
             raise PlatformNotConfiguredError(self.platform, "ANTHROPIC_API_KEY")
+        self._web_search: dict = {"type": "web_search_20250305", "name": "web_search"}
+        if country_code:
+            self._web_search["user_location"] = {"type": "approximate", "country": country_code}
         # max_retries=0: query_with_retry owns the retry-once policy.
         self._client = anthropic.Anthropic(
             api_key=api_key,
@@ -59,22 +78,40 @@ class ClaudeClient:
 
     def query(self, prompt: str) -> PlatformResult:
         def _call() -> PlatformResult:
-            response = self._client.messages.create(
-                model=MODEL_NAME,
-                max_tokens=_MAX_TOKENS,
-                messages=[{"role": "user", "content": prompt}],
-                tools=[{"type": "web_search_20250305", "name": "web_search"}],
-            )
+            messages: list[dict] = [{"role": "user", "content": prompt}]
+            responses = []
+            for _ in range(1 + _MAX_CONTINUATIONS):
+                response = self._client.messages.create(
+                    model=MODEL_NAME,
+                    max_tokens=_MAX_TOKENS,
+                    messages=messages,
+                    tools=[self._web_search],
+                )
+                responses.append(response)
+                if getattr(response, "stop_reason", None) != "pause_turn":
+                    break
+                messages = [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": [
+                        block for r in responses for block in r.content
+                    ]},
+                ]
+            if getattr(responses[-1], "stop_reason", None) in ("max_tokens", "pause_turn"):
+                logger.warning(
+                    "platform_answer_truncated", platform=self.platform,
+                    reason=responses[-1].stop_reason,
+                )
             text = "\n".join(
-                block.text for block in response.content if block.type == "text"
+                block.text
+                for r in responses for block in r.content if block.type == "text"
             )
             return PlatformResult(
                 text=text,
                 model=MODEL_NAME,
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens,
-                citations=_parse_citations(response),
-                search_requests=web_search_requests(response),
+                input_tokens=sum(r.usage.input_tokens for r in responses),
+                output_tokens=sum(r.usage.output_tokens for r in responses),
+                citations=_merge_citations(responses),
+                search_requests=sum(web_search_requests(r) for r in responses),
             )
 
         return query_with_retry(self.platform, _call)

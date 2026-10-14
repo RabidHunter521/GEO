@@ -53,7 +53,7 @@ from app.models.geo_score import GeoScore
 from app.models.scan_query_result import ScanQueryResult
 from app.services import business_impact_service, proof_card_service, work_log_service
 from app.services.language_sanitizer import sanitize_text
-from app.services.scoring_service import get_score_band, scores_comparable
+from app.services.scoring_service import get_score_band, same_platform_basis, scores_comparable
 from app.services.scoring_service import scored_results
 
 try:
@@ -128,6 +128,8 @@ class ReviewDeckData:
     presence_now: float
     presence_then: float | None
     comparable: bool
+    # Not comparable because the scored AI platforms differ, not the formula.
+    platforms_changed: bool
     seen_now: int
     total_now: int
     seen_then: int | None
@@ -262,9 +264,14 @@ def gather_review_deck_data(client: Client, db: Session, mode: str = "client") -
     ]
     redact = build_redactor(client, competitor_names, anonymize)
 
-    comparable = baseline is not None and scores_comparable(
+    same_formula = baseline is not None and scores_comparable(
         current.score_version, baseline.score_version
     )
+    platforms_changed = (
+        same_formula
+        and not same_platform_basis(current.platform_breakdown, baseline.platform_breakdown)
+    )
+    comparable = same_formula and not platforms_changed
 
     latest_results = _own_results(current.scan_id, db)
     base_results = _own_results(baseline.scan_id, db) if baseline else []
@@ -281,6 +288,7 @@ def gather_review_deck_data(client: Client, db: Session, mode: str = "client") -
         presence_now=current.ai_citability,
         presence_then=baseline.ai_citability if baseline else None,
         comparable=comparable,
+        platforms_changed=platforms_changed,
         seen_now=sum(1 for r in scored_results(latest_results) if r.brand_detected),
         total_now=len(scored_results(latest_results)),
         seen_then=(
@@ -485,9 +493,14 @@ def _headline(data: ReviewDeckData) -> str:
     if data.score_then is None:
         return f"{SCORE_DISPLAY_LABEL} is {data.score_now:.0f} today"
     if not data.comparable:
+        reason = (
+            "The AI platforms measured changed during this period"
+            if data.platforms_changed
+            else "The scoring method was updated during this period"
+        )
         return (
-            f"{SCORE_DISPLAY_LABEL} is {data.score_now:.0f} today. The scoring method was "
-            "updated during this period, so the two numbers are not directly comparable"
+            f"{SCORE_DISPLAY_LABEL} is {data.score_now:.0f} today. {reason}, so the "
+            "two numbers are not directly comparable"
         )
     delta = data.score_now - data.score_then
     if delta >= 0.5:

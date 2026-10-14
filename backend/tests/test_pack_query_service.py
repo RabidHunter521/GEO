@@ -599,13 +599,13 @@ def _captured_queries(db, scan, monkeypatch):
 
     def _fake_platform_queries(
         platform, pc, scan_, client_, competitors, controls, client_queries,
-        tracked_query_samples=(),
+        tracked_query_samples=(), skipped=None,
     ):
         captured["queries"] = client_queries
         return [], []
 
     monkeypatch.setattr(scan_service, "_run_platform_queries", _fake_platform_queries)
-    monkeypatch.setattr(scan_service, "get_platform_client", lambda p: object())
+    monkeypatch.setattr(scan_service, "get_platform_client", lambda p, **_kw: object())
     try:
         scan_service.run_scan(scan.id, db)
     except Exception:

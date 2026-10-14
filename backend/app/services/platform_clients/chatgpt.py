@@ -16,6 +16,7 @@ logger = structlog.get_logger()
 
 # Web search keeps answers close to what real ChatGPT users see.
 MODEL_NAME = "gpt-5-mini"
+MODEL_DISPLAY_NAME = "GPT-5 mini"  # named in the client-facing methodology
 
 
 def _search_calls(response) -> int:
@@ -59,9 +60,12 @@ def _parse_citations(response) -> tuple[SourceCitation, ...]:
 class ChatGPTClient:
     platform = "chatgpt"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, country_code: str | None = None):
         if not api_key:
             raise PlatformNotConfiguredError(self.platform, "OPENAI_API_KEY")
+        self._web_search: dict = {"type": "web_search"}
+        if country_code:
+            self._web_search["user_location"] = {"type": "approximate", "country": country_code}
         # max_retries=0: query_with_retry owns the retry-once policy.
         self._client = OpenAI(
             api_key=api_key,
@@ -74,8 +78,14 @@ class ChatGPTClient:
             response = self._client.responses.create(
                 model=MODEL_NAME,
                 input=prompt,
-                tools=[{"type": "web_search"}],
+                tools=[self._web_search],
             )
+            if getattr(response, "status", None) == "incomplete":
+                # A cut-off answer can drop the brand from the end of a list.
+                logger.warning(
+                    "platform_answer_truncated", platform=self.platform,
+                    reason=str(getattr(response, "incomplete_details", None)),
+                )
             return PlatformResult(
                 text=response.output_text,
                 model=MODEL_NAME,

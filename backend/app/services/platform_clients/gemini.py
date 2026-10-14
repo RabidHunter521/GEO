@@ -20,6 +20,7 @@ from app.services.provenance_service import normalize_domain
 logger = structlog.get_logger()
 
 MODEL_NAME = "gemini-2.5-flash-lite"
+MODEL_DISPLAY_NAME = "Gemini 2.5 Flash-Lite"  # named in the client-facing methodology
 
 
 def _web_entry(web) -> tuple[object, object, str | None]:

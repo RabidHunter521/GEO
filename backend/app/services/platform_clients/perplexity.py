@@ -11,6 +11,7 @@ from app.services.platform_clients.base import (
 
 API_URL = "https://api.perplexity.ai/chat/completions"
 MODEL_NAME = "sonar"  # web-grounded by default
+MODEL_DISPLAY_NAME = "Sonar"  # named in the client-facing methodology
 _TIMEOUT_SECONDS = PLATFORM_QUERY_TIMEOUT_SECONDS
 
 
@@ -46,10 +47,11 @@ def _parse_citations(payload: dict) -> tuple[SourceCitation, ...]:
 class PerplexityClient:
     platform = "perplexity"
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, country_code: str | None = None):
         if not api_key:
             raise PlatformNotConfiguredError(self.platform, "PERPLEXITY_API_KEY")
         self._api_key = api_key
+        self._country_code = country_code
 
     def query(self, prompt: str) -> PlatformResult:
         def _call() -> PlatformResult:
@@ -62,6 +64,10 @@ class PerplexityClient:
                 json={
                     "model": MODEL_NAME,
                     "messages": [{"role": "user", "content": prompt}],
+                    **(
+                        {"web_search_options": {"user_location": {"country": self._country_code}}}
+                        if self._country_code else {}
+                    ),
                 },
                 timeout=_TIMEOUT_SECONDS,
             )

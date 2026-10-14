@@ -111,6 +111,26 @@ def _reported_note(labels: list[str]) -> str:
     )
 
 
+def _models_note(platforms: list[str]) -> str:
+    """Which model answers for each scored platform, read from the adapters so
+    a model change updates the published methodology in the same commit."""
+    from app.services.platform_clients import chatgpt, claude, gemini, perplexity
+
+    models = {
+        "chatgpt": chatgpt.MODEL_DISPLAY_NAME,
+        "perplexity": perplexity.MODEL_DISPLAY_NAME,
+        "gemini": gemini.MODEL_DISPLAY_NAME,
+        "claude": claude.MODEL_DISPLAY_NAME,
+    }
+    listed = [f"{PLATFORM_LABELS.get(p, p.title())} ({models[p]})" for p in platforms if p in models]
+    names = " and ".join(listed) if len(listed) <= 2 else ", ".join(listed[:-1]) + f" and {listed[-1]}"
+    return (
+        f"We collect answers through each AI provider's API with web search turned "
+        f"on, using {names}. The consumer apps can use larger models, so a single "
+        f"answer may differ from what you see there."
+    )
+
+
 def build_methodology(enabled_platforms: list[str] | None = None) -> dict:
     """Payload for the client-facing methodology page and the PDF section."""
     enabled = [p for p in (enabled_platforms or []) if p in SCAN_PLATFORMS]
@@ -128,7 +148,10 @@ def build_methodology(enabled_platforms: list[str] | None = None) -> dict:
         "platforms": [PLATFORM_LABELS.get(p, p.title()) for p in platforms],
         "reported_platforms": reported,
         "reported_platforms_note": _reported_note(reported) if reported else None,
-        "limitations": list(_LIMITS),
+        "limitations": [
+            *_LIMITS,
+            _models_note(platforms or [p for p in SCAN_PLATFORMS if p in SCORED_PLATFORMS]),
+        ],
         # Stated plainly because it is the honest answer to "why did my score
         # move?" and because a client who finds it out later stops trusting the
         # rest of the report.
