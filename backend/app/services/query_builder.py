@@ -43,6 +43,19 @@ def _dedupe_adjacent_words(text: str) -> str:
     return "".join(out)
 
 
+def industry_term(client) -> str | None:
+    """What fills {industry} in a scan question.
+
+    The admin-entered buyer term ("payment gateway") when set, else the broad
+    `industry` category. The category alone makes questions like "Best Finance
+    in Malaysia", which no buyer asks.
+    """
+    for value in (getattr(client, "buyer_term", None), getattr(client, "industry", None)):
+        if isinstance(value, str) and value.strip():
+            return " ".join(value.split())
+    return None
+
+
 def _location(client) -> str | None:
     """Human "City, State" string from whatever location fields are set.
 
@@ -113,7 +126,7 @@ def _legacy_client_queries(client, competitors: list) -> list[dict]:
             {
                 "category": "recommendation",
                 "query_text": _dedupe_adjacent_words(
-                    template.format(industry=client.industry, location=location)
+                    template.format(industry=industry_term(client), location=location)
                 ),
                 "competitor_id": None,
             }
@@ -125,7 +138,7 @@ def _legacy_client_queries(client, competitors: list) -> list[dict]:
             {
                 "category": "local",
                 "query_text": _dedupe_adjacent_words(
-                    template.format(industry=client.industry, city=locality)
+                    template.format(industry=industry_term(client), city=locality)
                 ),
                 "competitor_id": None,
             }
@@ -157,7 +170,7 @@ def build_competitor_queries(client, competitor) -> list[dict]:
             "category": "recommendation",
             "query_text": _dedupe_adjacent_words(
                 COMPETITOR_QUERY_TEMPLATES["recommendation"].format(
-                    industry=client.industry, location=location
+                    industry=industry_term(client), location=location
                 )
             ),
             "competitor_id": competitor.id,
@@ -167,7 +180,7 @@ def build_competitor_queries(client, competitor) -> list[dict]:
             "category": "local",
             "query_text": _dedupe_adjacent_words(
                 COMPETITOR_QUERY_TEMPLATES["local"].format(
-                    industry=client.industry, city=locality
+                    industry=industry_term(client), city=locality
                 )
             ),
             "competitor_id": competitor.id,

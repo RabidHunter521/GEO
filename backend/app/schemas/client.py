@@ -58,6 +58,9 @@ class ClientUpdate(BaseModel):
     brand_aliases: list[str] | None = None
     website: str | None = Field(default=None, min_length=4, max_length=255)
     industry: str | None = Field(default=None, min_length=1, max_length=255)
+    # What buyers call this business; fills {industry} in scan questions.
+    # A blank string clears it (back to `industry`).
+    buyer_term: str | None = Field(default=None, max_length=120)
     description: str | None = None
     target_audience: str | None = None
     city: str | None = Field(default=None, max_length=255)
@@ -108,6 +111,15 @@ class ClientUpdate(BaseModel):
     # setattr loop (clients.py writes every parsed field to the row).
     confirm_pack_change: bool = False
 
+    @field_validator("buyer_term")
+    @classmethod
+    def validate_buyer_term(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        # Collapse whitespace; a blank value is sent explicitly to clear the
+        # field, so it becomes NULL (back to `industry`), never "".
+        return " ".join(value.split()) or None
+
     @field_validator("brand_aliases")
     @classmethod
     def validate_brand_aliases(cls, value: list[str] | None) -> list[str] | None:
@@ -152,6 +164,7 @@ class ClientResponse(BaseModel):
     brand_aliases: list[str] = []
     website: str
     industry: str
+    buyer_term: str | None = None
     description: str | None = None
     target_audience: str | None = None
     city: str | None = None

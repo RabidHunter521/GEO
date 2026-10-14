@@ -21,6 +21,12 @@ class Client(Base):
     )
     website: Mapped[str] = mapped_column(String(255), nullable=False)
     industry: Mapped[str] = mapped_column(String(255), nullable=False)
+    # What buyers actually call this kind of business ("payment gateway",
+    # "dental clinic"). `industry` is a broad picklist category ("Finance"),
+    # and scan questions read "Best {industry} in ..." -- so when this is set
+    # it fills {industry} instead (query_builder.industry_term). NULL = fall
+    # back to `industry`, which is how every client behaved before.
+    buyer_term: Mapped[str | None] = mapped_column(String(120), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_audience: Mapped[str | None] = mapped_column(Text, nullable=True)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)

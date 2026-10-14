@@ -346,6 +346,8 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           brand_aliases: parseAliases(fd.get("brand_aliases")),
           website: fd.get("website") as string,
           industry: fd.get("industry") as string,
+          // Blank clears it (the API stores NULL and falls back to industry).
+          buyer_term: ((fd.get("buyer_term") as string) ?? "").trim(),
           description: (fd.get("description") as string) || undefined,
           target_audience: (fd.get("target_audience") as string) || undefined,
           city: (fd.get("city") as string) || undefined,
@@ -532,6 +534,22 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="s-buyer-term">What buyers call this business</Label>
+            <Input
+              id="s-buyer-term"
+              name="buyer_term"
+              maxLength={120}
+              defaultValue={client.buyer_term ?? ""}
+              placeholder="e.g. payment gateway, dental clinic, condo developer"
+              aria-describedby="s-buyer-term-help"
+            />
+            <p id="s-buyer-term-help" className="text-xs text-muted-foreground">
+              Used in scan questions in place of the industry above, e.g. &ldquo;Best payment
+              gateway in Malaysia&rdquo; rather than &ldquo;Best Finance in Malaysia&rdquo;.
+              Leave blank to use the industry. Applies from the next scan.
+            </p>
           </div>
         </div>
       </section>

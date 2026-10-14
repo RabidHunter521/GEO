@@ -20,6 +20,7 @@ def _fake_client(name="Acme Corp"):
     m.name = name
     m.website = "https://acme.com"
     m.industry = "Technology"
+    m.buyer_term = None
     m.description = None
     m.target_audience = None
     m.city = None
@@ -835,3 +836,24 @@ def test_update_client_rejects_unsafe_brand_aliases(aliases):
     response = client.patch(f"/api/v1/clients/{existing.id}", json={"brand_aliases": aliases})
     app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "sent,stored",
+    [("  payment   gateway ", "payment gateway"), ("", None), ("   ", None)],
+)
+def test_update_client_buyer_term_is_cleaned_and_blank_clears_it(sent, stored):
+    app, get_db = _make_app()
+    existing = _fake_client("Curlec")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+    existing.buyer_term = "old term"
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+    response = client.patch(f"/api/v1/clients/{existing.id}", json={"buyer_term": sent})
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert existing.buyer_term == stored
+    assert response.json()["buyer_term"] == stored

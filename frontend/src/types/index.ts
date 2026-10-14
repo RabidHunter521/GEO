@@ -54,6 +54,8 @@ export interface Client {
   name: string
   /** Other names AI answers may use for the brand; any counts as Seen by AI. */
   brand_aliases: string[]
+  /** What buyers call the business; fills {industry} in scan questions. */
+  buyer_term: string | null
   website: string
   industry: string
   description: string | null

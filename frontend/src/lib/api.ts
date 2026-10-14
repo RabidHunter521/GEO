@@ -129,6 +129,10 @@ export function updateClient(
       | "ga4_property_id"
       | "benchmark_opt_out"
       | "win_notifications_enabled"
+      | "brand_aliases"
+      | "buyer_term"
+      | "industry_pack"
+      | "industry_subcategory"
     >
   >,
 ): Promise<Client> {

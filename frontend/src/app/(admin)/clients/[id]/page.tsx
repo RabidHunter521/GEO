@@ -15,6 +15,7 @@ import { StabilityCard } from "@/components/measurement/StabilityCard"
 import { ImpactSummaryCard } from "@/components/measurement/ImpactSummaryCard"
 import { getScoreBand, getScoreColor } from "@/lib/score-utils"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
+import { suggestedPackFor } from "@/lib/industry-packs"
 import { cn } from "@/lib/utils"
 import type { Client, Platform } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
@@ -77,6 +78,7 @@ export default async function ClientOverviewPage({
   ])
 
   const band = geoScore ? getScoreBand(geoScore.overall_score) : null
+  const suggestedPack = client.industry_pack ? null : suggestedPackFor(client.industry)
 
   const now = new Date()
   const currentSnap = trafficHistory.find((t) => t.period.slice(0, 10) === periodKey(now))
@@ -95,6 +97,25 @@ export default async function ClientOverviewPage({
 
   return (
     <div className="space-y-6">
+      {!client.industry_pack && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          <p>
+            <span className="font-medium">No industry pack set.</span>{" "}
+            Scans use the standard local-business questions.
+            {suggestedPack ? ` Suggested: ${suggestedPack.label}.` : ""}
+          </p>
+          <Link
+            href={`/clients/${id}/settings`}
+            className="font-medium underline underline-offset-2"
+          >
+            Choose a pack
+          </Link>
+        </div>
+      )}
+
       {/* Command Center — outcomes first, before any raw score detail */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <OutcomeMetricCard

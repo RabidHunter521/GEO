@@ -159,3 +159,15 @@ def test_other_subcategories_do_not_get_payment_questions():
     template_ids = {q["template_id"] for q in queries}
     assert not any(t.startswith("pg_") for t in template_ids)
     assert "ps_for_smes" in template_ids
+
+
+def test_buyer_term_fills_industry_in_pack_questions():
+    """The picklist industry ("Finance") would make "Best Finance for small
+    businesses in Malaysia"; the buyer term is what buyers actually type."""
+    queries = build_pack_queries(
+        _client(industry="Finance", buyer_term="payment gateway"),
+        [], _FACTS, B2B_SERVICES_PACK, [],
+    )
+    texts = [q["query_text"] for q in queries]
+    assert "Best payment gateway for small businesses in Malaysia" in texts
+    assert not any("Finance" in t for t in texts)

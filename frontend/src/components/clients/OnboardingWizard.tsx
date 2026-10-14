@@ -23,6 +23,13 @@ import {
 } from "@/app/(admin)/clients/actions"
 import { updateClientAction } from "@/app/(admin)/clients/[id]/settings/actions"
 import { INDUSTRIES } from "@/lib/industries"
+import {
+  EMPTY_PACK_CHOICE,
+  applyIndustryToChoice,
+  packChoiceUpdate,
+  type PackChoice,
+} from "@/lib/industry-packs"
+import { PackPicker } from "@/components/clients/PackPicker"
 import { isValidWebsite } from "@/lib/utils"
 import type { Client } from "@/types"
 
@@ -55,6 +62,7 @@ export function OnboardingWizard({ onClose }: Props) {
   const [name, setName] = useState("")
   const [website, setWebsite] = useState("")
   const [industry, setIndustry] = useState("")
+  const [packChoice, setPackChoice] = useState<PackChoice>(EMPTY_PACK_CHOICE)
 
   // Step 2
   const [competitors, setCompetitors] = useState<DraftCompetitor[]>([])
@@ -110,6 +118,7 @@ export function OnboardingWizard({ onClose }: Props) {
         city: city || undefined,
         state: state || undefined,
         contact_email: contactEmail || undefined,
+        ...packChoiceUpdate(packChoice),
       }
       if (Object.values(profile).some((v) => v !== undefined)) {
         await updateClientAction(client.id, profile)
@@ -256,7 +265,13 @@ export function OnboardingWizard({ onClose }: Props) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="wiz-industry">Industry *</Label>
-            <Select value={industry} onValueChange={setIndustry}>
+            <Select
+              value={industry}
+              onValueChange={(next) => {
+                setIndustry(next)
+                setPackChoice((choice) => applyIndustryToChoice(choice, next))
+              }}
+            >
               <SelectTrigger id="wiz-industry">
                 <SelectValue placeholder="Select industry…" />
               </SelectTrigger>
@@ -269,6 +284,12 @@ export function OnboardingWizard({ onClose }: Props) {
               </SelectContent>
             </Select>
           </div>
+          <PackPicker
+            idPrefix="wiz"
+            industry={industry}
+            value={packChoice}
+            onChange={setPackChoice}
+          />
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel

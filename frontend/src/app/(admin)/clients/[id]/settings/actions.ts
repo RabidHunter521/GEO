@@ -14,6 +14,7 @@ export async function updateClientAction(
     registration_number?: string | null
     website?: string
     industry?: string
+    buyer_term?: string | null
     description?: string
     target_audience?: string
     city?: string
