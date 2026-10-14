@@ -4,7 +4,6 @@
 import { useState, useTransition, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -39,7 +38,7 @@ import {
   updateCompetitorAliasesAction,
   toggleControlQueryAction,
 } from "@/app/(admin)/clients/actions"
-import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionAssessment, AssessmentDimension } from "@/types"
+import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, DimensionReviewStatus } from "@/types"
 import { PLATFORM_LABELS, SCAN_PLATFORMS, SCORED_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
 import { IndustryPackCard } from "./IndustryPackCard"
@@ -48,7 +47,7 @@ import { BenchmarkOptOutCard } from "./BenchmarkOptOutCard"
 import { WinNotificationsCard } from "./WinNotificationsCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
 import { isValidWebsite } from "@/lib/utils"
-import { generateAssessmentAction, acceptAssessmentAction } from "./actions"
+import { ScoreReviewCard } from "./ScoreReviewCard"
 
 interface Props {
   client: Client
@@ -56,6 +55,7 @@ interface Props {
   contentRecommendation?: string | null
   trafficHistory: AiTrafficSnapshot[]
   controlQueries: ControlQuery[]
+  reviewStatus: DimensionReviewStatus[]
 }
 
 /** "A, B ,, C" -> ["A", "B", "C"]. The API trims, de-duplicates and validates. */
@@ -138,85 +138,7 @@ function formatPeriod(period: string): string {
   return new Date(period).toLocaleDateString("en-MY", { month: "long", year: "numeric" })
 }
 
-function AssessmentReview({
-  clientId,
-  dimension,
-  onAccepted,
-}: {
-  clientId: string;
-  dimension: AssessmentDimension;
-  onAccepted: (score: number) => void;
-}) {
-  const [draft, setDraft] = useState<DimensionAssessment | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [adjust, setAdjust] = useState<string>("")
-
-  async function generate() {
-    setLoading(true)
-    try {
-      const a = await generateAssessmentAction(clientId, dimension)
-      setDraft(a)
-      setAdjust(String(a.suggested_score))
-    } catch {
-      alert("Assessment failed — please try again.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function accept(useAdjusted: boolean) {
-    if (!draft) return
-    let finalScore: number | null = null
-    if (useAdjusted) {
-      const n = Number(adjust)
-      if (adjust === "" || Number.isNaN(n) || n < 0 || n > 100) {
-        alert("Enter a score between 0 and 100.")
-        return
-      }
-      finalScore = n
-    }
-    try {
-      const saved = await acceptAssessmentAction(clientId, dimension, finalScore)
-      onAccepted(saved.final_score ?? saved.suggested_score)
-      setDraft(null)
-    } catch {
-      alert("Could not save the assessment — please try again.")
-    }
-  }
-
-  return (
-    <div className="mt-2">
-      <Button type="button" variant="outline" size="sm" onClick={generate} disabled={loading}>
-        {loading ? "Assessing…" : "Generate assessment"}
-      </Button>
-      {draft && (
-        <div className="mt-2 rounded-md border p-3 text-sm">
-          <div className="font-medium">Suggested: {draft.suggested_score}</div>
-          <ul className="ml-4 list-disc">
-            {draft.evidence_bullets.map((b, i) => (
-              <li key={i}>{b}</li>
-            ))}
-          </ul>
-          <div className="mt-2 flex items-center gap-2">
-            <Button type="button" size="sm" onClick={() => accept(false)}>
-              Accept
-            </Button>
-            <Input
-              className="w-16"
-              value={adjust}
-              onChange={(e) => setAdjust(e.target.value)}
-            />
-            <Button type="button" size="sm" variant="secondary" onClick={() => accept(true)}>
-              Adjust &amp; accept
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory, controlQueries: initialControlQueries }: Props) {
+export function SettingsForm({ client, competitors: initialCompetitors, contentRecommendation, trafficHistory, controlQueries: initialControlQueries, reviewStatus }: Props) {
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -264,13 +186,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
     })
     setIsDirty(true)
   }
-
-  const [brandAuthorityScore, setBrandAuthorityScore] = useState<string>(
-    client.brand_authority_score != null ? String(client.brand_authority_score) : ""
-  )
-  const [contentQualityScore, setContentQualityScore] = useState<string>(
-    client.content_quality_score != null ? String(client.content_quality_score) : ""
-  )
 
   const [logoUrl, setLogoUrl] = useState<string | null>(client.logo_url)
   const [uploadingLogo, setUploadingLogo] = useState(false)
@@ -324,21 +239,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
     setError(null)
     setSaved(false)
 
-    // A manual dimension score must never appear "naked" to the client — require
-    // an evidence line whenever a score is set above 0 (mirrors the backend rule).
-    const baScore = Number(fd.get("brand_authority_score") || 0)
-    const baEvidence = ((fd.get("brand_authority_evidence") as string) || "").trim()
-    if (baScore > 0 && !baEvidence) {
-      setError("Add a short evidence note for the Brand Authority score — it must never appear to the client without a reason.")
-      return
-    }
-    const cqScore = Number(fd.get("content_quality_score") || 0)
-    const cqEvidence = ((fd.get("content_quality_evidence") as string) || "").trim()
-    if (cqScore > 0 && !cqEvidence) {
-      setError("Add a short evidence note for the Content Quality score — it must never appear to the client without a reason.")
-      return
-    }
-
     const dealRaw = (fd.get("avg_deal_value_rm") as string) ?? ""
     startTransition(async () => {
       try {
@@ -359,14 +259,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
           // Empty clears these (null), unlike the fields above.
           legal_name: ((fd.get("legal_name") as string) ?? "").trim() || null,
           registration_number: ((fd.get("registration_number") as string) ?? "").trim() || null,
-          brand_authority_score: fd.get("brand_authority_score")
-            ? Number(fd.get("brand_authority_score"))
-            : undefined,
-          brand_authority_evidence: (fd.get("brand_authority_evidence") as string) || undefined,
-          content_quality_score: fd.get("content_quality_score")
-            ? Number(fd.get("content_quality_score"))
-            : undefined,
-          content_quality_evidence: (fd.get("content_quality_evidence") as string) || undefined,
           score_drop_threshold: fd.get("score_drop_threshold")
             ? Number(fd.get("score_drop_threshold"))
             : undefined,
@@ -717,49 +609,16 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
 
       <Separator />
 
-      {/* Manual scores */}
-      <section id="brand-authority" className="space-y-4">
+      {/* Brand Authority / Content Quality: reviewed, never typed in */}
+      <ScoreReviewCard clientId={client.id} initialStatus={reviewStatus} />
+
+      <Separator />
+
+      <section className="space-y-4">
         <div>
-          <h2 className="font-display text-lg font-semibold tracking-tight">Manual Score Inputs</h2>
-          <p className="text-xs text-muted-foreground mt-0.5 italic">
-            Based on public evidence · Reviewed by SeenBy
-          </p>
+          <h2 className="font-display text-lg font-semibold tracking-tight">Alerts &amp; scan reminders</h2>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="s-authority">Brand Authority (0–100)</Label>
-            <Input
-              id="s-authority"
-              name="brand_authority_score"
-              type="number"
-              min="0"
-              max="100"
-              value={brandAuthorityScore}
-              onChange={(e) => { setBrandAuthorityScore(e.target.value); setIsDirty(true) }}
-            />
-            <AssessmentReview
-              clientId={client.id}
-              dimension="brand_authority"
-              onAccepted={(score) => { setBrandAuthorityScore(String(score)); setIsDirty(true) }}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="s-content">Content Quality (0–100)</Label>
-            <Input
-              id="s-content"
-              name="content_quality_score"
-              type="number"
-              min="0"
-              max="100"
-              value={contentQualityScore}
-              onChange={(e) => { setContentQualityScore(e.target.value); setIsDirty(true) }}
-            />
-            <AssessmentReview
-              clientId={client.id}
-              dimension="content_quality"
-              onAccepted={(score) => { setContentQualityScore(String(score)); setIsDirty(true) }}
-            />
-          </div>
           <div className="space-y-1">
             <div className="flex items-center gap-1">
               <Label htmlFor="s-threshold">Score Drop Threshold</Label>
@@ -808,41 +667,6 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
               step="1"
               defaultValue={client.scan_cadence_days}
             />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="s-authority-evidence">
-              Brand Authority — why this score?{" "}
-              <span className="text-muted-foreground">(required when score &gt; 0)</span>
-            </Label>
-            <Textarea
-              id="s-authority-evidence"
-              name="brand_authority_evidence"
-              rows={3}
-              placeholder="e.g. 150 Google reviews, featured in The Star, active LinkedIn page"
-              defaultValue={client.brand_authority_evidence ?? ""}
-            />
-            <p className="text-xs text-muted-foreground">
-              Shown to the client under &ldquo;Based on public evidence · Reviewed by SeenBy&rdquo; — never leave it blank with a score set.
-            </p>
-          </div>
-          <div id="content-quality" className="space-y-1">
-            <Label htmlFor="s-content-evidence">
-              Content Quality — why this score?{" "}
-              <span className="text-muted-foreground">(required when score &gt; 0)</span>
-            </Label>
-            <Textarea
-              id="s-content-evidence"
-              name="content_quality_evidence"
-              rows={3}
-              placeholder="e.g. Blog publishes weekly, FAQ page present, thin product descriptions"
-              defaultValue={client.content_quality_evidence ?? ""}
-            />
-            <p className="text-xs text-muted-foreground">
-              Shown to the client under &ldquo;Based on public evidence · Reviewed by SeenBy&rdquo; — never leave it blank with a score set.
-            </p>
           </div>
         </div>
 

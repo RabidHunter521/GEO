@@ -3,6 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
 vi.mock("@/app/(admin)/clients/[id]/settings/actions", () => ({
+  acceptAssessmentAction: vi.fn(),
+  assessmentStatusAction: vi.fn(),
+  generateAssessmentAction: vi.fn(),
   syncGa4TrafficAction: vi.fn(),
   updateClientAction: vi.fn(),
   updateTrafficAction: vi.fn(),
@@ -38,7 +41,7 @@ import { GuaranteeCard } from "@/app/(admin)/clients/[id]/GuaranteeCard"
 import { ContentGapsClient } from "@/app/(admin)/clients/[id]/content-gaps/ContentGapsClient"
 import { PageAuditsSection } from "@/app/(admin)/clients/[id]/content-studio/PageAuditsSection"
 import { SettingsForm } from "@/app/(admin)/clients/[id]/settings/SettingsForm"
-import type { Client, ContentAnalysis, GuaranteeProgress } from "@/types"
+import type { Client, ContentAnalysis, DimensionReviewStatus, GuaranteeProgress } from "@/types"
 
 const client = {
   id: "client-1",
@@ -56,6 +59,23 @@ const client = {
   lead_to_customer_pct: 20,
 } as Client
 
+const reviewStatus: DimensionReviewStatus[] = [
+  {
+    dimension: "brand_authority", score: 62, reviewed_at: "2026-08-01T00:00:00Z",
+    reviewed_by: "Siti", adjustment_reason: null, evidence: ["Listed on Google with 40 reviews"],
+    review_due: false, due_reason: null,
+    criteria: [{
+      key: "directory_presence", label: "Key directory and social listings live and verified",
+      max: 25, basis: "measured", points: 12, final_points: 12, evidence: null, admin_hint: null,
+    }],
+  },
+  {
+    dimension: "content_quality", score: 0, reviewed_at: null, reviewed_by: null,
+    adjustment_reason: null, evidence: [], review_due: true, due_reason: "never_reviewed",
+    criteria: null,
+  },
+]
+
 describe("SettingsForm terminology", () => {
   it("renders Growth Readiness for the score threshold and traffic note", () => {
     const markup = renderToStaticMarkup(createElement(SettingsForm, {
@@ -63,11 +83,29 @@ describe("SettingsForm terminology", () => {
       competitors: [],
       trafficHistory: [],
       controlQueries: [],
+      reviewStatus,
     }))
 
     expect(markup).toContain("Alert fires when Growth Readiness drops below this number.")
     expect(markup).toContain("does not affect Growth Readiness.")
     expect(markup).not.toMatch(/AI visibility score|GEO score/i)
+  })
+
+  it("shows reviewed scores read-only, with reviewer and review state", () => {
+    const markup = renderToStaticMarkup(createElement(SettingsForm, {
+      client, competitors: [], trafficHistory: [], controlQueries: [], reviewStatus,
+    }))
+    // No free-typed score or evidence fields any more.
+    expect(markup).not.toContain('name="brand_authority_score"')
+    expect(markup).not.toContain('name="content_quality_evidence"')
+    expect(markup).toContain("by Siti")
+    expect(markup).toContain("Listed on Google with 40 reviews")
+    expect(markup).toContain("Not yet reviewed")
+    expect(markup).toContain('id="brand-authority"')
+    expect(markup).toContain('id="content-quality"')
+    // The reviewed checklist is shown item by item.
+    expect(markup).toContain("Key directory and social listings live and verified")
+    expect(markup).toContain("12/25")
   })
 })
 

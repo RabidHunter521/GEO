@@ -12,6 +12,7 @@ uses.
 Language follows CLAUDE.md section 2: "Seen by AI", never "cited"/"mentioned".
 """
 from app.core.constants import (
+    ASSESSMENT_RUBRICS,
     DIMENSION_EVIDENCE_LABEL,
     GOOGLE_SERP_AUDIENCE,
     SCAN_PLATFORMS,
@@ -40,16 +41,18 @@ _DIMENSIONS: tuple[tuple[str, str, str, str], ...] = (
         "Brand Authority",
         "reviewed",
         "How well your business is established across the public sources AI "
-        "systems read - directories, reviews, and profiles. Researched from "
-        "public evidence and reviewed by a person before it counts.",
+        "systems read. Scored on a fixed points checklist: most items are "
+        "measured from your listings, reviews and our scans, one is researched "
+        "from public evidence. A person reviews every score before it counts.",
     ),
     (
         "content_quality",
         "Content Quality",
         "reviewed",
-        "How completely your own site answers the questions buyers ask, based on "
-        "a crawl of your pages. Researched from public evidence and reviewed by "
-        "a person before it counts.",
+        "How completely and credibly your own site answers the questions buyers "
+        "ask. Scored on a fixed points checklist: most items are measured from "
+        "page checks and a read of your site, one is researched from public "
+        "evidence. A person reviews every score before it counts.",
     ),
     (
         "technical_foundations",
@@ -84,6 +87,14 @@ _LIMITS: tuple[str, ...] = (
 )
 
 
+# Plain words for how each checklist item is produced.
+_CRITERION_BASIS = {
+    "measured": "Measured",
+    "recorded": "From public review sites",
+    "judged": "Researched and reviewed",
+}
+
+
 def _dimension_rows() -> list[dict]:
     rows = []
     for key, label, basis, description in _DIMENSIONS:
@@ -94,6 +105,11 @@ def _dimension_rows() -> list[dict]:
             "basis": basis,
             "description": description,
             "evidence_label": DIMENSION_EVIDENCE_LABEL if basis == "reviewed" else None,
+            # The points checklist, straight from the constants it is scored on.
+            "criteria": [
+                {"label": c["label"], "max_points": c["max"], "basis": _CRITERION_BASIS[c["basis"]]}
+                for c in ASSESSMENT_RUBRICS.get(key, ())
+            ],
         })
     return rows
 

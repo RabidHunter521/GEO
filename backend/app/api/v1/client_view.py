@@ -91,7 +91,7 @@ from app.schemas.ai_mirror import ClientViewMirror
 from app.services import ai_mirror_service
 from app.services import business_impact_service
 from app.services import query_stability_service
-from app.services.assessment_service import latest_assessment
+from app.services.assessment_service import latest_reviewed
 from app.services.client_period_summary_service import build_client_period_summary
 from app.services.benchmark_service import compute_industry_benchmark
 from app.services.revenue_service import estimate_pipeline, estimate_value_at_risk
@@ -222,14 +222,13 @@ def _client_proof_cards(client: Client, db: Session) -> list[ClientViewProofCard
 
 
 def _accepted_bullets(db: Session, client_id, dimension: str) -> list[str]:
-    """Return evidence_bullets from the latest assessment only when it has been
-    accepted or adjusted by an admin. Returns [] otherwise.
-    raw_narrative is never returned — only the structured bullet list.
+    """Evidence bullets of the latest assessment an admin accepted or adjusted.
+
+    [] when the dimension has never been reviewed. A newer, unreviewed
+    suggestion does not hide them. raw_narrative is never returned.
     """
-    row = latest_assessment(client_id, dimension, db)
-    if row is not None and row.status in ("accepted", "adjusted"):
-        return list(row.evidence_bullets)
-    return []
+    row = latest_reviewed(client_id, dimension, db)
+    return row.shown_bullets if row is not None else []
 
 
 def _safe_public_url(value: str | None) -> str | None:

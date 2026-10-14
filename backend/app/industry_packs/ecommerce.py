@@ -280,7 +280,7 @@ _AUTHORITY_TARGETS = (
     ),
     AuthorityTarget(
         key="tiktok_shop", name="TikTok Shop store", asset_type="directory",
-        provenance_domain="shop.tiktok.com", url_hint="https://shop.tiktok.com/",
+        provenance_domain="shop.tiktok.com", url_hint="https://seller-my.tiktok.com/",
     ),
 )
 

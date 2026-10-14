@@ -95,7 +95,7 @@ def test_priority_assets_are_flagged_core(db):
     by_key = {i["key"]: i for i in authority_service.get_catalog(client, db)}
     assert by_key["foodpanda"]["priority"] == "core"
     assert by_key["gbp"]["priority"] == "core"
-    assert by_key["burpple"]["priority"] == "standard"
+    assert by_key["grabfood"]["priority"] == "standard"
 
 
 def test_a_pack_target_can_be_added_as_an_asset(db):

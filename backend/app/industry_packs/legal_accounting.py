@@ -273,13 +273,14 @@ _SCHEMA = SchemaProfile(
 )
 
 _AUTHORITY_TARGETS = (
+    # Registered firms and practising lawyers appear here automatically; the
+    # work is checking the entry is complete and correct. (MIA has no public
+    # firm directory, only a paid, request-based official search, so there is
+    # no accounting equivalent to list on.)
     AuthorityTarget(
-        key="malaysian_bar", name="Malaysian Bar law firm directory", asset_type="directory",
-        provenance_domain="malaysianbar.org.my", url_hint="https://www.malaysianbar.org.my/",
-    ),
-    AuthorityTarget(
-        key="mia_directory", name="MIA member firm directory", asset_type="directory",
-        provenance_domain="mia.org.my", url_hint="https://www.mia.org.my/",
+        key="malaysian_bar", name="Malaysian Bar Legal Directory entry", asset_type="directory",
+        provenance_domain="legaldirectory.malaysianbar.org.my",
+        url_hint="https://legaldirectory.malaysianbar.org.my/",
     ),
     AuthorityTarget(
         key="asklegal", name="AskLegal coverage", asset_type="media",
@@ -287,7 +288,7 @@ _AUTHORITY_TARGETS = (
     ),
 )
 
-_PRIORITY_ASSETS = ("gbp", "linkedin", "malaysian_bar", "mia_directory")
+_PRIORITY_ASSETS = ("gbp", "linkedin", "malaysian_bar", "facebook")
 
 LEGAL_ACCOUNTING_PACK = IndustryPack(
     key="legal_accounting",

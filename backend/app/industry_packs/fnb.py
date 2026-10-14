@@ -417,10 +417,6 @@ _AUTHORITY_TARGETS = (
         key="grabfood", name="GrabFood merchant listing", asset_type="directory",
         provenance_domain="grab.com", url_hint="https://food.grab.com/my/en/",
     ),
-    AuthorityTarget(
-        key="burpple", name="Burpple listing", asset_type="review_platform",
-        provenance_domain="burpple.com", url_hint="https://www.burpple.com/",
-    ),
 )
 
 _PRIORITY_ASSETS = ("gbp", "tripadvisor", "foodpanda", "instagram")

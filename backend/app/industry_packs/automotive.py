@@ -270,10 +270,6 @@ _AUTHORITY_TARGETS = (
         provenance_domain="carlist.my", url_hint="https://www.carlist.my/",
     ),
     AuthorityTarget(
-        key="carsome", name="Carsome listing", asset_type="directory",
-        provenance_domain="carsome.my", url_hint="https://www.carsome.my/",
-    ),
-    AuthorityTarget(
         key="paultan", name="Paul Tan's Automotive News coverage", asset_type="media",
         provenance_domain="paultan.org", url_hint="https://paultan.org/",
     ),

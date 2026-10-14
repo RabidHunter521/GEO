@@ -955,6 +955,51 @@ export interface DimensionAssessment {
   raw_narrative: string | null
   generated_at: string
   reviewed_at: string | null
+  /** Evidence as the admin edited it; null = the suggestion was kept. */
+  final_bullets: string[] | null
+  adjustment_reason: string | null
+  reviewed_by: string | null
+  /** The points checklist (SCORE_VERSION v1.6.0+); null on older rows. */
+  criteria: AssessmentCriterion[] | null
+}
+
+/** One item of the Brand Authority / Content Quality points checklist. */
+export interface AssessmentCriterion {
+  key: string
+  label: string
+  max: number
+  /** "measured" | "recorded" | "judged" */
+  basis: string
+  /** Suggested points. */
+  points: number
+  /** Points as reviewed; null until reviewed. */
+  final_points: number | null
+  /** Client-safe evidence sentence. */
+  evidence: string | null
+  /** Admin-only: what to run or fix to measure or improve this item. */
+  admin_hint: string | null
+}
+
+/** Where one manual dimension's review stands (GET .../assessments/status). */
+export interface DimensionReviewStatus {
+  dimension: AssessmentDimension
+  score: number | null
+  reviewed_at: string | null
+  reviewed_by: string | null
+  adjustment_reason: string | null
+  evidence: string[]
+  review_due: boolean
+  due_reason: "never_reviewed" | "stale" | "method_changed" | null
+  criteria: AssessmentCriterion[] | null
+}
+
+/** A client whose Brand Authority or Content Quality review is due. */
+export interface ReviewDueItem {
+  client_id: string
+  client_name: string
+  dimension: AssessmentDimension
+  last_reviewed_at: string | null
+  due_reason: "never_reviewed" | "stale" | "method_changed"
 }
 
 // ── Citation Provenance / Share-of-Source ─────────────────────────────────────
@@ -1623,6 +1668,8 @@ export interface ClientViewMethodologyDimension {
   basis: "measured" | "reviewed"
   description: string
   evidence_label: string | null
+  /** The points checklist for a reviewed dimension (empty otherwise). */
+  criteria: { label: string; max_points: number; basis: string }[]
 }
 
 export interface ClientViewMethodology {

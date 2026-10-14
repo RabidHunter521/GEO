@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import require_api_key
 from app.core.constants import DASHBOARD_CATEGORY_LABELS
 from app.core.database import get_db
+from app.schemas.assessment import ReviewDueItem
 from app.schemas.dashboard import DashboardFeedResponse, DashboardSummaryResponse
 from app.services import dashboard_service
 from app.services.dashboard_service import Period
@@ -77,3 +78,32 @@ def get_feed(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/assessment-reviews-due",
+    response_model=list[ReviewDueItem],
+    dependencies=[Depends(require_api_key)],
+)
+def assessment_reviews_due(db: Session = Depends(get_db)):
+    """Active clients whose Brand Authority or Content Quality review is
+    missing or older than ASSESSMENT_REVIEW_DAYS, oldest first."""
+    from app.models.client import Client
+    from app.services import assessment_service
+
+    clients = (
+        db.query(Client)
+        .filter(Client.archived_at.is_(None), Client.is_prospect.is_(False))
+        .order_by(Client.name)
+        .all()
+    )
+    items = [
+        ReviewDueItem(
+            client_id=c.id, client_name=c.name, dimension=d["dimension"],
+            last_reviewed_at=d["last_reviewed_at"], due_reason=d["reason"],
+        )
+        for c in clients
+        for d in assessment_service.review_due(c, db)
+    ]
+    # Never-reviewed first, then the longest-unreviewed.
+    return sorted(items, key=lambda i: (i.last_reviewed_at is not None, i.last_reviewed_at or 0))

@@ -226,8 +226,24 @@ def test_build_report_html_contains_manual_assessment_label():
     from app.services.report_service import _build_report_html
     client = MagicMock()
     client.name = "Acme Corp"
-    html = _build_report_html(client, _make_report_data())
+    data = _make_report_data()
+    data.brand_authority_reviewed = data.content_quality_reviewed = True
+    html = _build_report_html(client, data)
     assert "Based on public evidence · Reviewed by SeenBy" in html
+
+
+def test_build_report_html_never_claims_a_review_that_did_not_happen():
+    # The label is a claim to the client. Unreviewed dimensions used to print
+    # it anyway (the PDF read nothing about review state).
+    from app.services.report_service import _build_report_html
+    client = MagicMock()
+    client.name = "Acme Corp"
+    data = _make_report_data()
+    data.brand_authority_evidence = "Typed straight into settings, never reviewed"
+    html = _build_report_html(client, data)
+    assert "Reviewed by SeenBy" not in html
+    assert html.count("Not yet reviewed") == 2
+    assert "never reviewed" not in html  # unreviewed evidence is not shown either
 
 
 # ── generate_report_pdf ───────────────────────────────────────────────────────
@@ -538,6 +554,7 @@ def test_build_report_html_manual_evidence_never_naked():
     client = MagicMock()
     client.name = "Acme Corp"
     data = _make_report_data()  # no evidence text set
+    data.brand_authority_reviewed = data.content_quality_reviewed = True
     html = _build_report_html(client, data)
     # Label present, and a substantive methodology line backs it (not bare).
     assert "Based on public evidence · Reviewed by SeenBy" in html
@@ -646,6 +663,7 @@ def test_build_report_html_sanitizes_forbidden_terms_in_cq_evidence():
     client = MagicMock()
     client.name = "Acme Corp"
     data = _make_report_data()
+    data.content_quality_reviewed = True
     data.content_quality_evidence = "citation rate is high; ranking position is good"
     rendered = _build_report_html(client, data)
     assert "citation rate" not in rendered
@@ -661,6 +679,7 @@ def test_build_report_html_html_escape_still_applied_after_sanitize():
     client = MagicMock()
     client.name = "Acme Corp"
     data = _make_report_data()
+    data.brand_authority_reviewed = True
     data.brand_authority_evidence = "Score > 80 & mentioned in press"
     rendered = _build_report_html(client, data)
     # Raw angle bracket and ampersand must not appear unescaped

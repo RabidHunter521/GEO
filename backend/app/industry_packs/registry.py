@@ -28,8 +28,33 @@ def register(pack: IndustryPack, _registry: dict[str, IndustryPack] | None = Non
     validate_pack(pack)
     if pack.key in store:
         raise ValueError(f"pack {pack.key!r} is already registered")
+    _check_targets_unique_across_packs(pack, store)
     store[pack.key] = pack
     return pack
+
+
+def _check_targets_unique_across_packs(pack: IndustryPack, store: dict[str, IndustryPack]) -> None:
+    """Authority target keys and domains are one namespace across every pack.
+
+    `validate_pack` checks a pack against the shared catalog only. Two packs
+    defining the same key (Renovation redefined Local Services' recommend_my)
+    silently overwrote each other in authority_service.CATALOG_BY_KEY, and a
+    repeated domain made the cited-source -> catalog mapping ambiguous. A
+    directory useful to several industries belongs in AUTHORITY_ASSET_CATALOG.
+    """
+    for other in store.values():
+        for mine in pack.authority_targets:
+            for theirs in other.authority_targets:
+                if mine.key == theirs.key:
+                    raise ValueError(
+                        f"pack {pack.key}: authority target {mine.key!r} is already "
+                        f"defined by pack {other.key}"
+                    )
+                if mine.provenance_domain and mine.provenance_domain == theirs.provenance_domain:
+                    raise ValueError(
+                        f"pack {pack.key}: authority target {mine.key!r} reuses domain "
+                        f"{mine.provenance_domain!r} from pack {other.key}"
+                    )
 
 
 def get_pack(key: str) -> IndustryPack:

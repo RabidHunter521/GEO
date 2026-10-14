@@ -83,13 +83,26 @@ and bumping SCORE_VERSION.
 | Dimension | Weight | Source |
 |---|---|---|
 | AI Citability | 40% | Automatic — scan engine, discovery questions only |
-| Brand Authority | 20% | Assisted — Claude-suggested, admin-reviewed |
-| Content Quality | 20% | Assisted — Claude-suggested, admin-reviewed |
+| Brand Authority | 20% | Assisted — points checklist (measured + one judged item), admin-reviewed |
+| Content Quality | 20% | Assisted — points checklist (measured + one judged item), admin-reviewed |
 | Technical Foundations | 10% | Auto — AI Readiness Toolkit verified |
 | Structured Data | 10% | Auto — AI Readiness Toolkit verified |
 
-Manual dimensions must always show label: "Based on public evidence · Reviewed by SeenBy"
-SCORE_VERSION = "v1.5.0" — AI Citability counts DISCOVERY questions only
+Manual dimensions show the label "Based on public evidence · Reviewed by SeenBy"
+once an admin has accepted a review, and "Not yet reviewed" until then: never
+claim a review that did not happen (`assessment_service.latest_reviewed`).
+SCORE_VERSION = "v1.6.0" — Brand Authority and Content Quality are scored on a
+fixed 100-point checklist each (`ASSESSMENT_RUBRICS` in constants.py), not one
+free number. Most items are measured from SeenBy data (verified listings,
+share of AI sources naming the client, brand recognition on brand questions,
+recorded review figures, page audits, topic coverage, crawl depth); one item
+per dimension (third-party coverage / expertise signals) is judged by a
+web-search review against fixed point bands. Missing data scores 0, never a
+guess. The admin still accepts every total (assisted, not automated); any
+changed item or edited evidence needs a reason, the reviewer is recorded, and
+reviews older than 90 days or from before the checklist are flagged due.
+Weights unchanged. Scores move when each client is re-reviewed.
+(v1.5.0: AI Citability counts DISCOVERY questions only
 (`DISCOVERY_CATEGORIES`: recommendation + local), where the buyer asks for
 options without naming the brand. Brand and comparison questions put the name
 in the question, so a known brand was "seen" on nearly all of them whatever its
@@ -101,7 +114,7 @@ answer stance check stopped treating ordinary comparison hedging ("depending on
 what you need", "difficult to say whether X or Y is better") as a denial, and
 `brand_aliases` on clients and competitors count as the brand. Weights
 unchanged. Expect known brands' AI Citability to FALL on their next scan;
-history is not recomputed and `scores_comparable` marks the boundary.
+history is not recomputed and `scores_comparable` marks the boundary.)
 (v1.4.0: Technical Foundations is driven by verified robots.txt AI-crawler
 access; llms.txt and llms-full.txt are informational publishing assets and do
 not drive the score.)
