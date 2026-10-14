@@ -66,6 +66,9 @@ ALLOWED_PLACEHOLDERS = frozenset({
     # are pinned to the client's country rather than a city; {integration} is
     # filled from approved integration facts ("Best payment gateway for Shopify").
     "country", "integration",
+    # Property: the areas and property types a client actually sells, from
+    # approved project facts. Retail: products and marketplaces it sells on.
+    "district", "property_type", "product", "marketplace",
 })
 # Placeholders that need a real location to expand. A template using one must
 # declare location_required, so a client with no location is skipped instead of

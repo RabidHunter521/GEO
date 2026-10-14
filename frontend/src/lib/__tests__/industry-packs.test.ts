@@ -24,7 +24,9 @@ const SCOPES = ["brand", "location", "either"]
 
 describe("catalog shape", () => {
   it("has exactly the four supported packs", () => {
-    expect(PACK_KEYS).toEqual(["healthcare", "fnb", "local_services", "education", "b2b_services"])
+    expect(PACK_KEYS).toEqual([
+      "healthcare", "fnb", "local_services", "education", "b2b_services", "property", "ecommerce",
+    ])
   })
 
   it("gives every pack a non-empty, unique set of subcategories", () => {
@@ -147,10 +149,13 @@ describe("suggestedPackFor", () => {
     expect(suggestedPackFor("Education")?.key).toBe("education")
     expect(suggestedPackFor("SaaS")?.key).toBe("b2b_services")
     expect(suggestedPackFor("Finance")?.key).toBe("b2b_services")
+    expect(suggestedPackFor("Real Estate")?.key).toBe("property")
+    expect(suggestedPackFor("E-commerce")?.key).toBe("ecommerce")
+    expect(suggestedPackFor("Retail")?.key).toBe("ecommerce")
   })
 
   it("suggests nothing rather than a near-miss pack", () => {
-    for (const industry of ["E-commerce", "Real Estate", "Retail", "Other", "Something new", null]) {
+    for (const industry of ["Other", "Something new", null]) {
       expect(suggestedPackFor(industry)).toBeNull()
     }
   })
@@ -174,7 +179,7 @@ describe("pack choice during client creation", () => {
   it("follows the industry while the admin has not chosen a pack", () => {
     let choice = applyIndustryToChoice(EMPTY_PACK_CHOICE, "Healthcare")
     choice = { ...choice, subcategory: "dental" }
-    choice = applyIndustryToChoice(choice, "Real Estate")
+    choice = applyIndustryToChoice(choice, "Other")
     expect(choice.pack).toBeNull()
     expect(choice.subcategory).toBeNull()
   })

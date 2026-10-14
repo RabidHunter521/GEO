@@ -12,7 +12,9 @@
  * never render, and copying them would double the drift surface for nothing.
  */
 
-export type PackKey = "healthcare" | "fnb" | "local_services" | "education" | "b2b_services"
+export type PackKey =
+  | "healthcare" | "fnb" | "local_services" | "education" | "b2b_services"
+  | "property" | "ecommerce"
 
 /** Mirrors TruthFieldDefinition.value_type in app/industry_packs/base.py. */
 export type FactValueType = "text" | "boolean" | "number" | "url" | "list" | "hours"
@@ -196,8 +198,55 @@ const B2B_SERVICES: PackDefinition = {
   ],
 }
 
+const PROPERTY: PackDefinition = {
+  key: "property",
+  label: "Property & Real Estate",
+  subcategories: [
+    "developer", "real_estate_agency", "property_management", "co_living", "other_property",
+  ],
+  fields: [
+    { factType: "project", key: "names", label: "Projects, developments or buildings", valueType: "list", scope: "either", required: true },
+    { factType: "project", key: "areas", label: "Areas with projects or listings", valueType: "list", scope: "either", required: true },
+    { factType: "project", key: "types", label: "Property types (e.g. condominium, landed, shop lot)", valueType: "list", scope: "either" },
+    { factType: "project", key: "tenure", label: "Tenure (freehold or leasehold)", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "project", key: "completion", label: "Completion or handover status", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "project", key: "track_record", label: "Completed projects or track record", valueType: "text", scope: "brand" },
+    { factType: "service", key: "catalog", label: "Services offered", valueType: "list", scope: "brand" },
+    { factType: "pricing", key: "price_range", label: "Price range", valueType: "text", scope: "either", required: true },
+    { factType: "pricing", key: "rental_range", label: "Rental range", valueType: "text", scope: "either" },
+    { factType: "incentive", key: "offers", label: "Current buyer incentives (e.g. rebates, free legal fees)", valueType: "list", scope: "either", riskSensitive: true },
+    { factType: "financing", key: "partner_banks", label: "Partner banks for financing", valueType: "list", scope: "either" },
+    { factType: "registration", key: "developer_licence", label: "Housing developer licence number", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "registration", key: "agency_registration", label: "Estate agency registration number", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "facility", key: "amenities", label: "Facilities", valueType: "list", scope: "location" },
+  ],
+}
+
+const ECOMMERCE: PackDefinition = {
+  key: "ecommerce",
+  label: "Retail & E-commerce",
+  subcategories: [
+    "dtc_brand", "marketplace_seller", "multi_brand_retailer", "physical_retail", "other_retail",
+  ],
+  fields: [
+    { factType: "product", key: "categories", label: "Product categories sold", valueType: "list", scope: "brand", required: true },
+    { factType: "product", key: "hero_products", label: "Best-selling or hero products", valueType: "list", scope: "brand" },
+    { factType: "product", key: "certifications", label: "Product certifications (e.g. halal, product notification, SIRIM)", valueType: "list", scope: "brand", riskSensitive: true },
+    { factType: "product", key: "origin", label: "Where the brand is from or made", valueType: "text", scope: "brand" },
+    { factType: "channel", key: "marketplaces", label: "Marketplaces sold on (e.g. Shopee, Lazada, TikTok Shop)", valueType: "list", scope: "brand" },
+    { factType: "channel", key: "outlets", label: "Physical stores", valueType: "list", scope: "location" },
+    { factType: "pricing", key: "price_range", label: "Price range", valueType: "text", scope: "brand", required: true },
+    { factType: "checkout", key: "payment_methods", label: "Payment methods accepted", valueType: "list", scope: "brand" },
+    { factType: "shipping", key: "areas", label: "Shipping coverage", valueType: "list", scope: "brand" },
+    { factType: "shipping", key: "free_threshold", label: "Free shipping threshold", valueType: "text", scope: "brand" },
+    { factType: "shipping", key: "delivery_time", label: "Typical delivery time", valueType: "text", scope: "brand" },
+    { factType: "returns", key: "policy", label: "Return and refund policy", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "warranty", key: "terms", label: "Warranty terms", valueType: "text", scope: "brand", riskSensitive: true },
+  ],
+}
+
 export const INDUSTRY_PACKS: readonly PackDefinition[] = [
-  HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION, B2B_SERVICES,
+  HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION, B2B_SERVICES, PROPERTY, ECOMMERCE,
 ]
 
 export const PACK_KEYS: readonly PackKey[] = INDUSTRY_PACKS.map((pack) => pack.key)
@@ -220,9 +269,9 @@ export const SUGGESTED_PACK_BY_INDUSTRY: Record<string, PackKey | null> = {
   Technology: "b2b_services",
   SaaS: "b2b_services",
   Finance: "b2b_services",
-  "E-commerce": null,
-  "Real Estate": null,
-  Retail: null,
+  "E-commerce": "ecommerce",
+  "Real Estate": "property",
+  Retail: "ecommerce",
   Other: null,
 }
 
