@@ -451,6 +451,7 @@ MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
 INDUSTRY_PACK_KEYS: Final = (
     "healthcare", "fnb", "local_services", "education", "b2b_services",
     "property", "ecommerce", "hospitality", "automotive", "financial_services",
+    "legal_accounting", "renovation",
 )
 
 # Cost envelope for pack-generated client queries. Raised 20 -> 28 once packs

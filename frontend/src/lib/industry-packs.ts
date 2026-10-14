@@ -15,6 +15,7 @@
 export type PackKey =
   | "healthcare" | "fnb" | "local_services" | "education" | "b2b_services"
   | "property" | "ecommerce" | "hospitality" | "automotive" | "financial_services"
+  | "legal_accounting" | "renovation"
 
 /** Mirrors TruthFieldDefinition.value_type in app/industry_packs/base.py. */
 export type FactValueType = "text" | "boolean" | "number" | "url" | "list" | "hours"
@@ -313,9 +314,58 @@ const FINANCIAL_SERVICES: PackDefinition = {
   ],
 }
 
+const LEGAL_ACCOUNTING: PackDefinition = {
+  key: "legal_accounting",
+  label: "Legal & Accounting",
+  subcategories: [
+    "law_firm", "accounting_firm", "company_secretary", "bookkeeping", "other_professional",
+  ],
+  fields: [
+    { factType: "practice", key: "areas", label: "Practice areas or services (e.g. divorce, conveyancing, audit, tax filing)", valueType: "list", scope: "brand", required: true },
+    { factType: "practice", key: "not_offered", label: "Work the firm does not take on", valueType: "list", scope: "brand" },
+    { factType: "practice", key: "client_types", label: "Who it acts for (e.g. individuals, SMEs, listed companies)", valueType: "list", scope: "brand" },
+    { factType: "professional", key: "names", label: "Partners and key professionals", valueType: "list", scope: "either" },
+    { factType: "professional", key: "qualifications", label: "Professional qualifications (e.g. Advocate & Solicitor, CA(M), ACCA)", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "professional", key: "languages", label: "Languages spoken", valueType: "list", scope: "either" },
+    { factType: "regulatory", key: "licences", label: "Licences and registrations held (e.g. practising certificate, audit licence, licensed secretary, tax agent)", valueType: "list", scope: "brand", riskSensitive: true },
+    { factType: "regulatory", key: "regulator", label: "Professional body or regulator", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "pricing", key: "model", label: "Fee structure (e.g. fixed fee, hourly, retainer)", valueType: "text", scope: "brand" },
+    { factType: "pricing", key: "price_range", label: "Typical fees", valueType: "text", scope: "brand" },
+    { factType: "consultation", key: "free_first", label: "Free first consultation", valueType: "boolean", scope: "brand" },
+    { factType: "consultation", key: "channels", label: "Consultation options (in person, video, phone)", valueType: "list", scope: "brand" },
+    { factType: "company", key: "founded", label: "Year founded", valueType: "text", scope: "brand" },
+  ],
+}
+
+const RENOVATION: PackDefinition = {
+  key: "renovation",
+  label: "Renovation & Interior Design",
+  subcategories: [
+    "general_contractor", "interior_designer", "design_and_build", "carpentry", "landscape", "other_renovation",
+  ],
+  fields: [
+    { factType: "work", key: "types", label: "Types of work (e.g. kitchen renovation, bathroom, extension, wardrobes)", valueType: "list", scope: "either", required: true },
+    { factType: "work", key: "property_types", label: "Property types (e.g. condo, landed house, shop lot)", valueType: "list", scope: "either" },
+    { factType: "work", key: "not_offered", label: "Work not taken on", valueType: "list", scope: "either" },
+    { factType: "design", key: "styles", label: "Design styles (e.g. modern minimalist, Japandi)", valueType: "list", scope: "either" },
+    { factType: "project", key: "track_record", label: "Completed projects or portfolio", valueType: "text", scope: "either" },
+    { factType: "coverage", key: "areas", label: "Areas served", valueType: "list", scope: "either", required: true, riskSensitive: true },
+    { factType: "registration", key: "contractor_registration", label: "Contractor registration (e.g. CIDB grade and number)", valueType: "text", scope: "brand", riskSensitive: true },
+    { factType: "licensing", key: "held", label: "Licences and certifications held", valueType: "list", scope: "either", riskSensitive: true },
+    { factType: "insurance", key: "public_liability", label: "Public liability cover", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "insurance", key: "workmanship_cover", label: "Workmanship cover", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "warranty", key: "terms", label: "Workmanship warranty or defect liability terms", valueType: "text", scope: "either", riskSensitive: true },
+    { factType: "warranty", key: "duration", label: "Warranty duration", valueType: "text", scope: "either" },
+    { factType: "pricing", key: "price_range", label: "Typical project price range", valueType: "text", scope: "either", required: true },
+    { factType: "pricing", key: "model", label: "Pricing model (e.g. per sq ft, lump sum, design fee)", valueType: "text", scope: "either" },
+    { factType: "pricing", key: "free_quote", label: "Free quotation or site visit", valueType: "boolean", scope: "either" },
+    { factType: "payment", key: "schedule", label: "Deposit and progress payment terms", valueType: "text", scope: "either", riskSensitive: true },
+  ],
+}
+
 export const INDUSTRY_PACKS: readonly PackDefinition[] = [
   HEALTHCARE, FNB, LOCAL_SERVICES, EDUCATION, B2B_SERVICES, PROPERTY, ECOMMERCE,
-  HOSPITALITY, AUTOMOTIVE, FINANCIAL_SERVICES,
+  HOSPITALITY, AUTOMOTIVE, FINANCIAL_SERVICES, LEGAL_ACCOUNTING, RENOVATION,
 ]
 
 export const PACK_KEYS: readonly PackKey[] = INDUSTRY_PACKS.map((pack) => pack.key)
@@ -341,6 +391,8 @@ export const SUGGESTED_PACK_BY_INDUSTRY: Record<string, PackKey | null> = {
   // SME-facing finance (payment gateways, business loans) is B2B instead.
   Finance: "financial_services",
   Insurance: "financial_services",
+  "Legal & Accounting": "legal_accounting",
+  "Renovation & Interior Design": "renovation",
   "E-commerce": "ecommerce",
   "Real Estate": "property",
   Retail: "ecommerce",

@@ -42,7 +42,7 @@ _FACT_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
     "level":     (("programme", "levels"),),
     "integration": (("integration", "platforms"),),
     "district":    (("project", "areas"),),
-    "property_type": (("project", "types"),),
+    "property_type": (("project", "types"), ("work", "property_types")),
     "product":     (("product", "categories"), ("product", "hero_products")),
     "marketplace": (("channel", "marketplaces"),),
     "attraction":  (("nearby", "attractions"),),
@@ -50,6 +50,9 @@ _FACT_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
     "make":        (("vehicle", "makes"),),
     "model":       (("vehicle", "models"),),
     "vehicle_type": (("vehicle", "types"),),
+    "practice_area": (("practice", "areas"),),
+    "work_type":   (("work", "types"),),
+    "style":       (("design", "styles"),),
 }
 
 # Ordering used when the cap bites: keep what a buyer is closest to acting on.

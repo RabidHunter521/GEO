@@ -50,6 +50,8 @@ PACK_LABELS = {
     "hospitality": "hospitality and travel businesses",
     "automotive": "automotive businesses",
     "financial_services": "insurance and consumer finance businesses",
+    "legal_accounting": "legal and accounting firms",
+    "renovation": "renovation and interior design businesses",
 }
 SCALE_LABELS = {
     "single_location": "single-location",

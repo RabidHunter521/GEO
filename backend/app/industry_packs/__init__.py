@@ -15,8 +15,11 @@ from app.industry_packs import ecommerce  # noqa: F401  (registers on import)
 from app.industry_packs import hospitality  # noqa: F401  (registers on import)
 from app.industry_packs import automotive  # noqa: F401  (registers on import)
 from app.industry_packs import financial_services  # noqa: F401  (registers on import)
+from app.industry_packs import legal_accounting  # noqa: F401  (registers on import)
+from app.industry_packs import renovation  # noqa: F401  (registers on import)
 
 __all__ = [
     "base", "registry", "healthcare", "fnb", "local_services", "education", "b2b_services",
     "property", "ecommerce", "hospitality", "automotive", "financial_services",
+    "legal_accounting", "renovation",
 ]
