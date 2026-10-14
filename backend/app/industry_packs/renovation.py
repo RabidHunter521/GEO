@@ -307,14 +307,6 @@ _AUTHORITY_TARGETS = (
         key="qanvast", name="Qanvast profile", asset_type="directory",
         provenance_domain="qanvast.com", url_hint="https://qanvast.com/my",
     ),
-    AuthorityTarget(
-        key="recommend_my", name="Recommend.my listing", asset_type="directory",
-        provenance_domain="recommend.my", url_hint="https://recommend.my/",
-    ),
-    AuthorityTarget(
-        key="houzz", name="Houzz profile", asset_type="directory",
-        provenance_domain="houzz.com", url_hint="https://www.houzz.com/",
-    ),
 )
 
 _PRIORITY_ASSETS = ("gbp", "qanvast", "facebook", "instagram")

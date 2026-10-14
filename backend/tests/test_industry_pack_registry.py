@@ -481,6 +481,34 @@ def test_registration_rejects_a_duplicate_key():
         registry.register(_pack(), _registry=store)
 
 
+def test_registration_rejects_a_target_key_another_pack_defines():
+    # Renovation once redefined Local Services' recommend_my; the later pack
+    # silently replaced the earlier one in the merged authority catalog.
+    store: dict = {}
+    registry.register(_pack(authority_targets=(_target(),)), _registry=store)
+    other = _pack(key="fnb", authority_targets=(_target(provenance_domain="other.my"),))
+    with pytest.raises(ValueError, match="already defined by pack healthcare"):
+        registry.register(other, _registry=store)
+
+
+def test_registration_rejects_a_target_domain_another_pack_uses():
+    store: dict = {}
+    registry.register(_pack(authority_targets=(_target(),)), _registry=store)
+    other = _pack(key="fnb", authority_targets=(_target(key="mmc_again"),))
+    with pytest.raises(ValueError, match="reuses domain"):
+        registry.register(other, _registry=store)
+
+
+def test_real_packs_share_no_authority_target_keys_or_domains():
+    from collections import Counter
+
+    targets = [t for p in registry.all_packs() for t in p.authority_targets]
+    keys = Counter(t.key for t in targets)
+    domains = Counter(t.provenance_domain for t in targets if t.provenance_domain)
+    assert [k for k, n in keys.items() if n > 1] == []
+    assert [d for d, n in domains.items() if n > 1] == []
+
+
 def test_get_pack_version_returns_none_for_an_unregistered_pack():
     """Used by the client route to stamp a version. Tasks 3-5 register the real
     packs; until then an unregistered key must degrade rather than 500."""
