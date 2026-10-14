@@ -703,3 +703,48 @@ def test_a_healthcare_client_is_unaffected_by_the_new_placeholders():
     ))
     assert before
     assert all("{" not in t for t in before)
+
+
+def test_facts_approved_through_the_truth_vault_fill_their_placeholders(db):
+    """Regression: versions are stored as {"value": ..., "display_value": ...}.
+    Passing the wrapper through rendered "{'value': ...}" into every
+    fact-backed question, and the leaked-brace guard silently dropped them all,
+    so packs only ever asked their brand, city and country questions."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.industry_packs import registry
+    from app.models.client import Client
+    from app.schemas.truth_fact import TruthFactCreate, TruthFactVersionDraft
+    from app.services import truth_vault_service
+    from app.services.pack_query_service import approved_facts_for, build_pack_queries
+
+    client = Client(
+        name="Acme Land", website="https://acme.my", industry="Real Estate",
+        country="Malaysia", city="Kuala Lumpur",
+        industry_pack="property", industry_subcategory="developer",
+    )
+    db.add(client)
+    db.commit()
+
+    def approve(fact_type, fact_key, value, display):
+        fact = truth_vault_service.create_fact(
+            client.id, TruthFactCreate(fact_type=fact_type, fact_key=fact_key), db,
+        )
+        draft = truth_vault_service.draft_version(fact, TruthFactVersionDraft(
+            value={"value": value, "display_value": display},
+            effective_from=datetime.now(timezone.utc) - timedelta(minutes=1),
+        ), db)
+        truth_vault_service.approve_version(fact.id, draft.id, "Reviewer", db)
+
+    approve("project", "areas", ["Rawang", "Cyberjaya"], "Rawang, Cyberjaya")
+    # No structured value entered: the display text is used.
+    approve("project", "types", None, "condominium")
+
+    facts = approved_facts_for(client, db)
+    texts = [
+        q["query_text"]
+        for q in build_pack_queries(client, [], facts, registry.get_pack("property"), [])
+    ]
+    assert "Best new condominium projects in Cyberjaya" in texts
+    assert "Upcoming property launches in Rawang" in texts
+    assert not any("value" in t for t in texts)

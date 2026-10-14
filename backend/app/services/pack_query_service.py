@@ -94,11 +94,29 @@ def approved_facts_for(client, db) -> list[ApprovedFact]:
                 ApprovedFact(
                     fact_type=fact.fact_type,
                     fact_key=fact.fact_key,
-                    value=version.value_json,
+                    value=_stored_value(version.value_json),
                     location_id=location_id,
                 )
             )
     return facts
+
+
+def _stored_value(value_json: Any) -> Any:
+    """The usable value of a Truth Vault version.
+
+    Versions are saved as {"value": ..., "display_value": "..."} (TruthValue).
+    Passing that wrapper on whole made every fact-backed placeholder render as
+    "{'value': ...}", which the leaked-brace guard in `_expand` then dropped --
+    silently removing every question built from an approved fact. Falls back to
+    the display text when no structured value was entered; anything not in the
+    wrapper shape (older rows, tests) passes through unchanged.
+    """
+    if isinstance(value_json, dict) and "value" in value_json:
+        value = value_json.get("value")
+        if value in (None, "", [], {}):
+            return value_json.get("display_value")
+        return value
+    return value_json
 
 
 def build_pack_queries(
