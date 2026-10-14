@@ -149,7 +149,6 @@ describe("suggestedPackFor", () => {
     expect(suggestedPackFor("Food & Beverage")?.key).toBe("fnb")
     expect(suggestedPackFor("Education")?.key).toBe("education")
     expect(suggestedPackFor("SaaS")?.key).toBe("b2b_services")
-    expect(suggestedPackFor("Finance")?.key).toBe("b2b_services")
     expect(suggestedPackFor("Real Estate")?.key).toBe("property")
     expect(suggestedPackFor("E-commerce")?.key).toBe("ecommerce")
     expect(suggestedPackFor("Retail")?.key).toBe("ecommerce")
@@ -158,7 +157,7 @@ describe("suggestedPackFor", () => {
   })
 
   it("suggests nothing rather than a near-miss pack", () => {
-    for (const industry of ["Other", "Something new", null]) {
+    for (const industry of ["Finance", "Other", "Something new", null]) {
       expect(suggestedPackFor(industry)).toBeNull()
     }
   })

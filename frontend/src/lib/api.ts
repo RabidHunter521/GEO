@@ -131,6 +131,7 @@ export function updateClient(
       | "win_notifications_enabled"
       | "brand_aliases"
       | "buyer_term"
+      | "custom_questions"
       | "industry_pack"
       | "industry_subcategory"
     >

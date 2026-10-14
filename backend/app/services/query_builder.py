@@ -93,8 +93,39 @@ def build_client_queries(
     if pack is not None:
         from app.services.pack_query_service import build_pack_queries
 
-        return build_pack_queries(client, locations, approved_facts, pack, competitors)
-    return _legacy_client_queries(client, competitors)
+        queries = build_pack_queries(client, locations, approved_facts, pack, competitors)
+    else:
+        queries = _legacy_client_queries(client, competitors)
+    return queries + _custom_queries(client, queries)
+
+
+def _custom_queries(client, generated: list[dict]) -> list[dict]:
+    """The client's admin-written questions, asked every scan.
+
+    A question already generated is not asked twice. A discovery question
+    (recommendation / local) that names the client is filed as `brand`: the
+    brand name in the question would make the answer echo it back, which is
+    exactly the free visibility AI Citability excludes (SCORE_VERSION v1.5.0).
+    """
+    from app.services.brand_detection import brand_names, detect_brand_mention
+
+    asked = {q["query_text"].casefold() for q in generated}
+    names = brand_names(client)
+    out: list[dict] = []
+    for item in getattr(client, "custom_questions", None) or ():
+        text = " ".join(str(item.get("text", "")).split()) if isinstance(item, dict) else ""
+        if not text or text.casefold() in asked:
+            continue
+        asked.add(text.casefold())
+        category = item.get("category") or "recommendation"
+        if category not in ("recommendation", "local", "brand", "comparison"):
+            category = "recommendation"
+        if category in ("recommendation", "local") and any(
+            detect_brand_mention(text, name) for name in names
+        ):
+            category = "brand"
+        out.append({"category": category, "query_text": text, "competitor_id": None})
+    return out
 
 
 def _legacy_client_queries(client, competitors: list) -> list[dict]:

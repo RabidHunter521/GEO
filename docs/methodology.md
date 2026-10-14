@@ -28,6 +28,8 @@ AI citability counts discovery questions only: the recommendation and local ques
 
 Answers that use one of a client's or competitor's recorded alternative names count as that brand. Clients in the B2B and Online Services pack are asked country-level questions (for example, "Best payment gateway for small businesses in Malaysia") instead of local ones.
 
+An administrator can also add up to ten custom questions for a client, asked on every scan alongside the generated ones. A custom question that names the client is tracked but never counts toward AI citability.
+
 The configured query universe is a monitored sample, not every real question a buyer might ask. It is selected to make repeatable comparison possible and must be interpreted together with its enabled platforms, locations, and query configuration.
 
 ### Sources AI answers draw from

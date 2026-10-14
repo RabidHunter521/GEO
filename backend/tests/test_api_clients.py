@@ -21,6 +21,7 @@ def _fake_client(name="Acme Corp"):
     m.website = "https://acme.com"
     m.industry = "Technology"
     m.buyer_term = None
+    m.custom_questions = []
     m.description = None
     m.target_audience = None
     m.city = None
@@ -857,3 +858,40 @@ def test_update_client_buyer_term_is_cleaned_and_blank_clears_it(sent, stored):
     assert response.status_code == 200
     assert existing.buyer_term == stored
     assert response.json()["buyer_term"] == stored
+
+
+def test_update_client_custom_questions_are_cleaned_deduped_and_capped():
+    app, get_db = _make_app()
+    existing = _fake_client("Acme")
+    existing.enabled_platforms = ["chatgpt", "perplexity", "gemini", "claude"]
+    mock_db = MagicMock()
+    mock_db.get.return_value = existing
+    mock_db.refresh = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db
+    client = TestClient(app)
+
+    response = client.patch(f"/api/v1/clients/{existing.id}", json={"custom_questions": [
+        {"text": "  Best   takaful plan in Malaysia ", "category": "recommendation"},
+        {"text": "best takaful plan in malaysia", "category": "local"},
+        {"text": "Which insurer pays claims fastest?"},
+    ]})
+    assert response.status_code == 200
+    assert existing.custom_questions == [
+        {"text": "Best takaful plan in Malaysia", "category": "recommendation"},
+        {"text": "Which insurer pays claims fastest?", "category": "recommendation"},
+    ]
+    assert response.json()["custom_questions"] == existing.custom_questions
+
+    too_many = [{"text": f"Custom question number {i}"} for i in range(11)]
+    assert client.patch(
+        f"/api/v1/clients/{existing.id}", json={"custom_questions": too_many}
+    ).status_code == 422
+    assert client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"custom_questions": [{"text": "short"}]},
+    ).status_code == 422
+    assert client.patch(
+        f"/api/v1/clients/{existing.id}",
+        json={"custom_questions": [{"text": "A valid question here", "category": "other"}]},
+    ).status_code == 422
+    app.dependency_overrides.clear()

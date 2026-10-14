@@ -43,6 +43,7 @@ import type { Client, Competitor, ControlQuery, AiTrafficSnapshot, Platform, Dim
 import { PLATFORM_LABELS, SCAN_PLATFORMS, SCORED_PLATFORMS } from "@/types"
 import { industryOptions } from "@/lib/industries"
 import { IndustryPackCard } from "./IndustryPackCard"
+import { CustomQuestionsCard } from "./CustomQuestionsCard"
 import { BenchmarkOptOutCard } from "./BenchmarkOptOutCard"
 import { WinNotificationsCard } from "./WinNotificationsCard"
 import { PRODUCT_LANGUAGE } from "@/lib/product-language"
@@ -559,6 +560,11 @@ export function SettingsForm({ client, competitors: initialCompetitors, contentR
       {/* Industry pack — saves on its own, like competitors and benchmark
           queries, because a pack change needs its own confirmation step. */}
       <IndustryPackCard client={client} />
+
+      <Separator />
+
+      {/* Custom questions — save on their own, like the industry pack. */}
+      <CustomQuestionsCard client={client} />
 
       <Separator />
 

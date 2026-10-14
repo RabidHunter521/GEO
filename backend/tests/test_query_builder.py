@@ -175,3 +175,63 @@ def test_blank_buyer_term_falls_back_to_industry(buyer_term):
 
     client = SimpleNamespace(industry="dental clinic", buyer_term=buyer_term)
     assert industry_term(client) == "dental clinic"
+
+
+def _custom_client(**overrides):
+    from types import SimpleNamespace
+
+    fields = dict(
+        name="Acme Insurance", industry="Finance", buyer_term="insurance agency",
+        city="Kuala Lumpur", state=None, country="Malaysia", brand_aliases=[],
+        custom_questions=[],
+    )
+    fields.update(overrides)
+    return SimpleNamespace(**fields)
+
+
+def test_custom_questions_are_asked_after_the_generated_ones():
+    client = _custom_client(custom_questions=[
+        {"text": "Best family takaful plan in Malaysia", "category": "recommendation"},
+        {"text": "Which insurer pays claims fastest in KL?", "category": "local"},
+    ])
+    queries = build_client_queries(client, [])
+    assert queries[-2:] == [
+        {"category": "recommendation", "query_text": "Best family takaful plan in Malaysia",
+         "competitor_id": None},
+        {"category": "local", "query_text": "Which insurer pays claims fastest in KL?",
+         "competitor_id": None},
+    ]
+
+
+def test_a_discovery_question_naming_the_client_is_filed_as_brand():
+    """Naming the brand in the question makes the answer echo it back; that
+    must never count as earned visibility."""
+    client = _custom_client(
+        brand_aliases=["Acme Takaful"],
+        custom_questions=[
+            {"text": "Is Acme Insurance the best insurer in KL?", "category": "recommendation"},
+            {"text": "Best takaful provider, maybe Acme Takaful?", "category": "local"},
+        ],
+    )
+    custom = build_client_queries(client, [])[-2:]
+    assert [q["category"] for q in custom] == ["brand", "brand"]
+
+
+def test_custom_questions_skip_duplicates_of_generated_ones():
+    generated = build_client_queries(_custom_client(), [])
+    duplicate = generated[0]["query_text"]
+    client = _custom_client(custom_questions=[{"text": duplicate.upper(), "category": "brand"}])
+    assert len(build_client_queries(client, [])) == len(generated)
+
+
+def test_custom_questions_also_run_for_packed_clients():
+    from app.industry_packs import registry
+
+    client = _custom_client(
+        industry_subcategory=None,
+        custom_questions=[{"text": "Cheapest car insurance renewal online", "category": "recommendation"}],
+    )
+    queries = build_client_queries(
+        client, [], pack=registry.get_pack("b2b_services"), locations=[], approved_facts=[],
+    )
+    assert queries[-1]["query_text"] == "Cheapest car insurance renewal online"
