@@ -1,4 +1,4 @@
-import { getAllTruthFacts, getBusinessLocations, getClient } from "@/lib/api"
+import { getAllTruthFacts, getBusinessLocations, getClient, getPackFactChecklist } from "@/lib/api"
 import { TruthVaultClient } from "./TruthVaultClient"
 
 export default async function TruthVaultPage({
@@ -19,6 +19,8 @@ export default async function TruthVaultPage({
     location_id: selectedLocationId ?? undefined,
     mode: "history",
   })
+  // A checklist failure must not take the vault down with it.
+  const checklist = await getPackFactChecklist(id).catch(() => [])
 
   return <TruthVaultClient
     key={selectedLocationId ?? "brand"}
@@ -27,5 +29,6 @@ export default async function TruthVaultPage({
     facts={facts}
     selectedLocationId={selectedLocationId}
     packKey={client.industry_pack}
+    checklist={checklist}
   />
 }

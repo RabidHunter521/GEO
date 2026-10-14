@@ -1412,6 +1412,41 @@ export interface TruthFact {
   versions: TruthFactVersion[]
 }
 
+/** One pack fact worth approving, and where it stands (GET pack-fact-checklist). */
+export interface PackFactChecklistItem {
+  fact_type: string
+  fact_key: string
+  label: string
+  required: boolean
+  risk_sensitive: boolean
+  /** Scan questions this fact fills for the client's subcategory. */
+  question_count: number
+  status: "approved" | "draft" | "missing"
+}
+
+export interface PreviewQuestion {
+  text: string
+  category: string
+  counts_toward_score: boolean
+  source: "pack" | "standard" | "custom"
+}
+
+export interface SkippedQuestion {
+  /** Template with placeholders shown as [product]. */
+  question: string
+  needs: string[]
+}
+
+/** The client's own questions for the next scan. Nothing is run. */
+export interface ScanPreview {
+  pack_label: string | null
+  questions: PreviewQuestion[]
+  skipped: SkippedQuestion[]
+  platform_count: number
+  competitor_question_count: number
+  benchmark_question_count: number
+}
+
 export interface TruthFactListResponse {
   facts: TruthFact[]
   total: number

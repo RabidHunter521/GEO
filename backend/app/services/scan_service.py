@@ -34,8 +34,6 @@ from app.services.query_builder import build_client_queries, build_competitor_qu
 from app.services import pack_query_service
 from app.services import query_sampling_service
 from app.services import budget_service
-from app.industry_packs import registry as pack_registry
-from app.models.business_location import BusinessLocation
 from app.services.scoring_service import (
     compute_ai_citability,
     compute_geo_score,
@@ -359,20 +357,7 @@ def run_scan(scan_id: uuid.UUID, db: Session) -> None:
         # platform — _run_platform_queries runs in a worker thread and must stay
         # free of the session. A client with no reviewed pack, or whose pack
         # module is not registered, falls through to the legacy templates.
-        pack = pack_registry.find_pack(client.industry_pack)
-        if pack is not None:
-            locations = (
-                db.query(BusinessLocation)
-                .filter(
-                    BusinessLocation.client_id == client.id,
-                    BusinessLocation.active.is_(True),
-                )
-                .order_by(BusinessLocation.created_at, BusinessLocation.id)
-                .all()
-            )
-            approved_facts = pack_query_service.approved_facts_for(client, db)
-        else:
-            locations, approved_facts = [], []
+        pack, locations, approved_facts = pack_query_service.pack_scan_inputs(client, db)
         client_queries = build_client_queries(
             client, competitors, pack=pack, locations=locations,
             approved_facts=approved_facts,

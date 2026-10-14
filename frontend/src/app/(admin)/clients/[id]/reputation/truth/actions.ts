@@ -7,10 +7,11 @@ import {
   createTruthFact,
   deactivateBusinessLocation,
   draftTruthFactVersion,
+  getPackFactChecklist,
   patchBusinessLocation,
 } from "@/lib/api"
 import type {
-  BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactVersion,
+  BusinessLocation, BusinessLocationInput, PackFactChecklistItem, TruthFact, TruthFactDraftInput, TruthFactVersion,
 } from "@/types"
 
 const path = (clientId: string) => `/clients/${clientId}/reputation/truth`
@@ -61,4 +62,8 @@ export async function approveFactVersionAction(
   const version = await approveTruthFactVersion(clientId, factId, versionId, approvedBy)
   revalidatePath(path(clientId))
   return version
+}
+
+export async function packFactChecklistAction(clientId: string): Promise<PackFactChecklistItem[]> {
+  return getPackFactChecklist(clientId)
 }
