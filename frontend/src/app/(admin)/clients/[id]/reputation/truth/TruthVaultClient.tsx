@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { FactEditor } from "@/components/truth/FactEditor"
 import { LocationSelector } from "@/components/truth/LocationSelector"
+import { PackFactChecklist } from "@/components/truth/PackFactChecklist"
 import { factTypesFor, fieldsForFactType } from "@/lib/industry-packs"
 import type {
-  BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput,
+  BusinessLocation, BusinessLocationInput, PackFactChecklistItem, TruthFact, TruthFactDraftInput,
 } from "@/types"
 import {
   approveFactVersionAction, createFactAction, createLocationAction, deactivateLocationAction,
-  draftFactVersionAction, updateLocationAction,
+  draftFactVersionAction, packFactChecklistAction, updateLocationAction,
 } from "./actions"
 
 const GROUPS = [
@@ -35,7 +36,7 @@ function factTypeLabel(factType: string): string {
 
 export function TruthVaultClient({
   clientId, locations: initialLocations, facts: initialFacts, selectedLocationId,
-  packKey = null,
+  packKey = null, checklist: initialChecklist = [],
 }: {
   clientId: string
   locations: BusinessLocation[]
@@ -43,6 +44,8 @@ export function TruthVaultClient({
   selectedLocationId: string | null
   /** The client's industry pack, when one has been reviewed. */
   packKey?: string | null
+  /** Pack facts to approve first (server-computed); empty without a pack. */
+  checklist?: PackFactChecklistItem[]
 }) {
   // Pack-driven groups, one FactEditor per fact type the pack declares.
   const packGroups = factTypesFor(packKey).map((factType) => ({
@@ -60,6 +63,13 @@ export function TruthVaultClient({
   const [facts, setFacts] = useState(initialFacts)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [checklist, setChecklist] = useState(initialChecklist)
+
+  // Best-effort: a stale checklist must never turn a saved fact into an error.
+  async function refreshChecklist() {
+    if (initialChecklist.length === 0) return
+    try { setChecklist(await packFactChecklistAction(clientId)) } catch { /* keep the last one */ }
+  }
 
   async function mutation<T>(run: () => Promise<T>): Promise<T> {
     setPending(true)
@@ -113,6 +123,7 @@ export function TruthVaultClient({
       ? { ...fact, versions: [version, ...fact.versions] }
       : fact,
     ))
+    void refreshChecklist()
     return version
   }
 
@@ -122,6 +133,7 @@ export function TruthVaultClient({
       ? { ...fact, versions: fact.versions.map((item) => item.id === versionId ? version : item) }
       : fact,
     ))
+    void refreshChecklist()
     return version
   }
 
@@ -145,6 +157,8 @@ export function TruthVaultClient({
           <p className="text-sm text-muted-foreground">Editing scope: <span className="font-medium text-foreground">{selectedLocation ? selectedLocation.name : "Brand-wide"}</span></p>
         </CardContent>
       </Card>
+
+      <PackFactChecklist items={checklist} />
 
       {error && <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 

@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models.client import Client
 from app.models.truth_fact import TruthFact, TruthFactVersion
 from app.schemas.truth_fact import (
+    PackFactChecklistItem,
     TruthFactApprove,
     TruthFactCreate,
     TruthFactListResponse,
@@ -50,6 +51,19 @@ def _fact_out(fact: TruthFact, versions: list[TruthFactVersion]) -> TruthFactOut
         created_at=fact.created_at,
         versions=[TruthFactVersionOut.model_validate(version) for version in versions],
     )
+
+
+@router.get(
+    "/clients/{client_id}/pack-fact-checklist",
+    response_model=list[PackFactChecklistItem],
+    dependencies=[Depends(require_api_key)],
+)
+def pack_fact_checklist(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    """The pack facts to approve first. Empty for a client with no pack."""
+    from app.services import question_preview_service
+
+    client = _get_active_client_or_404(client_id, db)
+    return question_preview_service.fact_checklist(client, db)
 
 
 @router.get(

@@ -10,6 +10,7 @@ import { PLATFORM_LABELS, SCAN_PLATFORMS } from "@/types"
 import { joinWithAnd } from "@/lib/utils"
 import { segmentQueries, chipTotals, diffApplies } from "@/lib/query-segments"
 import { triggerScanAction, flagHallucinationAction, refreshScanAction } from "./actions"
+import { ScanPreviewDialog } from "./ScanPreviewDialog"
 
 // A running scan is polled every 3s; stop after this many tries (~15 min) so a
 // backend-stuck scan can't poll forever in an abandoned tab.
@@ -265,7 +266,7 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold tracking-tight">
             Scan &amp; Visibility
@@ -274,14 +275,17 @@ export function ScanClient({ clientId, clientName, initialScan, initialDiff, ena
             How AI models respond to queries about {clientName}.
           </p>
         </div>
-        <Button size="sm" onClick={handleTrigger} disabled={isPending || isActive}>
-          {isActive ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Play className="h-4 w-4 mr-2" />
-          )}
-          {isActive ? "Scan running…" : "Run New Scan"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ScanPreviewDialog clientId={clientId} />
+          <Button size="sm" onClick={handleTrigger} disabled={isPending || isActive}>
+            {isActive ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <Play className="h-4 w-4 mr-2" />
+            )}
+            {isActive ? "Scan running…" : "Run New Scan"}
+          </Button>
+        </div>
       </div>
 
       {!scan && (

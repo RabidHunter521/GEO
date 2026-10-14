@@ -16,6 +16,7 @@ from app.schemas.scan import (
     ScanQueryResultResponse,
     ScanWithResultsResponse,
     ScanDiffResponse,
+    ScanPreviewResponse,
 )
 from app.schemas.causality import CausalityPointResponse, CausalityResponse
 from app.services.causality_service import compute_causal_trend
@@ -64,6 +65,21 @@ def trigger_scan(payload: TriggerScanRequest, db: Session = Depends(get_db)):
     db.refresh(scan)
     execute_scan.delay(str(scan.id))
     return scan
+
+
+@router.get(
+    "/client/{client_id}/preview",
+    response_model=ScanPreviewResponse,
+    dependencies=[Depends(require_api_key)],
+)
+def preview_scan_questions(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    """What the next scan will ask, without running it (no model is called)."""
+    from app.services import question_preview_service
+
+    client = db.get(Client, client_id)
+    if not client or client.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return question_preview_service.preview(client, db)
 
 
 @router.get(

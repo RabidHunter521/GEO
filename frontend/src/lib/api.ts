@@ -9,7 +9,7 @@ import "server-only"
 import type { AiMirrorResponse } from "@/types"
 import { redirect } from "next/navigation"
 import { adminAuthHeader } from "@/lib/api-token"
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued, PlacementTarget, PlacementTargetDetail } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, PackFactChecklistItem, ScanPreview, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued, PlacementTarget, PlacementTargetDetail } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -516,6 +516,11 @@ export async function getAllTruthFacts(
   return facts
 }
 
+/** The pack facts to approve first. Empty for a client with no pack. */
+export function getPackFactChecklist(clientId: string): Promise<PackFactChecklistItem[]> {
+  return apiFetch<PackFactChecklistItem[]>(`/api/v1/clients/${clientId}/pack-fact-checklist`)
+}
+
 export function createTruthFact(
   clientId: string, body: Pick<TruthFact, "fact_type" | "fact_key" | "location_id">,
 ): Promise<TruthFact> {
@@ -690,6 +695,11 @@ export function sendReport(clientId: string, reportId: string): Promise<{ sent: 
 
 export function getLatestScan(clientId: string): Promise<Scan | null> {
   return apiFetch<Scan | null>(`/api/v1/scans/client/${clientId}/latest`)
+}
+
+/** What the next scan will ask, without running it. */
+export function getScanPreview(clientId: string): Promise<ScanPreview> {
+  return apiFetch<ScanPreview>(`/api/v1/scans/client/${clientId}/preview`)
 }
 
 export function triggerScan(clientId: string): Promise<{ id: string; status: string }> {

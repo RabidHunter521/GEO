@@ -5,6 +5,7 @@ import {
   triggerScan,
   flagHallucination,
   getLatestScan,
+  getScanPreview,
   syncRemediation,
   updateRemediationStatus,
   reviewMisinformation,
@@ -12,7 +13,7 @@ import {
   resolveMisinformation,
 } from "@/lib/api"
 import { revalidatePath } from "next/cache"
-import type { Scan, RemediationItem, RemediationStatus, MisinformationFinding } from "@/types"
+import type { Scan, ScanPreview, RemediationItem, RemediationStatus, MisinformationFinding } from "@/types"
 
 export async function triggerScanAction(clientId: string): Promise<Scan | null> {
   try {
@@ -93,4 +94,8 @@ export async function resolveMisinformationAction(
   const finding = await resolveMisinformation(clientId, findingId)
   revalidatePath(`/clients/${clientId}/scan`)
   return finding
+}
+
+export async function previewScanAction(clientId: string): Promise<ScanPreview> {
+  return getScanPreview(clientId)
 }

@@ -106,6 +106,31 @@ def approved_facts_for(client, db) -> list[ApprovedFact]:
     return facts
 
 
+def pack_scan_inputs(client, db) -> tuple[IndustryPack | None, list, list[ApprovedFact]]:
+    """The pack, active locations and approved facts a scan builds questions from.
+
+    Shared by `scan_service.run_scan` and the question preview, so the preview
+    shows exactly what the next scan will ask. A client with no pack, or whose
+    pack module is not registered, gets `(None, [], [])` and the legacy set.
+    """
+    from app.industry_packs import registry as pack_registry
+    from app.models.business_location import BusinessLocation
+
+    pack = pack_registry.find_pack(getattr(client, "industry_pack", None))
+    if pack is None:
+        return None, [], []
+    locations = (
+        db.query(BusinessLocation)
+        .filter(
+            BusinessLocation.client_id == client.id,
+            BusinessLocation.active.is_(True),
+        )
+        .order_by(BusinessLocation.created_at, BusinessLocation.id)
+        .all()
+    )
+    return pack, locations, approved_facts_for(client, db)
+
+
 def _stored_value(value_json: Any) -> Any:
     """The usable value of a Truth Vault version.
 
@@ -165,6 +190,49 @@ def build_pack_queries(
         )
     )
     return built[:MAX_PACK_QUERIES_PER_SCAN]
+
+
+def applicable_templates(pack: IndustryPack, subcategory: str | None) -> list[QueryTemplate]:
+    """The pack templates a client of `subcategory` is measured on."""
+    return [t for t in pack.query_templates if _applies_to(t, subcategory)]
+
+
+def fact_sources(placeholder: str) -> tuple[tuple[str, str], ...]:
+    """The (fact_type, fact_key) pairs that can fill a placeholder, if any."""
+    return _FACT_SOURCES.get(placeholder, ())
+
+
+def skipped_templates(
+    client,
+    locations: Sequence[Any],
+    facts: Iterable[ApprovedFact],
+    pack: IndustryPack,
+    competitors: Sequence[Any] = (),
+) -> list[tuple[QueryTemplate, tuple[str, ...]]]:
+    """Applicable templates that produce no question, with the empty placeholders.
+
+    The counterpart of `build_pack_queries` for the admin: a template whose
+    approved fact is missing is dropped silently from the scan, so this is the
+    only place that says which question was lost and what would restore it.
+    A template counts as skipped only when it fills for no location at all.
+    """
+    facts = list(facts)
+    active_locations = [loc for loc in locations if getattr(loc, "active", True)]
+    scopes = _location_scopes(client, active_locations)
+    skipped: list[tuple[QueryTemplate, tuple[str, ...]]] = []
+    for template in applicable_templates(pack, getattr(client, "industry_subcategory", None)):
+        missing: set[str] = set()
+        for scope in scopes:
+            gaps = {
+                name for name in placeholders_in(template.template)
+                if not _values_for(name, client, scope, facts, competitors)
+            }
+            if not gaps:
+                break
+            missing |= gaps
+        else:
+            skipped.append((template, tuple(sorted(missing))))
+    return skipped
 
 
 def _applies_to(template: QueryTemplate, subcategory: str | None) -> bool:

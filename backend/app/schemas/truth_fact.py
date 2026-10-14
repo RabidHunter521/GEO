@@ -3,6 +3,7 @@
 import uuid
 import unicodedata
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, TypeAdapter, ValidationError, field_validator
 
@@ -87,3 +88,15 @@ class TruthFactOut(BaseModel):
 class TruthFactListResponse(BaseModel):
     facts: list[TruthFactOut]
     total: int
+
+
+class PackFactChecklistItem(BaseModel):
+    """One pack fact worth approving, and where it stands for this client."""
+
+    fact_type: str
+    fact_key: str
+    label: str
+    required: bool
+    risk_sensitive: bool
+    question_count: int
+    status: Literal["approved", "draft", "missing"]

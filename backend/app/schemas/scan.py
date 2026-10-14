@@ -1,5 +1,7 @@
 import uuid
 from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -68,3 +70,26 @@ class ScanDiffResponse(BaseModel):
     newly_seen: list[ScanDiffQuery] = []
     newly_unseen: list[ScanDiffQuery] = []
     has_comparison: bool = False
+
+
+class PreviewQuestion(BaseModel):
+    text: str
+    category: str
+    counts_toward_score: bool
+    source: Literal["pack", "standard", "custom"]
+
+
+class SkippedQuestion(BaseModel):
+    question: str
+    needs: list[str]
+
+
+class ScanPreviewResponse(BaseModel):
+    """The client's own questions for the next scan. Nothing is run."""
+
+    pack_label: str | None
+    questions: list[PreviewQuestion]
+    skipped: list[SkippedQuestion]
+    platform_count: int
+    competitor_question_count: int
+    benchmark_question_count: int
