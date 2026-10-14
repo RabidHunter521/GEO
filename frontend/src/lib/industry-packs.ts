@@ -231,6 +231,39 @@ export function suggestedPackFor(industry: string | null | undefined): PackDefin
   return key ? packFor(key) : null
 }
 
+/** A pack choice being made while a client is created, before it exists. */
+export interface PackChoice {
+  pack: PackKey | null
+  subcategory: string | null
+  buyerTerm: string
+  /** True once the admin picked a pack themselves; a suggestion never overrides it. */
+  packTouched: boolean
+}
+
+export const EMPTY_PACK_CHOICE: PackChoice = {
+  pack: null, subcategory: null, buyerTerm: "", packTouched: false,
+}
+
+/** The choice after the industry changes: the suggestion, unless the admin already chose. */
+export function applyIndustryToChoice(choice: PackChoice, industry: string): PackChoice {
+  if (choice.packTouched) return choice
+  return { ...choice, pack: suggestedPackFor(industry)?.key ?? null, subcategory: null }
+}
+
+/** The fields to PATCH onto a newly created client; empty when nothing was chosen. */
+export function packChoiceUpdate(choice: PackChoice): {
+  industry_pack?: string
+  industry_subcategory?: string
+  buyer_term?: string
+} {
+  const buyerTerm = choice.buyerTerm.trim()
+  return {
+    ...(choice.pack ? { industry_pack: choice.pack } : {}),
+    ...(choice.pack && choice.subcategory ? { industry_subcategory: choice.subcategory } : {}),
+    ...(buyerTerm ? { buyer_term: buyerTerm } : {}),
+  }
+}
+
 export function packLabel(key: string | null | undefined): string {
   return packFor(key)?.label ?? "No pack selected"
 }

@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest"
 import { INDUSTRIES } from "@/lib/industries"
 import {
   INDUSTRY_PACKS,
+  EMPTY_PACK_CHOICE,
   SUGGESTED_PACK_BY_INDUSTRY,
+  applyIndustryToChoice,
+  packChoiceUpdate,
   suggestedPackFor,
   PACK_KEYS,
   fieldFor,
@@ -158,5 +161,47 @@ describe("suggestedPackFor", () => {
     for (const key of Object.values(SUGGESTED_PACK_BY_INDUSTRY)) {
       if (key !== null) expect(PACK_KEYS).toContain(key)
     }
+  })
+})
+
+describe("pack choice during client creation", () => {
+  it("pre-selects the suggested pack when the industry is picked", () => {
+    const choice = applyIndustryToChoice(EMPTY_PACK_CHOICE, "SaaS")
+    expect(choice.pack).toBe("b2b_services")
+    expect(choice.packTouched).toBe(false)
+  })
+
+  it("follows the industry while the admin has not chosen a pack", () => {
+    let choice = applyIndustryToChoice(EMPTY_PACK_CHOICE, "Healthcare")
+    choice = { ...choice, subcategory: "dental" }
+    choice = applyIndustryToChoice(choice, "Real Estate")
+    expect(choice.pack).toBeNull()
+    expect(choice.subcategory).toBeNull()
+  })
+
+  it("never overrides a pack the admin picked", () => {
+    const picked = { ...EMPTY_PACK_CHOICE, pack: "fnb" as const, packTouched: true }
+    expect(applyIndustryToChoice(picked, "SaaS")).toBe(picked)
+  })
+
+  it("sends only what was chosen", () => {
+    expect(packChoiceUpdate(EMPTY_PACK_CHOICE)).toEqual({})
+    expect(packChoiceUpdate({ ...EMPTY_PACK_CHOICE, buyerTerm: "  " })).toEqual({})
+    expect(
+      packChoiceUpdate({
+        pack: "b2b_services", subcategory: "payment_gateway",
+        buyerTerm: " payment gateway ", packTouched: false,
+      }),
+    ).toEqual({
+      industry_pack: "b2b_services",
+      industry_subcategory: "payment_gateway",
+      buyer_term: "payment gateway",
+    })
+  })
+
+  it("drops a subcategory left over without a pack", () => {
+    expect(
+      packChoiceUpdate({ ...EMPTY_PACK_CHOICE, subcategory: "dental" }),
+    ).toEqual({})
   })
 })

@@ -19,6 +19,13 @@ import {
 } from "@/components/ui/select"
 import { createProspectAction } from "@/app/(admin)/clients/actions"
 import { INDUSTRIES } from "@/lib/industries"
+import {
+  EMPTY_PACK_CHOICE,
+  applyIndustryToChoice,
+  packChoiceUpdate,
+  type PackChoice,
+} from "@/lib/industry-packs"
+import { PackPicker } from "@/components/clients/PackPicker"
 
 interface Props {
   onClose: () => void
@@ -28,6 +35,7 @@ export function ProspectQuickForm({ onClose }: Props) {
   const [name, setName] = useState("")
   const [website, setWebsite] = useState("")
   const [industry, setIndustry] = useState("")
+  const [packChoice, setPackChoice] = useState<PackChoice>(EMPTY_PACK_CHOICE)
   const [competitor, setCompetitor] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +54,7 @@ export function ProspectQuickForm({ onClose }: Props) {
         website,
         industry,
         competitor,
+        ...packChoiceUpdate(packChoice),
       })
       toast.success(`${client.name} added — scan it when you're ready`)
       onClose()
@@ -87,7 +96,13 @@ export function ProspectQuickForm({ onClose }: Props) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="prospect-industry">Industry *</Label>
-        <Select value={industry} onValueChange={setIndustry}>
+        <Select
+          value={industry}
+          onValueChange={(next) => {
+            setIndustry(next)
+            setPackChoice((choice) => applyIndustryToChoice(choice, next))
+          }}
+        >
           <SelectTrigger id="prospect-industry">
             <SelectValue placeholder="Select industry…" />
           </SelectTrigger>
@@ -100,6 +115,12 @@ export function ProspectQuickForm({ onClose }: Props) {
           </SelectContent>
         </Select>
       </div>
+      <PackPicker
+        idPrefix="prospect"
+        industry={industry}
+        value={packChoice}
+        onChange={setPackChoice}
+      />
       <div className="space-y-2">
         <Label htmlFor="prospect-competitor">Main competitor</Label>
         <Input

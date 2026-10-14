@@ -38,6 +38,9 @@ export async function createProspectAction(data: {
   website: string
   industry: string
   competitor?: string
+  industry_pack?: string
+  industry_subcategory?: string
+  buyer_term?: string
 }) {
   const client = await apiCreateClient({
     name: data.name,
@@ -46,6 +49,12 @@ export async function createProspectAction(data: {
     is_prospect: true,
     enabled_platforms: ["chatgpt", "perplexity"],
   })
+  // The pack decides which questions the prospect's scan asks, so it is saved
+  // before anything can be scanned. A first-time pack needs no confirmation.
+  const { industry_pack, industry_subcategory, buyer_term } = data
+  if (industry_pack || buyer_term) {
+    await apiUpdateClient(client.id, { industry_pack, industry_subcategory, buyer_term })
+  }
   // Seed the competitor (if given) now so a later scan runs its comparison
   // queries — the competitor gap is the centrepiece of the call.
   const competitor = data.competitor?.trim()
