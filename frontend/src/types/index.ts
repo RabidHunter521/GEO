@@ -955,6 +955,31 @@ export interface DimensionAssessment {
   raw_narrative: string | null
   generated_at: string
   reviewed_at: string | null
+  /** Evidence as the admin edited it; null = the suggestion was kept. */
+  final_bullets: string[] | null
+  adjustment_reason: string | null
+  reviewed_by: string | null
+}
+
+/** Where one manual dimension's review stands (GET .../assessments/status). */
+export interface DimensionReviewStatus {
+  dimension: AssessmentDimension
+  score: number | null
+  reviewed_at: string | null
+  reviewed_by: string | null
+  adjustment_reason: string | null
+  evidence: string[]
+  review_due: boolean
+  due_reason: "never_reviewed" | "stale" | null
+}
+
+/** A client whose Brand Authority or Content Quality review is due. */
+export interface ReviewDueItem {
+  client_id: string
+  client_name: string
+  dimension: AssessmentDimension
+  last_reviewed_at: string | null
+  due_reason: "never_reviewed" | "stale"
 }
 
 // ── Citation Provenance / Share-of-Source ─────────────────────────────────────

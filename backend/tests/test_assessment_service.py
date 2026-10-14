@@ -225,11 +225,82 @@ def test_accept_writes_through_to_client(db):
 def test_accept_with_adjusted_score_marks_adjusted(db):
     c = _client(db)
     _suggested_row(db, c, score=58)
-    row = assessment_service.accept_assessment(c, "brand_authority", 65, db)
+    row = assessment_service.accept_assessment(
+        c, "brand_authority", 65, db, reason="Featured in The Star last month",
+    )
     db.refresh(c)
     assert row.status == "adjusted"
     assert row.final_score == 65
+    assert row.adjustment_reason == "Featured in The Star last month"
     assert c.brand_authority_score == 65
+
+
+# ── review safeguards ────────────────────────────────────────────────────────
+
+def test_changing_the_score_without_a_reason_is_refused(db):
+    import pytest
+    c = _client(db)
+    _suggested_row(db, c, score=58)
+    with pytest.raises(assessment_service.ReviewError):
+        assessment_service.accept_assessment(c, "brand_authority", 70, db)
+    with pytest.raises(assessment_service.ReviewError):
+        assessment_service.accept_assessment(c, "brand_authority", 70, db, reason="ok")
+    db.refresh(c)
+    assert c.brand_authority_score != 70
+
+
+def test_edited_evidence_is_shown_and_needs_a_reason(db):
+    import pytest
+    c = _client(db)
+    _suggested_row(db, c, score=58)
+    edited = ["Listed on Google with 40 reviews", "Featured in The Star, 2026"]
+    with pytest.raises(assessment_service.ReviewError):
+        assessment_service.accept_assessment(c, "brand_authority", None, db, bullets=edited)
+    row = assessment_service.accept_assessment(
+        c, "brand_authority", None, db, bullets=edited, reason="Added press the search missed",
+    )
+    db.refresh(c)
+    assert row.status == "adjusted"
+    assert row.final_bullets == edited
+    assert row.shown_bullets == edited
+    assert row.evidence_bullets != edited  # the suggestion is kept for audit
+    assert "Featured in The Star" in c.brand_authority_evidence
+
+
+def test_resending_the_suggested_evidence_is_a_plain_accept(db):
+    c = _client(db)
+    row = _suggested_row(db, c, score=58)
+    same = list(row.evidence_bullets)
+    row = assessment_service.accept_assessment(c, "brand_authority", 58, db, bullets=same)
+    assert row.status == "accepted" and row.final_bullets is None
+
+
+def test_reviewer_is_recorded(db):
+    from app.core import request_identity
+    c = _client(db)
+    _suggested_row(db, c, score=58)
+    token = request_identity._current_name.set("Siti")
+    try:
+        row = assessment_service.accept_assessment(c, "brand_authority", None, db)
+    finally:
+        request_identity._current_name.reset(token)
+    assert row.reviewed_by == "Siti"
+
+
+def test_review_due_when_never_reviewed_or_older_than_90_days(db):
+    from datetime import timedelta
+    c = _client(db)
+    _suggested_row(db, c, score=58)
+    due = {d["dimension"]: d["reason"] for d in assessment_service.review_due(c, db)}
+    assert due == {"brand_authority": "never_reviewed", "content_quality": "never_reviewed"}
+
+    row = assessment_service.accept_assessment(c, "brand_authority", None, db)
+    due = {d["dimension"] for d in assessment_service.review_due(c, db)}
+    assert "brand_authority" not in due
+
+    later = row.reviewed_at + timedelta(days=90)
+    due = {d["dimension"]: d["reason"] for d in assessment_service.review_due(c, db, now=later)}
+    assert due["brand_authority"] == "stale"
 
 
 def test_accept_without_suggestion_returns_none(db):

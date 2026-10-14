@@ -30,3 +30,15 @@ class DimensionAssessment(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="suggested")
     generated_at: Mapped[datetime] = mapped_column(default=utcnow)
     reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Review safeguards. The reviewer's name at the time (kept if the account
+    # is later removed); the reason, required whenever the score or evidence
+    # differs from the suggestion; and the evidence as the admin edited it
+    # (None = the suggested bullets were accepted unchanged).
+    reviewed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    adjustment_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_bullets: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    @property
+    def shown_bullets(self) -> list:
+        """The evidence a client sees once reviewed: edited, else suggested."""
+        return list(self.final_bullets if self.final_bullets is not None else self.evidence_bullets)

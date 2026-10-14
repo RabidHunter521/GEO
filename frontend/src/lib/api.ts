@@ -9,7 +9,7 @@ import "server-only"
 import type { AiMirrorResponse } from "@/types"
 import { redirect } from "next/navigation"
 import { adminAuthHeader } from "@/lib/api-token"
-import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, PackFactChecklistItem, ScanPreview, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued, PlacementTarget, PlacementTargetDetail } from "@/types"
+import type { CausalityResponse, Client, ClientListItem, Competitor, ControlQuery, Ga4SyncReport, GeoScore, Guarantee, GuaranteeProgress, ToolkitFiles, VerificationResult, CompetitorIntelligenceResponse, ActivityLogEntry, Report, Scan, ContentAnalysis, ContentRoadmap, ActionRecommendation, AiTrafficSnapshot, ShareTokenResponse, WinLossResponse, ContentBrief, CompetitorTrendsResponse, IndustryBenchmark, ScanDiffResponse, GapMatrixResponse, RemediationItem, RemediationStatus, DimensionAssessment, AssessmentDimension, DimensionReviewStatus, ReviewDueItem, ShareOfSource, ShareOfSourceHistoryPoint, CompetitorAIReadiness, SiteAudit, SiteAuditLatest, CompetitorSiteAudit, PageAudit, PageAuditListItem, ContentDeliverable, DeliverableType, AuthorityView, AuthorityCatalogItem, AuthorityAsset, AuthorityStatus, AuthorityVerifyResponse, AddAuthorityAssetItem, WorkLogEntry, WorkLogCategory, WorkLogStatus, WorkLogSuggestion, MisinformationFinding, MisinformationQueue, CommandCenter, OutcomeAction, OutcomeActionCreate, OutcomeActionListResponse, OutcomeActionPatch, OutcomeActionStatus, BusinessLocation, BusinessLocationInput, TruthFact, TruthFactDraftInput, TruthFactListResponse, TruthFactVersion, PackFactChecklistItem, ScanPreview, QueryStabilityEntry, ImpactSummary, BenchmarkComparison, DashboardFeedResponse, DashboardFilters, DashboardSummary, TeamLinkIssued, TeamMember, TeamRole, AttributionOverview, AttributionSettingInput, ManualAnswerInput, WebhookSecretIssued, PlacementTarget, PlacementTargetDetail } from "@/types"
 
 const BASE = process.env.API_BASE_URL ?? "http://localhost:8000"
 
@@ -799,12 +799,28 @@ export function generateAssessment(
 export function acceptAssessment(
   clientId: string,
   dimension: AssessmentDimension,
-  finalScore: number | null,
+  review: { finalScore: number | null; bullets?: string[] | null; reason?: string | null },
 ): Promise<DimensionAssessment> {
   return apiFetch<DimensionAssessment>(
     `/api/v1/clients/${clientId}/assessments/${dimension}/accept`,
-    { method: "POST", body: JSON.stringify({ final_score: finalScore }) },
+    {
+      method: "POST",
+      body: JSON.stringify({
+        final_score: review.finalScore,
+        bullets: review.bullets ?? null,
+        reason: review.reason ?? null,
+      }),
+    },
   )
+}
+
+export function getAssessmentStatus(clientId: string): Promise<DimensionReviewStatus[]> {
+  return apiFetch<DimensionReviewStatus[]>(`/api/v1/clients/${clientId}/assessments/status`)
+}
+
+/** Active clients whose Brand Authority or Content Quality review is due. */
+export function getAssessmentReviewsDue(): Promise<ReviewDueItem[]> {
+  return apiFetch<ReviewDueItem[]>("/api/v1/dashboard/assessment-reviews-due")
 }
 
 // ── Content Studio ───────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo, syncGa4Traffic, generateAssessment, acceptAssessment } from "@/lib/api"
+import { updateClient, upsertTrafficSnapshot, generateShareToken, revokeShareToken, uploadClientLogo, syncGa4Traffic, generateAssessment, acceptAssessment, getAssessmentStatus } from "@/lib/api"
 import type { AssessmentDimension, CustomQuestion, Platform } from "@/types"
 
 export async function updateClientAction(
@@ -104,10 +104,15 @@ export async function generateAssessmentAction(
 export async function acceptAssessmentAction(
   clientId: string,
   dimension: AssessmentDimension,
-  finalScore: number | null,
+  review: { finalScore: number | null; bullets?: string[] | null; reason?: string | null },
 ) {
-  const saved = await acceptAssessment(clientId, dimension, finalScore)
+  const saved = await acceptAssessment(clientId, dimension, review)
   revalidatePath(`/clients/${clientId}`)
   revalidatePath(`/clients/${clientId}/settings`)
+  revalidatePath("/home")
   return saved
+}
+
+export async function assessmentStatusAction(clientId: string) {
+  return getAssessmentStatus(clientId)
 }

@@ -39,6 +39,9 @@ def _fake_assessment(client_id, dimension="brand_authority", suggested_score=58,
     row.raw_narrative = "ok"
     row.generated_at = datetime(2026, 1, 1, 0, 0, 0)
     row.reviewed_at = None
+    row.final_bullets = None
+    row.adjustment_reason = None
+    row.reviewed_by = None
     return row
 
 
@@ -91,7 +94,7 @@ def test_accept_endpoint_writes_score():
     with patch("app.services.assessment_service.accept_assessment", return_value=accepted_row):
         r = TestClient(app).post(
             f"/api/v1/clients/{client_id}/assessments/brand_authority/accept",
-            json={"final_score": 65},
+            json={"final_score": 65, "reason": "Press coverage the search missed"},
         )
 
     assert r.status_code == 200
@@ -134,5 +137,40 @@ def test_client_view_exposes_bullets_not_narrative(db):
         assert "SECRET_NARRATIVE_DO_NOT_EXPOSE" not in r.text
         score = r.json()["latest_score"]
         assert "Listed on Google with 40 reviews" in score["brand_authority_evidence"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_an_unreviewed_newer_suggestion_does_not_hide_reviewed_evidence(db):
+    """Generating a fresh suggestion used to blank the client's reviewed
+    evidence until someone accepted it, though the score was unchanged."""
+    from datetime import timedelta
+    from app.models.dimension_assessment import DimensionAssessment
+    from tests.test_api_client_view import (
+        _make_client, _make_scan, _make_geo_score, _build_test_client,
+    )
+
+    client = _make_client(db, is_prospect=False, name="StaleViewCo")
+    client.share_token = "tok_" + uuid.uuid4().hex
+    db.flush()
+    _make_geo_score(db, client.id, _make_scan(db, client.id).id)
+    then = datetime(2026, 5, 1)
+    db.add(DimensionAssessment(
+        client_id=client.id, dimension="brand_authority", suggested_score=60,
+        final_score=60, evidence_bullets=["Reviewed bullet"], status="accepted",
+        generated_at=then, reviewed_at=then,
+    ))
+    db.add(DimensionAssessment(
+        client_id=client.id, dimension="brand_authority", suggested_score=70,
+        evidence_bullets=["Unreviewed draft bullet"], status="suggested",
+        generated_at=then + timedelta(days=30),
+    ))
+    db.commit()
+
+    tc = _build_test_client(db)
+    try:
+        score = tc.get(f"/api/v1/view/{client.share_token}/overview").json()["latest_score"]
+        assert score["brand_authority_evidence"] == ["Reviewed bullet"]
+        assert score["content_quality_evidence"] == []  # never reviewed
     finally:
         app.dependency_overrides.clear()

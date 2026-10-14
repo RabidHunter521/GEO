@@ -1,6 +1,6 @@
 // frontend/src/app/clients/[id]/settings/page.tsx
 import { getCurrentAdmin } from "@/lib/current-admin"
-import { getAttribution, getClient, getCompetitors, getContentGaps, getControlQueries, getTrafficHistory } from "@/lib/api"
+import { getAssessmentStatus, getAttribution, getClient, getCompetitors, getContentGaps, getControlQueries, getTrafficHistory } from "@/lib/api"
 import { SettingsForm } from "./SettingsForm"
 import { ShareLinkCard } from "./ShareLinkCard"
 import { AttributionCard } from "./AttributionCard"
@@ -14,11 +14,12 @@ export default async function SettingsPage({
 }) {
   const { id } = await params
   const admin = await getCurrentAdmin()
-  const [client, competitors, trafficHistory, controlQueries] = await Promise.all([
+  const [client, competitors, trafficHistory, controlQueries, reviewStatus] = await Promise.all([
     getClient(id),
     getCompetitors(id),
     getTrafficHistory(id),
     getControlQueries(id),
+    getAssessmentStatus(id),
   ])
 
   // Content Quality assist — latest crawl-derived recommendation (informational; never auto-scores)
@@ -41,6 +42,7 @@ export default async function SettingsPage({
         contentRecommendation={contentRecommendation}
         trafficHistory={trafficHistory}
         controlQueries={controlQueries}
+        reviewStatus={reviewStatus}
       />
       <ShareLinkCard client={client} />
       {attribution && <AttributionCard clientId={client.id} initial={attribution} />}

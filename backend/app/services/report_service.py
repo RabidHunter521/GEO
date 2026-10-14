@@ -22,6 +22,7 @@ from app.core.config import settings
 from app.core import request_identity
 from app.core.constants import (
     PLATFORM_LABELS,
+    DIMENSION_EVIDENCE_LABEL,
     PLATFORM_MIX_CHANGED_NOTE,
     SCORE_DISPLAY_LABEL,
     SCORE_VERSION_CHANGED_NOTE,
@@ -42,6 +43,7 @@ from app.models.toolkit_files import ToolkitFiles
 from app.models.activity_log import ActivityLog
 from app.models.report import Report
 from app.models.ai_traffic_snapshot import AiTrafficSnapshot
+from app.services.assessment_service import latest_reviewed
 from app.services.scoring_service import get_score_band, same_platform_basis, scores_comparable
 from app.services.r2_service import upload_pdf, download_pdf
 from app.services.claude_action import get_digest_action
@@ -79,6 +81,8 @@ _BRAND_AUTHORITY_FALLBACK = (
 _CONTENT_QUALITY_FALLBACK = (
     "Based on content depth, accuracy, freshness and topical expertise."
 )
+# Same wording as the client view for a dimension no admin has reviewed.
+_NOT_REVIEWED_LABEL = "Not yet reviewed"
 
 # Traffic-light badge classes for a remediation status chip in the PDF.
 _REMEDIATION_BADGE = {
@@ -541,6 +545,11 @@ class ReportData:
     business_name: str = ""
     brand_authority_evidence: str | None = None
     content_quality_evidence: str | None = None
+    # Whether an admin has accepted or adjusted an assessment for the dimension.
+    # The "Reviewed by SeenBy" label is a claim to the client, so it is printed
+    # only when true.
+    brand_authority_reviewed: bool = False
+    content_quality_reviewed: bool = False
     # The industry pack's own wording for its reviewed facts. Empty for an
     # unpacked client, which renders nothing — report text is pack CONFIGURATION,
     # never a chain of `if industry` branches.
@@ -909,12 +918,14 @@ def _build_dim_bars_html(data: "ReportData") -> str:
 
     ba_note = (
         _sanitize_text(data.brand_authority_evidence)
-        if data.brand_authority_evidence and data.brand_authority_evidence.strip()
+        if data.brand_authority_reviewed
+        and data.brand_authority_evidence and data.brand_authority_evidence.strip()
         else _BRAND_AUTHORITY_FALLBACK
     )
     cq_note = (
         _sanitize_text(data.content_quality_evidence)
-        if data.content_quality_evidence and data.content_quality_evidence.strip()
+        if data.content_quality_reviewed
+        and data.content_quality_evidence and data.content_quality_evidence.strip()
         else _CONTENT_QUALITY_FALLBACK
     )
 
@@ -938,9 +949,11 @@ def _build_dim_bars_html(data: "ReportData") -> str:
         _dim("AI Citability", data.ai_citability, ai_color, "40%",
              "Automatic — Scan engine")
         + _dim("Brand Authority", data.brand_authority, ba_color, "20%",
-               "Based on public evidence · Reviewed by SeenBy", ba_note)
+               DIMENSION_EVIDENCE_LABEL if data.brand_authority_reviewed else _NOT_REVIEWED_LABEL,
+               ba_note)
         + _dim("Content Quality", data.content_quality, cq_color, "20%",
-               "Based on public evidence · Reviewed by SeenBy", cq_note)
+               DIMENSION_EVIDENCE_LABEL if data.content_quality_reviewed else _NOT_REVIEWED_LABEL,
+               cq_note)
         + _dim("Technical Foundations", data.technical_foundations, tf_color, "10%",
                "Automatic — Toolkit verified")
         + _dim("Structured Data", data.structured_data, sd_color, "10%",
@@ -1602,6 +1615,8 @@ def _gather_report_data(client: Client, db: Session) -> ReportData | None:
         recommendation=recommendation,
         brand_authority_evidence=client.brand_authority_evidence,
         content_quality_evidence=client.content_quality_evidence,
+        brand_authority_reviewed=latest_reviewed(client.id, "brand_authority", db) is not None,
+        content_quality_reviewed=latest_reviewed(client.id, "content_quality", db) is not None,
         ai_visitors_current=current_traffic.ai_visitors if current_traffic else None,
         ai_visitors_prev=prev_traffic.ai_visitors if prev_traffic else None,
         ai_traffic_period=current_traffic.period if current_traffic else None,

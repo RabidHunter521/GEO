@@ -39,6 +39,13 @@ ASSESSABLE_DIMENSIONS: Final = (DIMENSION_BRAND_AUTHORITY, DIMENSION_CONTENT_QUA
 ASSESSMENT_STATUSES: Final = ("suggested", "accepted", "adjusted")
 # Client-facing label replacing "Assessed by SeenBy team" — leads with verifiability.
 DIMENSION_EVIDENCE_LABEL: Final = "Based on public evidence · Reviewed by SeenBy"
+# A reviewed score older than this is flagged "Review due" in the admin inbox:
+# a client's standing moves, and a months-old review is no longer evidence.
+ASSESSMENT_REVIEW_DAYS: Final = 90
+# A change to the suggested score or evidence needs a reason at least this long.
+ASSESSMENT_MIN_REASON_CHARS: Final = 10
+# Evidence an admin may publish for one dimension.
+ASSESSMENT_MAX_BULLETS: Final = 6
 
 SCORE_BANDS: Final = {
     "excellent":  (80, 100),

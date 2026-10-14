@@ -19,7 +19,7 @@ from app.models.activity_log import ActivityLog
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse, ClientListItem, ShareTokenRequest, ShareTokenResponse
 from app.schemas.geo_score import GeoScoreResponse
 from app.schemas.benchmark import IndustryBenchmarkResponse
-from app.schemas.assessment import AcceptRequest, AssessmentResponse
+from app.schemas.assessment import AcceptRequest, AssessmentResponse, DimensionReviewStatus
 from app.schemas.command_center import CommandCenterResponse
 from app.models.guarantee import Guarantee
 from app.schemas.guarantee import (
@@ -109,6 +109,12 @@ def get_client(client_id: uuid.UUID, db: Session = Depends(get_db)):
     return c
 
 
+_REVIEWED_FIELDS = (
+    "brand_authority_score", "brand_authority_evidence",
+    "content_quality_score", "content_quality_evidence",
+)
+
+
 @router.patch(
     "/{client_id}",
     response_model=ClientResponse,
@@ -124,6 +130,27 @@ def update_client(client_id: uuid.UUID, body: ClientUpdate, db: Session = Depend
     # before the setattr loop below, which writes every remaining parsed field
     # straight onto the row.
     confirmed = bool(updates.pop("confirm_pack_change", False))
+
+    # Brand Authority and Content Quality are set only by accepting a review
+    # (POST .../assessments/{dimension}/accept), which records the reviewer and
+    # a reason for any change. Re-sending the current values (a form posting
+    # every field) is a no-op; anything else is refused.
+    for field in _REVIEWED_FIELDS:
+        if field not in updates:
+            continue
+        new, current = updates.pop(field), getattr(c, field)
+        if isinstance(new, str) or isinstance(current, str):
+            differs = (new or "").strip() != (current or "").strip()
+        else:
+            differs = (new or 0) != (current or 0)
+        if differs:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "Brand Authority and Content Quality are set by accepting a review "
+                    "on this page, not edited directly."
+                ),
+            )
     # Switching an already-chosen pack changes which queries the client is
     # scanned on and resets benchmark comparability, so it may not happen
     # implicitly. Choosing a pack for the FIRST time invalidates nothing and
@@ -351,6 +378,33 @@ def generate_assessment(client_id: uuid.UUID, dimension: str, db: Session = Depe
     return row
 
 
+@router.get(
+    "/{client_id}/assessments/status",
+    response_model=list[DimensionReviewStatus],
+    dependencies=[Depends(require_api_key)],
+)
+def assessment_status(client_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Review state of each manual dimension: score, reviewer, evidence, due."""
+    c = db.get(Client, client_id)
+    if not c or c.archived_at is not None:
+        raise HTTPException(status_code=404, detail="Client not found")
+    due = {d["dimension"]: d["reason"] for d in assessment_service.review_due(c, db)}
+    out = []
+    for dimension in ASSESSABLE_DIMENSIONS:
+        row = assessment_service.latest_reviewed(c.id, dimension, db)
+        out.append(DimensionReviewStatus(
+            dimension=dimension,
+            score=getattr(c, f"{dimension}_score"),
+            reviewed_at=row.reviewed_at if row else None,
+            reviewed_by=row.reviewed_by if row else None,
+            adjustment_reason=row.adjustment_reason if row else None,
+            evidence=row.shown_bullets if row else [],
+            review_due=dimension in due,
+            due_reason=due.get(dimension),
+        ))
+    return out
+
+
 @router.post(
     "/{client_id}/assessments/{dimension}/accept",
     response_model=AssessmentResponse,
@@ -363,7 +417,12 @@ def accept_assessment(
     c = db.get(Client, client_id)
     if not c or c.archived_at is not None:
         raise HTTPException(status_code=404, detail="Client not found")
-    row = assessment_service.accept_assessment(c, dimension, body.final_score, db)
+    try:
+        row = assessment_service.accept_assessment(
+            c, dimension, body.final_score, db, reason=body.reason, bullets=body.bullets,
+        )
+    except assessment_service.ReviewError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if row is None:
         raise HTTPException(status_code=404, detail="No assessment to accept — generate one first.")
     return row

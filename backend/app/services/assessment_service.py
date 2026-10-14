@@ -7,6 +7,12 @@ import structlog
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from app.core import request_identity
+from app.core.constants import (
+    ASSESSMENT_MAX_BULLETS,
+    ASSESSMENT_MIN_REASON_CHARS,
+    ASSESSMENT_REVIEW_DAYS,
+)
 from app.models.activity_log import ActivityLog
 from app.models.client import Client
 from app.models.content_analysis import ContentAnalysis
@@ -145,34 +151,97 @@ def latest_assessment(client_id, dimension: str, db: Session) -> DimensionAssess
     )
 
 
-def accept_assessment(
-    client: Client, dimension: str, final_score: int | None, db: Session
-) -> DimensionAssessment | None:
-    """Accept (or adjust) the latest suggestion for a dimension.
+REVIEWED_STATUSES = ("accepted", "adjusted")
 
-    Writes the accepted score + denormalized evidence text to the Client row so
-    the existing evidence-required invariant and the PDF report keep working.
-    Does NOT create a GeoScore row — the value flows into the overall score at
-    the next scan, identical to a manual dimension edit today. Returns None when
-    there is no suggestion to accept.
+
+def latest_reviewed(client_id, dimension: str, db: Session) -> DimensionAssessment | None:
+    """The most recent assessment an admin accepted or adjusted.
+
+    The score on the Client row came from this row, so it is the one whose
+    evidence a client may see. A newer suggestion nobody has reviewed yet must
+    not hide it (the client view used to read only the latest row, so
+    generating a suggestion blanked the reviewed evidence), and a dimension
+    with no reviewed row has not been reviewed, whatever its score.
+    """
+    return (
+        db.query(DimensionAssessment)
+        .filter(DimensionAssessment.client_id == client_id,
+                DimensionAssessment.dimension == dimension,
+                DimensionAssessment.status.in_(REVIEWED_STATUSES))
+        .order_by(desc(DimensionAssessment.reviewed_at), desc(DimensionAssessment.generated_at))
+        .first()
+    )
+
+
+class ReviewError(ValueError):
+    """The review cannot be saved as submitted (e.g. a change without a reason)."""
+
+
+def accept_assessment(
+    client: Client,
+    dimension: str,
+    final_score: int | None,
+    db: Session,
+    *,
+    reason: str | None = None,
+    bullets: list[str] | None = None,
+) -> DimensionAssessment | None:
+    """Accept, or adjust, the latest suggestion for a dimension.
+
+    Any difference from the suggestion (score or evidence) is an adjustment and
+    needs a reason (ReviewError otherwise), so every number a client sees either
+    is the suggestion or carries a written why. Records the reviewer, writes the
+    score and the evidence that will be shown to the Client row (where scoring
+    and the PDF read them). Does NOT create a GeoScore: the value flows into the
+    overall score at the next scan. Returns None when there is no suggestion.
     """
     row = latest_assessment(client.id, dimension, db)
     if row is None:
         return None
 
     accepted = row.suggested_score if final_score is None else max(0, min(100, int(final_score)))
+    edited = None
+    if bullets is not None:
+        edited = sanitize_bullets(bullets)[:ASSESSMENT_MAX_BULLETS]
+        if not edited:
+            raise ReviewError("Keep at least one evidence point.")
+        if edited == list(row.evidence_bullets):
+            edited = None
+    changed = accepted != row.suggested_score or edited is not None
+    reason = " ".join((reason or "").split()) or None
+    if changed and (reason is None or len(reason) < ASSESSMENT_MIN_REASON_CHARS):
+        raise ReviewError(
+            "Say why you changed the suggestion "
+            f"(at least {ASSESSMENT_MIN_REASON_CHARS} characters)."
+        )
+
     row.final_score = accepted
-    row.status = "accepted" if accepted == row.suggested_score else "adjusted"
+    row.final_bullets = edited
+    row.status = "adjusted" if changed else "accepted"
+    row.adjustment_reason = reason if changed else None
+    row.reviewed_by = request_identity.current_name() or "SeenBy admin"
     row.reviewed_at = utcnow()
 
     setattr(client, _SCORE_FIELD[dimension], accepted)
-    setattr(client, _EVIDENCE_FIELD[dimension], "\n".join(row.evidence_bullets))
+    setattr(client, _EVIDENCE_FIELD[dimension], "\n".join(row.shown_bullets))
 
-    db.add(ActivityLog(
-        client_id=client.id,
-        event_type="assessment_accepted",
-        note=f"{dimension} score set to {accepted} ({row.status})",
-    ))
+    note = f"{dimension} score set to {accepted} ({row.status})"
+    if changed:
+        note += f": {reason}"
+    db.add(ActivityLog(client_id=client.id, event_type="assessment_accepted", note=note))
     db.commit()
     db.refresh(row)
     return row
+
+
+def review_due(client: Client, db: Session, now=None) -> list[dict]:
+    """Dimensions of `client` whose reviewed score is missing or out of date."""
+    now = now or utcnow()
+    due = []
+    for dimension in _SCORE_FIELD:
+        row = latest_reviewed(client.id, dimension, db)
+        if row is None:
+            due.append({"dimension": dimension, "last_reviewed_at": None, "reason": "never_reviewed"})
+        elif row.reviewed_at is None or (now - row.reviewed_at).days >= ASSESSMENT_REVIEW_DAYS:
+            due.append({"dimension": dimension, "last_reviewed_at": row.reviewed_at, "reason": "stale"})
+    return due
