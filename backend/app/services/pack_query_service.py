@@ -41,6 +41,10 @@ _FACT_SOURCES: dict[str, tuple[tuple[str, str], ...]] = {
     "subject":   (("programme", "offered"),),
     "level":     (("programme", "levels"),),
     "integration": (("integration", "platforms"),),
+    "district":    (("project", "areas"),),
+    "property_type": (("project", "types"),),
+    "product":     (("product", "categories"), ("product", "hero_products")),
+    "marketplace": (("channel", "marketplaces"),),
 }
 
 # Ordering used when the cap bites: keep what a buyer is closest to acting on.
