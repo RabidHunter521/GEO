@@ -450,7 +450,7 @@ MISINFORMATION_MAX_ROWS_PER_SCAN: Final = 20
 # No PostgreSQL enum by design — adding a pack must not require a migration.
 INDUSTRY_PACK_KEYS: Final = (
     "healthcare", "fnb", "local_services", "education", "b2b_services",
-    "property", "ecommerce", "hospitality", "automotive",
+    "property", "ecommerce", "hospitality", "automotive", "financial_services",
 )
 
 # Cost envelope for pack-generated client queries. Raised 20 -> 28 once packs

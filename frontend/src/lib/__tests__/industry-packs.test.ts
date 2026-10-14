@@ -26,7 +26,7 @@ describe("catalog shape", () => {
   it("has exactly the four supported packs", () => {
     expect(PACK_KEYS).toEqual([
       "healthcare", "fnb", "local_services", "education", "b2b_services", "property", "ecommerce",
-      "hospitality", "automotive",
+      "hospitality", "automotive", "financial_services",
     ])
   })
 
@@ -154,10 +154,12 @@ describe("suggestedPackFor", () => {
     expect(suggestedPackFor("Retail")?.key).toBe("ecommerce")
     expect(suggestedPackFor("Hospitality")?.key).toBe("hospitality")
     expect(suggestedPackFor("Automotive")?.key).toBe("automotive")
+    expect(suggestedPackFor("Finance")?.key).toBe("financial_services")
+    expect(suggestedPackFor("Insurance")?.key).toBe("financial_services")
   })
 
   it("suggests nothing rather than a near-miss pack", () => {
-    for (const industry of ["Finance", "Other", "Something new", null]) {
+    for (const industry of ["Other", "Something new", null]) {
       expect(suggestedPackFor(industry)).toBeNull()
     }
   })
