@@ -14,7 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import {
-  INDUSTRY_PACKS, impactOfPackChange, subcategoriesFor, subcategoryLabel,
+  INDUSTRY_PACKS, impactOfPackChange, subcategoriesFor, subcategoryLabel, suggestedPackFor,
 } from "@/lib/industry-packs"
 import type { Client } from "@/types"
 
@@ -43,6 +43,7 @@ export function IndustryPackCard({ client }: { client: Client }) {
   const [pending, startTransition] = useTransition()
 
   const subcategories = subcategoriesFor(pack)
+  const suggestion = suggestedPackFor(client.industry)
   const isPackChange = saved.pack !== null && pack !== saved.pack
   const dirty = pack !== saved.pack || subcategory !== saved.subcategory
 
@@ -80,6 +81,33 @@ export function IndustryPackCard({ client }: { client: Client }) {
           question set.
         </p>
       </div>
+
+      {saved.pack === null && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="font-medium">No industry pack yet.</p>
+          <p className="mt-0.5">
+            This client is scanned on the standard questions, which are written for local
+            businesses (&ldquo;best &hellip; near me&rdquo;).
+            {suggestion
+              ? ` Suggested for ${client.industry}: ${suggestion.label}.`
+              : ` No pack fits ${client.industry} yet, so fill in "What buyers call this business" above to keep the questions readable.`}
+          </p>
+          {suggestion && pack !== suggestion.key && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                setPack(suggestion.key)
+                setSubcategory(null)
+              }}
+            >
+              Use {suggestion.label}
+            </Button>
+          )}
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -142,9 +170,9 @@ export function IndustryPackCard({ client }: { client: Client }) {
             Pack version {client.industry_pack_version}
           </Badge>
         )}
-        {saved.pack === null && (
+        {saved.pack === null && pack !== null && (
           <span className="text-xs text-muted-foreground">
-            No pack reviewed yet — using the standard question set.
+            Choose a subcategory if one fits, then save.
           </span>
         )}
       </div>

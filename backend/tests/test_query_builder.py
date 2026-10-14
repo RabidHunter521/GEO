@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock
 from app.services.query_builder import build_client_queries, build_competitor_queries
 
@@ -152,3 +153,25 @@ def test_a_packed_client_is_scanned_on_pack_queries_instead():
     assert {q["category"] for q in packed} <= {
         "brand", "comparison", "recommendation", "local"
     }
+
+
+def test_buyer_term_replaces_the_picklist_industry_in_legacy_questions():
+    from types import SimpleNamespace
+
+    client = SimpleNamespace(
+        name="Curlec", industry="Finance", buyer_term="payment gateway",
+        city="Kuala Lumpur", state=None, country="Malaysia",
+    )
+    texts = [q["query_text"] for q in build_client_queries(client, [])]
+    texts += [q["query_text"] for q in build_competitor_queries(client, SimpleNamespace(name="Billplz", id=None))]
+    assert "Best payment gateway in Kuala Lumpur" in texts
+    assert not any("Finance" in t for t in texts)
+
+
+@pytest.mark.parametrize("buyer_term", [None, "", "   "])
+def test_blank_buyer_term_falls_back_to_industry(buyer_term):
+    from types import SimpleNamespace
+    from app.services.query_builder import industry_term
+
+    client = SimpleNamespace(industry="dental clinic", buyer_term=buyer_term)
+    assert industry_term(client) == "dental clinic"

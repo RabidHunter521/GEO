@@ -246,7 +246,9 @@ def _values_for(
     if name == "brand":
         return [v for v in [_clean(client.name)] if v]
     if name == "industry":
-        return [v for v in [_clean(client.industry)] if v]
+        from app.services.query_builder import industry_term
+
+        return [v for v in [industry_term(client)] if v]
     if name == "competitor":
         return [v for v in (_clean(getattr(c, "name", None)) for c in competitors) if v]
     if name in ("city", "area"):

@@ -42,6 +42,7 @@ from app.services.cost_tracker import record_llm_call
 from app.services.language_sanitizer import sanitize_text
 from app.services.pack_query_service import approved_facts_for
 from app.services.provenance_service import normalize_domain
+from app.services.query_builder import industry_term
 from app.services.url_safety import UnsafeUrlError, safe_get
 
 logger = structlog.get_logger()
@@ -680,7 +681,7 @@ def _profile(client: Client) -> str:
     location = ", ".join(p for p in (client.city, client.state, client.country) if p)
     lines = [
         f"Business: {client.name}",
-        f"Industry: {client.industry}",
+        f"Industry: {industry_term(client)}",
         f"Website: {client.website}",
         f"Location: {location}" if location else "",
         f"Phone: {client.phone}" if client.phone else "",
@@ -720,7 +721,7 @@ def _directory_checklist(client: Client, facts: list[str], analysis: dict) -> di
         ("Website", client.website),
         ("Phone", client.phone),
         ("Location", location),
-        ("Category", client.industry),
+        ("Category", industry_term(client)),
         ("Description", client.description),
     ]
     fields = [{"label": label, "value": value} for label, value in core if value]

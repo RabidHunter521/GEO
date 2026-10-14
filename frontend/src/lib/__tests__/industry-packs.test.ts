@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 
+import { INDUSTRIES } from "@/lib/industries"
 import {
   INDUSTRY_PACKS,
+  SUGGESTED_PACK_BY_INDUSTRY,
+  suggestedPackFor,
   PACK_KEYS,
   fieldFor,
   fieldsForFactType,
@@ -131,5 +134,29 @@ describe("pack change impact", () => {
     expect(impact.from).toBe("No pack")
     expect(impact.retiredFields).toEqual([])
     expect(impact.newFields.length).toBeGreaterThan(0)
+  })
+})
+
+describe("suggestedPackFor", () => {
+  it("suggests the matching pack for industries a pack covers", () => {
+    expect(suggestedPackFor("Healthcare")?.key).toBe("healthcare")
+    expect(suggestedPackFor("Food & Beverage")?.key).toBe("fnb")
+    expect(suggestedPackFor("Education")?.key).toBe("education")
+    expect(suggestedPackFor("SaaS")?.key).toBe("b2b_services")
+    expect(suggestedPackFor("Finance")?.key).toBe("b2b_services")
+  })
+
+  it("suggests nothing rather than a near-miss pack", () => {
+    for (const industry of ["E-commerce", "Real Estate", "Retail", "Other", "Something new", null]) {
+      expect(suggestedPackFor(industry)).toBeNull()
+    }
+  })
+
+  it("makes an explicit decision for every picklist industry", () => {
+    // Adding an industry to the picklist must come with a decision here.
+    expect(Object.keys(SUGGESTED_PACK_BY_INDUSTRY).sort()).toEqual([...INDUSTRIES].sort())
+    for (const key of Object.values(SUGGESTED_PACK_BY_INDUSTRY)) {
+      if (key !== null) expect(PACK_KEYS).toContain(key)
+    }
   })
 })

@@ -207,6 +207,30 @@ export function packFor(key: string | null | undefined): PackDefinition | null {
   return INDUSTRY_PACKS.find((pack) => pack.key === key) ?? null
 }
 
+/**
+ * The pack to SUGGEST for a client's picklist industry (src/lib/industries.ts).
+ * A suggestion only: an admin still chooses and saves the pack. Industries no
+ * pack fits yet map to null rather than to a near-miss, because a wrong pack
+ * asks worse questions than the standard set.
+ */
+export const SUGGESTED_PACK_BY_INDUSTRY: Record<string, PackKey | null> = {
+  Healthcare: "healthcare",
+  "Food & Beverage": "fnb",
+  Education: "education",
+  Technology: "b2b_services",
+  SaaS: "b2b_services",
+  Finance: "b2b_services",
+  "E-commerce": null,
+  "Real Estate": null,
+  Retail: null,
+  Other: null,
+}
+
+export function suggestedPackFor(industry: string | null | undefined): PackDefinition | null {
+  const key = industry ? SUGGESTED_PACK_BY_INDUSTRY[industry] : null
+  return key ? packFor(key) : null
+}
+
 export function packLabel(key: string | null | undefined): string {
   return packFor(key)?.label ?? "No pack selected"
 }
