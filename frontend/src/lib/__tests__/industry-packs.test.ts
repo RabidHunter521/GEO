@@ -27,6 +27,7 @@ describe("catalog shape", () => {
     expect(PACK_KEYS).toEqual([
       "healthcare", "fnb", "local_services", "education", "b2b_services", "property", "ecommerce",
       "hospitality", "automotive", "financial_services",
+      "legal_accounting", "renovation",
     ])
   })
 
@@ -156,6 +157,8 @@ describe("suggestedPackFor", () => {
     expect(suggestedPackFor("Automotive")?.key).toBe("automotive")
     expect(suggestedPackFor("Finance")?.key).toBe("financial_services")
     expect(suggestedPackFor("Insurance")?.key).toBe("financial_services")
+    expect(suggestedPackFor("Legal & Accounting")?.key).toBe("legal_accounting")
+    expect(suggestedPackFor("Renovation & Interior Design")?.key).toBe("renovation")
   })
 
   it("suggests nothing rather than a near-miss pack", () => {

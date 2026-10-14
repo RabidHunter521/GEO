@@ -39,6 +39,7 @@ def test_supported_pack_keys_are_exactly_the_shipped_packs():
     assert INDUSTRY_PACK_KEYS == (
         "healthcare", "fnb", "local_services", "education", "b2b_services",
         "property", "ecommerce", "hospitality", "automotive", "financial_services",
+        "legal_accounting", "renovation",
     )
 
 

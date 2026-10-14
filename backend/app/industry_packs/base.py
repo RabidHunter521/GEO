@@ -72,6 +72,9 @@ ALLOWED_PLACEHOLDERS = frozenset({
     # Hospitality: nearby attractions and tour destinations. Automotive: the
     # makes, models and vehicle types a dealer sells.
     "attraction", "destination", "make", "model", "vehicle_type",
+    # Legal & accounting: the practice areas a firm takes on. Renovation: the
+    # types of work, and the design styles an interior designer works in.
+    "practice_area", "work_type", "style",
 })
 # Placeholders that need a real location to expand. A template using one must
 # declare location_required, so a client with no location is skipped instead of
