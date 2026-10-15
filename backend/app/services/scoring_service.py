@@ -10,15 +10,29 @@ from app.core.constants import (
 _REPORTED_ONLY = frozenset(SCAN_PLATFORMS) - frozenset(SCORED_PLATFORMS)
 
 
+def is_tracked_sample(result) -> bool:
+    """A repeat sample of a governed tracked query (query_sampling_service).
+
+    Samples exist for answer-stability analysis. How many run changes from scan
+    to scan (new queries get 3 repeats, a rotating pool 1, the budget trims the
+    rest), so counting them would move the score with nothing changing in the
+    market. They never count toward AI Citability or headline counts.
+    """
+    return getattr(result, "tracked_query_id", None) is not None
+
+
 def scored_results(results) -> list:
-    """Rows from scored platforms only.
+    """Rows from scored platforms only, without tracked-query samples.
 
     Headline visibility numbers that sit beside the score or are compared over
     time (seen X of Y, overall visibility frequency, competitor overtake,
     benchmark trends) use these, so a reported-only surface (Google AI
     Overviews / AI Mode) never shifts them. Per-platform views keep every row.
     """
-    return [r for r in results if getattr(r, "platform", None) not in _REPORTED_ONLY]
+    return [
+        r for r in results
+        if getattr(r, "platform", None) not in _REPORTED_ONLY and not is_tracked_sample(r)
+    ]
 
 
 def discovery_results(results) -> list:
@@ -49,6 +63,7 @@ def compute_platform_breakdown(
     client_results = [
         r for r in query_results
         if r.competitor_id is None and not getattr(r, "is_control", False)
+        and not is_tracked_sample(r)
     ]
     by_platform: dict[str, list] = {}
     for result in client_results:
@@ -101,6 +116,7 @@ def compute_ai_citability(query_results: list, platform_breakdown: dict | None =
         r for r in query_results
         if r.competitor_id is None and not getattr(r, "is_control", False)
         and getattr(r, "platform", None) not in _REPORTED_ONLY
+        and not is_tracked_sample(r)
     ]
     client_results = discovery_results(client_results) or client_results
     if not client_results:

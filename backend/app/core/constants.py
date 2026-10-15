@@ -5,7 +5,9 @@ from typing import Final
 # checklist (ASSESSMENT_RUBRICS) instead of one free number. Measured criteria
 # come from data SeenBy holds; one judged criterion per dimension comes from a
 # web-search review. An admin still accepts every score. Weights unchanged.
-SCORE_VERSION: Final = "v1.6.0"
+# v1.6.1: tracked-query repeat samples no longer count toward AI Citability or
+# headline counts (their number varies scan to scan by sampling, not market).
+SCORE_VERSION: Final = "v1.6.1"
 SCORE_DISPLAY_LABEL: Final = "Growth Readiness"
 
 # Shown wherever a score delta spans a formula change (see
@@ -652,6 +654,7 @@ KNOWN_ACTIVITY_EVENT_TYPES: Final = frozenset({
     "report_sent", "review_snapshot_added", "roadmap_generated",
     "scan_blocked_budget", "scan_completed", "scan_failed",
     "scan_platform_unavailable", "scan_questions_skipped",
+    "report_generation_failed", "report_blocked_no_scan",
     "share_link_generated", "share_link_regenerated",
     "share_link_opened", "share_link_revoked", "site_audit_run", "toolkit_generated",
     "toolkit_verified", "traffic_updated", "truth_vault_seeded",
@@ -664,6 +667,7 @@ EVENT_TIERS: Final = {
     "scan_failed": EVENT_TIER_ATTENTION,
     "scan_platform_unavailable": EVENT_TIER_ATTENTION,
     "scan_blocked_budget": EVENT_TIER_ATTENTION,
+    "report_generation_failed": EVENT_TIER_ATTENTION,
     "hallucination_flagged": EVENT_TIER_ATTENTION,
     "alert_sent": EVENT_TIER_ATTENTION,
     "citation_flip": EVENT_TIER_ATTENTION,
@@ -726,6 +730,8 @@ EVENT_CATEGORIES: Final = {
     "scan_questions_skipped": "scans",
     "scan_blocked_budget": "scans",
     "report_generated": "reports_emails",
+    "report_generation_failed": "reports_emails",
+    "report_blocked_no_scan": "reports_emails",
     "report_sent": "reports_emails",
     "digest_sent": "reports_emails",
     "win_notification_sent": "reports_emails",

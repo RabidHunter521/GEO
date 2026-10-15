@@ -39,7 +39,7 @@ def test_dimension_assessment_row_roundtrips(db):
 def test_assessment_constants_present():
     # Version lock — edited by hand only when the score formula genuinely
     # changes. v1.6.0: Brand Authority / Content Quality on a points checklist.
-    assert constants.SCORE_VERSION == "v1.6.0"
+    assert constants.SCORE_VERSION == "v1.6.1"
     assert constants.SCORE_DISPLAY_LABEL == "Growth Readiness"
     assert constants.ASSESSABLE_DIMENSIONS == ("brand_authority", "content_quality")
     assert constants.ASSESSMENT_STATUSES == ("suggested", "accepted", "adjusted")

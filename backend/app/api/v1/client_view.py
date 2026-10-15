@@ -412,10 +412,17 @@ def get_overview(
 
     benchmark = compute_industry_benchmark(client, db)
 
+    # Only a report Faris reviewed and sent (CLAUDE.md §7): a freshly built
+    # report's narrative must not reach the client before he has read it, nor
+    # stay visible if he decides not to send it. Same filter as /reports.
     latest_report = (
         db.query(Report)
-        .filter(Report.client_id == client.id, Report.change_narrative.isnot(None))
-        .order_by(desc(Report.generated_at))
+        .filter(
+            Report.client_id == client.id,
+            Report.change_narrative.isnot(None),
+            Report.sent_at.isnot(None),
+        )
+        .order_by(desc(Report.period_end), desc(Report.generated_at))
         .first()
     )
 

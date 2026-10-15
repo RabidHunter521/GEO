@@ -33,6 +33,8 @@ def send_all_weekly_digests() -> dict:
                 else:
                     skipped += 1
             except Exception as exc:
+                # Keep one client's DB error from failing every later client.
+                db.rollback()
                 logger.error(
                     "digest_failed_for_client",
                     client_id=str(client.id),

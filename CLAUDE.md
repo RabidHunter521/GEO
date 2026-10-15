@@ -91,7 +91,12 @@ and bumping SCORE_VERSION.
 Manual dimensions show the label "Based on public evidence · Reviewed by SeenBy"
 once an admin has accepted a review, and "Not yet reviewed" until then: never
 claim a review that did not happen (`assessment_service.latest_reviewed`).
-SCORE_VERSION = "v1.6.0" — Brand Authority and Content Quality are scored on a
+SCORE_VERSION = "v1.6.1" — tracked-query repeat samples (rows with
+`tracked_query_id`) no longer count toward AI Citability or headline counts
+(`scoring_service.is_tracked_sample`): how many run varies by sampling, not by
+the market, so they moved the score by several points with nothing changing.
+Weights unchanged.
+(v1.6.0: Brand Authority and Content Quality are scored on a
 fixed 100-point checklist each (`ASSESSMENT_RUBRICS` in constants.py), not one
 free number. Most items are measured from SeenBy data (verified listings,
 share of AI sources naming the client, brand recognition on brand questions,
@@ -101,7 +106,7 @@ web-search review against fixed point bands. Missing data scores 0, never a
 guess. The admin still accepts every total (assisted, not automated); any
 changed item or edited evidence needs a reason, the reviewer is recorded, and
 reviews older than 90 days or from before the checklist are flagged due.
-Weights unchanged. Scores move when each client is re-reviewed.
+Weights unchanged. Scores move when each client is re-reviewed.)
 (v1.5.0: AI Citability counts DISCOVERY questions only
 (`DISCOVERY_CATEGORIES`: recommendation + local), where the buyer asks for
 options without naming the brand. Brand and comparison questions put the name
