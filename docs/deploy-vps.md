@@ -6,7 +6,7 @@
 
 Single-VPS deploy via Docker Compose. Postgres stays on your managed database,
 files stay on Cloudflare R2 — this VPS only runs compute: frontend, backend
-API, Celery worker, Celery beat, Redis, and Caddy (reverse proxy + auto TLS).
+API, Celery worker (with the beat scheduler built in), Redis, and Caddy (reverse proxy + auto TLS).
 
 > The managed database is the Railway `Postgres` service, **not** Supabase. An
 > old Supabase project with a divergent copy is being decommissioned; never
@@ -139,7 +139,7 @@ Same checklist as the `seenby-release` skill's post-deploy section:
 3. Trigger a scan on a low-stakes client, confirm it completes
 4. Open a `/view/<token>` share link, confirm it loads with no internal fields
 5. Generate a scorecard PDF (exercises WeasyPrint + R2)
-6. `docker compose logs backend-worker backend-beat` — no errors
+6. `docker compose logs backend-worker` — no errors
 
 ## 10. Ongoing deploys
 

@@ -5,7 +5,7 @@ description: Production deploy runbook for SeenBy — pre-flight checks, Alembic
 
 # SeenBy Release Runbook
 
-Prod DB is the **Railway `Postgres` service** (`postgres.railway.internal:5432/railway`), used by `api`, `worker` and `beat`. It is **not Supabase** — an old Supabase project with a divergent copy is being decommissioned (2026-09-30), and an old `backend/.env` may still point at it. Never cite it, or any local run, as evidence about production; read production through the container instead:
+Prod DB is the **Railway `Postgres` service** (`postgres.railway.internal:5432/railway`), used by `api` and `worker` (the worker also runs the beat scheduler). It is **not Supabase** — an old Supabase project with a divergent copy is being decommissioned (2026-09-30), and an old `backend/.env` may still point at it. Never cite it, or any local run, as evidence about production; read production through the container instead:
 
 ```bash
 railway ssh -s api -- alembic current   # must equal `alembic heads`
@@ -76,8 +76,7 @@ tests). Full topology and env-var worksheet: **`docs/DEPLOYMENT.md`**.
 | Service | Source | Start command | Public? |
 |---|---|---|---|
 | `api` | `backend/` | `bin/start-web.sh` (runs migrations first) | no — private network only |
-| `worker` | `backend/` | `bin/start-worker.sh` | no |
-| `beat` | `backend/` | `bin/start-beat.sh` | no |
+| `worker` | `backend/` | `bin/start-worker.sh` (celery worker + `-B` scheduler; keep 1 replica) | no |
 | `frontend` | `frontend/` | Next.js standalone | **yes** — `app.seenby.my` |
 
 ```bash

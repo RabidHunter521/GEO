@@ -13,7 +13,7 @@ values into Railway and Vercel.
 
 | Piece | Host | Source of truth |
 |---|---|---|
-| API + worker + beat | Railway (3 services, 1 image) | `backend/bin/start-*.sh`, `backend/Dockerfile` |
+| API + worker (+ beat scheduler) | Railway (2 services, 1 image) | `backend/bin/start-*.sh`, `backend/Dockerfile` |
 | Admin panel | Railway (1 service) | `frontend/Dockerfile` (Next.js 15 standalone) |
 | PostgreSQL | **Railway** (`Postgres` service, private network) | `backend/.env.example` |
 | Redis (Celery broker) | Railway plugin | `REDIS_URL` in `app/core/config.py` |
@@ -25,8 +25,8 @@ Accounts needed: Railway, Cloudflare, Resend, billing-enabled API keys for
 Anthropic / OpenAI / Gemini / Perplexity, and DNS control for `seenby.my`.
 No Supabase account is required — see the warning in 1.1.
 
-Only the **frontend** service gets a public Railway domain. `api`, `worker`,
-and `beat` should never have public networking enabled — Railway gives every
+Only the **frontend** service gets a public Railway domain. `api` and
+`worker` should never have public networking enabled — Railway gives every
 service in a project a private DNS name (`<service-name>.railway.internal`)
 automatically, reachable only from other services in the same project.
 
@@ -37,7 +37,7 @@ automatically, reachable only from other services in the same project.
 ### 1.1 PostgreSQL (Railway service)
 - In the Railway project: **New → Database → Add PostgreSQL**. It joins the
   project's private network automatically as the `Postgres` service.
-- Set `DATABASE_URL` on `api`, `worker` and `beat` to that service's internal
+- Set `DATABASE_URL` on `api` and `worker` to that service's internal
   URL — `postgresql://postgres:<password>@postgres.railway.internal:5432/railway`.
   All three must point at the same database.
 - Migrations run automatically on deploy (`alembic upgrade head` in
@@ -125,16 +125,16 @@ One Railway project = **Redis + 4 services** — 3 from `backend/Dockerfile`,
 2. **Service `api`** — source `backend/`, start command `bin/start-web.sh`
    (Dockerfile default). **Leave public networking off.**
 3. **Service `worker`** — source `backend/`, start command
-   `bin/start-worker.sh`. No networking needed at all.
-4. **Service `beat`** — source `backend/`, start command `bin/start-beat.sh`.
-   No networking needed at all.
-5. **Service `frontend`** — source `frontend/` (uses `frontend/Dockerfile`).
+   `bin/start-worker.sh`. No networking needed at all. It also runs the beat
+   scheduler (`-B`), so there is no separate `beat` service. **Keep it at one
+   replica** — a second replica would fire every periodic task twice.
+4. **Service `frontend`** — source `frontend/` (uses `frontend/Dockerfile`).
    This is the only service that gets a public domain.
 
-Set **the same backend env vars on `api`, `worker`, AND `beat`** (worker &
-beat need DB/Redis/LLM/email keys too — see worksheet). Then:
+Set **the same backend env vars on `api` AND `worker`** (the worker
+needs DB/Redis/LLM/email keys too — see worksheet). Then:
 
-- Deploy `api` **first** (it runs the migrations), then `worker`, then `beat`,
+- Deploy `api` **first** (it runs the migrations), then `worker`,
   then `frontend`.
 - ⚠️ Set `RATE_LIMIT_TRUSTED_PROXY=1` on the backend services — Railway sits
   behind a proxy, so the rate limiter must trust `X-Forwarded-For`.
@@ -194,10 +194,10 @@ No `api.seenby.my` record — the API is private-network-only (Phase 2).
   (`/health`) on the `api` service (Settings → Healthcheck) and watch its
   deploy logs instead.
 - **Cron health:** digests, reports, and the daily retention/purge job run from
-  the `beat` service — keep it running and watch its logs.
+  the beat scheduler inside the `worker` service — keep it running and watch its logs.
 - **Cost ceiling:** provider billing caps + in-app budgets = belt & suspenders.
 - **Retention:** 90-day raw scan responses + 6-month churn deletion run via the
-  beat maintenance task.
+  beat maintenance task (scheduler runs inside `worker`).
 
 ---
 
@@ -206,7 +206,7 @@ No `api.seenby.my` record — the API is private-network-only (Phase 2).
 Fill these in as you provision. `ADMIN_API_KEY` must be **identical** on backend
 and frontend.
 
-### Backend (Railway — set on `api`, `worker`, AND `beat`)
+### Backend (Railway — set on `api` AND `worker`)
 
 | Var | Value | From |
 |---|---|---|
@@ -265,14 +265,13 @@ Backups, uptime monitoring, and cron health are your only ongoing ops tasks.
 
 **Will a GitHub push auto-deploy everywhere?**
 Yes — enable it once per service during setup. When you create each service
-(`api`, `worker`, `beat`, `frontend`), Railway asks which branch to watch —
+(`api`, `worker`, `frontend`), Railway asks which branch to watch —
 pick `master` and tick "Deploy on push." After that, every push redeploys all
-four.
+three.
 
 ```
 git push → GitHub → webhook → Railway redeploys api      (runs alembic upgrade head first)
                              → Railway redeploys worker
-                             → Railway redeploys beat
                              → Railway redeploys frontend
 ```
 

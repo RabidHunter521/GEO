@@ -35,23 +35,13 @@ services:
       start_period: 20s
 
   # Same image as backend-web, different process. Migrations run once, in
-  # backend-web's start-web.sh — not repeated here.
+  # backend-web's start-web.sh — not repeated here. Also runs the beat
+  # scheduler (-B in start-worker.sh); keep this at one instance.
   backend-worker:
     build:
       context: ./backend
     restart: unless-stopped
     command: ["bin/start-worker.sh"]
-    env_file:
-      - ./backend/.env.production
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  backend-beat:
-    build:
-      context: ./backend
-    restart: unless-stopped
-    command: ["bin/start-beat.sh"]
     env_file:
       - ./backend/.env.production
     depends_on:

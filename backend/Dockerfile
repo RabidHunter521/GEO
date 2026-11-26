@@ -1,5 +1,5 @@
 # backend/Dockerfile
-# Single image shared by all Railway services (api, worker, beat).
+# Single image shared by all Railway services (api, worker).
 # Each service overrides the start command — see bin/start-*.sh.
 # Pinned to bookworm (not the floating `slim` tag): it rolled to Debian
 # trixie, which renamed libgdk-pixbuf2.0-0 and broke this apt-get install.
