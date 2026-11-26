@@ -15,7 +15,7 @@ build.
 - **Backend** — FastAPI (Python)
 - **Database** — PostgreSQL (Railway `Postgres` service in production)
 - **Background jobs** — Celery + Redis
-- **Production hosting** — Railway (API, worker, beat, frontend) — see
+- **Production hosting** — Railway (API, worker + scheduler, frontend) — see
   [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
 
 SeenBy is a production agency platform: owner + staff admin accounts, no
